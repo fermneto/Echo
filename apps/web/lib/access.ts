@@ -12,7 +12,6 @@ export type RouteDef = { href: string; label: string; hint?: string; roles: read
 
 export const ROUTES = {
   inicio: { href: "/", label: "Início", roles: ALL },
-  escritorio: { href: "/escritorio", label: "Escritório", hint: "A equipe num mapa, cada pessoa no seu fuso.", roles: ALL },
   plano: { href: "/plano", label: "Meu plano", hint: "O que chegou para você hoje, em ordem de prioridade.", roles: PEOPLE },
   notaDoDia: { href: "/nota-do-dia", label: "Nota do dia", hint: "O rascunho do seu gêmeo para você conferir e publicar.", roles: PEOPLE },
   notas: { href: "/notas", label: "Notas", hint: "O que cada gêmeo sabe, com versões e fontes.", roles: PEOPLE },
@@ -30,7 +29,7 @@ export type RouteId = keyof typeof ROUTES;
 
 export const NAV_GROUPS: readonly { label: string; routes: readonly RouteId[] }[] = [
   { label: "Meu dia", routes: ["plano", "notaDoDia"] },
-  { label: "Equipe", routes: ["equipe", "notas", "escritorio"] },
+  { label: "Equipe", routes: ["equipe", "notas"] },
   { label: "Gestão", routes: ["relatorios", "redistribuicao", "ganhos", "execucoes", "configuracao"] },
   { label: "Demo", routes: ["simulador"] },
 ];
