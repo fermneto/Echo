@@ -12,6 +12,8 @@ export type PlanItem = {
   action?: { label: string; href?: string; done?: string };
   /** Prazo (AAAA-MM-DD): o motivo é escrito em relação a hoje, na tela. */
   dueIso?: string;
+  /** Correção real (fix_runs): aprovar ou recusar passa pelo fluxo da correção, com a aprovação registrada. */
+  fixId?: string;
 };
 
 const PLANS: Record<string, PlanItem[]> = {

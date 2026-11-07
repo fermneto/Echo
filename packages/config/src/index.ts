@@ -69,6 +69,9 @@ export const webSchema = baseSchema.extend({
   PANEL_URL: optionalString.pipe(z.url().optional()),
   /** Espaço do Slack da empresa, para o login ir direto a ele (opcional). */
   DEMO_SLACK_TEAM_ID: optionalString,
+  /** GitHub App (o mesmo do worker): Meu plano confere o rascunho da correção antes de aprovar. */
+  GITHUB_APP_ID: optionalString,
+  GITHUB_PRIVATE_KEY: optionalString,
 });
 
 /**
@@ -131,6 +134,9 @@ export const reviewerSchema = baseSchema.extend({
   // Sem eles, não há correção.
   FIX_AGENT_ID: optionalString.pipe(z.string().startsWith("agent_", "precisa começar com agent_").optional()),
   FIX_ENVIRONMENT_ID: optionalString.pipe(z.string().startsWith("env_", "precisa começar com env_").optional()),
+  // GitHub App (o mesmo do worker): lê o PR, pede o token só leitura da sessão e confere o rascunho.
+  GITHUB_APP_ID: optionalString,
+  GITHUB_PRIVATE_KEY: optionalString,
   // Intervalo da busca por revisões a corrigir e por rascunhos prontos.
   FIX_SCAN_MS: z.coerce.number().int().min(10_000).default(300_000),
   // Tempo máximo de uma correção no ambiente isolado.

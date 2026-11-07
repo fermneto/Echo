@@ -6,6 +6,7 @@ import { requireAccess } from "@/lib/session";
 import { personIdFor } from "@/lib/agent";
 import { panelDb } from "@/lib/db";
 import { gainsOrgId } from "@/lib/gains";
+import { decidirCorrecao } from "./actions";
 import { PlanList } from "./PlanList";
 
 export const metadata = { title: "Meu plano · Echo" };
@@ -26,6 +27,7 @@ export default async function PlanoPage() {
     title: `Correção pronta no PR ${f.pr.number} (${f.pr.repository})`,
     why: [`A revisão noturna deixou a correção no rascunho ${f.draftPrNumber}; ${f.tests === "passou" ? "os testes relatados passaram" : f.tests === "falhou" ? "o agente relatou falha nos testes" : "o agente não rodou os testes"}. Nada foi aprovado.`, f.delegationNote].filter(Boolean).join(" "),
     kind: "correção",
+    fixId: f.fixId,
   }));
   const items = [
     ...fromPlans,
@@ -38,7 +40,7 @@ export default async function PlanoPage() {
     <>
       <h1 className="hero-title hero-title--page">Meu plano, {new Intl.DateTimeFormat("pt-BR", { timeZone: me.timezone, day: "2-digit", month: "2-digit" }).format(new Date())}</h1>
       <p className="lead">Só você vê este plano. A ordem é uma sugestão: primeiro quem está esperando, depois correções e prazos.</p>
-      <PlanList initial={items} />
+      <PlanList initial={items} decideFix={decidirCorrecao} />
     </>
   );
 }

@@ -1,7 +1,7 @@
 // Executor do outbox: a ÚNICA peça que altera GitHub, Linear ou Slack.
 // Cada ação tem chave única (não roda duas vezes), é reservada por atualização condicional
 // (dois workers não executam a mesma) e só roda aprovada — exceto as listadas em REQUIRES_APPROVAL como false.
-import type { ChatPlatform, CodeWriter, IssueWriter } from "@echo/connectors";
+import { FixRefused, PatchError, type ChatPlatform, type CodeWriter, type FixDraftInput, type FixMergeInput, type IssueWriter } from "@echo/connectors";
 import { asSystem, auditLog, identities, outboxActions, planItems, tasks, withOrg, type Database, type Tx } from "@echo/db";
 import { and, asc, eq, inArray, lt, sql } from "drizzle-orm";
 import { REQUIRES_APPROVAL, type ActionType, type OutboxAction } from "./index.ts";
@@ -15,8 +15,8 @@ export interface ActionPayloads {
   "linear.comment": { taskKey: string; body: string };
   "github.comment": { repo: string; number: number; body: string };
   "github.set_reviewers": { repo: string; number: number; personIds: string[]; planItemId?: string };
-  "github.draft_pr": Record<string, unknown>;
-  "github.merge_fix": Record<string, unknown>;
+  "github.draft_pr": FixDraftInput & { prNumber?: number };
+  "github.merge_fix": FixMergeInput;
   "slack.post": { channel: string; text: string; threadTs?: string; agentName?: string };
   "slack.dm": { personId: string; text: string; blocks?: unknown[] };
 }
@@ -91,7 +91,8 @@ async function taskLinearId(tx: Tx, orgId: string, taskKey: string): Promise<{ i
   return { id: t.id, linearId: t.linearId };
 }
 
-async function run(deps: ExecutorDeps, row: Row): Promise<void> {
+/** O que a execução devolve fica em `outbox_actions.result`, para o fluxo que pediu a ação (ex.: o rascunho). */
+async function run(deps: ExecutorDeps, row: Row): Promise<unknown> {
   const { db } = deps;
   const orgId = row.orgId;
   const w = await deps.writers(orgId);
@@ -136,6 +137,20 @@ async function run(deps: ExecutorDeps, row: Row): Promise<void> {
       if (logins.length < p.personIds.length) throw new PermanentActionError("revisor sem conta no GitHub");
       await need("code", "GitHub").requestReviewers(p.repo, p.number, logins);
       return;
+    }
+    case "github.draft_pr": {
+      const p = row.payload as ActionPayloads["github.draft_pr"];
+      const code = need("code", "GitHub");
+      if (!code.openFixDraft) throw new PermanentActionError("o GitHub ligado não abre rascunho de correção");
+      return code.openFixDraft(p);
+    }
+    case "github.merge_fix": {
+      const p = row.payload as ActionPayloads["github.merge_fix"];
+      // Defesa em profundidade: união só com aprovação registrada (a fila já não deixa rodar sem ela).
+      if (!row.approvedBy) throw new PermanentActionError("união sem aprovação registrada");
+      const code = need("code", "GitHub");
+      if (!code.mergeFix) throw new PermanentActionError("o GitHub ligado não une correção");
+      return code.mergeFix(p);
     }
     case "slack.post": {
       const p = row.payload as ActionPayloads["slack.post"];
@@ -187,15 +202,16 @@ export async function drainActions(deps: ExecutorDeps, orgId: string): Promise<{
     if (!row) continue;
     const planItemId = (row.payload as { planItemId?: string }).planItemId;
     try {
-      await run(deps, row);
+      const result = await run(deps, row);
       await withOrg(db, orgId, async (tx) => {
-        await tx.update(outboxActions).set({ state: "done", error: null }).where(eq(outboxActions.id, row.id));
+        await tx.update(outboxActions).set({ state: "done", error: null, ...(result === undefined ? {} : { result }) }).where(eq(outboxActions.id, row.id));
         if (planItemId) await tx.update(planItems).set({ state: "done" }).where(and(eq(planItems.orgId, orgId), eq(planItems.id, planItemId)));
         await tx.insert(auditLog).values({ orgId, actor: "echo:actions", action: `execute:${row.type}`, target: row.target });
       });
       out.done++;
     } catch (err) {
-      const permanent = err instanceof PermanentActionError;
+      // Correção recusada pelo GitHub (rascunho mudou, conflito) ou diff que não aplica: repetir não muda nada.
+      const permanent = err instanceof PermanentActionError || err instanceof FixRefused || err instanceof PatchError;
       const exhausted = permanent || row.attempts >= MAX_ATTEMPTS;
       const message = err instanceof Error ? err.message.slice(0, 500) : "erro";
       await withOrg(db, orgId, async (tx) => {

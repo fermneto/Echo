@@ -12,6 +12,7 @@
   "dependencies": {
     "@echo/agents": "workspace:*",
     "@echo/config": "workspace:*",
+    "@echo/connectors": "workspace:*",
     "@echo/db": "workspace:*",
     "@echo/jobs": "workspace:*",
     "@echo/observability": "workspace:*",
