@@ -293,15 +293,6 @@ export default function LandingPage() {
           <p className="lp-mono lp-stack">GITHUB · LINEAR · SLACK · RH POR AVISO ASSINADO · POWERED BY CLAUDE</p>
         </section>
 
-        <section className="lp-close" aria-labelledby="fim">
-          <h2 id="fim" className="lp-headline-lg">
-            Fernando dorme em Fortaleza. Pergunte ao agente dele.
-          </h2>
-          <p className="lp-lead">A demo usa uma empresa fictícia, com dados sintéticos. Entre como Eduardo e pergunte se pode seguir com a ech-131-api-v2.</p>
-          <Link href="/entrar" className="lp-btn lp-btn--paper">
-            Testar a demo
-          </Link>
-        </section>
       </main>
 
       <footer className="lp-footer">

@@ -504,17 +504,6 @@
   color: var(--color-ash);
 }
 
-/* Fechamento */
-.lp-close {
-  width: min(var(--lp-width), calc(100% - 2 * var(--space-gutter)));
-  margin: 0 auto;
-  padding: var(--space-section) 0;
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: var(--space-xl);
-}
-
 /* Rodapé */
 .lp-footer {
   width: min(var(--lp-width), calc(100% - 2 * var(--space-gutter)));
@@ -700,8 +689,7 @@
   }
 }
 @media (max-width: 520px) {
-  .lp-actions .lp-btn,
-  .lp-close .lp-btn {
+  .lp-actions .lp-btn {
     width: 100%;
   }
   .lp-footer {
