@@ -39,6 +39,11 @@ describe.skipIf(!url)("executor do outbox (Postgres real)", () => {
       calls.push(`github.put ${repo}/${path}`);
       return { sha };
     },
+    deleteFile: async (repo, path, sha) => {
+      if (repoFiles.get(path) !== sha) throw new FileChangedError(`${path} mudou`);
+      repoFiles.delete(path);
+      calls.push(`github.delete ${repo}/${path}`);
+    },
   };
   const chat = {
     postAgentReply: async (i: { channel: string; text: string; agentName: string }) => (calls.push(`slack.post ${i.channel} [${i.agentName}]: ${i.text}`), { ts: "1" }),
@@ -155,6 +160,22 @@ describe.skipIf(!url)("executor do outbox (Postgres real)", () => {
     const [failed] = await db.select().from(outboxActions).where(and(eq(outboxActions.orgId, orgId), eq(outboxActions.idempotencyKey, "mirror:2")));
     expect(failed!.error).toMatch(/mudou no Git/);
     expect(repoFiles.get("equipe/acordos.md")).toBe("sha-editado-no-git");
+  });
+
+  it("espelho: remove do brains a nota que não pode ficar lá, zera o sha e não apaga um arquivo que mudou", async () => {
+    calls.length = 0;
+    const [note] = await db.insert(brainNotes).values({ orgId, path: "agente-x/diario.md", kind: "diario", content: "Pessoal.", visibility: "person", sha: "sha-antigo" }).returning();
+    repoFiles.set("agente-x/diario.md", "sha-editado");
+    const payload = { repo: "org-teste/brains", noteId: note!.id, path: note!.path, sha: "sha-antigo" };
+    await enqueueAction(app, orgId, { type: "github.mirror_delete", target: "github:org-teste/brains", idempotencyKey: "mirror-del:1", payload });
+    expect((await drainActions(deps(), orgId)).failed).toBe(1);
+    expect(repoFiles.has("agente-x/diario.md")).toBe(true);
+
+    await enqueueAction(app, orgId, { type: "github.mirror_delete", target: "github:org-teste/brains", idempotencyKey: "mirror-del:2", payload: { ...payload, sha: "sha-editado" } });
+    expect((await drainActions(deps(), orgId)).done).toBe(1);
+    expect(calls).toEqual(["github.delete org-teste/brains/agente-x/diario.md"]);
+    expect(repoFiles.has("agente-x/diario.md")).toBe(false);
+    expect((await db.select().from(brainNotes).where(eq(brainNotes.id, note!.id)))[0]!.sha).toBeNull();
   });
 
   it("plataforma não ligada falha com motivo claro; ação presa em running volta para a fila", async () => {

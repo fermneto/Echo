@@ -1,7 +1,7 @@
 // Adaptador do GitHub (GitHub App) para a porta CodeHost, por HTTP, sem SDK.
 // Token de instalação de 1 hora, renovado num só lugar. Somente leitura: escrever é com packages/actions.
 import { createSign } from "node:crypto";
-import { FileChangedError, type CodeHost, type CodeWriter, type RepoFiles } from "./index.ts";
+import { FileChangedError, trustedLogin, type CodeHost, type CodeWriter, type CommitIdentity, type PathEdits, type RepoFiles } from "./index.ts";
 import { checksStateOf } from "./github.ts";
 import { taskKeyFrom, type ChecksState, type ExternalPullRequest, type LivePullRequest } from "./normalized.ts";
 import { RefreshingToken } from "./tokens.ts";
@@ -163,6 +163,9 @@ function toPr(repo: string, pr: any): ExternalPullRequest {
   };
 }
 
+/** Commits por arquivo conferidos numa sincronização do espelho; acima disso a edição espera alguém olhar. */
+const MIRROR_MAX_COMMITS = 10;
+
 /** PRs com até 3.000 arquivos: acima disso o GitHub corta e a análise automática não roda. */
 const MAX_FILE_PAGES = 30;
 
@@ -263,9 +266,25 @@ export class GithubCodeHost implements CodeHost, CodeWriter, RepoFiles {
     return data.encoding === "base64" ? Buffer.from(data.content, "base64").toString("utf8") : data.content;
   }
 
-  async lastAuthorLogin(repo: string, path: string): Promise<string | null> {
-    const { data } = await this.get<{ author: { login?: string } | null }[]>(`/repos/${repo}/commits?path=${encodeURIComponent(path)}&per_page=1`);
-    return data[0]?.author?.login ?? null;
+  async editsSince(repo: string, path: string, syncedSha: string | null): Promise<PathEdits> {
+    const { data } = await this.get<(CommitIdentity & { sha: string })[]>(`/repos/${repo}/commits?path=${encodeURIComponent(path)}&per_page=${MIRROR_MAX_COMMITS + 1}`);
+    const logins: string[] = [];
+    for (const c of data) {
+      // O commit em que o arquivo ficou igual ao que o Echo conhece é o ponto de sincronização: dali para trás já valeu.
+      if (syncedSha !== null && (await this.blobAt(repo, path, c.sha)) === syncedSha) return { kind: "ok", logins };
+      if (logins.length === MIRROR_MAX_COMMITS) return { kind: "historico_longo" };
+      const login = trustedLogin(c);
+      if (!login) return { kind: "nao_verificado" };
+      logins.push(login);
+    }
+    // Sem ponto de sincronização na lista: só vale se a lista inteira coube (o arquivo nasceu nela).
+    return data.length > MIRROR_MAX_COMMITS ? { kind: "historico_longo" } : { kind: "ok", logins };
+  }
+
+  /** Sha do blob do caminho num commit (null se o arquivo não existia nele). */
+  private async blobAt(repo: string, path: string, ref: string): Promise<string | null> {
+    const data = await this.getOrNull<{ sha: string }>(`/repos/${repo}/contents/${path.split("/").map(encodeURIComponent).join("/")}?ref=${ref}`);
+    return data?.sha ?? null;
   }
 
   async putFile(repo: string, path: string, content: string, message: string, previousSha?: string): Promise<{ sha: string }> {
@@ -278,6 +297,17 @@ export class GithubCodeHost implements CodeHost, CodeWriter, RepoFiles {
       return { sha: data.content.sha };
     } catch (err) {
       // 409: sha diferente do atual. 422: o arquivo já existe e não foi informado sha.
+      if (err instanceof GithubApiError && (err.status === 409 || err.status === 422)) throw new FileChangedError(`${path} mudou no repositório`);
+      throw err;
+    }
+  }
+
+  async deleteFile(repo: string, path: string, sha: string, message: string): Promise<void> {
+    const encoded = path.split("/").map(encodeURIComponent).join("/");
+    try {
+      await this.app.request(`/repos/${repo}/contents/${encoded}`, () => this.app.installationToken(this.installationId), { method: "DELETE", body: { message, sha } });
+    } catch (err) {
+      if (err instanceof GithubApiError && err.status === 404) return;
       if (err instanceof GithubApiError && (err.status === 409 || err.status === 422)) throw new FileChangedError(`${path} mudou no repositório`);
       throw err;
     }

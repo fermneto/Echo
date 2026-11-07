@@ -18,6 +18,7 @@ export interface ActionPayloads {
   "github.draft_pr": Record<string, unknown>;
   "github.merge_fix": Record<string, unknown>;
   "github.mirror_write": { repo: string; noteId: string; path: string; content: string; previousSha?: string };
+  "github.mirror_delete": { repo: string; noteId: string; path: string; sha: string };
   "slack.post": { channel: string; text: string; threadTs?: string; agentName?: string };
   "slack.dm": { personId: string; text: string };
 }
@@ -149,6 +150,17 @@ async function run(deps: ExecutorDeps, row: Row): Promise<void> {
       }
       // Ponto de sincronização: o blob que está no Git agora é o que o Echo escreveu.
       await withOrg(db, orgId, (tx) => tx.update(brainNotes).set({ sha }).where(and(eq(brainNotes.orgId, orgId), eq(brainNotes.id, p.noteId))));
+      return;
+    }
+    case "github.mirror_delete": {
+      const p = row.payload as ActionPayloads["github.mirror_delete"];
+      try {
+        await need("code", "GitHub").deleteFile(p.repo, p.path, p.sha, `Echo: remove ${p.path}, que não pode ficar no espelho`);
+      } catch (err) {
+        if (err instanceof FileChangedError) throw new PermanentActionError("o arquivo mudou no Git; a próxima sincronização tenta remover de novo");
+        throw err;
+      }
+      await withOrg(db, orgId, (tx) => tx.update(brainNotes).set({ sha: null }).where(and(eq(brainNotes.orgId, orgId), eq(brainNotes.id, p.noteId))));
       return;
     }
     case "slack.post": {

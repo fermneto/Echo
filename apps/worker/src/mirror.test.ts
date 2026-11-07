@@ -22,8 +22,8 @@ class MemoryBrains {
   async readBlob(_r: string, sha: string) {
     return this.blobs.get(sha)!;
   }
-  async lastAuthorLogin() {
-    return null;
+  async editsSince() {
+    return { kind: "ok" as const, logins: [] };
   }
   async putFile(_r: string, path: string, content: string, _m: string, previousSha?: string) {
     if (this.files.get(path) !== previousSha) throw new FileChangedError(path);
@@ -31,6 +31,10 @@ class MemoryBrains {
     this.blobs.set(sha, content);
     this.files.set(path, sha);
     return { sha };
+  }
+  async deleteFile(_r: string, path: string, sha: string) {
+    if (this.files.get(path) !== sha) throw new FileChangedError(path);
+    this.files.delete(path);
   }
 }
 
@@ -62,7 +66,7 @@ describe.skipIf(!url)("espelho no worker", () => {
   });
 
   it("exporta pelo outbox, sem aprovação, e a rodada seguinte não repete nada", async () => {
-    expect(await mirrorOrg(deps, orgId)).toEqual({ imported: 0, exported: 2, warnings: 0 });
+    expect(await mirrorOrg(deps, orgId)).toEqual({ imported: 0, exported: 2, removed: 0, warnings: 0 });
     expect(drains).toEqual([orgId]); // pede a execução na hora
     const actions = await db.select().from(outboxActions).where(and(eq(outboxActions.orgId, orgId), eq(outboxActions.type, "github.mirror_write")));
     expect(actions.map((a) => a.state)).toEqual(["approved", "approved"]);
@@ -72,7 +76,7 @@ describe.skipIf(!url)("espelho no worker", () => {
     expect(note!.sha).toBe(brains.files.get("equipe/acordos.md"));
     expect(brains.blobs.get(note!.sha!)).toContain("Revisão até 24 h.");
 
-    expect(await mirrorOrg(deps, orgId)).toEqual({ imported: 0, exported: 0, warnings: 0 });
+    expect(await mirrorOrg(deps, orgId)).toEqual({ imported: 0, exported: 0, removed: 0, warnings: 0 });
     expect(runs.runs.filter((r) => r.flow === "brain_mirror")).toHaveLength(2);
   });
 

@@ -6,6 +6,11 @@
 // a nota ganha mirror_conflict_at e um aviso: nada é sobrescrito em silêncio.
 //
 // `brain_notes.sha` guarda o blob do arquivo na última sincronização. É ele que diz quem mudou.
+//
+// Privacidade: o repositório é um só para a empresa, e quem tem acesso a ele lê tudo. Por isso só vai para o Git
+// o que toda a empresa (fora o RH) já pode ler pelo `canSee`: notas de equipe sem dona e, quando a empresa
+// inteira é uma equipe só, as notas de equipe das pessoas. Nota pessoal (`person`) e privada nunca vão.
+// Se uma nota deixa de ser exportável, o arquivo sai do repositório. O RH não deve ter acesso ao repositório.
 import { createHash } from "node:crypto";
 import { auditLog, brainNotes, identities, people, withOrg, type Database } from "@echo/db";
 import { and, eq } from "drizzle-orm";
@@ -16,8 +21,11 @@ import { createPgBrainStore } from "./pg.ts";
 export interface MirrorSource {
   listFiles(repo: string): Promise<{ files: Map<string, string>; truncated: boolean }>;
   readBlob(repo: string, sha: string): Promise<string>;
-  lastAuthorLogin(repo: string, path: string): Promise<string | null>;
+  /** Quem fez cada commit no caminho desde `syncedSha`, só com commits verificados (ver packages/connectors). */
+  editsSince(repo: string, path: string, syncedSha: string | null): Promise<PathEdits>;
 }
+
+export type PathEdits = { kind: "ok"; logins: string[] } | { kind: "nao_verificado" } | { kind: "historico_longo" };
 
 export interface MirrorNote {
   id: string;
@@ -40,7 +48,15 @@ export interface MirrorExport {
   sha: string;
 }
 
-export type MirrorWarningCode = "nome_invalido" | "desconhecido" | "conta_nao_ligada" | "sem_permissao" | "conflito" | "removido" | "nota_fora_da_regra";
+/** Arquivo que precisa sair do repositório: nota que deixou de ser exportável. */
+export interface MirrorRemoval {
+  noteId: string;
+  path: string;
+  /** Blob que está no Git agora: se mudar até a remoção, ela é recusada e refeita na próxima rodada. */
+  sha: string;
+}
+
+export type MirrorWarningCode = "nome_invalido" | "desconhecido" | "conta_nao_ligada" | "sem_permissao" | "conflito" | "removido" | "nota_fora_da_regra" | "nao_verificado" | "historico_longo";
 
 export interface MirrorWarning {
   code: MirrorWarningCode;
@@ -83,8 +99,23 @@ export function parseNoteFile(text: string): string {
   return body.replace(/\n+$/, "");
 }
 
-/** Notas privadas não vão para o repositório: quem tem acesso a ele veria. */
-export const isExported = (n: Pick<MirrorNote, "visibility">) => n.visibility !== "private";
+/**
+ * Se a nota pode ir para o repositório, que toda a empresa lê.
+ * `oneTeam`: a equipe de todas as pessoas da empresa fora o RH, se for uma só (e todas tiverem equipe).
+ */
+export function isExported(n: Pick<MirrorNote, "visibility" | "personId"> & { ownerTeamId?: string | null }, oneTeam: string | null): boolean {
+  if (n.visibility !== "team") return false;
+  if (n.personId === null) return true;
+  return oneTeam !== null && n.ownerTeamId === oneTeam;
+}
+
+/** A equipe única da empresa (fora o RH), ou null se houver mais de uma ou alguém sem equipe. */
+export function soleTeam(staff: readonly { role: string; teamId: string | null; active: boolean }[]): string | null {
+  const ids = new Set(staff.filter((p) => p.active && p.role !== "hr").map((p) => p.teamId));
+  if (ids.size !== 1) return null;
+  const [only] = ids;
+  return only ?? null;
+}
 
 export type NoteAction =
   | { kind: "in_sync" }
@@ -120,6 +151,7 @@ export interface MirrorResult {
   imported: number;
   conflicts: number;
   exports: MirrorExport[];
+  removals: MirrorRemoval[];
   warnings: MirrorWarning[];
   truncated: boolean;
 }
@@ -130,7 +162,10 @@ export interface MirrorResult {
  */
 export async function syncMirror(db: Database, orgId: string, source: MirrorSource, repo: string): Promise<MirrorResult> {
   const { files, truncated } = await source.listFiles(repo);
-  const out: MirrorResult = { imported: 0, conflicts: 0, exports: [], warnings: [], truncated };
+  const out: MirrorResult = { imported: 0, conflicts: 0, exports: [], removals: [], warnings: [], truncated };
+  const staff = await withOrg(db, orgId, (tx) => tx.select({ role: people.role, teamId: people.teamId, active: people.active }).from(people).where(eq(people.orgId, orgId)));
+  const oneTeam = soleTeam(staff);
+  const exported = (n: (typeof notes)[number]) => isExported(n, oneTeam);
 
   const notes = await withOrg(db, orgId, (tx) =>
     tx
@@ -151,16 +186,21 @@ export async function syncMirror(db: Database, orgId: string, source: MirrorSour
   );
   const byPath = new Map(notes.map((n) => [n.path, n]));
 
-  // Arquivos no Git sem nota correspondente (ou de nota privada, que nunca é exportada).
+  // Arquivos no Git sem nota correspondente; os de nota que não pode estar lá saem do repositório.
   for (const [path, sha] of files) {
     if (isIgnoredPath(path)) continue;
     const n = byPath.get(path);
-    if (n && isExported(n)) continue;
-    out.warnings.push({ code: isValidNotePath(path) ? "desconhecido" : "nome_invalido", path, sha });
+    if (n && exported(n)) continue;
+    if (n) out.removals.push({ noteId: n.id, path, sha });
+    else out.warnings.push({ code: isValidNotePath(path) ? "desconhecido" : "nome_invalido", path, sha });
   }
 
   for (const note of notes) {
-    if (!isExported(note)) continue;
+    if (!exported(note)) {
+      // Já saiu do Git: esquece o ponto de sincronização, para voltar como arquivo novo se um dia puder.
+      if (note.sha !== null && !files.has(note.path)) await withOrg(db, orgId, (tx) => tx.update(brainNotes).set({ sha: null }).where(and(eq(brainNotes.orgId, orgId), eq(brainNotes.id, note.id))));
+      continue;
+    }
     if (!isValidNotePath(note.path)) {
       out.warnings.push({ code: "nota_fora_da_regra", path: note.path });
       continue;
@@ -183,16 +223,23 @@ export async function syncMirror(db: Database, orgId: string, source: MirrorSour
         out.warnings.push({ code: "removido", path: note.path });
         break;
       case "import": {
-        const login = await source.lastAuthorLogin(repo, note.path);
-        const editor = login ? await editorByLogin(db, orgId, login) : null;
-        if (!editor) {
+        // Todos os commits desde a última sincronização, não só o último: cada um precisa de quem pode editar.
+        const edits = await source.editsSince(repo, note.path, note.sha);
+        if (edits.kind !== "ok") {
+          out.warnings.push({ code: edits.kind, path: note.path, sha: action.sha });
+          break;
+        }
+        // Sem repetição e na mesma ordem: o primeiro é quem fez o commit mais recente.
+        const editors = await Promise.all([...new Set(edits.logins)].map((l) => editorByLogin(db, orgId, l)));
+        if (edits.logins.length === 0 || editors.some((e) => !e)) {
           out.warnings.push({ code: "conta_nao_ligada", path: note.path, sha: action.sha });
           break;
         }
-        if (!canEditByMirror(editor, { personId: note.personId, teamId: note.ownerTeamId })) {
+        if (!editors.every((e) => canEditByMirror(e!, { personId: note.personId, teamId: note.ownerTeamId }))) {
           out.warnings.push({ code: "sem_permissao", path: note.path, sha: action.sha });
           break;
         }
+        const editor = editors[0]!;
         const content = parseNoteFile(await source.readBlob(repo, action.sha));
         await importEdit(db, orgId, note.id, editor.personId, content, action.sha, action.echoAlsoChanged);
         out.imported++;

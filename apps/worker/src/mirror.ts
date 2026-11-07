@@ -17,14 +17,15 @@ export interface MirrorDeps {
 }
 
 /** Uma rodada do espelho para a empresa: importa edições do Git e põe as exportações no outbox. */
-export async function mirrorOrg(d: MirrorDeps, orgId: string): Promise<{ imported: number; exported: number; warnings: number } | null> {
+export async function mirrorOrg(d: MirrorDeps, orgId: string): Promise<{ imported: number; exported: number; removed: number; warnings: number } | null> {
   const repo = d.brainsRepository;
   if (!repo) return null;
   const gh = await githubForOrg(d.db, d.platforms, orgId);
   if (!gh) return null;
   return withRun(d.runs, "brain_mirror", async () => {
     const r = await syncMirror(d.db, orgId, gh, repo);
-    let queued = 0;
+    let exported = 0;
+    let removed = 0;
     for (const e of r.exports) {
       // A chave inclui o sha esperado e o novo: o mesmo conteúdo sobre o mesmo arquivo nunca é escrito duas vezes.
       const { duplicate } = await enqueueAction(d.db, orgId, {
@@ -33,12 +34,22 @@ export async function mirrorOrg(d: MirrorDeps, orgId: string): Promise<{ importe
         idempotencyKey: `mirror:${e.noteId}:${e.previousSha ?? "novo"}:${e.sha}`,
         payload: { repo, noteId: e.noteId, path: e.path, content: e.content, ...(e.previousSha ? { previousSha: e.previousSha } : {}) },
       });
-      if (!duplicate) queued++;
+      if (!duplicate) exported++;
     }
-    if (queued) await d.queue?.send(QUEUES.actionsDrain, { orgId });
-    const summary = { imported: r.imported, conflicts: r.conflicts, exported: queued, warnings: r.warnings.length, truncated: r.truncated };
+    // Nota que deixou de poder estar no repositório (ficou pessoal ou privada, ou a empresa ganhou outra equipe).
+    for (const e of r.removals) {
+      const { duplicate } = await enqueueAction(d.db, orgId, {
+        type: "github.mirror_delete",
+        target: `github:${repo}`,
+        idempotencyKey: `mirror-del:${e.noteId}:${e.sha}`,
+        payload: { repo, noteId: e.noteId, path: e.path, sha: e.sha },
+      });
+      if (!duplicate) removed++;
+    }
+    if (exported + removed) await d.queue?.send(QUEUES.actionsDrain, { orgId });
+    const summary = { imported: r.imported, conflicts: r.conflicts, exported, removed, warnings: r.warnings.length, truncated: r.truncated };
     d.log.info({ orgId, ...summary }, "espelho das notas");
-    return { imported: r.imported, exported: queued, warnings: r.warnings.length };
+    return { imported: r.imported, exported, removed, warnings: r.warnings.length };
   }, { orgId });
 }
 
