@@ -6,8 +6,8 @@
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run --passWithNoTests",
-    "seed": "tsx src/index.ts"
+    "seed": "tsx --env-file-if-exists=../.env src/cli.ts"
   },
-  "dependencies": { "@echo/db": "workspace:*", "@echo/domain": "workspace:*", "tsx": "catalog:" },
+  "dependencies": { "@echo/db": "workspace:*", "@echo/domain": "workspace:*", "drizzle-orm": "catalog:", "tsx": "catalog:" },
   "devDependencies": { "@types/node": "catalog:", "typescript": "catalog:", "vitest": "catalog:" }
 }
