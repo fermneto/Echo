@@ -9,6 +9,7 @@ import { scopeDbIds, teamScope } from "@/lib/scope";
 import { panelPersona } from "@/lib/panel-person";
 import { requireAccess } from "@/lib/session";
 import { PixelAvatar } from "@/components/PixelAvatar";
+import { SearchFilter } from "@/components/SearchFilter";
 import { NoteCard } from "./NoteCard";
 import "./notas.css";
 
@@ -22,7 +23,7 @@ const LEAD = "O que cada gêmeo sabe, com versões e fontes. Cada pessoa corrige
 /** Notas de uma dona: cabeçalho com o bonequinho e a contagem, e uma nota por linha. */
 function Brain({ id, persona, name, count, children }: { id: string; persona?: Persona; name: string; count: number; children: React.ReactNode }) {
   return (
-    <section className="card brain" aria-labelledby={`cerebro-${id}`}>
+    <section className="card brain" aria-labelledby={`cerebro-${id}`} data-search-group>
       <header className="brain__who">
         {persona ? <PixelAvatar persona={persona} size={32} decorative /> : null}
         <h2 id={`cerebro-${id}`} className="card__title brain__name">
@@ -56,17 +57,19 @@ export default async function NotasPage() {
         {groups.length === 0 ? (
           <p className="note muted">Nenhuma nota visível para você ainda. Elas aparecem conforme os gêmeos registram decisões e você ou a equipe escrevem.</p>
         ) : (
+          <SearchFilter label="Buscar notas" placeholder="Buscar por título, texto, etiqueta ou pessoa" empty="Nenhuma nota encontrada com essa busca.">
           <div className="brain-grid">
             {groups.map((g) => (
               <Brain key={g.ownerId ?? "equipe"} id={g.ownerId ?? "equipe"} name={g.ownerId ? g.name : "toda a empresa"} count={g.notes.length} {...(g.ownerId ? { persona: panelPersona({ id: g.ownerId, name: g.name }) } : {})}>
                 {g.notes.map((n) => (
-                  <li key={`${n.id}@${latest(n).n}`}>
+                  <li key={`${n.id}@${latest(n).n}`} data-search={`${n.title} ${latest(n).body} ${n.tags.join(" ")} ${g.name}`}>
                     <NoteCard note={n} path={n.path} canEdit={n.canEdit} maxLength={MAX_BRAIN_NOTE} />
                   </li>
                 ))}
               </Brain>
             ))}
           </div>
+          </SearchFilter>
         )}
       </>
     );
@@ -79,6 +82,7 @@ export default async function NotasPage() {
     <>
       <h1 className="hero-title hero-title--page">Notas</h1>
       <p className="lead">{LEAD}</p>
+      <SearchFilter label="Buscar notas" placeholder="Buscar por título, texto, etiqueta ou pessoa" empty="Nenhuma nota encontrada com essa busca.">
       <div className="brain-grid">
         {owners.map((id) => {
           const p = findMember(id)!;
@@ -86,7 +90,7 @@ export default async function NotasPage() {
           return (
             <Brain key={id} id={id} persona={p} name={p.name} count={mine.length}>
               {mine.map((n) => (
-                <li key={`${n.id}@${latest(n).n}`}>
+                <li key={`${n.id}@${latest(n).n}`} data-search={`${n.title} ${latest(n).body} ${n.tags.join(" ")} ${p.name}`}>
                   <NoteCard note={n} path={`${p.name.toLowerCase()}/${FOLDER[n.folder]}`} canEdit={n.ownerId === me.id} />
                 </li>
               ))}
@@ -94,6 +98,7 @@ export default async function NotasPage() {
           );
         })}
       </div>
+      </SearchFilter>
     </>
   );
 }
