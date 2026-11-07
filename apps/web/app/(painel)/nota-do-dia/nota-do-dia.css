@@ -80,3 +80,12 @@
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+.note-draft {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-md);
+  margin: var(--space-xl) 0;
+  font-size: 14px;
+}

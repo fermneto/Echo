@@ -2,7 +2,9 @@
 
 import { canSee } from "@/lib/access";
 import { type NoteView, sectionsFromForm } from "@/lib/daily-note";
-import { confirmNote } from "@/lib/daily-note-store";
+import { confirmNote, draftNote } from "@/lib/daily-note-store";
+import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { currentPersona, demoMode } from "@/lib/session";
 
 export type ConfirmState = { view?: NoteView; error?: string; saved?: number };
@@ -22,4 +24,13 @@ export async function confirmarNota(_prev: ConfirmState, formData: FormData): Pr
     console.error("confirmação da nota do dia falhou", err instanceof Error ? err.message : String(err));
     return { error: "Não foi possível confirmar agora. Tente de novo em instantes." };
   }
+}
+
+/** Gerar o rascunho de hoje agora, sem esperar o fim do expediente. */
+export async function gerarRascunho(): Promise<void> {
+  const me = await currentPersona();
+  if (!me || !canSee(me.role, "notaDoDia", { demo: demoMode() })) return;
+  const r = await draftNote(me);
+  revalidatePath("/nota-do-dia");
+  if (!r.ok && r.reason) redirect(`/nota-do-dia?sem=${encodeURIComponent(r.reason)}`);
 }

@@ -11,11 +11,12 @@ import { gainsOrgId } from "./gains";
 
 /**
  * Nota do dia da própria pessoa. Com banco, o fluxo real do fim do expediente (packages/agents → createEndOfDay):
- * lê a nota de hoje e, se não houver, pede o rascunho ao agente. Sem banco, rascunho da demo com a confirmação
+ * lê a nota de hoje; o rascunho só é pedido ao agente por uma ação explícita (draftNote), nunca ao abrir a tela,
+ * porque pedir o rascunho grava e avisa no Slack. Sem banco, rascunho da demo com a confirmação
  * guardada no cookie deste visitante.
  */
 
-export type NoteRead = { view: NoteView | null; mode: "db" | "demo"; reason?: string };
+export type NoteRead = { view: NoteView | null; mode: "db" | "demo"; reason?: string; canDraft?: boolean };
 export type ConfirmResult = { ok: true; view: NoteView } | { ok: false; error: string };
 
 async function serverFlow() {
@@ -40,13 +41,8 @@ export async function readNote(me: Persona, now: Date = new Date()): Promise<Not
   const store = s.store(orgId);
   const data = s.data(orgId);
   let note = await store.get(personId, today);
-  let reason: string | undefined;
-  if (!note) {
-    // Mesmo rascunho do fim do expediente: idempotente por pessoa e data.
-    const r = await s.flow.draft(orgId, personId, today);
-    if (r.status === "skipped") reason = r.reason;
-    note = await store.get(personId, today);
-  }
+  const reason: string | undefined = undefined;
+  const canDraft = !note;
   let previous = false;
   if (!note) {
     // Sem atividade hoje, a nota anterior continua valendo para quem pergunta.
@@ -54,13 +50,22 @@ export async function readNote(me: Persona, now: Date = new Date()): Promise<Not
     note = last ? await store.get(personId, last.date) : null;
     previous = !!note;
   }
-  if (!note) return { view: null, mode: "db", ...(reason ? { reason } : {}) };
+  if (!note) return { view: null, mode: "db", canDraft, ...(reason ? { reason } : {}) };
   const people = await data.people();
   return {
     view: { date: note.date, state: noteStateAt(note, now), sections: sectionsFromNote(note, people), ...(previous ? { previous } : {}) },
     mode: "db",
+    canDraft,
     ...(reason ? { reason } : {}),
   };
+}
+
+/** Pede ao agente o rascunho de hoje (o mesmo do fim do expediente; idempotente por pessoa e data). */
+export async function draftNote(me: Persona, now: Date = new Date()): Promise<{ ok: boolean; reason?: string }> {
+  const s = await serverFlow();
+  if (!s) return { ok: false };
+  const r = await s.flow.draft(gainsOrgId(me.orgId), personIdFor(me.id), localDate(now, me.timezone));
+  return r.status === "skipped" ? { ok: false, reason: r.reason } : { ok: true };
 }
 
 const DENIED: Record<string, string> = {
