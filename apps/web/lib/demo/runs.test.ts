@@ -13,7 +13,7 @@ describe("custo das execuções", () => {
     const totals = totalsByFlow(DAY_RUNS);
     expect(totals.reduce((s, t) => s + t.costUsd, 0)).toBeCloseTo(totalCost(DAY_RUNS));
     expect(totals.reduce((s, t) => s + t.runs, 0)).toBe(DAY_RUNS.length);
-    expect(totals.find((t) => t.flow === "redistribution")).toMatchObject({ costUsd: 0, byRule: 1 });
+    expect(totals.find((t) => t.label === "Redistribuição")).toMatchObject({ costUsd: 0, byRule: 1 });
     for (let i = 1; i < totals.length; i++) expect(totals[i - 1]!.costUsd).toBeGreaterThanOrEqual(totals[i]!.costUsd);
   });
 

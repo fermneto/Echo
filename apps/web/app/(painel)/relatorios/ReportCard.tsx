@@ -1,7 +1,8 @@
 "use client";
 
-import { useState } from "react";
-import { summaryLine, type WeekReport } from "@/lib/demo/reports";
+import { useActionState, useEffect, useRef, useState } from "react";
+import { helpTotal, summaryLine, type WeekReport } from "@/lib/demo/reports";
+import { confirmarAjuda, type HelpState, type ObsState, salvarObservacao } from "./actions";
 
 type Status = "aguardando" | "confirmado" | "enviado";
 const STATUS: Record<Status, { label: string; tone: "wait" | "on" | "twin" }> = {
@@ -17,7 +18,7 @@ export function Metrics({ r }: { r: WeekReport }) {
         ["Entregas", r.deliveries],
         ["Commits", r.commits],
         ["Revisões", r.reviews],
-        ["Ajudas", r.helps.length],
+        ["Ajudas", helpTotal(r)],
       ].map(([k, v]) => (
         <div key={k} className="metric">
           <dd className="metric__v">{v}</dd>
@@ -152,6 +153,127 @@ export function HelpForm({ people }: { people: string[] }) {
           <input id="emque" name="emque" className="field" placeholder="ECH-128 ou o assunto da ajuda" />
           <button type="submit" className="button-pill">
             Confirmar ajuda
+          </button>
+        </form>
+      )}
+    </section>
+  );
+}
+
+export type LiveReportProps = {
+  id: string;
+  report: WeekReport;
+  text: string;
+  observations: { text: string; at: string }[];
+  status: { label: string; tone: "wait" | "on" | "twin" };
+  canComment: boolean;
+};
+
+/** Relatório gravado: números da regra, texto verificado e observações marcadas. Comentar grava no banco. */
+export function LiveReportCard({ live }: { live: LiveReportProps }) {
+  const [state, action, pending] = useActionState<ObsState, FormData>(salvarObservacao, {});
+  const formRef = useRef<HTMLFormElement>(null);
+  useEffect(() => {
+    if (state.saved) formRef.current?.reset();
+  }, [state.saved]);
+  const r = live.report;
+
+  return (
+    <section className="card report" aria-labelledby="semana">
+      <h2 id="semana" className="card__title">
+        Semana de {r.week}
+      </h2>
+      <p className={`chip mono report__status is-${live.status.tone}`} role="status">
+        <span className={`dot dot--${live.status.tone}`} aria-hidden="true" />
+        {live.status.label}
+      </p>
+      <p className="report__summary">{live.text}</p>
+      <Metrics r={r} />
+      <Helps r={r} />
+      {r.delays.length > 0 && (
+        <div className="helps">
+          <p className="field-row__k mono">Atrasos</p>
+          <ul className="helps__list" role="list">
+            {r.delays.map((d) => (
+              <li key={d}>{d}</li>
+            ))}
+          </ul>
+        </div>
+      )}
+
+      {live.observations.map((o) => (
+        <div key={o.at} className="report__note">
+          <p className="field-row__k mono">Observação</p>
+          <p>{o.text}</p>
+          <span className="chip mono is-wait">
+            <span className="dot dot--wait" aria-hidden="true" />
+            Informado pela pessoa · não altera os números
+          </span>
+        </div>
+      ))}
+
+      {live.canComment && (
+        <form ref={formRef} action={action}>
+          <input type="hidden" name="id" value={live.id} />
+          <label className="field-row__k mono report__label" htmlFor="obs">
+            Observações
+          </label>
+          <textarea id="obs" name="texto" className="field report__textarea" placeholder="Algo que os números não mostram? Escreva aqui." maxLength={1000} required />
+          {state.error && (
+            <p className="note__error" role="alert">
+              {state.error}
+            </p>
+          )}
+          <div className="report__actions">
+            <button type="submit" className="button-outline" disabled={pending}>
+              {pending ? "Salvando…" : "Salvar observação"}
+            </button>
+          </div>
+        </form>
+      )}
+    </section>
+  );
+}
+
+/** Ajuda recebida, gravada no relatório de quem ajudou. O valor do campo é o id da pessoa. */
+export function LiveHelpForm({ people }: { people: { id: string; name: string }[] }) {
+  const [state, action, pending] = useActionState<HelpState, FormData>(confirmarAjuda, {});
+  return (
+    <section className="card" aria-labelledby="ajudou">
+      <h2 id="ajudou" className="card__title">
+        Alguém ajudou você?
+      </h2>
+      <p className="muted help-intro">Opcional. A ajuda confirmada por você aparece no relatório de quem ajudou.</p>
+      {state.done ? (
+        <p className="help-done" role="status">
+          Ajuda registrada no relatório de {state.done}.
+        </p>
+      ) : (
+        <form className="help-form" action={action}>
+          <label className="field-row__k mono" htmlFor="quem">
+            Quem ajudou
+          </label>
+          <select id="quem" name="quem" className="field" defaultValue="" required>
+            <option value="" disabled>
+              Escolha quem ajudou
+            </option>
+            {people.map((p) => (
+              <option key={p.id} value={p.id}>
+                {p.name}
+              </option>
+            ))}
+          </select>
+          <label className="field-row__k mono" htmlFor="emque">
+            Em quê
+          </label>
+          <input id="emque" name="emque" className="field" placeholder="ECH-128 ou PR 31 (opcional)" />
+          {state.error && (
+            <p className="note__error" role="alert">
+              {state.error}
+            </p>
+          )}
+          <button type="submit" className="button-pill" disabled={pending}>
+            {pending ? "Registrando…" : "Confirmar ajuda"}
           </button>
         </form>
       )}

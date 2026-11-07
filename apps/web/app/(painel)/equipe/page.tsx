@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { canAskTwin } from "@/lib/access";
-import { TEAM } from "@/lib/demo/team";
 import { statusLine, toneOf } from "@/lib/people";
 import { requireAccess } from "@/lib/session";
+import { loadTeam } from "@/lib/team-live";
 import { localTime } from "@/lib/time";
 import { PixelAvatar } from "@/components/PixelAvatar";
 
@@ -11,16 +11,17 @@ export const metadata = { title: "Pessoas · Echo" };
 export default async function EquipePage() {
   const me = await requireAccess("equipe");
   const now = new Date();
+  const team = await loadTeam(now);
   const seesWork = canAskTwin(me.role);
-  const zones = new Set(TEAM.map((p) => p.timezone)).size;
+  const zones = new Set(team.map((p) => p.timezone)).size;
   return (
     <>
       <h1 className="hero-title hero-title--page">Pessoas</h1>
       <p className="lead">
-        {TEAM.length} pessoas em {zones} fusos. Abra a ficha para ver a disponibilidade{seesWork ? " e perguntar ao gêmeo" : ""}.
+        {team.length} pessoas em {zones} fusos. Abra a ficha para ver a disponibilidade{seesWork ? " e perguntar ao gêmeo" : ""}.
       </p>
       <ul className="people-list" role="list">
-        {TEAM.map((p) => (
+        {team.map((p) => (
           <li key={p.id} className="people-row">
             <PixelAvatar persona={p} size={40} />
             <div className="people-row__who">

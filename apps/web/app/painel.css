@@ -332,11 +332,11 @@
   margin: 0;
 }
 
-/* Janela */
+/* Janela: o mesmo cartão das outras seções do painel (fundo de painel, fio de 1px, título em caixa alta). */
 .window {
-  background: var(--color-black);
+  background: var(--color-panel);
   border: 1px solid var(--color-line);
-  border-radius: var(--rounded-xl);
+  border-radius: var(--rounded-lg);
   overflow: hidden;
 }
 .window__head {
@@ -344,19 +344,20 @@
   justify-content: space-between;
   align-items: center;
   gap: var(--space-md);
-  padding: 10px 16px;
-  background: var(--color-charcoal);
+  padding: var(--space-md) var(--space-lg);
   border-bottom: 1px solid var(--color-line);
-  font-size: 13px;
+  font-size: 11px;
+  text-transform: uppercase;
+  color: var(--color-cloud);
 }
 .window__body {
   padding: var(--space-lg);
 }
 .window__foot {
-  padding: 10px 16px;
+  padding: var(--space-md) var(--space-lg);
   border-top: 1px solid var(--color-line);
-  font-size: 13px;
-  color: var(--color-fog);
+  font-size: 12px;
+  color: var(--color-ash);
 }
 
 /* Conversa com o gêmeo */
@@ -368,7 +369,11 @@
   flex-direction: column;
 }
 .chat__empty {
-  padding: var(--space-md) 0;
+  padding: var(--space-sm) 0;
+}
+.chat__empty p {
+  margin: 0;
+  font-size: 14px;
 }
 .chat__turn {
   padding: var(--space-md) 0;
@@ -1179,9 +1184,16 @@
 }
 .wmap__people {
   display: flex;
-  gap: 1px;
+  gap: 2px;
   margin-left: 2px;
   margin-bottom: 3px;
+}
+/* No mapa, sem a grade apagada do bonequinho (que se mistura aos pontos) e com sombra para destacar. */
+.wmap__people .sprite .dot-off {
+  opacity: 0;
+}
+.wmap__people .sprite {
+  filter: drop-shadow(0 0 2px rgb(0 0 0 / 95%)) drop-shadow(0 0 4px rgb(0 0 0 / 80%)) brightness(1.35);
 }
 .wmap__dot {
   width: 9px;
@@ -1201,14 +1213,18 @@
 .wmap__crew--wait .wmap__dot {
   background: var(--color-signal-wait);
 }
+/* Nome em branco sobre etiqueta escura; a cor do estado fica no ponto ao lado. */
 .wmap__label {
   position: absolute;
   left: 16px;
-  bottom: -4px;
-  font-size: 11px;
+  bottom: -7px;
+  padding: 2px 6px;
+  font-size: 12px;
+  font-weight: 500;
   white-space: nowrap;
-  color: var(--color-signal-twin-text);
-  text-shadow: 0 1px 2px #000;
+  color: var(--color-cloud);
+  background: rgb(0 0 0 / 78%);
+  border-radius: var(--rounded-sm);
 }
 .wmap__crew.is-flipped .wmap__label {
   left: auto;
@@ -1222,12 +1238,6 @@
 .wmap__crew.is-flipped .wmap__people {
   margin-left: 0;
   margin-right: 2px;
-}
-.wmap__crew--on .wmap__label {
-  color: var(--color-signal-on);
-}
-.wmap__crew--wait .wmap__label {
-  color: var(--color-signal-wait);
 }
 .wmap__crew.is-up .wmap__label {
   bottom: calc(100% + 2px);
@@ -1473,9 +1483,17 @@
   display: flex;
   flex-wrap: wrap;
   gap: var(--space-sm) var(--space-xl);
-  padding: var(--space-md) var(--space-gutter) 0;
+  padding: var(--space-lg) var(--space-gutter) 0;
   margin: 0;
-  font-size: 11px;
+  font-size: 13px;
+  color: var(--color-paper);
+}
+.wmap-legend .dot {
+  width: 9px;
+  height: 9px;
+}
+.wmap-legend > .muted {
+  font-size: 12px;
   color: var(--color-fog);
 }
 .wmap-legend > span {
@@ -2622,7 +2640,7 @@ select.field option {
 /* Campo de pergunta: brilho na borda, orbe e texto animado */
 .ask-field {
   --glow-speed: 2.2;
-  --glow-glow: 0.42;
+  --glow-glow: 0.3;
   --orb-spin: 9s;
   --orb-pulse: 5.2s;
   position: relative;
@@ -2673,14 +2691,14 @@ select.field option {
 .ask-field__blob--a {
   width: 200px;
   height: 56px;
-  background: linear-gradient(90deg, var(--color-signal-twin-deep), var(--color-signal-twin), var(--color-signal-twin-text));
+  background: linear-gradient(90deg, transparent, var(--color-fog), transparent);
   --from: -6%;
   --to: 72%;
 }
 .ask-field__blob--b {
   width: 130px;
   height: 44px;
-  background: linear-gradient(90deg, var(--color-signal-on), color-mix(in srgb, var(--color-signal-on) 40%, var(--color-signal-twin)));
+  background: linear-gradient(90deg, transparent, var(--color-paper), transparent);
   --from: 66%;
   --to: 6%;
   animation-duration: calc(5s * var(--glow-speed));
@@ -2689,7 +2707,7 @@ select.field option {
 .ask-field__blob--c {
   width: 96px;
   height: 36px;
-  background: linear-gradient(90deg, var(--color-signal-twin-text), var(--color-signal-twin));
+  background: linear-gradient(90deg, transparent, var(--color-ash), transparent);
   --from: 28%;
   --to: 56%;
   animation-duration: calc(4s * var(--glow-speed));
@@ -2719,7 +2737,7 @@ select.field option {
   padding: 8px 8px 8px 12px;
   border: 1px solid color-mix(in srgb, var(--color-cloud) 9%, transparent);
   border-radius: inherit;
-  background: linear-gradient(to bottom, var(--color-panel), color-mix(in srgb, var(--color-panel) 90%, var(--color-black))) padding-box;
+  background: var(--color-black) padding-box;
   transition: border-color 200ms ease-out, background 200ms ease-out;
 }
 .ask-field:focus-within .ask-field__field {

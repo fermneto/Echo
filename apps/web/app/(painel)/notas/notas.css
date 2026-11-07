@@ -1,0 +1,6 @@
+/* Notas do cérebro têm várias linhas (listas, parágrafos): a quebra do arquivo vale na tela. */
+.brain .note__body,
+.brain .note__history li > span:last-child {
+  white-space: pre-line;
+  overflow-wrap: anywhere;
+}

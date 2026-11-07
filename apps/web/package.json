@@ -10,15 +10,19 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
+    "@echo/actions": "workspace:*",
     "@echo/agents": "workspace:*",
+    "@echo/brain": "workspace:*",
     "@echo/config": "workspace:*",
+    "@echo/connectors": "workspace:*",
+    "@echo/db": "workspace:*",
     "@echo/domain": "workspace:*",
+    "@echo/jobs": "workspace:*",
+    "@echo/observability": "workspace:*",
     "next": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
-    "simple-icons": "catalog:",
-    "@echo/connectors": "workspace:*",
-    "@echo/db": "workspace:*"
+    "simple-icons": "catalog:"
   },
   "devDependencies": {
     "@types/node": "catalog:",

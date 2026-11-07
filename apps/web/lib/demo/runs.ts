@@ -7,17 +7,20 @@ import { costLevel, type CostLevel } from "@echo/domain";
  */
 
 export type Model = "claude-sonnet-5-5" | "claude-haiku-5-5";
-export type RunResult = "ok" | "fallback" | "refused" | "failed";
+export type RunResult = "ok" | "fallback" | "refused" | "failed" | "skipped";
 export type Run = {
   id: string;
   at: string;
-  flow: Flow;
+  /** Fluxo conhecido (FLOWS) ou outro nome gravado pelo worker; flowLabel() dá o rótulo. */
+  flow: Flow | (string & {});
   /** Sem modelo quando a resposta saiu só por regra. */
-  model: Model | null;
+  model: Model | (string & {}) | null;
   inputTokens: number;
   outputTokens: number;
   /** API de lotes: metade do preço. */
   batch?: boolean;
+  /** Custo gravado na execução (agent_runs.cost_usd); quando existe, vale ele em vez da tabela de preços. */
+  costUsd?: number;
   durationMs: number;
   tools: string[];
   result: RunResult;
@@ -37,6 +40,31 @@ export const FLOWS = {
 } as const;
 export type Flow = keyof typeof FLOWS;
 
+/** Nomes que o worker grava além dos fluxos principais. */
+const EXTRA_FLOWS: Record<string, string> = {
+  quem_sabe: "Quem sabe",
+  daily_note_confirm: "Nota do dia",
+  daily_note_timeout: "Nota do dia",
+  fix_applied: "Correção",
+  fix_decision: "Correção",
+  fix_ready: "Correção",
+  night_review: "Revisão de PR",
+  night_review_batch: "Revisão de PR",
+  gains_baseline: "Ganhos",
+  help_confirm: "Ajuda",
+  redistribution_done: "Redistribuição",
+  weekly_report_comment: "Relatório semanal",
+  weekly_report_sent: "Relatório semanal",
+};
+
+/** Rótulo do fluxo; nome desconhecido vira texto legível ("novo_fluxo" → "Novo fluxo"). */
+export function flowLabel(flow: string): string {
+  const known = (FLOWS as Record<string, string>)[flow] ?? EXTRA_FLOWS[flow];
+  if (known) return known;
+  const text = flow.replace(/[_.:-]+/g, " ").trim();
+  return text ? text[0]!.toUpperCase() + text.slice(1) : "Outro";
+}
+
 /** US$ por milhão de tokens (entrada, saída). */
 export const PRICES: Record<Model, { input: number; output: number }> = {
   "claude-sonnet-5-5": { input: 2, output: 10 },
@@ -48,24 +76,30 @@ export const MODEL_LABEL: Record<Model, string> = {
   "claude-haiku-5-5": "Haiku 5.5",
 };
 
-export function runCost(r: Pick<Run, "model" | "inputTokens" | "outputTokens" | "batch">): number {
+export const modelLabel = (m: string) => (MODEL_LABEL as Record<string, string>)[m] ?? m;
+
+export function runCost(r: Pick<Run, "model" | "inputTokens" | "outputTokens" | "batch" | "costUsd">): number {
+  if (r.costUsd !== undefined) return r.costUsd;
   if (!r.model) return 0;
-  const p = PRICES[r.model];
+  const p = (PRICES as Record<string, { input: number; output: number }>)[r.model];
+  if (!p) return 0;
   const usd = (r.inputTokens * p.input + r.outputTokens * p.output) / 1_000_000;
   return r.batch ? usd / 2 : usd;
 }
 
-export type FlowTotal = { flow: Flow; label: string; runs: number; costUsd: number; byRule: number };
+export type FlowTotal = { label: string; runs: number; costUsd: number; byRule: number };
 
 /** Custo e número de execuções por fluxo, do mais caro ao mais barato. */
 export function totalsByFlow(runs: readonly Run[]): FlowTotal[] {
-  const map = new Map<Flow, FlowTotal>();
+  // Agrupa pelo rótulo: night_review e pr_review somam juntos em "Revisão de PR".
+  const map = new Map<string, FlowTotal>();
   for (const r of runs) {
-    const t = map.get(r.flow) ?? { flow: r.flow, label: FLOWS[r.flow], runs: 0, costUsd: 0, byRule: 0 };
+    const label = flowLabel(r.flow);
+    const t = map.get(label) ?? { label, runs: 0, costUsd: 0, byRule: 0 };
     t.runs += 1;
     t.costUsd += runCost(r);
     if (!r.model) t.byRule += 1;
-    map.set(r.flow, t);
+    map.set(label, t);
   }
   return [...map.values()].sort((a, b) => b.costUsd - a.costUsd || a.label.localeCompare(b.label));
 }
@@ -75,9 +109,14 @@ export const totalCost = (runs: readonly Run[]) => runs.reduce((s, r) => s + run
 /** Limite mensal configurado pela empresa e o que já foi gasto antes de hoje (sintético). */
 export const BUDGET = { monthlyLimitUsd: 60, spentBeforeTodayUsd: 11.84 };
 
-export function budgetStatus(todayUsd: number): { spentUsd: number; ratio: number; level: CostLevel } {
-  const spentUsd = BUDGET.spentBeforeTodayUsd + todayUsd;
-  return { spentUsd, ratio: spentUsd / BUDGET.monthlyLimitUsd, level: costLevel(spentUsd, BUDGET.monthlyLimitUsd) };
+/** `spentBeforeUsd`: o gasto do mês que não está nas execuções da tela (no banco, o resto do mês). */
+export function budgetStatus(
+  todayUsd: number,
+  spentBeforeUsd: number = BUDGET.spentBeforeTodayUsd,
+  limitUsd: number = BUDGET.monthlyLimitUsd,
+): { spentUsd: number; ratio: number; level: CostLevel } {
+  const spentUsd = spentBeforeUsd + todayUsd;
+  return { spentUsd, ratio: limitUsd > 0 ? spentUsd / limitUsd : 0, level: costLevel(spentUsd, limitUsd) };
 }
 
 export const LEVEL_LABEL: Record<CostLevel, string> = {
@@ -112,4 +151,4 @@ export const NIGHT_RUNS: readonly Run[] = [
   { id: "run-119", at: "agora", flow: "morning_plan", model: "claude-haiku-5-5", inputTokens: 9100, outputTokens: 900, durationMs: 3900, tools: ["github.prs", "linear.issues", "questions"], result: "ok", what: "Plano da manhã refeito com a análise da noite" },
 ];
 
-export const RESULT_LABEL: Record<RunResult, string> = { ok: "ok", fallback: "por regra", refused: "recusada", failed: "falhou" };
+export const RESULT_LABEL: Record<RunResult, string> = { ok: "ok", fallback: "por regra", refused: "recusada", failed: "falhou", skipped: "pulada" };

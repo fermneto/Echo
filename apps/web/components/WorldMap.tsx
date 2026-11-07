@@ -510,7 +510,7 @@ export function WorldMap({ crews, zones, arcs, nowIso, canAsk = true }: { crews:
                     setSelected((s) => (s?.person === p.id && s.pinned ? null : { crew: c.key, person: p.id, pinned: true }));
                   }}
                 >
-                  <PixelSprite look={{ hair: p.hair }} mode={p.mode} size={22} />
+                  <PixelSprite look={{ hair: p.hair }} mode={p.mode} size={26} />
                 </button>
               ))}
             </span>
