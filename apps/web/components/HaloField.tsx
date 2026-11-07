@@ -18,9 +18,8 @@ function Stagger({ text, className, step = 18 }: { text: string; className: stri
 }
 
 /**
- * Campo de pergunta com eco: contornos do campo sobem e somem como na marca do rodapé, e o
- * medidor ao lado acende no mesmo ritmo (mais rápido enquanto a pessoa digita e enquanto o
- * agente consulta), placeholder que entra
+ * Campo de pergunta: parado, só o ponto verde do "echo."; consultando, o contorno ecoa para
+ * fora e o ponto vira medidor; ao responder, um último eco verde. Placeholder que entra
  * letra a letra e texto que se desfaz ao limpar. Tudo em CSS, desligado com movimento reduzido.
  */
 export function HaloField({
@@ -49,6 +48,8 @@ export function HaloField({
   const [typing, setTyping] = useState(false);
   const [ghost, setGhost] = useState<{ text: string; key: number } | null>(null);
   const [placeholderKey, setPlaceholderKey] = useState(0);
+  const [answered, setAnswered] = useState(0);
+  const wasPending = useRef(false);
   const typingTimer = useRef<number | null>(null);
   const ghostTimer = useRef<number | null>(null);
 
@@ -59,6 +60,11 @@ export function HaloField({
     },
     [],
   );
+
+  useEffect(() => {
+    if (wasPending.current && !pending) setAnswered((n) => n + 1);
+    wasPending.current = pending;
+  }, [pending]);
 
   const dissolve = (text: string) => {
     if (!text) return;
@@ -75,11 +81,10 @@ export function HaloField({
 
   return (
     <div className={`halo ${state}`}>
-      {/* Eco do campo: contornos vazados empilhados para cima, com uma onda de brilho subindo. */}
+      {/* O eco só aparece quando algo acontece: ondas enquanto consulta e uma verde quando responde. */}
       <div className="halo__echo" aria-hidden="true">
-        {[4, 3, 2, 1].map((k) => (
-          <span key={k} className="halo__ring" style={{ "--k": k } as CSSProperties} />
-        ))}
+        {pending && [0, 1].map((k) => <span key={k} className="halo__ring" style={{ "--k": k } as CSSProperties} />)}
+        {answered > 0 && <span key={answered} className="halo__ring halo__ring--done" />}
       </div>
       <div className="halo__field" aria-busy={pending || undefined}>
         {/* O ponto do "echo." como medidor: acende de baixo para cima no ritmo do eco. */}

@@ -2226,75 +2226,66 @@ select.field option {
   line-height: 1.45;
 }
 
-/* Campo de pergunta com eco (mesma linguagem da marca no rodapé da landing) */
+/* Campo de pergunta: o eco aparece só quando algo acontece */
 .halo {
-  --echo-beat: 2.8s;
-  --echo-rgb: 255 255 255;
-  --echo-rest: 0.2;
-  --echo-peak: 0.75;
   position: relative;
-  margin-top: 36px;
   border-radius: var(--rounded-pill);
-}
-.halo:focus-within {
-  --echo-rest: 0.24;
-  --echo-peak: 0.85;
-}
-.halo.is-typing {
-  --echo-beat: 1.6s;
-}
-.halo.is-busy {
-  --echo-beat: 1.2s;
-  --echo-rgb: 141 180 255;
-  --echo-rest: 0.26;
-  --echo-peak: 0.95;
-}
-.halo.is-clearing {
-  --echo-rgb: 224 179 84;
-  --echo-peak: 0.8;
 }
 .halo__echo {
   position: absolute;
   inset: 0;
   pointer-events: none;
+  border-radius: inherit;
 }
 .halo__ring {
   position: absolute;
   inset: 0;
-  border-radius: inherit;
-  border: 1px solid rgb(var(--echo-rgb) / var(--echo-rest));
+  border: 1px solid var(--color-signal-twin-text);
   border-radius: var(--rounded-pill);
-  transform: translateY(calc(var(--k) * -8px)) scaleX(calc(1 - var(--k) * 0.014));
-  opacity: calc(1 - var(--k) * 0.15);
-  /* A onda sobe pelas cópias, de baixo para cima. */
-  animation: halo-echo var(--echo-beat) ease-in-out infinite;
-  animation-delay: calc(var(--k) * var(--echo-beat) * 0.057);
+  opacity: 0;
+  animation: halo-ring 1.8s cubic-bezier(0.2, 0.6, 0.3, 1) infinite;
+  animation-delay: calc(var(--k) * 0.9s);
 }
-@keyframes halo-echo {
-  0%,
-  45%,
-  100% {
-    border-color: rgb(var(--echo-rgb) / var(--echo-rest));
+.halo__ring--done {
+  border-color: var(--color-signal-on);
+  animation: halo-ring 900ms cubic-bezier(0.2, 0.6, 0.3, 1) 1 forwards;
+}
+@keyframes halo-ring {
+  0% {
+    inset: 0;
+    opacity: 0.55;
   }
-  18% {
-    border-color: rgb(var(--echo-rgb) / var(--echo-peak));
+  100% {
+    inset: -10px -14px;
+    opacity: 0;
   }
 }
 .halo__meter {
   flex: none;
   display: flex;
   flex-direction: column;
-  width: 9px;
+  width: 8px;
   margin: 0 4px 0 10px;
 }
 .halo__cell {
-  aspect-ratio: 1;
+  height: 8px;
   margin-top: -1px;
-  border: 1px solid rgb(255 255 255 / 20%);
-  animation: halo-meter var(--echo-beat) steps(1, end) infinite;
-  animation-delay: calc(var(--k) * var(--echo-beat) * 0.057);
+  border: 1px solid transparent;
+  transition: height 220ms ease-out, margin 220ms ease-out, border-color 200ms ease-out;
 }
-.halo__cell.is-on {
+/* Parado, só o ponto; consultando, a coluna do medidor cresce para cima. */
+.halo:not(.is-busy) .halo__cell:not(.is-on) {
+  height: 0;
+  margin-top: 0;
+  border-width: 0;
+}
+.halo.is-busy .halo__cell {
+  border-color: rgb(255 255 255 / 16%);
+  animation: halo-meter 1.2s steps(1, end) infinite;
+  animation-delay: calc(var(--k) * 0.07s);
+}
+.halo__cell.is-on,
+.halo.is-busy .halo__cell.is-on {
   background: var(--color-signal-on);
   border-color: var(--color-signal-on);
   animation: none;
@@ -2303,16 +2294,14 @@ select.field option {
   0%,
   100% {
     background: transparent;
-    border-color: rgb(255 255 255 / 20%);
   }
   8%,
   22% {
-    background: rgb(152 255 56 / 22%);
+    background: rgb(152 255 56 / 30%);
     border-color: rgb(152 255 56 / 60%);
   }
   30% {
     background: transparent;
-    border-color: rgb(255 255 255 / 20%);
   }
 }
 .halo__field {
@@ -2322,16 +2311,16 @@ select.field option {
   gap: var(--space-md);
   min-height: 56px;
   padding: 8px 8px 8px 12px;
-  border: 1px solid rgb(var(--echo-rgb) / 0.22);
+  border: 1px solid var(--color-edge);
   border-radius: inherit;
   background: linear-gradient(to bottom, var(--color-panel), color-mix(in srgb, var(--color-panel) 90%, var(--color-black))) padding-box;
   transition: border-color 200ms ease-out, background 200ms ease-out;
 }
 .halo:focus-within .halo__field {
-  border-color: rgb(var(--echo-rgb) / 0.4);
+  border-color: var(--color-iron);
 }
 .halo.is-busy .halo__field {
-  border-color: rgb(var(--echo-rgb) / 0.6);
+  border-color: color-mix(in srgb, var(--color-signal-twin-text) 55%, transparent);
 }
 @keyframes orb-spin {
   to {
