@@ -116,6 +116,8 @@ export function buildDemo(now: Date): DemoData {
       awayInstructions: "Dúvida sobre branch: confira a nota do dia. Urgência em pagamentos: plantão da escala.",
     }),
     person("eduardo", "Eduardo", "Africa/Johannesburg", {
+      // Começa às 8h: na cena 1 (08:12 em Joanesburgo) ele já está no expediente.
+      workHours: { days: [1, 2, 3, 4, 5], start: "08:00", end: "17:00" },
       jobTitle: "Desenvolvedor",
       skills: ["typescript", "react", "api"],
       areas: ["api", "web"],
