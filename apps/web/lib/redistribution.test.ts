@@ -102,3 +102,16 @@ describe("datas e tipos", () => {
     expect(absenceKind("Outro")).toBeNull();
   });
 });
+
+describe("troca de quem recebe", () => {
+  it("a confirmação cita quem a liderança escolheu, não a sugestão", async () => {
+    const { confirmText } = await import("./redistribution");
+    const items = [
+      { id: "a", item: "ECH-133", title: "Arredondamento", to: "Carla", reason: "", chip: { label: "proposto", tone: "wait" as const }, excludable: true, reassignable: false },
+      { id: "b", item: "PR 36", title: "Revisão", to: "Fernando", reason: "", chip: { label: "proposto", tone: "wait" as const }, excludable: true, reassignable: false },
+    ];
+    const c = confirmText(items, new Set(), new Map([["a", "Eduardo"]]));
+    expect(c.text).toContain("Eduardo e Fernando recebem");
+    expect(c.text).not.toContain("Carla");
+  });
+});
