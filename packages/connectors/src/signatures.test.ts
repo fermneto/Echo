@@ -56,7 +56,10 @@ describe("TokenCipher", () => {
   it("falha com chave errada ou texto adulterado", () => {
     const sealed = new TokenCipher(key).encrypt("segredo");
     expect(() => new TokenCipher("b".repeat(64)).decrypt(sealed)).toThrow();
-    expect(() => new TokenCipher(key).decrypt(sealed.slice(0, -2) + "00")).toThrow();
+    // Troca o último caractere por outro sempre diferente, para o texto mudar de verdade.
+    const last = sealed.at(-1)!;
+    const tampered = sealed.slice(0, -1) + (last === "0" ? "1" : "0");
+    expect(() => new TokenCipher(key).decrypt(tampered)).toThrow();
   });
   it("recusa chave em formato inválido", () => expect(() => new TokenCipher("curta")).toThrow(/64 caracteres/));
 });

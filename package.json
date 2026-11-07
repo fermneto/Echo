@@ -20,7 +20,8 @@
     "e2e": "echo \"e2e: etapa 16 (frente Avaliador)\" && exit 1",
     "integracoes:ligar": "pnpm --filter @echo/connectors integracoes:ligar",
     "acao:testar": "pnpm --filter @echo/actions acao:testar",
-    "integracoes:conferir": "pnpm --filter @echo/connectors slack:check; pnpm --filter @echo/connectors github:check; pnpm --filter @echo/connectors linear:check"
+    "integracoes:conferir": "pnpm --filter @echo/connectors slack:check; pnpm --filter @echo/connectors github:check; pnpm --filter @echo/connectors linear:check",
+    "integracoes:reconciliar": "pnpm --filter @echo/worker reconciliar"
   },
   "devDependencies": {
     "@types/node": "catalog:",

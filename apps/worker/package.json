@@ -6,7 +6,8 @@
     "dev": "tsx watch --env-file-if-exists=../../.env src/main.ts",
     "start": "tsx src/main.ts",
     "typecheck": "tsc -p tsconfig.json",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run --passWithNoTests",
+    "reconciliar": "tsx --env-file-if-exists=../../.env src/reconcile-now.ts"
   },
   "dependencies": {
     "@echo/config": "workspace:*",
@@ -20,6 +21,7 @@
   "devDependencies": {
     "@types/node": "catalog:",
     "typescript": "catalog:",
-    "vitest": "catalog:"
+    "vitest": "catalog:",
+    "pino": "catalog:"
   }
 }

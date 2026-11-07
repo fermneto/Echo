@@ -11,6 +11,7 @@ O que este teste cobre:
 | C | Menção, "alguém sabe…" e reação 🙏 no Slack chegam; conversa comum é descartada | `inbox_events` e `contributions` |
 | D | Ação aprovada muda o responsável no Linear, comenta, posta no Slack e comenta no PR | O próprio Linear, Slack e GitHub |
 | E | Reenvio do mesmo aviso não duplica; assinatura errada é recusada | `inbox_events` e `curl` |
+| F | Aviso perdido é recuperado pela reconciliação | `pull_requests`, `work_events` e `tasks` |
 
 A resposta do agente no Slack (F2) é da frente Funções: por enquanto a mensagem chega até a fila `slack.message` e para ali.
 
@@ -201,6 +202,35 @@ curl -s -o /dev/null -w "%{http_code}\n" -X POST https://<API>/webhooks/github \
 # esperado: 401
 ```
 
+### F. Reconciliação (aviso perdido)
+
+Simule a perda: **pare a API** (o worker pode ficar no ar), e então, com a API fora:
+
+1. No GitHub, una (merge) o PR do teste B e faça mais um commit em outra branch.
+2. No Linear, conclua uma tarefa.
+
+O GitHub e o Linear tentam entregar e falham. Suba a API de novo e rode uma rodada na hora (o worker também roda sozinho a cada 10 minutos):
+
+```bash
+pnpm integracoes:reconciliar
+```
+
+Saída esperada:
+
+```
+reconcile_redeliver  ok      812 ms
+reconcile_github     ok      1430 ms
+reconcile_linear     ok      530 ms
+```
+
+```sql
+select number, state from pull_requests order by updated_at desc limit 3;            -- o PR unido aparece como merged
+select type, source_ref from work_events order by created_at desc limit 5;           -- pr_merged, o commit novo e o task_done
+select key, state from tasks order by updated_at desc limit 3;                        -- a tarefa como done
+```
+
+Rode `pnpm integracoes:reconciliar` de novo: nada é duplicado. As entregas que falharam também são pedidas de novo ao GitHub (veja em **Advanced → Recent Deliveries**) e, ao chegar, não criam linhas novas.
+
 ## Se algo der errado
 
 | Sintoma | Causa provável |
@@ -214,4 +244,5 @@ curl -s -o /dev/null -w "%{http_code}\n" -X POST https://<API>/webhooks/github \
 | GitHub 404 "Integration not found" | `GITHUB_APP_ID` errado, ou chave de outro app |
 | GitHub 403 ao comentar | App sem *Pull requests: Read and write*, ou não instalado no repositório |
 | Linear `pessoa sem conta no Linear` | Faltou `"linear"` dessa pessoa em `DEMO_IDENTITIES` (a tarefa só vai para quem tem conta) |
+| Reconciliação "Outro worker está reconciliando agora" | Há um worker no ar fazendo a rodada; espere alguns segundos |
 | Linear `tarefa … sem id no Linear` | Tarefa não importada: rode `pnpm integracoes:ligar` de novo |

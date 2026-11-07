@@ -52,7 +52,8 @@ export function normalizeLinear(body: any): NormalizedEvent[] {
         taskKey: d.identifier,
         occurredAt: new Date(d.completedAt ?? updatedAt),
         source: "linear",
-        sourceRef: `task_done:${d.id}:${d.completedAt ?? updatedAt.toISOString()}`,
+        // Uma conclusão por tarefa: a mesma chave da reconciliação, para os dois caminhos não duplicarem.
+        sourceRef: `task_done:${d.id}`,
       },
     });
   }

@@ -10,6 +10,32 @@ interface GhPr {
   requested_reviewers?: GhUser[];
 }
 
+/** Commit no formato do aviso de push (a reconciliação converte para o mesmo formato). */
+export interface GhCommit {
+  id: string;
+  message: string;
+  timestamp: string;
+  author?: { username?: string; name?: string };
+}
+
+/** Commit vira fato do trabalho. Autor só quando o GitHub ligou o commit a uma conta: nunca adivinhar pelo nome. */
+export function commitEvent(repository: string, branch: string | undefined, c: GhCommit): NormalizedEvent {
+  return {
+    kind: "work_event",
+    event: {
+      type: "commit",
+      actor: c.author?.username ? { platform: "github", login: c.author.username } : undefined,
+      repository,
+      branch,
+      taskKey: taskKeyFrom(branch, c.message),
+      occurredAt: new Date(c.timestamp),
+      source: "github",
+      sourceRef: `commit:${c.id}`,
+      data: { coauthors: parseCoauthors(c.message ?? "") },
+    },
+  };
+}
+
 const actor = (u?: GhUser | null): ExternalActor | undefined => (u ? { platform: "github", externalId: String(u.id), login: u.login } : undefined);
 
 /** "Co-authored-by: Nome <email>" → hash do e-mail (o e-mail em si não é guardado) e login quando é noreply. */
@@ -58,21 +84,7 @@ export function normalizeGithub(event: string, body: any): NormalizedEvent[] {
     const ref: string = body.ref ?? "";
     if (!ref.startsWith("refs/heads/") || body.deleted) return [{ kind: "ignored", reason: "push que não é de branch" }];
     const branch = ref.slice("refs/heads/".length);
-    return (body.commits ?? []).map((c: any): NormalizedEvent => ({
-      kind: "work_event",
-      event: {
-        type: "commit",
-        // Autor só quando o GitHub ligou o commit a uma conta: nunca adivinhar pelo nome.
-        actor: c.author?.username ? { platform: "github", login: c.author.username } : undefined,
-        repository: repo.full_name,
-        branch,
-        taskKey: taskKeyFrom(branch, c.message),
-        occurredAt: new Date(c.timestamp),
-        source: "github",
-        sourceRef: `commit:${c.id}`,
-        data: { coauthors: parseCoauthors(c.message ?? "") },
-      },
-    }));
+    return (body.commits ?? []).map((c: GhCommit) => commitEvent(repo.full_name, branch, c));
   }
 
   if (event === "pull_request") {

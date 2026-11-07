@@ -6,6 +6,8 @@ import { createLogger, initTracing, LogRunRecorder } from "@echo/observability";
 import { writersFromEnv } from "@echo/actions";
 import { registerActions } from "./actions.ts";
 import { registerInbox } from "./inbox.ts";
+import { scheduleReconcile } from "./reconcile.ts";
+import { platformsFromEnv } from "@echo/connectors";
 
 const cfg = loadConfig("worker");
 const log = createLogger("worker", cfg.LOG_LEVEL);
@@ -18,8 +20,9 @@ const db = createDb(pool);
 await queue.start();
 // Até a gravação em agent_runs estar ligada (frente Funções), as execuções vão para o log.
 const runs = new LogRunRecorder(log);
-await registerInbox(db, queue, runs);
+await registerInbox(db, queue, runs, { brainsRepository: cfg.BRAINS_REPOSITORY });
 const stopActions = await registerActions({ db, writers: writersFromEnv(db, cfg) }, queue, runs, log);
+const stopReconcile = scheduleReconcile({ db, pool, platforms: platformsFromEnv(cfg), runs, log, brainsRepository: cfg.BRAINS_REPOSITORY }, cfg.RECONCILE_INTERVAL_MS);
 log.info({ demo: cfg.DEMO_MODE }, "worker no ar");
 
 // Confirma, a cada início, que a fila chega ao reviewer.
@@ -32,6 +35,7 @@ async function shutdown(signal: string) {
   log.info({ signal }, "encerrando worker");
   clearInterval(heartbeat);
   stopActions();
+  stopReconcile();
   await Promise.allSettled([queue.stop(), pool.end(), flush()]);
   process.exit(0);
 }

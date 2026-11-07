@@ -63,6 +63,10 @@ export const workerSchema = baseSchema.extend({
   /** Alternativa para testes: chave pessoal de API do Linear (lin_api_…). */
   LINEAR_API_KEY: optionalString,
   HEARTBEAT_INTERVAL_MS: z.coerce.number().int().min(1000).default(30_000),
+  /** Intervalo da reconciliação com GitHub e Linear (padrão: 10 minutos). */
+  RECONCILE_INTERVAL_MS: z.coerce.number().int().min(60_000).default(10 * 60_000),
+  /** Repositório do espelho das notas (<org>/brains): push nele não é trabalho. */
+  BRAINS_REPOSITORY: optionalString,
 });
 
 export const reviewerSchema = baseSchema.extend({ ...database });

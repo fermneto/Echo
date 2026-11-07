@@ -124,6 +124,8 @@ async function upsertPullRequest(tx: Tx, orgId: string, pr: ExternalPullRequest)
     mergedAt: pr.mergedAt ?? null,
     externalUpdatedAt: pr.updatedAt,
     updatedAt: new Date(),
+    // O aviso do GitHub não traz arquivos: só a consulta ao vivo grava, e nada apaga o que já se sabe.
+    ...("files" in pr && Array.isArray((pr as { files?: unknown }).files) ? { files: (pr as { files: string[] }).files } : {}),
   };
   await tx
     .insert(pullRequests)

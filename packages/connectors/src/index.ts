@@ -65,7 +65,7 @@ export interface VerifiedDelivery {
 export * from "./normalized.ts";
 export { TokenCipher } from "./crypto.ts";
 export { sign, verifyGithub, verifyHr, verifyLinear, verifySlack, type Verification } from "./signatures.ts";
-export { githubRouteKey, normalizeGithub, parseCoauthors } from "./github.ts";
+export { commitEvent, githubRouteKey, normalizeGithub, parseCoauthors, type GhCommit } from "./github.ts";
 export { linearRouteKey, linearState, normalizeLinear } from "./linear.ts";
 export { HELP_REACTIONS, isWhoKnows, normalizeSlack, slackShouldKeep, type SlackEntryContext } from "./slack.ts";
 export { ingest, type IngestResult } from "./ingest.ts";
@@ -74,3 +74,5 @@ export { answerBlocks, dailyNoteDraftBlocks, fitText, respondToInteraction, SLAC
 export { RefreshingToken } from "./tokens.ts";
 export { appJwt, GithubApiError, GithubApp, GithubCodeHost, normalizePem, selectDeliveriesToRetry, type GithubAppOptions, type WebhookDelivery } from "./github-client.ts";
 export { LinearApiError, LinearTracker, toTask, type LinearOptions } from "./linear-client.ts";
+export { BACKFILL_MS, MAX_DETAILS_PER_REPO, openPullRequestNumbers, reconcileGithub, reconcileLinear, type GithubReconciler, type GithubReconcileResult, type LinearReconciler } from "./reconcile.ts";
+export { connectedOrgs, githubForOrg, orgRoute, platformsFromEnv, type PlatformEnv, type Platforms } from "./platforms.ts";

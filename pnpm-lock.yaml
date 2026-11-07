@@ -377,6 +377,9 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 24.19.2
+      pino:
+        specifier: 'catalog:'
+        version: 10.4.0
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
