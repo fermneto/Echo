@@ -8,6 +8,7 @@ import { suggestedQuestions } from "@/lib/demo/twin";
 import { latest } from "@/lib/demo/notes";
 import { currentNotes } from "@/lib/notes-store";
 import { requireAccess } from "@/lib/session";
+import { loadTeam } from "@/lib/team-live";
 import { localTime } from "@/lib/time";
 import { AskPanel } from "@/components/AskPanel";
 import { PixelAvatar } from "@/components/PixelAvatar";
@@ -57,7 +58,8 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
 export default async function PessoaPage({ params }: { params: Promise<{ id: string }> }) {
   const me = await requireAccess("pessoa");
   const now = new Date();
-  const persona = findMember((await params).id);
+  const id = (await params).id;
+  const persona = (await loadTeam(now)).find((p) => p.id === id);
   if (!persona) notFound();
   const profile = profileFor(persona);
   const brain = (await currentNotes()).filter((n) => n.ownerId === persona.id);
