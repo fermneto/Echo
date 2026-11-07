@@ -1,4 +1,5 @@
 import type { AnswerRequest, AnswerResult } from "@echo/agents";
+import type { Database } from "@echo/db";
 import { gainsOrgId } from "./gains";
 
 /** Pessoas da demonstração no banco (seed/src/demo.ts → DEMO_IDS.people). */
@@ -31,16 +32,34 @@ export function panelRequest(input: { orgId: string; askerId: string; ownerId?: 
 
 export type PanelAnswer = { ok: true; reply: AnswerResult } | { ok: false; error: string };
 
+export interface AskDeps {
+  run?: (req: AnswerRequest) => Promise<AnswerResult>;
+  /** Grava a pergunta em `questions`, como o Slack: conta nos Ganhos e entra no resumo da ausência do dono. */
+  record?: (req: AnswerRequest, reply: AnswerResult) => Promise<unknown>;
+}
+
 /**
- * Chama o mesmo answer() do Slack. Import tardio: o SDK da Anthropic só carrega quando alguém pergunta.
- * Falha vira mensagem na tela, nunca resposta simulada no lugar da real.
+ * Chama o mesmo answer() do Slack e grava a pergunta. Import tardio: o SDK da Anthropic só carrega quando alguém
+ * pergunta. Falha do fluxo vira mensagem na tela, nunca resposta simulada no lugar da real. Falha só na gravação
+ * não esconde a resposta: fica no log.
  */
-export async function askAgent(req: AnswerRequest, run?: (req: AnswerRequest) => Promise<AnswerResult>): Promise<PanelAnswer> {
+export async function askAgent(req: AnswerRequest, deps: AskDeps = {}): Promise<PanelAnswer> {
+  let reply: AnswerResult;
   try {
-    const answer = run ?? (await import("@echo/agents")).answer;
-    return { ok: true, reply: await answer(req) };
+    const answer = deps.run ?? (await import("@echo/agents")).answer;
+    reply = await answer(req);
   } catch (err) {
     console.error("pergunta do painel falhou", err instanceof Error ? err.message : String(err));
     return { ok: false, error: "O agente não conseguiu responder agora. Tente de novo em instantes." };
   }
+  if (deps.record) await deps.record(req, reply).catch((err) => console.error("pergunta do painel não foi gravada", err instanceof Error ? err.message : String(err)));
+  return { ok: true, reply };
+}
+
+/** Gravação no banco do painel (import tardio, sem o restante do servidor dos agentes). */
+export function recordIn(db: Database): NonNullable<AskDeps["record"]> {
+  return async (req, reply) => {
+    const { recordQuestion } = await import("@echo/agents/perguntas");
+    return recordQuestion(db, { req, reply, at: new Date() });
+  };
 }

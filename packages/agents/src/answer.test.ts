@@ -287,6 +287,8 @@ describe("answer sem modelo", () => {
     const normal = await createAnswer(base)(ask("o ECH-128 já terminou?"));
     const ensaio = await createAnswer({ ...base, alwaysAway: true })(ask("o ECH-128 já terminou?"));
     expect(normal.ownerReturnsAt).toBeUndefined();
+    expect(normal.digest).toBeUndefined(); // dono no expediente: nada vai para o resumo da ausência
+    expect(ensaio.digest).toBeDefined();
     expect(ensaio.ownerReturnsAt).toBeInstanceOf(Date);
     expect(ensaio.ownerReturnsAt!.getTime()).toBeGreaterThan(workday.getTime());
     expect(ensaio.text).toMatch(/Fernando volta/);

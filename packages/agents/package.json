@@ -5,7 +5,8 @@
   "exports": {
     ".": "./src/index.ts",
     "./server": "./src/server.ts",
-    "./ganhos": "./src/pg-gains.ts"
+    "./ganhos": "./src/pg-gains.ts",
+    "./perguntas": "./src/pg-questions.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",

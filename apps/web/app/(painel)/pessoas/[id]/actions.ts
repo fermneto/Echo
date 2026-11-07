@@ -1,7 +1,7 @@
 "use server";
 
 import { canAskTwin } from "@/lib/access";
-import { askAgent, panelRequest } from "@/lib/agent";
+import { askAgent, panelRequest, recordIn } from "@/lib/agent";
 import { panelDb } from "@/lib/db";
 import { findMember } from "@/lib/demo/team";
 import { askTwinDemo } from "@/lib/demo/twin";
@@ -19,11 +19,12 @@ export async function perguntar(prev: AskState, formData: FormData): Promise<Ask
   if (!target) return { ...prev, error: "Pessoa não encontrada." };
   if (!question) return { ...prev, error: "Escreva uma pergunta." };
 
-  if (!panelDb()) {
+  const db = panelDb();
+  if (!db) {
     // A simulação responde na hora; a pausa imita o tempo de consulta do fluxo real (nota, GitHub, Linear).
     await new Promise((r) => setTimeout(r, 900));
     return { turns: [...prev.turns, { question, reply: askTwinDemo(target, question) }] };
   }
-  const r = await askAgent(panelRequest({ orgId: me.orgId, askerId: me.id, ownerId: target.id, question }));
+  const r = await askAgent(panelRequest({ orgId: me.orgId, askerId: me.id, ownerId: target.id, question }), { record: recordIn(db) });
   return r.ok ? { turns: [...prev.turns, { question, reply: r.reply }] } : { ...prev, error: r.error };
 }

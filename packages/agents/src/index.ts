@@ -71,7 +71,7 @@ export interface AnswerResult {
   kind?: "gemeo" | "livre" | "quem_sabe";
   /**
    * Para o resumo da ausência (F5b), por regra: o tipo da mensagem e uma linha de pedido e outra de resposta.
-   * Só quando há dono. Quem grava a pergunta guarda estes campos; as linhas somem na entrega ou em 30 dias.
+   * Só quando há dono e ele está fora. Quem grava a pergunta guarda estes campos; as linhas somem na entrega ou em 30 dias.
    */
   digest?: { kind: DigestKind; request: string; reply: string };
   /**
