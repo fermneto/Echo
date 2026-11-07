@@ -1,5 +1,5 @@
 // Apaga e recria SÓ a empresa de demonstração, numa transação. Outras empresas não são tocadas.
-import { type Database, schema } from "@echo/db";
+import { asSystem, type Database, schema } from "@echo/db";
 import { eq, inArray } from "drizzle-orm";
 import { buildDemo, DEMO_IDS, type DemoData } from "./demo.ts";
 
@@ -9,7 +9,8 @@ export interface ResetSummary {
 }
 
 export async function resetDemo(db: Database, now: Date = new Date(), data: DemoData = buildDemo(now)): Promise<ResetSummary> {
-  return db.transaction(async (tx) => {
+  // Sistema: o seed apaga e recria uma empresa inteira, antes de existir contexto de empresa.
+  return asSystem(db, async (tx) => {
     const demoOrgs = await tx.select({ id: schema.orgs.id }).from(schema.orgs).where(eq(schema.orgs.isDemo, true));
     const ids = [...new Set([...demoOrgs.map((o) => o.id), DEMO_IDS.org])];
 
