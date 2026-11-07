@@ -16,7 +16,9 @@
     "tsx": "catalog:",
     "@echo/connectors": "workspace:*",
     "@echo/db": "workspace:*",
-    "@echo/actions": "workspace:*"
+    "@echo/actions": "workspace:*",
+    "@echo/agents": "workspace:*",
+    "drizzle-orm": "catalog:"
   },
   "devDependencies": {
     "@types/node": "catalog:",

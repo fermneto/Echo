@@ -3,9 +3,9 @@
 // acrescenta "Agente de <nome>", a hora de volta e as fontes. Sem modelo (falha ou teto de custo), vale a resposta por regra.
 import Anthropic from "@anthropic-ai/sdk";
 import type { CodeHost, IssueTracker, LiveChecks } from "@echo/connectors";
-import { absences, agentRuns, orgs, people, withOrg, type Database } from "@echo/db";
+import { absences, agentRuns, dailyNotes, orgs, people, withOrg, type Database } from "@echo/db";
 import { costLevel, isAway, type AwayResult, type Person } from "@echo/domain";
-import { and, eq, gte, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, gte, isNull, sql } from "drizzle-orm";
 import { answerOutputSchema, LIMITS, MODELS, type AnswerOutput, type AnswerRequest, type AnswerResult } from "./contracts.ts";
 import { runTool, TOOL_DEFS, type ToolContext } from "./tools.ts";
 import { validateAnswer } from "./validator.ts";
@@ -74,7 +74,11 @@ const EVALUATION = /\b(bom|boa|ruim|melhor|pior|ótim[oa]|excelente)\s+(funcion[
 const INJECTION = /ignore\s+(suas|as|todas as)\s+(regras|instru)|responda\s+como\s+(o|a|se)|finja\s+(ser|que)|voc[eê] agora [eé]|aprov(e|ar|a)\s+(meu|o|esse)\s+pr/i;
 
 const firstName = (n: string) => n.split(" ")[0]!;
-const cityOf = (tz: string) => (tz.split("/").pop() ?? tz).replace(/_/g, " ");
+const CITY_PT: Record<string, string> = { Tokyo: "Tóquio", Johannesburg: "Joanesburgo", Sao_Paulo: "São Paulo", New_York: "Nova York", London: "Londres", Lisbon: "Lisboa", Mexico_City: "Cidade do México" };
+const cityOf = (tz: string) => {
+  const city = tz.split("/").pop() ?? tz;
+  return CITY_PT[city] ?? city.replace(/_/g, " ");
+};
 
 /** "Fernando volta às 9h, horário de Fortaleza." — escrito pelo código, com o fuso da pessoa. */
 export function returnLine(owner: { name: string; timezone: string }, away: AwayResult, now: Date): string {
@@ -125,16 +129,19 @@ export function createAnswer(deps: AnswerDeps) {
       return r;
     };
 
-    const { asker, owner, ownerAbsences, org } = await withOrg(db, orgId, async (tx) => {
+    const { asker, owner, ownerAbsences, org, latestNoteState } = await withOrg(db, orgId, async (tx) => {
       const [a] = await tx.select().from(people).where(and(eq(people.orgId, orgId), eq(people.id, req.askerId)));
       const [o] = req.ownerId ? await tx.select().from(people).where(and(eq(people.orgId, orgId), eq(people.id, req.ownerId))) : [];
       const abs = o ? await tx.select().from(absences).where(and(eq(absences.orgId, orgId), eq(absences.personId, o.id), isNull(absences.cancelledAt), gte(absences.endsAt, now))) : [];
       const [g] = await tx.select().from(orgs).where(eq(orgs.id, orgId));
-      return { asker: a, owner: o, ownerAbsences: abs, org: g };
+      // Nota mais recente do dono, de qualquer estado: sem nota confirmada, a resposta avisa.
+      const [n] = o ? await tx.select({ state: dailyNotes.state }).from(dailyNotes).where(and(eq(dailyNotes.orgId, orgId), eq(dailyNotes.personId, o.id))).orderBy(desc(dailyNotes.date)).limit(1) : [];
+      return { asker: a, owner: o, ownerAbsences: abs, org: g, latestNoteState: n?.state ?? null };
     });
     if (!asker) throw new Error("quem pergunta não está cadastrado nesta empresa");
 
     const agentName = owner ? `Agente de ${firstName(owner.name)}` : "Echo";
+    const noteWarning = owner && latestNoteState !== "confirmed" ? [`${firstName(owner.name)} não confirmou a nota do dia mais recente.`] : [];
     const reply = (text: string, o: Partial<AnswerResult> = {}): AnswerResult => ({ agentName, text, sources: [], needsOwner: false, usedModel: false, warnings: [], ...o });
 
     // Disponibilidade por regra (com o status do Slack valendo mais, quando veio na menção).
@@ -164,7 +171,7 @@ export function createAnswer(deps: AnswerDeps) {
 
     // 2. Dono no expediente: ninguém responde por ele, salvo pergunta direta ao bot.
     if (owner && !away.away && !req.direct) {
-      return finish(reply(`${firstName(owner.name)} está no expediente agora, então o agente não responde por essa pessoa. Pergunte direto a ${firstName(owner.name)}.`));
+      return finish(reply(`${firstName(owner.name)} está no expediente agora, então o agente não responde por essa pessoa. Pergunte direto a ${firstName(owner.name)}.`, { ownerAvailable: true }));
     }
 
     // 3. Teto de custo: acima do limite, perguntas livres param; acima do dobro, nem o ausente usa IA.
@@ -193,7 +200,8 @@ export function createAnswer(deps: AnswerDeps) {
 
     const byRule = async (why: "fallback" | "refused"): Promise<AnswerResult> => {
       run.result = why;
-      return finish(await ruleAnswer(ctx, req.text, withBack, reply));
+      const r = await ruleAnswer(ctx, req.text, withBack, reply);
+      return finish({ ...r, warnings: [...new Set([...r.warnings, ...noteWarning])] });
     };
     if (rulesOnly) return byRule("fallback");
 
@@ -273,7 +281,9 @@ export function createAnswer(deps: AnswerDeps) {
     }
 
     // 6. O código completa: volta prevista, fontes e aviso de nota não confirmada.
-    const warnings = ctx.usedUnconfirmedNote && out.fontes.some((f) => f.startsWith("daily_note:")) ? [`${owner ? firstName(owner.name) : "A pessoa"} não confirmou a nota do dia mais recente.`] : [];
+    // Sem nota confirmada (ou usando uma que não foi), o código acrescenta o aviso.
+    const usedNote = ctx.usedUnconfirmedNote && out.fontes.some((f) => f.startsWith("daily_note:"));
+    const warnings = [...new Set([...noteWarning, ...(usedNote && owner ? [`${firstName(owner.name)} não confirmou a nota do dia mais recente.`] : [])])];
     return finish(
       reply(withBack(out.texto), {
         sources: out.fontes.map((ref) => ({ ref, label: ctx.sources.get(ref) ?? ref })),

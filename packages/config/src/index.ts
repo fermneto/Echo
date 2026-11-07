@@ -76,6 +76,8 @@ export const workerSchema = baseSchema.extend({
   ...anthropic,
   /** Token do bot do Slack (xoxb-…). Sem ele, o worker não fala no Slack. */
   SLACK_BOT_TOKEN: optionalString,
+  /** Só para desenvolvimento e testes: outro endereço para a Web API do Slack (ex.: um Slack falso local). */
+  SLACK_API_BASE_URL: optionalString.pipe(z.url().optional()),
   /** GitHub App: id e chave privada (PEM; "\n" escapado é aceito). */
   GITHUB_APP_ID: optionalString,
   GITHUB_PRIVATE_KEY: optionalString,
@@ -91,6 +93,10 @@ export const workerSchema = baseSchema.extend({
   MICROSOFT_CLIENT_ID: optionalString,
   MICROSOFT_CLIENT_SECRET: optionalString,
   HEARTBEAT_INTERVAL_MS: z.coerce.number().int().min(1000).default(30_000),
+  /** Ensaiar de dia: o dono da pergunta é tratado como ausente. Só para a demonstração. */
+  DEMO_ALWAYS_AWAY: bool.default(false),
+  /** Repositório padrão das perguntas sobre PR (org/repo), quando a empresa tem um só. */
+  DEFAULT_REPOSITORY: optionalString,
   /** Intervalo da reconciliação com GitHub e Linear (padrão: 10 minutos). */
   RECONCILE_INTERVAL_MS: z.coerce.number().int().min(60_000).default(10 * 60_000),
   /** Repositório do espelho das notas (<org>/brains): push nele não é trabalho. */

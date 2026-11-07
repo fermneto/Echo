@@ -364,6 +364,9 @@ importers:
       '@echo/actions':
         specifier: workspace:*
         version: link:../../packages/actions
+      '@echo/agents':
+        specifier: workspace:*
+        version: link:../../packages/agents
       '@echo/config':
         specifier: workspace:*
         version: link:../../packages/config
@@ -379,6 +382,9 @@ importers:
       '@echo/observability':
         specifier: workspace:*
         version: link:../../packages/observability
+      drizzle-orm:
+        specifier: 'catalog:'
+        version: 0.45.4(@opentelemetry/api@1.9.1)(@types/pg@8.23.1)(pg@8.23.1)
       tsx:
         specifier: 'catalog:'
         version: 4.23.15

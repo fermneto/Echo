@@ -128,7 +128,7 @@ describe.skipIf(!url)("answer (Postgres real, papel comum, modelo falso)", () =>
   it("modelo fora do ar: resposta por regra com o que está registrado", async () => {
     const { model } = fakeModel([new Error("API fora")]);
     const r = await createAnswer({ db: app, model, now: () => NIGHT })(ask("@Fernando o ECH-128 já terminou?"));
-    expect(r).toMatchObject({ usedModel: false, agentName: "Agente de Fernando" });
+    expect(r).toMatchObject({ usedModel: false, agentName: "Agente de Fernando", warnings: [] });
     expect(r.text).toMatch(/^Resposta sem IA.*A ECH-128 está em andamento, com Fernando como responsável\./);
     expect(r.sources.map((s) => s.ref)).toEqual(["linear:ECH-128"]);
   });

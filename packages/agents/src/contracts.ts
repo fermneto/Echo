@@ -61,6 +61,8 @@ export interface AnswerResult {
   ownerReturnsAt?: Date;
   usedModel: boolean; // false = resposta por regra (teto de custo ou API fora)
   warnings: string[]; // ex.: "nota do dia não confirmada"
+  /** O dono está no expediente e ninguém responde por ele (no Slack, o Echo fica em silêncio). */
+  ownerAvailable?: boolean;
 }
 
 export interface ValidationIssue {

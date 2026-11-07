@@ -90,6 +90,10 @@ services:
         value: worker
       - key: SLACK_BOT_TOKEN
         sync: false
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      - key: DEMO_ALWAYS_AWAY
+        value: "false"
       - key: GITHUB_APP_ID
         sync: false
       - key: GITHUB_PRIVATE_KEY
