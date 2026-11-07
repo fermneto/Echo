@@ -156,18 +156,6 @@
   color: var(--color-fog);
 }
 
-.demo-banner {
-  display: block;
-  width: fit-content;
-  max-width: 100%;
-  margin: 0 0 var(--space-3xl);
-  padding: 6px 12px;
-  font-size: 11px;
-  color: var(--color-fog);
-  background: var(--color-chip);
-  border: 1px solid var(--color-line);
-  border-radius: var(--rounded-sm);
-}
 
 /* Página */
 .page {

@@ -90,7 +90,6 @@ export default async function InicioPage() {
   const counts = teamCounts();
   const seesWork = canAskTwin(me.role);
   const waiting = WAITING.filter((w) => w.ownerId === me.id);
-  const focus = TEAM.find((p) => p.id === "fernando")!;
   const { crews, zones, arcs } = buildMap(TEAM, now);
 
   return (
@@ -100,11 +99,6 @@ export default async function InicioPage() {
         Agora · {counts.on} no expediente · {counts.away} gêmeos cobrindo · {counts.zones} fusos
       </p>
       <h1 className="hero-title">Quem está trabalhando agora</h1>
-      <p className="lead">
-        {focus.availability.kind === "working"
-          ? `${focus.name} está no expediente em ${focus.city}, ${localTime(now, focus.timezone)}, e responde por si.`
-          : `${focus.name} está fora em ${focus.city}, ${localTime(now, focus.timezone)}. O gêmeo de ${focus.name} responde enquanto isso.`}
-      </p>
 
       <ul className="crew-grid" role="list" aria-label="Equipe">
         {TEAM.map((p) => (
