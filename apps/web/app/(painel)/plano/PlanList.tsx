@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 import { move, type PlanItem } from "@/lib/demo/plan";
+import { collapse } from "@/lib/motion";
 
 function Arrow({ up }: { up?: boolean }) {
   return (
@@ -89,9 +90,15 @@ export function PlanList({ initial }: { initial: PlanItem[] }) {
                 <button
                   type="button"
                   className="link-inline plan-item__drop"
-                  onClick={() => {
-                    setDropped((d) => [...d, it]);
-                    setItems((l) => l.filter((x) => x.id !== it.id));
+                  onClick={(e) => {
+                    // O item fecha a altura antes de sair, e a lista se ajusta sem salto.
+                    const li = e.currentTarget.closest("li");
+                    const drop = () => {
+                      setDropped((d) => [...d, it]);
+                      setItems((l) => l.filter((x) => x.id !== it.id));
+                    };
+                    if (li) collapse(li, drop);
+                    else drop();
                   }}
                   aria-label={`Descartar: ${it.title}`}
                 >

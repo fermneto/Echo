@@ -4,6 +4,7 @@ import { useActionState, useEffect, useRef, useState } from "react";
 import { flushSync } from "react-dom";
 import type { AskState } from "@/lib/ask";
 import { AskField } from "./AskField";
+import { RevealText } from "./RevealText";
 import { ProductWindow } from "./ProductWindow";
 
 const INITIAL: AskState = { turns: [] };
@@ -61,7 +62,7 @@ export function AskPanel({
               <span className="chat__who">{askerName}</span> {t.question}
             </p>
             <div className="chat__line chat__reply">
-              <span className="chat__who chat__who--twin">{t.reply.agentName}</span> {t.reply.text}
+              <span className="chat__who chat__who--twin">{t.reply.agentName}</span> <RevealText text={t.reply.text} animate={i === state.turns.length - 1} />
               {t.reply.warnings.map((w) => (
                 <p key={w} className="chat__warning">
                   Aviso: {w}

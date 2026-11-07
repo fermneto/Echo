@@ -19,6 +19,8 @@
     "@echo/domain": "workspace:*",
     "@echo/jobs": "workspace:*",
     "@echo/observability": "workspace:*",
+    "@gsap/react": "catalog:",
+    "gsap": "catalog:",
     "next": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",
