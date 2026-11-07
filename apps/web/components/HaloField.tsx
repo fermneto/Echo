@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type RefObject } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type RefObject } from "react";
 
 const CLEAR_MS = 520;
 
@@ -18,8 +18,9 @@ function Stagger({ text, className, step = 18 }: { text: string; className: stri
 }
 
 /**
- * Campo de pergunta com halo: um brilho que corre pela borda de baixo, um orbe que "pensa"
- * (mais rápido enquanto a pessoa digita e enquanto o agente consulta), placeholder que entra
+ * Campo de pergunta com eco: contornos do campo sobem e somem como na marca do rodapé, e o
+ * medidor ao lado acende no mesmo ritmo (mais rápido enquanto a pessoa digita e enquanto o
+ * agente consulta), placeholder que entra
  * letra a letra e texto que se desfaz ao limpar. Tudo em CSS, desligado com movimento reduzido.
  */
 export function HaloField({
@@ -74,16 +75,19 @@ export function HaloField({
 
   return (
     <div className={`halo ${state}`}>
-      {["halo__bloom", "halo__glow"].map((layer) => (
-        <div key={layer} className={layer} aria-hidden="true">
-          <span className="halo__blob halo__blob--a" />
-          <span className="halo__blob halo__blob--b" />
-          <span className="halo__blob halo__blob--c" />
-        </div>
-      ))}
+      {/* Eco do campo: contornos vazados empilhados para cima, com uma onda de brilho subindo. */}
+      <div className="halo__echo" aria-hidden="true">
+        {[4, 3, 2, 1].map((k) => (
+          <span key={k} className="halo__ring" style={{ "--k": k } as CSSProperties} />
+        ))}
+      </div>
       <div className="halo__field" aria-busy={pending || undefined}>
-        <span className="halo__orb" aria-hidden="true">
-          <span className="halo__orb-swirl" />
+        {/* O ponto do "echo." como medidor: acende de baixo para cima no ritmo do eco. */}
+        <span className="halo__meter" aria-hidden="true">
+          {[4, 3, 2, 1].map((k) => (
+            <span key={k} className="halo__cell" style={{ "--k": k } as CSSProperties} />
+          ))}
+          <span className="halo__cell is-on" />
         </span>
         <div className="halo__input-wrap">
           <label htmlFor={id} className="sr-only">
