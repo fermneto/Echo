@@ -324,6 +324,12 @@ importers:
       '@echo/config':
         specifier: workspace:*
         version: link:../../packages/config
+      '@echo/connectors':
+        specifier: workspace:*
+        version: link:../../packages/connectors
+      '@echo/db':
+        specifier: workspace:*
+        version: link:../../packages/db
       '@echo/domain':
         specifier: workspace:*
         version: link:../../packages/domain
@@ -355,6 +361,12 @@ importers:
 
   apps/worker:
     dependencies:
+      '@echo/actions':
+        specifier: workspace:*
+        version: link:../../packages/actions
+      '@echo/agents':
+        specifier: workspace:*
+        version: link:../../packages/agents
       '@echo/brain':
         specifier: workspace:*
         version: link:../../packages/brain
@@ -367,12 +379,18 @@ importers:
       '@echo/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@echo/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
       '@echo/jobs':
         specifier: workspace:*
         version: link:../../packages/jobs
       '@echo/observability':
         specifier: workspace:*
         version: link:../../packages/observability
+      drizzle-orm:
+        specifier: 'catalog:'
+        version: 0.45.4(@opentelemetry/api@1.9.1)(@types/pg@8.23.1)(pg@8.23.1)
       tsx:
         specifier: 'catalog:'
         version: 4.23.15
@@ -380,6 +398,9 @@ importers:
       '@types/node':
         specifier: 'catalog:'
         version: 24.19.2
+      pino:
+        specifier: 'catalog:'
+        version: 10.4.0
       typescript:
         specifier: 'catalog:'
         version: 7.0.2
@@ -411,9 +432,21 @@ importers:
 
   packages/actions:
     dependencies:
+      '@echo/connectors':
+        specifier: workspace:*
+        version: link:../connectors
+      '@echo/db':
+        specifier: workspace:*
+        version: link:../db
       '@echo/domain':
         specifier: workspace:*
         version: link:../domain
+      drizzle-orm:
+        specifier: 'catalog:'
+        version: 0.45.4(@opentelemetry/api@1.9.1)(@types/pg@8.23.1)(pg@8.23.1)
+      tsx:
+        specifier: 'catalog:'
+        version: 4.23.15
     devDependencies:
       '@types/node':
         specifier: 'catalog:'
@@ -530,6 +563,9 @@ importers:
 
   packages/connectors:
     dependencies:
+      '@echo/config':
+        specifier: workspace:*
+        version: link:../config
       '@echo/db':
         specifier: workspace:*
         version: link:../db
@@ -542,6 +578,9 @@ importers:
       drizzle-orm:
         specifier: 'catalog:'
         version: 0.45.4(@opentelemetry/api@1.9.1)(@types/pg@8.23.1)(pg@8.23.1)
+      tsx:
+        specifier: 'catalog:'
+        version: 4.23.15
     devDependencies:
       '@types/node':
         specifier: 'catalog:'

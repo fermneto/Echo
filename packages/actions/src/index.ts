@@ -36,3 +36,6 @@ export const REQUIRES_APPROVAL: Record<ActionType, boolean> = {
   "slack.post": false,
   "slack.dm": false,
 };
+
+export { approveAction, drainActions, enqueueAction, MAX_ATTEMPTS, orgsWithApprovedActions, PermanentActionError, releaseStuckActions, type ActionPayloads, type ExecutorDeps } from "./executor.ts";
+export { writersFromEnv, type PlatformEnv } from "./writers.ts";

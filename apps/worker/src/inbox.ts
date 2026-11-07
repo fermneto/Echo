@@ -13,7 +13,7 @@ export interface SlackMessageJob {
 export async function registerInbox(db: Database, queue: JobQueue, runs: RunRecorder, opts: ProcessOptions = {}): Promise<void> {
   await queue.work<InboxJob>(QUEUES.inboxProcess, async (job) => {
     await withRun(runs, "inbox", async () => {
-      const result = await processInbox(db, job.data.inboxId, opts);
+      const result = await processInbox(db, job.data, opts);
       if (!result) return;
       const orgId = result.orgId;
       for (const message of result.messages) {

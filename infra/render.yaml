@@ -36,6 +36,16 @@ services:
     envVars:
       - key: APP
         value: api
+      - key: GITHUB_WEBHOOK_SECRET
+        sync: false
+      - key: SLACK_SIGNING_SECRET
+        sync: false
+      - key: LINEAR_WEBHOOK_SECRET
+        sync: false
+      - key: VERCEL_WEBHOOK_SECRET
+        sync: false
+      - key: ENCRYPTION_KEY
+        sync: false
       - key: DATABASE_URL
         fromDatabase:
           name: echo-db
@@ -53,6 +63,19 @@ services:
     envVars:
       - key: SESSION_SECRET
         generateValue: true
+      - key: DATABASE_URL
+        fromDatabase:
+          name: echo-db
+          property: connectionString
+      - key: SLACK_CLIENT_ID
+        sync: false
+      - key: SLACK_CLIENT_SECRET
+        sync: false
+      # Endereço público do echo-web (o retorno do login é PANEL_URL/api/sessao/slack/retorno).
+      - key: PANEL_URL
+        sync: false
+      - key: DEMO_SLACK_TEAM_ID
+        sync: false
       - fromGroup: echo-shared
 
   - type: worker
@@ -65,6 +88,26 @@ services:
     envVars:
       - key: APP
         value: worker
+      - key: SLACK_BOT_TOKEN
+        sync: false
+      - key: GITHUB_APP_ID
+        sync: false
+      - key: GITHUB_PRIVATE_KEY
+        sync: false
+      - key: LINEAR_CLIENT_ID
+        sync: false
+      - key: LINEAR_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_SERVICE_ACCOUNT_EMAIL
+        sync: false
+      - key: GOOGLE_SERVICE_ACCOUNT_KEY
+        sync: false
+      - key: MICROSOFT_CLIENT_ID
+        sync: false
+      - key: MICROSOFT_CLIENT_SECRET
+        sync: false
+      - key: ENCRYPTION_KEY
+        sync: false
       - key: DATABASE_URL
         fromDatabase:
           name: echo-db

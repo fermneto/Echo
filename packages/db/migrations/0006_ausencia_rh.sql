@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "absences_hr_event" ON "absences" USING btree ("org_id","hr_event_id");
