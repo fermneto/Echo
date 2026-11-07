@@ -287,6 +287,8 @@ describe("answer sem modelo", () => {
     const normal = await createAnswer(base)(ask("o ECH-128 já terminou?"));
     const ensaio = await createAnswer({ ...base, alwaysAway: true })(ask("o ECH-128 já terminou?"));
     expect(normal.ownerReturnsAt).toBeUndefined();
+    expect(normal.digest).toBeUndefined(); // dono no expediente: nada vai para o resumo da ausência
+    expect(ensaio.digest).toBeDefined();
     expect(ensaio.ownerReturnsAt).toBeInstanceOf(Date);
     expect(ensaio.ownerReturnsAt!.getTime()).toBeGreaterThan(workday.getTime());
     expect(ensaio.text).toMatch(/Fernando volta/);
@@ -299,6 +301,26 @@ describe("answer sem modelo", () => {
     expect(m.calls).toHaveLength(0);
     expect(r.warnings).toContain("resposta por regra: limite de custo do mês");
     expect(runs[0]!.result).toBe("fallback");
+    // Acima do dobro não conta nos ganhos: a volta segue no texto, mas não é gravada.
+    expect(r.text).toContain("Fernando volta");
+    expect(r.ownerReturnsAt).toBeUndefined();
+    expect(r.overLimit).toBe(true); // quem grava guarda como falha
+  });
+
+  it("abaixo do dobro do limite, nem a resposta por regra (modelo fora) é marcada como acima do teto", async () => {
+    const { answer } = setup(scripted([]).call);
+    const r = await answer(ask("ech-128-tempo-limite?"));
+    expect(r.usedModel).toBe(false);
+    expect(r.overLimit).toBeUndefined();
+  });
+
+  it("resumo da ausência: tipo e uma linha de pedido e outra de resposta, por regra, só com dono", async () => {
+    const m = scripted([{ out: { status: "nao_sei", texto: "Não há registro sobre essa reunião.\nFernando decide na volta.", fontes: [], liberacao: null, precisa_do_dono: true } }]);
+    const { answer } = setup(m.call);
+    const r = await answer(ask("<@U1> Podemos marcar uma reunião de alinhamento na quinta?"));
+    expect(r.digest).toEqual({ kind: "reuniao", request: "Podemos marcar uma reunião de alinhamento na quinta?", reply: "Não há registro sobre essa reunião. Fernando decide na volta." });
+    const livre = await setup(null).answer(ask("o que é o Echo?", { ownerId: undefined }));
+    expect(livre.digest).toBeUndefined();
   });
 
   it("teto de 100%: o agente de quem está ausente segue com o modelo; a pergunta livre pausa", async () => {

@@ -72,7 +72,7 @@ export { ingest, type IngestResult } from "./ingest.ts";
 export { processInbox, receive, routeOrg, slackBotUserIdOf, type Delivery, type InboxJob, type InboxSource, type ProcessOptions } from "./inbox.ts";
 export { answerBlocks, dailyNoteDraftBlocks, fitText, respondToInteraction, SLACK_ACTIONS, SlackApiError, SlackChat, sourcesLine, type SlackClientOptions } from "./slack-client.ts";
 export { RefreshingToken } from "./tokens.ts";
-export { appJwt, GithubApiError, GithubApp, GithubCodeHost, normalizePem, selectDeliveriesToRetry, type GithubAppOptions, type WebhookDelivery } from "./github-client.ts";
+export { appJwt, GithubApiError, GithubApp, GithubCodeHost, normalizePem, selectDeliveriesToRetry, type GithubAppOptions, type PullRequestHistory, type WebhookDelivery } from "./github-client.ts";
 export { LinearApiError, LinearTracker, toTask, type LinearOptions } from "./linear-client.ts";
 export { BACKFILL_MS, MAX_DETAILS_PER_REPO, openPullRequestNumbers, reconcileGithub, reconcileLinear, type GithubReconciler, type GithubReconcileResult, type LinearReconciler } from "./reconcile.ts";
 export { calendarsForOrg, connectedOrgs, githubForOrg, orgRoute, platformsFromEnv, type PlatformEnv, type Platforms } from "./platforms.ts";

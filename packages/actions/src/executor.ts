@@ -18,7 +18,7 @@ export interface ActionPayloads {
   "github.draft_pr": Record<string, unknown>;
   "github.merge_fix": Record<string, unknown>;
   "slack.post": { channel: string; text: string; threadTs?: string; agentName?: string };
-  "slack.dm": { personId: string; text: string };
+  "slack.dm": { personId: string; text: string; blocks?: unknown[] };
 }
 
 /** Erro que não adianta repetir (conta não ligada, tarefa inexistente): falha na hora, com o motivo. */
@@ -151,7 +151,7 @@ async function run(deps: ExecutorDeps, row: Row): Promise<void> {
           .where(and(eq(identities.orgId, orgId), eq(identities.personId, p.personId), eq(identities.platform, "slack"))),
       );
       if (!id) throw new PermanentActionError("pessoa sem conta no Slack");
-      await need("chat", "Slack").sendDm(id.externalId, { text: p.text });
+      await need("chat", "Slack").sendDm(id.externalId, { text: p.text, ...(Array.isArray(p.blocks) ? { blocks: p.blocks } : {}) });
       return;
     }
     default:

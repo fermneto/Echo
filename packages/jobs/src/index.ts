@@ -34,6 +34,10 @@ export const QUEUES = {
   weeklyReportBuild: "weekly_report.build",
   /** Agenda dos relatórios de uma empresa: aviso entregue, envio ao RH em 3 dias, sem aviso em 7. */
   weeklyReportSync: "weekly_report.sync",
+  /** Resumo da ausência de uma pessoa (etapa 13, F5b). Chave única: pessoa + data + início ou fim do expediente. */
+  awayDigestSend: "away_digest.send",
+  /** Referência dos Ganhos: 90 dias de GitHub antes do Echo, medida uma vez por empresa (etapa 13). */
+  gainsBaseline: "gains.baseline",
 } as const;
 export type QueueName = (typeof QUEUES)[keyof typeof QUEUES];
 
