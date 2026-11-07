@@ -1955,3 +1955,169 @@ select.field option {
   text-decoration: line-through;
   text-decoration-color: var(--color-iron);
 }
+
+/* Custo e execuções */
+.rehearsal {
+  margin-top: var(--space-2xl);
+  border-style: dashed;
+}
+.rehearsal .card__title {
+  margin-bottom: 4px;
+}
+.rehearsal__hint {
+  margin: 0 0 var(--space-md);
+  font-size: 13px;
+}
+.runs-metrics {
+  margin-top: var(--space-xl);
+}
+.runs-metric__v {
+  font-size: 22px;
+}
+.budget {
+  margin-top: var(--space-md);
+}
+.budget__bar {
+  position: relative;
+  height: 6px;
+  border-radius: var(--rounded-pill);
+  background: var(--color-line);
+}
+.budget__fill {
+  position: absolute;
+  inset: 0 auto 0 0;
+  border-radius: inherit;
+  background: var(--color-signal-on);
+}
+.budget__mark {
+  position: absolute;
+  top: -3px;
+  bottom: -3px;
+  width: 1px;
+  background: var(--color-signal-wait);
+}
+.budget__label {
+  margin: 6px 0 0;
+  font-size: 11px;
+}
+.runs-grid {
+  margin-top: var(--space-xl);
+}
+.runs-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14px;
+}
+.runs-table th,
+.runs-table td {
+  padding: 8px 0;
+  border-top: 1px solid var(--color-line);
+  text-align: left;
+  font-weight: 400;
+}
+.runs-table thead th {
+  border-top: 0;
+  font-family: var(--font-mono);
+  font-size: 10px;
+  text-transform: uppercase;
+  color: var(--color-ash);
+}
+.runs-table .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.runs-table__rule {
+  font-size: 11px;
+}
+.audit {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  font-size: 14px;
+}
+.audit li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: 8px 0;
+  border-top: 1px solid var(--color-line);
+}
+.audit li:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+.audit .mono {
+  font-size: 11px;
+}
+.audit strong {
+  font-weight: 500;
+}
+.audit__foot {
+  margin: var(--space-md) 0 0;
+  font-size: 12px;
+}
+.runs-list {
+  margin-top: var(--space-xl);
+}
+.runs {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.run {
+  padding: var(--space-md) 0;
+  border-top: 1px solid var(--color-line);
+}
+.run:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+.run.is-new .run__what::before {
+  content: "";
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-right: 8px;
+  vertical-align: middle;
+  border-radius: 50%;
+  background: var(--color-signal-twin);
+}
+.run__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.run__at {
+  margin-left: auto;
+  font-size: 11px;
+}
+.run__result.is-ok {
+  color: var(--color-signal-on);
+}
+.run__result.is-fallback {
+  color: var(--color-signal-twin-text);
+}
+.run__result.is-refused {
+  color: var(--color-signal-wait);
+}
+.run__result.is-failed {
+  color: var(--color-danger);
+}
+.run__what {
+  margin: 6px 0 2px;
+  font-size: 14px;
+}
+.run__meta {
+  margin: 0;
+  font-size: 11px;
+  overflow-wrap: anywhere;
+}
+.run__cost {
+  color: var(--color-paper);
+}
+@media (max-width: 640px) {
+  .metrics {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
