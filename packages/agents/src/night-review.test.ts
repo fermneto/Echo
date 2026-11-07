@@ -118,7 +118,7 @@ describe("filtro e lote", () => {
 
     expect(store.rows.map((r) => `${r.pr.number}:${r.state}`)).toEqual(["44:batched", "45:batched", "47:too_large"]);
     expect(outbox).toHaveLength(1);
-    expect(outbox[0]).toMatchObject({ type: "github.comment", target: "github:echo-teste/app#47", idempotencyKey: "review_too_large:echo-teste/app#47:sha47" });
+    expect(outbox[0]).toMatchObject({ type: "github.comment", target: "github:echo-teste/app#47", payload: { repo: "echo-teste/app", number: 47 }, idempotencyKey: "review_too_large:echo-teste/app#47:sha47" });
     expect((outbox[0]!.payload as { body: string }).body).toMatch(/grande demais para análise automática \(5000 linhas alteradas \(limite 3000\)\): não houve análise/);
     expect(runs[0]).toMatchObject({ flow: "night_review_batch", result: "ok", tools: ["batch.create"] });
   });
@@ -177,7 +177,7 @@ describe("resultado do lote", () => {
     expect(await flow.collect("org")).toEqual({ reviewed: 1, noFindings: 1, failed: 0, pending: 0 });
 
     const comment = outbox.find((a) => a.idempotencyKey === "review_comment:rv1")!;
-    expect(comment).toMatchObject({ type: "github.comment", target: "github:echo-teste/app#44" });
+    expect(comment).toMatchObject({ type: "github.comment", target: "github:echo-teste/app#44", payload: { repo: "echo-teste/app", number: 44 } });
     const body = (comment.payload as { body: string }).body;
     expect(body.split("\n")[0]).toBe("**Análise automática do Echo.** Isto não é uma aprovação e não substitui a revisão de uma pessoa.");
     expect(body).toContain("- **Alta** · `src/listagem.ts:12` · Tempo limite fixo, fora da configuração; avise @​fernando. Sugestão: Usar a constante.");

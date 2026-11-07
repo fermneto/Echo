@@ -81,7 +81,7 @@ describe.skipIf(!url)("redistribuição em Postgres", () => {
     expect(items.every((i) => i.state === "proposed" && i.fromId === bruno && i.toId && i.reason)).toBe(true);
     expect(items.find((i) => i.prId === pr36)!.toId).not.toBe(yan); // autor do PR não revisa
     const before = await asSystem(db, (tx) => tx.select().from(outboxActions).where(eq(outboxActions.orgId, org)));
-    expect(before.map((a) => [a.type, a.state, (a.payload as { personId: string }).personId])).toEqual([["slack.dm", "pending", marina]]);
+    expect(before.map((a) => [a.type, a.state, (a.payload as { personId: string }).personId])).toEqual([["slack.dm", "approved", marina]]); // sem aprovação exigida: o executor já pode mandar
     const [unchanged] = await asSystem(db, (tx) => tx.select().from(tasks).where(eq(tasks.id, t137)));
     expect(unchanged!.assigneeId).toBe(bruno);
 

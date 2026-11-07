@@ -271,6 +271,27 @@ describe("answer sem modelo", () => {
     expect(b.text).toMatch(/não aprova PRs/);
   });
 
+  it("pedido de gravação de vídeo é recusado: só preview, nunca produção", async () => {
+    const r = await setup(null).answer(ask("Grave o vídeo da entrega usando https://app.echo.com.br."));
+    expect(r.text).toMatch(/não grava vídeos/);
+    expect(r.text).toMatch(/nunca em produção/);
+    expect(r.text).toMatch(/preview/);
+    // Perguntar sobre um vídeo não é pedir para gravar.
+    const q = await setup(null).answer(ask("O vídeo da ECH-131 ficou pronto?"));
+    expect(q.text).not.toMatch(/não grava vídeos/);
+  });
+
+  it("ensaio de dia (DEMO_ALWAYS_AWAY): no expediente, o dono é tratado como ausente e a volta é o próximo expediente", async () => {
+    const workday = new Date("2026-11-06T15:00:00Z"); // sexta, 12h em Fortaleza
+    const base = { data: () => memoryData(), brain: () => brain, model: null, recorder: new LogRunRecorder(), clock: new FixedClock(workday) };
+    const normal = await createAnswer(base)(ask("o ECH-128 já terminou?"));
+    const ensaio = await createAnswer({ ...base, alwaysAway: true })(ask("o ECH-128 já terminou?"));
+    expect(normal.ownerReturnsAt).toBeUndefined();
+    expect(ensaio.ownerReturnsAt).toBeInstanceOf(Date);
+    expect(ensaio.ownerReturnsAt!.getTime()).toBeGreaterThan(workday.getTime());
+    expect(ensaio.text).toMatch(/Fernando volta/);
+  });
+
   it("teto de 200%: não chama o modelo", async () => {
     const m = scripted([]);
     const { answer, runs } = setup(m.call, memoryData({ spent: 100 }));

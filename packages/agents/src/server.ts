@@ -59,6 +59,8 @@ export function serverAnswerDeps(db: Database, apiKey: string | undefined): Answ
     brain: (orgId) => createPgBrainStore(db, orgId),
     model: apiKey ? anthropicModelCall(apiKey) : null,
     recorder: createDbRunRecorder(db),
+    // Só para ensaiar a demonstração de dia: o dono da pergunta é tratado como ausente.
+    alwaysAway: process.env.DEMO_ALWAYS_AWAY === "true",
   };
 }
 
