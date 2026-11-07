@@ -143,7 +143,8 @@ describe("rascunho do fim do expediente", () => {
     expect(payload.text).toContain("*Reservado:* `ech-128-tempo-limite` (Até a revisão do PR sair)");
     expect(payload.text).toContain("Só você declara o que está liberado ou reservado.");
     const buttons = payload.blocks.find((b) => b.type === "actions")!.elements!;
-    expect(buttons.map((b) => b.action_id)).toEqual(["confirmar_nota", "editar_nota"]);
+    expect(buttons.map((b) => b.action_id)).toEqual(["confirmar_nota", "editar_nota", "abrir_resumo"]);
+    expect(buttons[2]!.url).toBe("https://echo.test/resumos?data=2026-11-06");
     expect(JSON.parse(buttons[0]!.value!)).toEqual({ personId: "fernando", date: "2026-11-06" });
     expect(buttons[1]!.url).toBe("https://echo.test/nota-do-dia?data=2026-11-06");
 

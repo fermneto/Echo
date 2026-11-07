@@ -45,4 +45,22 @@ describe("registerEndOfDay", () => {
     await tick();
     expect(calls).toEqual([]);
   });
+
+  it("resumo do dia: entra na fila depois do rascunho e de novo quando a pessoa confirma pelo Slack", async () => {
+    const queue = new InMemoryQueue();
+    const summaries: string[] = [];
+    const note = { personId: "fernando", date: "2026-11-06", released: [], reserved: [], state: "confirmed" as const, createdAt: new Date() };
+    const { tick } = await registerEndOfDay(queue, {
+      scan: async () => [{ orgId: "org", personId: "fernando", date: "2026-11-06" }],
+      flow: {
+        draft: async (_o, p, d) => ({ status: "created", note: { personId: p, date: d, released: [], reserved: [], state: "draft" }, usedModel: false, dmQueued: true }),
+        expire: async () => ({ state: "draft", changed: false }),
+        confirmFromSlack: async () => ({ status: "confirmed", note }),
+      },
+      summary: { generate: async (o, p, d) => (summaries.push(`${o}:${p}:${d}`), { status: "skipped", reason: "teste" }) },
+    });
+    await tick();
+    await queue.send(QUEUES.slackInteraction, { orgId: "org", payload: { type: "block_actions" } });
+    expect(summaries).toEqual(["org:fernando:2026-11-06", "org:fernando:2026-11-06"]);
+  });
 });

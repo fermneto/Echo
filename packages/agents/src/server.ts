@@ -13,7 +13,9 @@ import { createPgDailyNoteStore } from "./pg-notes.ts";
 import { createMorningPlan, type MorningPlan } from "./morning-plan.ts";
 import { type BatchApi, createNightReview, type NightReview, type ReviewSource } from "./night-review.ts";
 import { createPgPlanStore, createPgReviewStore } from "./pg-night.ts";
-import { ollamaTriage } from "./triage-ollama.ts";
+import { ollamaJson, ollamaTriage } from "./triage-ollama.ts";
+import { createDaySummary, type DaySummary } from "./day-summary.ts";
+import { createPgArtifactStore } from "./pg-artifacts.ts";
 import { createFix, type Fix, type FixCodeHost } from "./fix.ts";
 import { createManagedFixSandbox, fixAgentParams, fixEnvironmentParams } from "./managed-fix.ts";
 import { createPgFixStore } from "./pg-fix.ts";
@@ -29,7 +31,8 @@ import { createPgDigestStore } from "./pg-away-digest.ts";
 export { createPgAgentData } from "./pg-data.ts";
 export { createPgDailyNoteStore } from "./pg-notes.ts";
 export { createPgPlanStore, createPgReviewStore } from "./pg-night.ts";
-export { ollamaBaseUrl, ollamaTriage } from "./triage-ollama.ts";
+export { ollamaBaseUrl, ollamaJson, ollamaTriage } from "./triage-ollama.ts";
+export { createPgArtifactStore } from "./pg-artifacts.ts";
 export { createPgFixStore } from "./pg-fix.ts";
 export { createPgRedistributionStore } from "./pg-redistribution.ts";
 export { createPgReportStore } from "./pg-report.ts";
@@ -118,6 +121,21 @@ export function serverNightReview(db: Database, apiKey: string | undefined, diff
     batches: apiKey ? anthropicBatchApi(apiKey) : null,
     recorder: createDbRunRecorder(db),
     triage: triage ? { model: ollamaTriage({ baseUrl: triage.url, model: triage.model }), timeoutMs: triage.timeoutMs } : null,
+  });
+}
+
+/**
+ * Resumo do dia (etapa 26): depois do rascunho da nota, o modelo aberto do Ollama monta a especificação do
+ * resumo. Sem `ollama`, layout padrão por regra.
+ */
+export function serverDaySummary(db: Database, ollama?: { url: string; model: string; timeoutMs: number }): DaySummary {
+  return createDaySummary({
+    data: (orgId) => createPgAgentData(db, orgId),
+    notes: (orgId) => createPgDailyNoteStore(db, orgId),
+    artifacts: (orgId) => createPgArtifactStore(db, orgId),
+    model: ollama ? ollamaJson({ baseUrl: ollama.url, model: ollama.model }) : null,
+    recorder: createDbRunRecorder(db),
+    timeoutMs: ollama?.timeoutMs,
   });
 }
 

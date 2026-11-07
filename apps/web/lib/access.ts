@@ -14,6 +14,7 @@ export const ROUTES = {
   inicio: { href: "/", label: "Início", roles: ALL },
   plano: { href: "/plano", label: "Meu plano", hint: "O que chegou para você hoje, em ordem de prioridade.", roles: PEOPLE },
   notaDoDia: { href: "/nota-do-dia", label: "Nota do dia", hint: "O rascunho do seu gêmeo para você conferir e publicar.", roles: PEOPLE },
+  resumo: { href: "/resumos", label: "Resumo do dia", hint: "O seu dia em uma página, montado por um modelo aberto a partir de fatos.", roles: PEOPLE },
   notas: { href: "/notas", label: "Notas", hint: "O que cada gêmeo sabe, com versões e fontes.", roles: PEOPLE },
   equipe: { href: "/equipe", label: "Pessoas", hint: "Quem é quem, onde está e quando volta.", roles: ALL },
   pessoa: { href: "/pessoas", label: "Ficha da pessoa", roles: ALL },
@@ -29,7 +30,7 @@ export type RouteId = keyof typeof ROUTES;
 
 /** Grupos do menu, na ordem em que aparecem. */
 export const NAV_GROUPS: readonly { label: string; routes: readonly RouteId[] }[] = [
-  { label: "Meu dia", routes: ["plano", "notaDoDia"] },
+  { label: "Meu dia", routes: ["plano", "notaDoDia", "resumo"] },
   { label: "Equipe", routes: ["equipe", "notas"] },
   { label: "Gestão", routes: ["redistribuicao", "relatorios", "ganhos", "execucoes", "configuracao"] },
   { label: "Demo", routes: ["simulador"] },

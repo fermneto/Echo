@@ -7,7 +7,7 @@ const demo = { demo: true };
 
 describe("canSee", () => {
   it("RH nunca vê plano, nota do dia nem notas (cérebros)", () => {
-    for (const r of ["plano", "notaDoDia", "notas"] as RouteId[]) expect(canSee("hr", r, demo)).toBe(false);
+    for (const r of ["plano", "notaDoDia", "resumo", "notas"] as RouteId[]) expect(canSee("hr", r, demo)).toBe(false);
   });
 
   it("só a liderança vê redistribuição e custo e execuções", () => {
@@ -47,9 +47,9 @@ describe("navFor", () => {
     expect(navFor("leader", { demo: false }).map((g) => g.label)).not.toContain("Demo");
   });
 
-  it("Meu dia traz o plano e depois a nota do dia; a demonstração termina com o Simulador", () => {
+  it("Meu dia traz o plano, a nota do dia e o resumo; a demonstração termina com o Simulador", () => {
     const nav = navFor("member", demo);
-    expect(nav.find((g) => g.label === "Meu dia")?.items.map((i) => i.href)).toEqual(["/plano", "/nota-do-dia"]);
+    expect(nav.find((g) => g.label === "Meu dia")?.items.map((i) => i.href)).toEqual(["/plano", "/nota-do-dia", "/resumos"]);
     expect(nav.at(-1)).toMatchObject({ label: "Demo", items: [{ href: "/simulador" }] });
   });
 });

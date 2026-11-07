@@ -12,6 +12,7 @@
   "dependencies": {
     "@echo/actions": "workspace:*",
     "@echo/agents": "workspace:*",
+    "@echo/artifacts": "workspace:*",
     "@echo/brain": "workspace:*",
     "@echo/config": "workspace:*",
     "@echo/connectors": "workspace:*",
