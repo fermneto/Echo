@@ -368,6 +368,9 @@ importers:
       '@echo/agents':
         specifier: workspace:*
         version: link:../packages/agents
+      '@echo/db':
+        specifier: workspace:*
+        version: link:../packages/db
       tsx:
         specifier: 'catalog:'
         version: 4.23.15
