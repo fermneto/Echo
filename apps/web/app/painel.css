@@ -1080,12 +1080,16 @@
 }
 
 /* Mapa-múndi da equipe */
+/* O mapa ocupa a largura inteira da tela; título e legenda seguem alinhados ao conteúdo. */
 .section--bleed {
-  margin-left: calc(-1 * var(--space-gutter));
-  margin-right: calc(-1 * var(--space-gutter));
+  --bleed-inset: max(var(--space-gutter), calc(50vw - var(--width-app) / 2 + var(--space-gutter)));
+  margin-left: calc(50% - 50vw);
+  margin-right: calc(50% - 50vw);
 }
-.section--bleed .section__title {
-  padding: 0 var(--space-gutter);
+.section--bleed .section__title,
+.section--bleed .wmap-legend {
+  padding-left: var(--bleed-inset);
+  padding-right: var(--bleed-inset);
 }
 .wmap {
   position: relative;
@@ -1331,7 +1335,7 @@
 }
 .wmap__controls {
   position: absolute;
-  right: var(--space-gutter);
+  right: var(--bleed-inset, var(--space-gutter));
   bottom: var(--space-md);
   z-index: 4;
   display: flex;
