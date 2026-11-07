@@ -2,7 +2,7 @@
 
 **O trabalho continua quando a pessoa não está.** Cada pessoa da equipe tem um gêmeo digital que conhece o trabalho dela: responde quando ela está ausente (sempre como "Agente de …", com fonte), adianta revisões de PR à noite e ajuda o líder a redistribuir tarefas sem sobrecarregar ninguém.
 
-Projeto para o Converge Challenge (Canastra Ventures). Powered by Claude.
+Powered by Claude.
 
 ## Rodar localmente
 
