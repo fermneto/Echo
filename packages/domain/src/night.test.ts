@@ -82,6 +82,12 @@ describe("morningPlan", () => {
     expect(more).toBe(0);
   });
 
+  it("correção pronta vem primeiro, com os testes relatados e a CI do rascunho como confirmação", () => {
+    const fixes = [{ fixId: "f1", pr: { repository: "r/app", number: 44 }, draftPrNumber: 45, readyAt: new Date(now.getTime() - 5 * HOUR), tests: "passou" as const }];
+    const [first] = morningPlan({ ...input, fixes }).items;
+    expect(first).toEqual({ id: "fix:f1", kind: "fix_ready", text: "Correção pronta no seu PR 44, aguardando sua aprovação", reason: "testes relatados pelo agente passaram; a CI do rascunho 45 confirma", ref: "fix:f1" });
+  });
+
   it("até 7 itens, com o resto em 'ver mais'; descartado fica fora", () => {
     const many = { ...input, tasks: Array.from({ length: 9 }, (_, i) => task(`ECH-2${i}`, "2026-11-10")) };
     const r = morningPlan(many);

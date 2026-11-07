@@ -13,10 +13,15 @@ import { createPgDailyNoteStore } from "./pg-notes.ts";
 import { createMorningPlan, type MorningPlan } from "./morning-plan.ts";
 import { type BatchApi, createNightReview, type NightReview, type ReviewSource } from "./night-review.ts";
 import { createPgPlanStore, createPgReviewStore } from "./pg-night.ts";
+import { createFix, type Fix, type FixCodeHost } from "./fix.ts";
+import { createManagedFixSandbox, fixAgentParams, fixEnvironmentParams } from "./managed-fix.ts";
+import { createPgFixStore } from "./pg-fix.ts";
 
 export { createPgAgentData } from "./pg-data.ts";
 export { createPgDailyNoteStore } from "./pg-notes.ts";
 export { createPgPlanStore, createPgReviewStore } from "./pg-night.ts";
+export { createPgFixStore } from "./pg-fix.ts";
+export { createManagedFixSandbox, fixAgentParams, fixEnvironmentParams, fixPrompt, readFixOutputs, driveSession, sessionCost, REPO_PATH, OUTPUTS } from "./managed-fix.ts";
 
 /** Grava cada execução em agent_runs, dentro da empresa (RLS). */
 export function createDbRunRecorder(db: Database): RunRecorder {
@@ -107,6 +112,44 @@ export function serverMorningPlan(db: Database, webUrl: string): MorningPlan {
     recorder: createDbRunRecorder(db),
     webUrl,
   });
+}
+
+/**
+ * Correção (etapa 10) com Postgres, outbox e o Managed Agents provisionado. Sem chave, sem FIX_AGENT_ID ou
+ * FIX_ENVIRONMENT_ID, não há ambiente; sem a porta do GitHub (Integrações), não há correção. `decide` (Meu plano)
+ * só precisa da porta do GitHub.
+ */
+export function serverFix(db: Database, opts: { apiKey?: string | undefined; agentId?: string | undefined; environmentId?: string | undefined; timeoutMs?: number; codeHost: (orgId: string) => FixCodeHost | null }): Fix {
+  const sandbox =
+    opts.apiKey && opts.agentId && opts.environmentId
+      ? createManagedFixSandbox(new Anthropic({ apiKey: opts.apiKey, maxRetries: 2 }), { agentId: opts.agentId, environmentId: opts.environmentId, ...(opts.timeoutMs ? { timeoutMs: opts.timeoutMs } : {}) })
+      : null;
+  return createFix({
+    data: (orgId) => createPgAgentData(db, orgId),
+    fixes: (orgId) => createPgFixStore(db, orgId),
+    codeHost: opts.codeHost,
+    sandbox,
+    outbox: (orgId) => createPgOutbox(db, orgId),
+    recorder: createDbRunRecorder(db),
+  });
+}
+
+/**
+ * Cria, uma vez, o ambiente e o agente da correção no Managed Agents. O que já existe é mantido (o agente é
+ * atualizado no lugar, ganhando nova versão, em vez de criar outro).
+ */
+export async function provisionFix(apiKey: string, existing: { agentId?: string | undefined; environmentId?: string | undefined }): Promise<{ agentId: string; agentVersion: number; environmentId: string; created: string[] }> {
+  const client = new Anthropic({ apiKey, maxRetries: 2 });
+  const created: string[] = [];
+  const environmentId = existing.environmentId ?? (created.push("ambiente"), (await client.beta.environments.create(fixEnvironmentParams())).id);
+  if (existing.agentId) {
+    const current = await client.beta.agents.retrieve(existing.agentId);
+    const updated = await client.beta.agents.update(existing.agentId, { ...fixAgentParams(), version: current.version });
+    return { agentId: updated.id, agentVersion: updated.version, environmentId, created };
+  }
+  const agent = await client.beta.agents.create(fixAgentParams());
+  created.push("agente");
+  return { agentId: agent.id, agentVersion: agent.version, environmentId, created };
 }
 
 export async function allOrgIds(db: Database): Promise<string[]> {

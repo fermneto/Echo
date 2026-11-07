@@ -43,6 +43,13 @@
       "when": 1794067142377,
       "tag": "0005_revisao_arquivos",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1794068157798,
+      "tag": "0006_correcao",
+      "breakpoints": true
     }
   ]
 }

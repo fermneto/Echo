@@ -1,7 +1,7 @@
 // Plano da manhã (etapa 9, F5). Sem modelo: as regras coletam, ordenam e escrevem o motivo de cada item.
 // Envio privado pelo outbox; em Meu plano, só a própria pessoa reordena e descarta.
 import type { OutboxAction } from "@echo/actions";
-import { applyPlanEdits, type Clock, DAY, MORNING_RULES, morningPlan, type PlanFinding, type PlanItem, type PlanQuestion, systemClock } from "@echo/domain";
+import { applyPlanEdits, type Clock, DAY, MORNING_RULES, morningPlan, type PlanFinding, type PlanFix, type PlanItem, type PlanQuestion, systemClock } from "@echo/domain";
 import type { AgentRun, RunRecorder } from "@echo/observability";
 import type { AgentData } from "./data.ts";
 
@@ -17,6 +17,8 @@ export interface PlanStore {
   questionsForOwner(personId: string, since: Date): Promise<PlanQuestion[]>;
   /** Achados da análise noturna nos PRs abertos da pessoa. */
   findingsForAuthor(personId: string, since: Date): Promise<PlanFinding[]>;
+  /** Correções prontas nos PRs abertos da pessoa, esperando aprovação (etapa 10). */
+  fixesForAuthor(personId: string): Promise<PlanFix[]>;
   get(personId: string, date: string): Promise<StoredPlan | null>;
   /** False se já existe plano da pessoa nessa data (chave única). */
   create(plan: StoredPlan): Promise<boolean>;
@@ -72,13 +74,14 @@ export function createMorningPlan(deps: MorningPlanDeps) {
       if (await store.get(personId, date)) return done({ status: "skipped", reason: "plano já existe nesta data" });
 
       const since = new Date(now.getTime() - 7 * DAY);
-      const [questions, findings, prs, tasks] = await Promise.all([
+      const [questions, findings, fixes, prs, tasks] = await Promise.all([
         store.questionsForOwner(personId, since),
         store.findingsForAuthor(personId, new Date(now.getTime() - 2 * DAY)),
+        store.fixesForAuthor(personId),
         data.pullRequests({ openOnly: true }),
         data.tasks({ assigneeId: personId, openOnly: true }),
       ]);
-      const { all: items } = morningPlan({ person, people, now, questions, pullRequests: prs, tasks, findings });
+      const { all: items } = morningPlan({ person, people, now, questions, pullRequests: prs, tasks, findings, fixes });
       const plan: StoredPlan = { personId, date, items };
       if (!(await store.create(plan))) return done({ status: "skipped", reason: "plano já existe nesta data" });
 

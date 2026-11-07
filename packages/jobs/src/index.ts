@@ -20,6 +20,8 @@ export const QUEUES = {
   reviewCollect: "review.collect",
   /** Plano da manhã de uma pessoa (F5). Chave única: pessoa + data. */
   morningPlan: "morning_plan.build",
+  /** Correção de uma revisão em ambiente isolado (etapa 10), no reviewer. Chave única: a revisão. */
+  fixRun: "fix.run",
 } as const;
 export type QueueName = (typeof QUEUES)[keyof typeof QUEUES];
 
@@ -36,6 +38,8 @@ export interface SendOptions {
   /** Espera fixa entre tentativas; sem ela, a espera cresce a cada tentativa. */
   retryDelaySeconds?: number;
   startAfterSeconds?: number;
+  /** Tempo máximo do job rodando antes de a fila considerá-lo perdido (padrão do pg-boss: 15 min). */
+  expireInSeconds?: number;
 }
 
 export type JobHandler<T> = (job: QueuedJob<T>) => Promise<void>;
@@ -81,6 +85,7 @@ export class PgBossQueue implements JobQueue {
       retryLimit: opts.retryLimit ?? 3,
       ...(opts.retryDelaySeconds ? { retryDelay: opts.retryDelaySeconds, retryBackoff: false } : { retryBackoff: true }),
       ...(opts.startAfterSeconds ? { startAfter: opts.startAfterSeconds } : {}),
+      ...(opts.expireInSeconds ? { expireInSeconds: opts.expireInSeconds } : {}),
     });
   }
 

@@ -255,6 +255,7 @@ export const reviews = pgTable("reviews", {
   createdAt: createdAt(),
 }, (t) => [uniqueIndex("reviews_pr_sha").on(t.orgId, t.prId, t.headSha)]);
 
+/** Uma correção por revisão. O diff conferido vai no outbox (github.draft_pr); aqui fica o estado e o custo. */
 export const fixRuns = pgTable("fix_runs", {
   id: id(),
   orgId: orgId(),
@@ -264,9 +265,20 @@ export const fixRuns = pgTable("fix_runs", {
   testsReported: text("tests_reported"),
   checksState: text("checks_state"),
   costUsd: numeric("cost_usd", { precision: 10, scale: 4 }),
-  state: text("state").notNull().default("queued"),
+  state: text("state").notNull().default("queued"), // running | draft_queued | ready | approved | applied | declined | rejected | failed | skipped
+  /** Sessão do Managed Agents (para conferir no Console). */
+  sessionId: text("session_id"),
+  /** Versão do PR sobre a qual a correção foi feita. */
+  baseSha: text("base_sha"),
+  /** Versão do rascunho criada pela plataforma: só une se continuar igual. */
+  draftHeadSha: text("draft_head_sha"),
+  files: jsonb("files").$type<string[]>().notNull().default([]),
+  findings: jsonb("findings").notNull().default([]),
+  error: text("error"),
+  decidedBy: uuid("decided_by").references(() => people.id),
+  decidedAt: ts("decided_at"),
   createdAt: createdAt(),
-});
+}, (t) => [uniqueIndex("fix_runs_review").on(t.orgId, t.reviewId)]);
 
 export const morningPlans = pgTable("morning_plans", {
   id: id(),
@@ -367,6 +379,8 @@ export const outboxActions = pgTable("outbox_actions", {
   state: text("state").notNull().default("pending"), // pending | approved | running | done | failed
   attempts: integer("attempts").notNull().default(0),
   error: text("error"),
+  /** O que a execução devolveu (ex.: número e versão do PR em rascunho), para o fluxo que pediu a ação. */
+  result: jsonb("result"),
   createdAt: createdAt(),
 }, (t) => [uniqueIndex("outbox_key").on(t.orgId, t.idempotencyKey)]);
 

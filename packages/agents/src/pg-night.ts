@@ -3,6 +3,7 @@ import { type Database, identities, morningPlans, pullRequests, questions, revie
 import { type FindingSeverity, type PlanFinding, type PlanItem, type PlanQuestion, severityRank } from "@echo/domain";
 import { and, eq, gte, inArray, isNull, ne, or } from "drizzle-orm";
 import type { PlanStore } from "./morning-plan.ts";
+import { createPgFixStore } from "./pg-fix.ts";
 import type { Finding, ReviewStore, StoredReview } from "./night-review.ts";
 
 const IDENT = /(?<![\p{L}\d-])([a-z][a-z0-9]*-\d+(?:-[a-z0-9]+)*)(?![\p{L}\d-])/iu;
@@ -90,13 +91,14 @@ export function createPgPlanStore(db: Database, orgId: string): PlanStore {
         return [{ id: q.id, askerId: q.askerId, createdAt: q.createdAt, ...(subject ? { subject } : {}) }];
       });
     },
+    fixesForAuthor: (personId) => createPgFixStore(db, orgId).fixesForAuthor(personId),
     async findingsForAuthor(personId, since) {
       const rows = await run((tx) =>
         tx
           .select({ id: reviews.id, findings: reviews.findings, repository: pullRequests.repository, number: pullRequests.number })
           .from(reviews)
           .innerJoin(pullRequests, and(eq(pullRequests.id, reviews.prId), eq(pullRequests.orgId, orgId)))
-          .where(and(eq(reviews.orgId, orgId), eq(reviews.state, "reviewed"), eq(pullRequests.authorId, personId), eq(pullRequests.state, "open"), gte(reviews.createdAt, since))),
+          .where(and(eq(reviews.orgId, orgId), inArray(reviews.state, ["reviewed", "fix_queued", "fix_ready", "approved"]), eq(pullRequests.authorId, personId), eq(pullRequests.state, "open"), gte(reviews.createdAt, since))),
       );
       return rows.flatMap((r): PlanFinding[] => {
         const list = (Array.isArray(r.findings) ? r.findings : []) as Finding[];

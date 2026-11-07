@@ -89,3 +89,8 @@ services:
           name: echo-db
           property: connectionString
       - fromGroup: echo-shared
+      # Correção (etapa 10): IDs de `pnpm --filter @echo/reviewer provision`.
+      - key: FIX_AGENT_ID
+        sync: false
+      - key: FIX_ENVIRONMENT_ID
+        sync: false

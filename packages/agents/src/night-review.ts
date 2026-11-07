@@ -142,9 +142,9 @@ export function reviewRequest(customId: string, model: "sonnet" | "opus", input:
 
 // ---------- Validação dos achados e texto do comentário (código)
 
-const APPROVAL = /(?<!\p{L})(aprovad[oa]|aprovo|aprovar|lgtm|pode\s+(?:fazer\s+o\s+)?merge|pode\s+ser\s+mesclad[oa]|pronto\s+para\s+(?:merge|produ[çc][ãa]o|publicar)|ship\s+it)(?!\p{L})/iu;
-const PEOPLE = /(?<!\p{L})((?:bom|boa|[óo]tim[oa]|ruim|p[ée]ssim[oa]|fraco|fraca)\s+(?:desenvolvedor[a]?|programador[a]?|profissional|trabalho\s+de)|incompetente|descuidad[oa])(?!\p{L})/iu;
-const clean = (s: string, max: number) => s.replace(/\s+/g, " ").replace(/@(?=\w)/g, "@​").trim().slice(0, max);
+export const APPROVAL_PATTERN = /(?<!\p{L})(aprovad[oa]|aprovo|aprovar|lgtm|pode\s+(?:fazer\s+o\s+)?merge|pode\s+ser\s+mesclad[oa]|pronto\s+para\s+(?:merge|produ[çc][ãa]o|publicar)|ship\s+it)(?!\p{L})/iu;
+export const PEOPLE_PATTERN = /(?<!\p{L})((?:bom|boa|[óo]tim[oa]|ruim|p[ée]ssim[oa]|fraco|fraca)\s+(?:desenvolvedor[a]?|programador[a]?|profissional|trabalho\s+de)|incompetente|descuidad[oa])(?!\p{L})/iu;
+export const cleanText = (s: string, max: number) => s.replace(/\s+/g, " ").replace(/@(?=\w)/g, "@​").trim().slice(0, max);
 
 /** Achados que valem: arquivo do diff, linha positiva, confiança mínima, sem aprovação nem avaliação de pessoa. */
 export function validFindings(raw: unknown, files: readonly string[]): Finding[] {
@@ -159,13 +159,13 @@ export function validFindings(raw: unknown, files: readonly string[]): Finding[]
     if (typeof f.confianca !== "number" || f.confianca < NIGHT_RULES.minConfidence || f.confianca > 1) continue;
     if (typeof f.explicacao !== "string" || typeof f.sugestao !== "string" || !f.explicacao.trim()) continue;
     const text = `${f.explicacao} ${f.sugestao}`;
-    if (APPROVAL.test(text) || PEOPLE.test(text)) continue;
-    out.push({ arquivo: f.arquivo, linha: f.linha, gravidade: f.gravidade, explicacao: clean(f.explicacao, 500), sugestao: clean(f.sugestao, 400), confianca: f.confianca });
+    if (APPROVAL_PATTERN.test(text) || PEOPLE_PATTERN.test(text)) continue;
+    out.push({ arquivo: f.arquivo, linha: f.linha, gravidade: f.gravidade, explicacao: cleanText(f.explicacao, 500), sugestao: cleanText(f.sugestao, 400), confianca: f.confianca });
   }
   return out.sort((a, b) => severityRank(a.gravidade) - severityRank(b.gravidade) || b.confianca - a.confianca).slice(0, NIGHT_RULES.maxFindingsInComment);
 }
 
-const SEVERITY_LABEL: Record<FindingSeverity, string> = { alta: "Alta", media: "Média", baixa: "Baixa" };
+export const SEVERITY_LABEL: Record<FindingSeverity, string> = { alta: "Alta", media: "Média", baixa: "Baixa" };
 
 export function reviewComment(findings: Finding[], headSha: string): string {
   return [

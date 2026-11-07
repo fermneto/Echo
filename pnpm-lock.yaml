@@ -293,9 +293,15 @@ importers:
 
   apps/reviewer:
     dependencies:
+      '@echo/agents':
+        specifier: workspace:*
+        version: link:../../packages/agents
       '@echo/config':
         specifier: workspace:*
         version: link:../../packages/config
+      '@echo/db':
+        specifier: workspace:*
+        version: link:../../packages/db
       '@echo/jobs':
         specifier: workspace:*
         version: link:../../packages/jobs

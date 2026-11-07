@@ -19,6 +19,7 @@ function setup(opts: { tasks?: Task[]; questions?: PlanQuestion[]; findings?: Pl
   const store: PlanStore = {
     questionsForOwner: async () => opts.questions ?? [{ id: "q1", askerId: "eduardo", createdAt: new Date(NOW.getTime() - 6 * HOUR), subject: "ech-128-tempo-limite" }],
     findingsForAuthor: async () => opts.findings ?? [],
+    fixesForAuthor: async () => [],
     get: async (p, d) => plans.get(`${p}:${d}`) ?? null,
     create: async (plan) => (plans.has(`${plan.personId}:${plan.date}`) ? false : (plans.set(`${plan.personId}:${plan.date}`, plan), true)),
     updateItems: async (p, d, items) => { const x = plans.get(`${p}:${d}`); if (!x) return false; plans.set(`${p}:${d}`, { ...x, items }); return true; },

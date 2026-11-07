@@ -6,8 +6,20 @@
     "dev": "tsx watch --env-file-if-exists=../../.env src/main.ts",
     "start": "tsx src/main.ts",
     "typecheck": "tsc -p tsconfig.json",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run --passWithNoTests",
+    "provision": "tsx --env-file-if-exists=../../.env src/provision.ts"
   },
-  "dependencies": { "@echo/config": "workspace:*", "@echo/observability": "workspace:*", "@echo/jobs": "workspace:*", "tsx": "catalog:" },
-  "devDependencies": { "@types/node": "catalog:", "typescript": "catalog:", "vitest": "catalog:" }
+  "dependencies": {
+    "@echo/agents": "workspace:*",
+    "@echo/config": "workspace:*",
+    "@echo/db": "workspace:*",
+    "@echo/jobs": "workspace:*",
+    "@echo/observability": "workspace:*",
+    "tsx": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
 }

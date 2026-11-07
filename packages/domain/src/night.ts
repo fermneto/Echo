@@ -98,7 +98,17 @@ export interface PlanFinding {
   count: number;
 }
 
-export type PlanItemKind = "question" | "review_request" | "task_due" | "task_overdue" | "finding" | "ci_failed" | "own_pr_waiting";
+/** Correção pronta (etapa 10), esperando o autor aprovar ou recusar em Meu plano. */
+export interface PlanFix {
+  fixId: string;
+  pr: Pick<PullRequest, "repository" | "number">;
+  draftPrNumber: number;
+  readyAt: Date;
+  /** Resultado dos testes relatado pelo agente; a CI do rascunho é quem confirma. */
+  tests: "passou" | "falhou" | "nao_rodou";
+}
+
+export type PlanItemKind = "fix_ready" | "question" | "review_request" | "task_due" | "task_overdue" | "finding" | "ci_failed" | "own_pr_waiting";
 
 export interface PlanItem {
   /** Estável entre dias: a mesma pendência mantém o id (reordenar e descartar no painel). */
@@ -118,6 +128,7 @@ export interface MorningPlanInput {
   pullRequests: PullRequest[];
   tasks: Task[];
   findings: PlanFinding[];
+  fixes?: PlanFix[];
   /** Itens que a pessoa descartou antes e que continuam fora enquanto a pendência for a mesma. */
   dismissed?: readonly string[];
 }
@@ -144,7 +155,15 @@ export function morningPlan(input: MorningPlanInput): { items: PlanItem[]; more:
   const today = localDate(now, person.timezone);
   const ranked: { group: number; key: number; item: PlanItem }[] = [];
 
-  // 1. Quem espera pela pessoa.
+  // 1. Quem espera pela pessoa: correção pronta para aprovar, perguntas e revisões pedidas.
+  for (const f of input.fixes ?? []) {
+    const tests = f.tests === "passou" ? "testes relatados pelo agente passaram" : f.tests === "falhou" ? "o agente relatou falha nos testes" : "o agente não rodou os testes";
+    ranked.push({
+      group: 0,
+      key: f.readyAt.getTime() - 1e15,
+      item: { id: `fix:${f.fixId}`, kind: "fix_ready", text: `Correção pronta no seu PR ${f.pr.number}, aguardando sua aprovação`, reason: `${tests}; a CI do rascunho ${f.draftPrNumber} confirma`, ref: `fix:${f.fixId}` },
+    });
+  }
   for (const q of input.questions) {
     const who = firstNameOf(people, q.askerId);
     ranked.push({

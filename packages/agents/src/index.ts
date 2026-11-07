@@ -6,6 +6,8 @@ export const MODELS = {
   dailyNote: "claude-haiku-5-5",
   review: "claude-sonnet-5-5",
   reviewSensitive: "claude-opus-5-5",
+  /** Correção no Managed Agents, esforço médio. */
+  fix: "claude-sonnet-5-5",
   report: "claude-sonnet-5-5",
   artifact: "claude-haiku-5-5",
 } as const;
@@ -118,6 +120,24 @@ export {
   type ReviewStore,
 } from "./night-review.ts";
 export { createMorningPlan, planMessage, type MorningPlan, type MorningPlanDeps, type PlanStore, type StoredPlan } from "./morning-plan.ts";
+export {
+  createFix,
+  draftBody,
+  validFixReport,
+  type Fix,
+  type FixCandidate,
+  type FixCodeHost,
+  type FixDecisionOutcome,
+  type FixDeps,
+  type FixOutcome,
+  type FixReport,
+  type FixSandbox,
+  type FixSandboxInput,
+  type FixSandboxResult,
+  type FixState,
+  type FixStore,
+  type StoredFix,
+} from "./fix.ts";
 
 /**
  * Fluxo de resposta (F2) com as dependências padrão: Postgres (DATABASE_URL) e a chave da empresa
