@@ -8,7 +8,8 @@
     "./ganhos": "./src/pg-gains.ts",
     "./perguntas": "./src/pg-questions.ts",
     "./execucoes": "./src/pg-runs.ts",
-    "./enquanto-fora": "./src/pg-away-log.ts"
+    "./enquanto-fora": "./src/pg-away-log.ts",
+    "./redistribuicao": "./src/pg-redistribution-view.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",
