@@ -15,7 +15,8 @@
     "integracoes:rh": "tsx --env-file-if-exists=../../.env src/dev-rh.ts",
     "agenda:check": "tsx --env-file-if-exists=../../.env src/agenda-check.ts",
     "integracoes:diagnostico": "tsx --env-file-if-exists=../../.env src/dev-diagnostico.ts",
-    "integracoes:simular": "tsx --env-file-if-exists=../../.env src/dev-simular.ts"
+    "integracoes:simular": "tsx --env-file-if-exists=../../.env src/dev-simular.ts",
+    "integracoes:atividade": "tsx --env-file-if-exists=../../.env src/dev-atividade.ts"
   },
   "dependencies": {
     "@echo/db": "workspace:*",

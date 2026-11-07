@@ -130,7 +130,7 @@ export {
   type ReviewSource,
   type ReviewStore,
 } from "./night-review.ts";
-export { activityCounts, createDaySummary, summaryRequest, SUMMARY_SYSTEM, type DailyArtifactStore, type DaySummary, type DaySummaryDeps, type StoredArtifact, type SummaryOutcome } from "./day-summary.ts";
+export { activityCounts, createDaySummary, summaryMessage, summaryRequest, SUMMARY_SYSTEM, type DailyArtifactStore, type DaySummary, type DaySummaryDeps, type StoredArtifact, type SummaryOutcome } from "./day-summary.ts";
 export { runTriage, triageRequest, validTriage, TRIAGE_SYSTEM, type TriageInput, type TriageModel, type TriageOutcome, type TriageRequest } from "./triage.ts";
 export { createMorningPlan, planMessage, type MorningPlan, type MorningPlanDeps, type PlanStore, type StoredPlan } from "./morning-plan.ts";
 export {

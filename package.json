@@ -23,10 +23,12 @@
     "acao:testar": "pnpm --filter @echo/actions acao:testar",
     "integracoes:conferir": "pnpm --filter @echo/connectors slack:check; pnpm --filter @echo/connectors github:check; pnpm --filter @echo/connectors linear:check",
     "integracoes:reconciliar": "pnpm --filter @echo/worker reconciliar",
+    "nota:agora": "pnpm --filter @echo/worker nota:agora",
     "integracoes:rh": "pnpm --filter @echo/connectors integracoes:rh",
     "integracoes:agenda": "pnpm --filter @echo/connectors agenda:check",
     "integracoes:diagnostico": "pnpm --filter @echo/connectors integracoes:diagnostico",
-    "integracoes:simular": "pnpm --filter @echo/connectors integracoes:simular"
+    "integracoes:simular": "pnpm --filter @echo/connectors integracoes:simular",
+    "integracoes:atividade": "pnpm --filter @echo/connectors integracoes:atividade"
   },
   "devDependencies": {
     "@types/node": "catalog:",
