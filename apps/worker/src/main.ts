@@ -7,6 +7,7 @@ import { PgBossQueue, QUEUES, type PingMessage } from "@echo/jobs";
 import { createLogger, initTracing, LogRunRecorder } from "@echo/observability";
 import { registerEndOfDay } from "./end-of-day.ts";
 import { registerInbox } from "./inbox.ts";
+import { createInteractionRouter } from "./slack-interactions.ts";
 
 const cfg = loadConfig("worker");
 const log = createLogger("worker", cfg.LOG_LEVEL);
@@ -27,7 +28,10 @@ await ensureProductNote(db).then(
 );
 
 // Fim do expediente (F3): nota do dia com confirmação da pessoa. Execuções gravadas em agent_runs.
-const endOfDay = await registerEndOfDay(queue, { flow: serverEndOfDay(db, cfg.ANTHROPIC_API_KEY, cfg.WEB_URL), scan: (now) => dueEndOfDay(db, now) });
+// Um só consumidor dos cliques do Slack; cada fluxo entra com interactions.add (o #19 acrescenta "resolveu").
+const interactions = createInteractionRouter(log);
+const endOfDay = await registerEndOfDay(queue, { flow: serverEndOfDay(db, cfg.ANTHROPIC_API_KEY, cfg.WEB_URL), scan: (now) => dueEndOfDay(db, now), interactions });
+await interactions.listen(queue);
 const runEndOfDay = () =>
   endOfDay.tick().then(
     (queued) => queued > 0 && log.info({ queued }, "rascunhos da nota do dia na fila"),
