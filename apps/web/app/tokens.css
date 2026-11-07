@@ -1,0 +1,72 @@
+/* Tokens visuais do painel: cores, tipografia, cantos, espaços, sombras e movimento. */
+:root {
+  color-scheme: dark;
+
+  /* Cores: neutros */
+  --color-canvas: #0a0a0a;
+  --color-canvas-app: #101010;
+  --color-black: #000000;
+  --color-panel: #161616;
+  --color-charcoal: #171717;
+  --color-chip: #1a1a1a;
+  --color-line: #212121;
+  --color-edge: #262626;
+  --color-iron: #464646;
+  --color-field-border: #6b6b6b;
+  --color-ash: #808080;
+  --color-fog: #a1a1a1;
+  --color-paper: #e5e5e5;
+  --color-cloud: #fafafa;
+
+  /* Cores de estado */
+  --color-signal-on: #98ff38; /* pessoa no expediente */
+  --color-signal-twin: #4d8dff; /* agente cobrindo */
+  --color-signal-twin-deep: #1f5fe0; /* fundo cheio do agente, texto branco */
+  --color-signal-twin-text: #8db4ff; /* "Agente de Fernando" em texto */
+  --color-signal-wait: #e0b354; /* espera, férias, limite */
+  --color-danger: #ff8f7d; /* erro, só contorno ou texto */
+
+  /* Inversão única para conteúdo de confiança */
+  --color-light-canvas: #fafafa;
+  --color-light-warn: #c2410c;
+
+  /* Tipografia (as famílias vêm do next/font em layout.tsx) */
+  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-geist), var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-jetbrains-mono), ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+
+  /* Cantos */
+  --rounded-hair: 2px;
+  --rounded-sm: 4px;
+  --rounded-md: 6px;
+  --rounded-lg: 8px;
+  --rounded-xl: 10px;
+  --rounded-pill: 9999px;
+
+  /* Espaços (passos de 4px) */
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 12px;
+  --space-lg: 16px;
+  --space-xl: 24px;
+  --space-2xl: 32px;
+  --space-3xl: 48px;
+  --space-section: clamp(96px, 12vw, 176px);
+  --space-gutter: clamp(16px, 4vw, 32px);
+
+  /* Layout */
+  --width-app: 1248px;
+  --width-landing: 1240px;
+
+  /* Sombras de menus e elementos flutuantes */
+  --shadow-float: 0 16px 40px rgb(0 0 0 / 55%), 0 2px 8px rgb(0 0 0 / 35%);
+  --shadow-window: 0 16px 40px rgb(0 0 0 / 45%);
+  --shadow-nav: 0 4px 4px rgb(0 0 0 / 25%);
+  --shadow-paper-button: inset 0 1px 0 #fff, inset 0 -2px 6px rgb(0 0 0 / 10%);
+
+  /* Movimento */
+  --ease-enter: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-swap: cubic-bezier(0.4, 0, 0.2, 1);
+  --duration-fast: 0.15s;
+  --duration-state: 0.8s;
+}

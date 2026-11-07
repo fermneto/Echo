@@ -8,6 +8,6 @@
     "test": "vitest run --passWithNoTests",
     "evals": "tsx src/index.ts"
   },
-  "dependencies": { "@echo/agents": "workspace:*", "tsx": "catalog:" },
+  "dependencies": { "@echo/agents": "workspace:*", "@echo/db": "workspace:*", "tsx": "catalog:" },
   "devDependencies": { "@types/node": "catalog:", "typescript": "catalog:", "vitest": "catalog:" }
 }
