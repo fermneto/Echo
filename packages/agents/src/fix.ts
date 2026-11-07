@@ -263,8 +263,9 @@ export function createFix(deps: FixDeps) {
     await deps.outbox(orgId).enqueue({
       type: "github.draft_pr",
       target: `github:${c.pr.repository}#${c.pr.number}`,
+      // Mesma convenção de ActionPayloads (#7): repositório em `repo`. O executor de draft_pr ainda é de Integrações.
       payload: {
-        repository: c.pr.repository,
+        repo: c.pr.repository,
         prNumber: c.pr.number,
         base: c.pr.branch,
         baseSha: c.headSha,
@@ -342,7 +343,7 @@ export function createFix(deps: FixDeps) {
     await deps.outbox(orgId).enqueue({
       type: "github.merge_fix",
       target: `github:${fix.pr.repository}#${fix.draftPrNumber}`,
-      payload: { repository: fix.pr.repository, number: fix.draftPrNumber, sha: fix.draftHeadSha, base: fix.pr.branch, prNumber: fix.pr.number },
+      payload: { repo: fix.pr.repository, number: fix.draftPrNumber, sha: fix.draftHeadSha, base: fix.pr.branch, prNumber: fix.pr.number },
       idempotencyKey: mergeKey(fixId),
       approvedBy: by,
     });
