@@ -113,10 +113,10 @@ export default async function InicioPage() {
       </ul>
 
       {seesWork && (
-        <section className="waiting-strip" aria-label="Aguardando você">
+        <section className="waiting-strip" aria-label="Tarefas aguardando você">
           <span className="waiting-strip__label mono">
             <span className="dot dot--wait" aria-hidden="true" />
-            Aguardando você
+            Tarefas aguardando você
           </span>
           {waiting.length > 0 ? (
             <ul className="waiting-strip__list" role="list">
