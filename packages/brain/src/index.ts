@@ -38,3 +38,7 @@ export interface BrainStore {
   write(author: { kind: "person" | "agent" | "mirror"; id?: string }, note: Omit<BrainNote, "id" | "version" | "updatedAt"> & { id?: string }): Promise<BrainNote>;
   history(viewer: Viewer, id: string): Promise<{ version: number; content: string; authorKind: string; createdAt: Date }[]>;
 }
+
+// Regra de visibilidade (pura, sem banco). A implementação em Postgres fica em "@echo/brain/pg",
+// para quem só usa os tipos (o painel, por exemplo) não carregar o driver do banco.
+export { canSee, isCorrectionPath, type NoteOwner } from "./permissions.ts";
