@@ -13,7 +13,7 @@ import { localTime } from "@/lib/time";
 import "./landing.css";
 
 export const metadata = {
-  title: "Echo · O trabalho continua quando a pessoa não está",
+  title: "Echo · A resposta não precisa esperar até amanhã",
   description: "Cada pessoa da equipe tem um gêmeo digital que responde quando ela dorme, revisa à noite e deixa o plano pronto de manhã.",
 };
 
@@ -280,7 +280,7 @@ export default function LandingPage() {
         <section className="lp-hero" aria-labelledby="tese">
           <div className="lp-hero__copy">
             <h1 id="tese" className="lp-display">
-              O trabalho continua quando a pessoa não está.
+              A resposta não precisa esperar até amanhã.
             </h1>
             <p className="lp-lead">
               O Echo dá a cada pessoa um agente que conhece o trabalho dela. Ele responde aos colegas na ausência dela, adianta revisões à noite e ajuda a liderança a redistribuir tarefas sem sobrecarregar ninguém.
