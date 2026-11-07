@@ -24,7 +24,7 @@ Escopo da primeira versão: só funcionários. Prestadores de serviço e reuniõ
 ## Estrutura
 
 ```
-apps/web            Next.js: painel, aprovações, notas, relatório e escritório
+apps/web            Next.js: painel, aprovações, notas e relatório
 apps/api            Hono: webhooks, OAuth e API do painel
 apps/worker         Fila, agenda e fluxos
 apps/reviewer       Correção de código e vídeos com Managed Agents

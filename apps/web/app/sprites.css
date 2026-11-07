@@ -1,0 +1,89 @@
+/* Bonequinhos em matriz de pontos, de uma cor só: a do estado. */
+
+.sprite {
+  display: block;
+  overflow: visible;
+  color: var(--color-signal-twin);
+}
+.sprite--person {
+  color: var(--color-signal-on);
+}
+.sprite circle {
+  fill: currentColor;
+}
+/* A grade inteira aparece, bem fraca. */
+.sprite .dot-off,
+.sprite .dot-eye {
+  opacity: 0.16;
+}
+.sprite .dot-head,
+.sprite .dot-body {
+  opacity: 1;
+}
+/* De férias: a cabeça esmaece, o corpo fica aceso. */
+.sprite--away .dot-head {
+  opacity: 0.28;
+}
+
+/* No expediente: pisca (os olhos se fecham por um instante). */
+.sprite--person .dot-eye {
+  animation: sprite-blink 4.2s steps(1, end) infinite;
+}
+@keyframes sprite-blink {
+  0%,
+  94%,
+  100% {
+    opacity: 0.16;
+  }
+  95% {
+    opacity: 1;
+  }
+}
+
+/* Gêmeo no comando: uma varredura de brilho desce linha a linha, como um holograma. */
+.sprite--twin .dot-head,
+.sprite--twin .dot-body,
+.sprite--away .dot-body {
+  animation: sprite-scan 2.6s linear infinite;
+  animation-delay: calc(var(--row) * 0.08s);
+}
+.sprite--away .dot-body {
+  animation-duration: 3.6s;
+}
+@keyframes sprite-scan {
+  0%,
+  100% {
+    opacity: 1;
+  }
+  8% {
+    opacity: 0.6;
+  }
+  16% {
+    opacity: 1;
+  }
+}
+
+/* Moldura do avatar no painel */
+.pixel-avatar {
+  position: relative;
+  display: inline-grid;
+  place-items: center;
+  flex: none;
+  overflow: hidden;
+  border-radius: var(--rounded-md);
+  background: var(--color-black);
+  box-shadow: inset 0 0 0 1px var(--color-edge);
+}
+.pixel-avatar--working {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-signal-on) 70%, transparent);
+}
+.pixel-avatar--off,
+.pixel-avatar--vacation {
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-signal-twin) 70%, transparent);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sprite circle {
+    animation: none !important;
+  }
+}
