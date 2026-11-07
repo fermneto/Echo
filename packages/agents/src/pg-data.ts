@@ -6,6 +6,7 @@ import {
   contributions,
   dailyNotes,
   type Database,
+  expertiseOverrides,
   orgs,
   people,
   pullRequests,
@@ -211,6 +212,11 @@ export function createPgAgentData(db: Database, orgId: string): AgentData {
           ...(r.deliveryRef ? { deliveryRef: r.deliveryRef } : {}),
         }),
       );
+    },
+
+    async expertiseOverrides() {
+      const rows = await run((tx) => tx.select().from(expertiseOverrides).where(eq(expertiseOverrides.orgId, orgId)));
+      return rows.map((r) => ({ personId: r.personId, topic: r.topic, include: r.include, ...(r.validUntil ? { validUntil: r.validUntil } : {}) }));
     },
   };
 }

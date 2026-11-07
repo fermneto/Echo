@@ -11,9 +11,10 @@ import { modelCostUsd, type Usage } from "./cost.ts";
 import type { AgentData } from "./data.ts";
 import { type AnswerOutput, answerOutputSchema, type AnswerRequest, type AnswerResult, LIMITS, MODELS, type ValidationIssue } from "./index.ts";
 import { ANSWER_OUTPUT_JSON_SCHEMA, ANSWER_SYSTEM, questionMessage } from "./prompt.ts";
-import { ECHO_PAUSED, ruleAnswer } from "./rule-answer.ts";
+import { ECHO_PAUSED, forbiddenRequest, ruleAnswer } from "./rule-answer.ts";
 import { firstName, newRunState, runTool, type ToolContext, toolsFor } from "./tools.ts";
 import { validateAnswer } from "./validator.ts";
+import { isWhoKnowsQuestion, modelTerms, topicPhrase, whoKnowsOutput } from "./who-knows.ts";
 
 type CreateParams = Anthropic.Beta.Messages.MessageCreateParamsNonStreaming;
 type Message = Anthropic.Beta.Messages.BetaMessage;
@@ -57,9 +58,10 @@ export function createAnswer(deps: AnswerDeps): (req: AnswerRequest) => Promise<
     const now = clock.now();
     const state = newRunState();
     const stats: LoopStats = { usage: { input: 0, output: 0, cacheWrite: 0, cacheRead: 0 }, costUsd: 0, model: MODELS.answer };
+    let flow: "answer" | "quem_sabe" = "answer";
     const record = (run: Omit<AgentRun, "flow" | "orgId" | "durationMs" | "tools">) =>
       deps.recorder.record({
-        flow: "answer",
+        flow,
         orgId: req.orgId,
         durationMs: Math.round(performance.now() - started),
         tools: [...new Set(state.toolsUsed)],
@@ -92,7 +94,8 @@ export function createAnswer(deps: AnswerDeps): (req: AnswerRequest) => Promise<
 
       const finish = async (out: AnswerOutput, usedModel: boolean, result: AgentRun["result"], extraWarning?: string, error?: string): Promise<AnswerResult> => {
         if (extraWarning) warnings.push(extraWarning);
-        const final = compose({ out, agentName: owner ? `Agente de ${ownerName}` : "Echo", ownerName, away, askerTz: asker.timezone, ctx, usedModel, warnings });
+        const kind = flow === "quem_sabe" ? "quem_sabe" : owner ? "gemeo" : "livre";
+        const final = compose({ out, agentName: owner ? `Agente de ${ownerName}` : "Echo", ownerName, away, askerTz: asker.timezone, ctx, usedModel, warnings, kind });
         await record({
           result,
           ...(usedModel || stats.usage.input > 0
@@ -102,6 +105,35 @@ export function createAnswer(deps: AnswerDeps): (req: AnswerRequest) => Promise<
         });
         return final;
       };
+
+      // Aprovar, publicar ou avaliar pessoas: recusa fixa, sem modelo.
+      const forbidden = forbiddenRequest(req.text, ownerName);
+      if (forbidden) return finish(forbidden, false, "refused");
+
+      // Quem sabe (F9): o modelo só gera termos de busca; pessoas e texto saem das regras e do código.
+      // A 100% do limite segue por regra.
+      if (!owner && isWhoKnowsQuestion(req.text)) {
+        flow = "quem_sabe";
+        const phrase = topicPhrase(req.text);
+        const terms = phrase ? [phrase] : [req.text];
+        let usedModel = false;
+        let failure: string | undefined;
+        if (deps.model && level !== "rules_only" && level !== "hard_limit") {
+          try {
+            const t = await modelTerms(deps.model, req.text, Math.max(started + timeoutMs - performance.now(), 1));
+            stats.usage = t.usage;
+            stats.costUsd = t.costUsd;
+            stats.model = t.model;
+            terms.push(...t.terms);
+            usedModel = true;
+          } catch (err) {
+            failure = err instanceof Error ? err.message : String(err);
+          }
+        }
+        const out = await whoKnowsOutput(ctx, [...new Set(terms)], phrase ?? "esse tema");
+        if (usedModel) return finish(out, true, "ok");
+        return finish(out, false, "fallback", failure ? "termos de busca por regra: modelo indisponível" : undefined, failure);
+      }
 
       if (ruleReason) {
         if (level === "rules_only" && !owner && deps.model) return finish(ECHO_PAUSED, false, "fallback", "perguntas livres pausadas pelo limite de custo");
@@ -261,6 +293,7 @@ function compose(input: {
   ctx: ToolContext;
   usedModel: boolean;
   warnings: string[];
+  kind: NonNullable<AnswerResult["kind"]>;
 }): AnswerResult {
   const { out, away, ownerName } = input;
   let text = out.texto.trim();
@@ -276,6 +309,7 @@ function compose(input: {
     ...(away?.away && away.returnsAt ? { ownerReturnsAt: away.returnsAt } : {}),
     usedModel: input.usedModel,
     warnings: [...input.warnings],
+    kind: input.kind,
   };
 }
 

@@ -61,6 +61,11 @@ export interface AnswerResult {
   ownerReturnsAt?: Date;
   usedModel: boolean; // false = resposta por regra (teto de custo ou API fora)
   warnings: string[]; // ex.: "nota do dia não confirmada"
+  /**
+   * gemeo = agente de uma pessoa · livre = pergunta ao Echo · quem_sabe = indicação por evidência.
+   * Quem sabe sem fontes numa mensagem de canal que não chamou o @Echo: quem publica fica em silêncio.
+   */
+  kind?: "gemeo" | "livre" | "quem_sabe";
 }
 
 export interface ValidationIssue {
@@ -83,8 +88,9 @@ export interface ValidatorContext {
 export type AnswerValidator = (out: AnswerOutput, ctx: ValidatorContext) => ValidationIssue[];
 
 export { validateAnswer } from "./validator.ts";
+export { isWhoKnowsQuestion, topicPhrase } from "./who-knows.ts";
 export { createAnswer, type AnswerDeps, type ModelCall } from "./answer.ts";
-export type { AgentData, OrgSettings } from "./data.ts";
+export type { AgentData, ExpertiseOverride, OrgSettings } from "./data.ts";
 
 /**
  * Fluxo de resposta (F2) com as dependências padrão: Postgres (DATABASE_URL) e a chave da empresa
