@@ -39,7 +39,8 @@ const TOP = 75;
 const BOTTOM = -58;
 const SPAN = TOP - BOTTOM;
 const STEP = 1.7; // graus entre pontos
-const RGB = { on: [152, 255, 56], twin: [77, 141, 255], wait: [224, 179, 84] } as const;
+/** Cores das áreas ativas no mapa: os sinais do sistema, um pouco mais claros para ler sobre o preto. */
+const RGB = { on: [172, 255, 96], twin: [118, 170, 255], wait: [236, 196, 110] } as const;
 /** Raio, em graus, da área colorida em volta de cada cidade. */
 const ACTIVE_RADIUS = 10;
 const MIN_Z = 1;
@@ -126,8 +127,8 @@ export function WorldMap({ crews, zones, arcs, nowIso, canAsk = true }: { crews:
               // Área ativa: cor do estado, cheia no centro e esmaecendo até a borda.
               const k = d / ACTIVE_RADIUS;
               rgb = RGB[c.tone];
-              a = 1 - k * 0.6;
-              rr = r * (1.25 - k * 0.25);
+              a = 1 - k * 0.35;
+              rr = r * (1.35 - k * 0.3);
               break;
             }
           }
