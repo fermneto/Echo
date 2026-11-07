@@ -14,11 +14,11 @@ const REAL = new Set(["fernando", "eduardo", "yan"]);
 const LOCATION: Record<string, [number, number]> = {
   fernando: [-3.73, -38.53],
   eduardo: [-26.2, 28.05],
-  rita: [-26.2, 28.05],
+  rita: [-23.55, -46.63],
   yan: [35.68, 139.65],
-  marina: [35.68, 139.65],
-  bruno: [35.68, 139.65],
-  carla: [35.68, 139.65],
+  marina: [-23.55, -46.63],
+  bruno: [-23.55, -46.63],
+  carla: [-23.55, -46.63],
 };
 
 const TITLE: Record<string, string> = {

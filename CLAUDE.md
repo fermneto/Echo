@@ -80,6 +80,7 @@ pnpm db:generate         # migração depois de mudar schema.ts
 
 - Respostas: Claude Sonnet 5.5 (`claude-sonnet-5-5`), esforço baixo, até 4 rodadas e 30 s.
 - Nota do dia, plano interativo, contradições: Claude Haiku 5.5 (`claude-haiku-5-5`).
+- Triagem da revisão noturna: Qwen3 4B Instruct (modelo aberto, Apache 2.0) no Ollama (`echo-triage`). Responde perguntas sim/não; `applyTriage` só deixa subir para o Opus ou deixar leve a revisão de PR pequeno. Nenhum PR deixa de ser revisado.
 - Revisão de PR: API de lotes (Sonnet 5.5; Opus 5.5 para PR sensível ou grande).
 - Correção e vídeos: Claude Managed Agents.
 - Chave de API da empresa (`ANTHROPIC_API_KEY`), nunca login do claude.ai. "Powered by Claude".

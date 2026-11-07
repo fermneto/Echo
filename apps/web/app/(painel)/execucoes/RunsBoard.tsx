@@ -1,22 +1,39 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { budgetStatus, BUDGET, FLOWS, formatUsd, LEVEL_LABEL, MODEL_LABEL, RESULT_LABEL, type Run, runCost, totalCost, totalsByFlow } from "@/lib/demo/runs";
+import { budgetStatus, BUDGET, flowLabel, formatUsd, LEVEL_LABEL, modelLabel, RESULT_LABEL, type Run, runCost, totalCost, totalsByFlow } from "@/lib/demo/runs";
 import { recriarDemo } from "./actions";
 
-export type AuditEntry = { at: string; actor: string; action: string; target: string };
+export type AuditEntry = { id?: string; at: string; actor: string; action: string; target: string };
 
 const seconds = (ms: number) => (ms < 1000 ? `${ms} ms` : ms < 60_000 ? `${(ms / 1000).toLocaleString("pt-BR", { maximumFractionDigits: 1 })} s` : `${Math.round(ms / 60_000)} min`);
 const tokens = (n: number) => (n >= 1000 ? `${Math.round(n / 1000)} mil` : String(n));
 
 /** Totais por fluxo, limite mensal, lista de agent_runs e auditoria, com os controles de ensaio. */
-export function RunsBoard({ day, night, audit, rehearsal }: { day: readonly Run[]; night: readonly Run[]; audit: AuditEntry[]; rehearsal: boolean }) {
+export function RunsBoard({
+  day,
+  night,
+  audit,
+  rehearsal,
+  spentBeforeUsd,
+  limitUsd = BUDGET.monthlyLimitUsd,
+  periodLabel = "Custo no período",
+}: {
+  day: readonly Run[];
+  night: readonly Run[];
+  audit: AuditEntry[];
+  rehearsal: boolean;
+  /** Gasto do mês fora das execuções listadas; sem ele, vale o da demonstração. */
+  spentBeforeUsd?: number;
+  limitUsd?: number;
+  periodLabel?: string;
+}) {
   const [simulated, setSimulated] = useState(false);
   const [recreated, setRecreated] = useState(false);
   const [pending, start] = useTransition();
   const runs = simulated ? [...night, ...day] : [...day];
   const today = totalCost(runs);
-  const budget = budgetStatus(today);
+  const budget = budgetStatus(today, spentBeforeUsd, limitUsd);
   const byRule = runs.filter((r) => !r.model).length;
 
   return (
@@ -56,10 +73,10 @@ export function RunsBoard({ day, night, audit, rehearsal }: { day: readonly Run[
 
       <dl className="metrics runs-metrics">
         {[
-          ["Custo no período", formatUsd(today)],
+          [periodLabel, formatUsd(today)],
           ["Execuções", String(runs.length)],
           ["Por regra, sem modelo", String(byRule)],
-          [`Gasto no mês, limite ${formatUsd(BUDGET.monthlyLimitUsd)}`, formatUsd(budget.spentUsd)],
+          [`Gasto no mês, limite ${formatUsd(limitUsd)}`, formatUsd(budget.spentUsd)],
         ].map(([k, v]) => (
           <div key={k} className="metric">
             <dd className="metric__v runs-metric__v">{v}</dd>
@@ -96,7 +113,7 @@ export function RunsBoard({ day, night, audit, rehearsal }: { day: readonly Run[
             </thead>
             <tbody>
               {totalsByFlow(runs).map((t) => (
-                <tr key={t.flow}>
+                <tr key={t.label}>
                   <th scope="row">
                     {t.label}
                     {t.byRule > 0 && <span className="mono muted runs-table__rule"> · {t.byRule} por regra</span>}
@@ -113,9 +130,10 @@ export function RunsBoard({ day, night, audit, rehearsal }: { day: readonly Run[
           <h2 id="auditoria" className="card__title">
             Auditoria
           </h2>
+          {audit.length === 0 && <p className="muted">Nenhuma ação registrada ainda.</p>}
           <ul className="audit" role="list">
             {audit.map((a) => (
-              <li key={a.at + a.action + a.target}>
+              <li key={a.id ?? a.at + a.action + a.target}>
                 <span className="mono muted">{a.at}</span>
                 <span>
                   <strong>{a.actor}</strong> {a.action}: {a.target}
@@ -131,17 +149,18 @@ export function RunsBoard({ day, night, audit, rehearsal }: { day: readonly Run[
         <h2 id="execucoes" className="card__title">
           Execuções
         </h2>
+        {runs.length === 0 && <p className="muted">Nenhuma execução ainda. Cada fluxo grava uma linha aqui quando roda.</p>}
         <ol className="runs" role="list">
           {runs.map((r) => (
             <li key={r.id} className={`run${night.includes(r) ? " is-new" : ""}`}>
               <div className="run__head">
-                <span className="chip mono">{FLOWS[r.flow]}</span>
+                <span className="chip mono">{flowLabel(r.flow)}</span>
                 <span className={`chip mono run__result is-${r.result}`}>{RESULT_LABEL[r.result]}</span>
                 <span className="mono muted run__at">{r.at}</span>
               </div>
               <p className="run__what">{r.what}</p>
               <p className="mono muted run__meta">
-                {r.model ? `${MODEL_LABEL[r.model]}${r.batch ? " · lote" : ""} · ${tokens(r.inputTokens)} → ${tokens(r.outputTokens)} tokens` : "sem modelo"} · {seconds(r.durationMs)}
+                {r.model ? `${modelLabel(r.model)}${r.batch ? " · lote" : ""} · ${tokens(r.inputTokens)} → ${tokens(r.outputTokens)} tokens` : "sem modelo"} · {seconds(r.durationMs)}
                 {r.tools.length > 0 && ` · ${r.tools.join(", ")}`} · <span className="run__cost">{formatUsd(runCost(r))}</span>
               </p>
             </li>

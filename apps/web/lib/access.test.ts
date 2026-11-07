@@ -46,6 +46,12 @@ describe("navFor", () => {
   it("sem demonstração, o grupo Demo some", () => {
     expect(navFor("leader", { demo: false }).map((g) => g.label)).not.toContain("Demo");
   });
+
+  it("Meu dia traz o plano e depois a nota do dia; a demonstração termina com o Simulador", () => {
+    const nav = navFor("member", demo);
+    expect(nav.find((g) => g.label === "Meu dia")?.items.map((i) => i.href)).toEqual(["/plano", "/nota-do-dia"]);
+    expect(nav.at(-1)).toMatchObject({ label: "Demo", items: [{ href: "/simulador" }] });
+  });
 });
 
 describe("canAskTwin", () => {

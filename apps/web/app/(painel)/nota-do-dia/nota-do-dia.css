@@ -1,0 +1,91 @@
+/* Nota do dia: quatro listas editáveis sobre os tokens e classes do painel. */
+.daily {
+  max-width: 960px;
+}
+.daily__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-md);
+}
+.daily__title {
+  margin: 0;
+}
+.daily__by {
+  margin: var(--space-sm) 0 var(--space-xl);
+  font-size: 13px;
+}
+.daily__grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-xl) var(--space-2xl);
+}
+.daily__section {
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+.daily__legend {
+  padding: 0;
+  margin-bottom: var(--space-sm);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+.daily__empty {
+  margin: 0 0 var(--space-xs);
+  font-size: 13px;
+}
+.daily__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+.daily__item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+.daily__input {
+  min-height: 40px;
+  padding: 8px 12px;
+  font-size: 14px;
+}
+.daily__add {
+  margin-top: var(--space-xs);
+}
+.daily__explain {
+  margin: var(--space-xl) 0 0;
+  padding-top: var(--space-lg);
+  border-top: 1px solid var(--color-line);
+  font-size: 13px;
+}
+.daily__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-lg);
+  margin-top: var(--space-lg);
+}
+.daily__actions p {
+  margin: 0;
+  font-size: 12px;
+}
+@media (max-width: 720px) {
+  .daily__grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+.note-draft {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-md);
+  margin: var(--space-xl) 0;
+  font-size: 14px;
+}

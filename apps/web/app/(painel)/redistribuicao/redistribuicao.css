@@ -1,0 +1,35 @@
+/* Redistribuição: carga de quem recebe, itens deixados de fora e retorno das ações. */
+.assign__load {
+  font-size: 12px;
+  color: var(--color-ash);
+  white-space: nowrap;
+}
+.assign__toggle {
+  margin-top: 6px;
+  font-size: 13px;
+}
+.assign.is-out .assign__title,
+.assign.is-out .assign__why {
+  color: var(--color-ash);
+}
+.assign.is-out .assign__title {
+  text-decoration: line-through;
+  text-decoration-color: var(--color-ash);
+}
+.assign__state.is-off {
+  color: var(--color-ash);
+}
+.assign__state.is-fail {
+  color: var(--color-danger);
+}
+.dot--fail {
+  background: var(--color-danger);
+}
+.redist-msg {
+  margin: var(--space-md) 0 0;
+  font-size: 14px;
+  color: var(--color-fog);
+}
+.redist-msg.is-error {
+  color: var(--color-danger);
+}

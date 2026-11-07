@@ -4,11 +4,12 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import type { OutboxAction } from "@echo/actions";
 import type { BrainStore } from "@echo/brain";
-import { type Clock, costLevel, type FindingSeverity, NIGHT_RULES, type PrDiffSummary, type PullRequest, reviewDecision, severityRank, systemClock } from "@echo/domain";
+import { applyTriage, type Clock, costLevel, type FindingSeverity, NIGHT_RULES, type PrDiffSummary, type PullRequest, reviewDecision, severityRank, systemClock } from "@echo/domain";
 import type { AgentRun, RunRecorder } from "@echo/observability";
 import { modelCostUsd, type Usage } from "./cost.ts";
 import type { AgentData } from "./data.ts";
 import { MODELS } from "./index.ts";
+import { runTriage, type TriageModel } from "./triage.ts";
 
 // ---------- Portas
 
@@ -83,6 +84,8 @@ export interface NightReviewDeps {
   batches: BatchApi | null;
   recorder: RunRecorder;
   clock?: Clock;
+  /** Triagem por modelo aberto pequeno (Ollama). Sem ela, vale só a regra. */
+  triage?: { model: TriageModel; timeoutMs: number } | null;
 }
 
 // ---------- Pedido ao modelo
@@ -119,7 +122,7 @@ const FINDINGS_SCHEMA = {
   additionalProperties: false,
 } as const;
 
-export function reviewRequest(customId: string, model: "sonnet" | "opus", input: { pr: PullRequest; diff: PrDiff; taskTitle?: string; authorNote?: string; conventions: string[] }): BatchRequest {
+export function reviewRequest(customId: string, model: "sonnet" | "opus", input: { pr: PullRequest; diff: PrDiff; taskTitle?: string; authorNote?: string; conventions: string[]; light?: boolean }): BatchRequest {
   const dados = {
     pr: { repositorio: input.pr.repository, numero: input.pr.number, titulo: input.pr.title, branch: input.pr.branch },
     ...(input.pr.taskKey ? { tarefa: { chave: input.pr.taskKey, ...(input.taskTitle ? { titulo: input.taskTitle } : {}) } } : {}),
@@ -135,7 +138,7 @@ export function reviewRequest(customId: string, model: "sonnet" | "opus", input:
       max_tokens: 8000,
       system: [{ type: "text", text: REVIEW_SYSTEM, cache_control: { type: "ephemeral" } }],
       messages: [{ role: "user", content: `<dados>\n${JSON.stringify(dados)}\n</dados>\n<diff>\n${input.diff.patch.slice(0, NIGHT_RULES.maxDiffChars)}\n</diff>` }],
-      output_config: { effort: opus ? "high" : "medium", format: { type: "json_schema", schema: FINDINGS_SCHEMA } },
+      output_config: { effort: opus ? "high" : input.light ? "low" : "medium", format: { type: "json_schema", schema: FINDINGS_SCHEMA } },
     },
   };
 }
@@ -187,6 +190,9 @@ export interface NightSummary {
   tooLarge: number;
   skipped: number;
   batchId?: string;
+  /** Só com triagem: PRs que a triagem subiu para o Opus e PRs com revisão leve (Sonnet, esforço baixo). */
+  escalated?: number;
+  light?: number;
 }
 
 export function createNightReview(deps: NightReviewDeps) {
@@ -241,7 +247,21 @@ export function createNightReview(deps: NightReviewDeps) {
         }
         continue;
       }
-      const model = queuedSame?.model === MODELS.reviewSensitive ? "opus" : decision?.action === "review" ? decision.model : "sonnet";
+      let model: "sonnet" | "opus" = queuedSame?.model === MODELS.reviewSensitive ? "opus" : decision?.action === "review" ? decision.model : "sonnet";
+
+      // Triagem pelo modelo aberto: só quando a regra deu Sonnet (Opus nunca baixa). Todo PR segue para o lote.
+      let light = false;
+      if (deps.triage && decision?.action === "review" && decision.model === "sonnet") {
+        const t = await runTriage(deps.triage.model, { pr, files: diff.files, patch: diff.patch }, deps.triage.timeoutMs);
+        const triaged = applyTriage(decision, t.answers, diff);
+        model = triaged.model;
+        light = triaged.light;
+        if (triaged.by === "triagem" && model === "opus") summary.escalated = (summary.escalated ?? 0) + 1;
+        if (light) summary.light = (summary.light ?? 0) + 1;
+        const tokens = { ...(t.inputTokens !== undefined ? { inputTokens: t.inputTokens } : {}), ...(t.outputTokens !== undefined ? { outputTokens: t.outputTokens } : {}) };
+        const tools = [...(triaged.level ? [`triagem:${triaged.level}`] : []), `revisao:${model}${light ? ":leve" : ""}`];
+        await record({ flow: "night_triage", orgId, model: t.model, ...tokens, costUsd: 0, durationMs: t.durationMs, tools, ...(t.answers ? { result: "ok" as const } : { result: "fallback" as const, error: t.error ?? "sem resposta" }) });
+      }
       const id = queuedSame?.id ?? (await store.create({ prId: pr.id, headSha: diff.headSha, model: model === "opus" ? MODELS.reviewSensitive : MODELS.review, state: "queued", files: diff.files.map((f) => f.path) }))?.id;
       if (!id) { summary.skipped++; continue; }
 
@@ -259,6 +279,7 @@ export function createNightReview(deps: NightReviewDeps) {
           ...(task ? { taskTitle: task.title } : {}),
           ...(note?.stoppedAt ? { authorNote: note.stoppedAt } : {}),
           conventions: conventions.filter((n) => n.kind === "processo" || n.kind === "equipe").map((n) => n.content.slice(0, 4000)),
+          light,
         }),
       );
     }

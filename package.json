@@ -12,6 +12,7 @@
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
     "db:up": "docker compose up -d --wait db",
+    "triage:up": "docker compose up -d --build triage",
     "db:down": "docker compose down",
     "db:migrate": "pnpm --filter @echo/db migrate",
     "db:generate": "pnpm --filter @echo/db generate",

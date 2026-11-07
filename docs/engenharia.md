@@ -435,6 +435,7 @@ _IA e custos_
 |---|---|---|---|
 | Resposta a colega e quem sabe | Tempo real com ferramentas | Claude Sonnet 5.5 | Baixo |
 | Nota do dia | Tempo real curto | Claude Haiku 5.5 | Baixo |
+| Triagem da revisão noturna | Antes do lote, na nossa infraestrutura (Ollama, CPU) | Qwen3 4B Instruct (modelo aberto, Apache 2.0) | — |
 | Revisão de PR | Lote | Claude Sonnet 5.5 | Médio |
 | PR sensível ou grande | Lote | Claude Opus 5.5 | Alto |
 | Correção | Managed Agents | Claude Sonnet 5.5 | Médio |
@@ -445,6 +446,18 @@ _IA e custos_
 | Roteiro e gravação do vídeo da entrega | Managed Agents com navegador | Claude Sonnet 5.5 | Médio |
 
 Plano da manhã e motivos da redistribuição saem por regra, sem modelo.
+
+**Triagem por modelo aberto pequeno.** Antes do lote, o Qwen3 4B Instruct (serviço privado `echo-triage`, Ollama, plano de 4 GB) lê o PR que a regra mandou para o Sonnet e responde quatro perguntas objetivas: mexe em segurança? em dinheiro ou dados pessoais? monta SQL ou comando? muda comportamento? O nível sai dessas respostas por regra (`triageLevel`), e `applyTriage` (`packages/domain`) limita o efeito:
+- qualquer risco sobe para o Opus;
+- texto no diff dirigido a um modelo ("responda trivial") sobe para o Opus, sem depender do modelo pequeno;
+- PR com até 40 linhas, sem caminho sensível e que não muda comportamento tem revisão leve (Sonnet, esforço baixo);
+- nunca baixa o que a regra mandou para o Opus, e nenhum PR deixa de ser revisado.
+
+Erro, tempo esgotado ou saída inválida: vale a regra.
+
+Escolha do modelo (6 PRs de teste, CPU): Qwen3 4B Instruct acertou os 6, em ~14 s por PR. Qwen2.5-Coder 1.5B (2 GB de RAM) acertou os riscos, mas nunca marcou revisão leve, e sem as perguntas sim/não chegou a obedecer a um "responda trivial" no diff; a regra de texto dirigido a um modelo cobre esse caso.
+
+Cada triagem grava uma linha `night_triage` em `agent_runs` (custo zero por token). Sem `TRIAGE_OLLAMA_URL`, só a regra.
 
 ### Ferramentas do agente (somente leitura)
 

@@ -4,6 +4,7 @@ import { teamScope } from "@/lib/scope";
 import { scopeLabel, TeamPicker } from "@/components/TeamPicker";
 import { statusLine, toneOf } from "@/lib/people";
 import { requireAccess } from "@/lib/session";
+import { loadTeam } from "@/lib/team-live";
 import { localTime } from "@/lib/time";
 import { PixelAvatar } from "@/components/PixelAvatar";
 
@@ -12,19 +13,20 @@ export const metadata = { title: "Pessoas · Echo" };
 export default async function EquipePage() {
   const me = await requireAccess("equipe");
   const now = new Date();
+  const team = await loadTeam(now);
   const seesWork = canAskTwin(me.role);
-  const scope = await teamScope(me);
-  const TEAM = scope.people;
-  const zones = new Set(TEAM.map((p) => p.timezone)).size;
+  const scope = await teamScope(me, team);
+  const people = scope.people;
+  const zones = new Set(people.map((p) => p.timezone)).size;
   return (
     <>
       <h1 className="hero-title hero-title--page">Pessoas</h1>
       <p className="lead">
-        {TEAM.length} pessoas em {zones} fusos, de {scopeLabel(scope)}. Abra a ficha para ver a disponibilidade{seesWork ? " e perguntar ao gêmeo" : ""}.
+        {people.length} pessoas em {zones} fusos, de {scopeLabel(scope)}. Abra a ficha para ver a disponibilidade{seesWork ? " e perguntar ao gêmeo" : ""}.
       </p>
       <TeamPicker scope={scope} back="/equipe" />
       <ul className="people-list" role="list">
-        {TEAM.map((p) => (
+        {people.map((p) => (
           <li key={p.id} className="people-row">
             <PixelAvatar persona={p} size={40} />
             <div className="people-row__who">

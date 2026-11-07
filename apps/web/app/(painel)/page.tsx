@@ -2,18 +2,22 @@ import Link from "next/link";
 import { canAskTwin } from "@/lib/access";
 import { ECHO_SUGGESTIONS } from "@/lib/demo/echo";
 import { WAITING } from "@/lib/demo/feed";
-import { teamCounts } from "@/lib/demo/team";
 import { teamScope } from "@/lib/scope";
 import { scopeLabel, TeamPicker } from "@/components/TeamPicker";
 import type { Persona } from "@/lib/demo/types";
 import { currentDecisions } from "@/lib/decisions-store";
+import { pendingPlans } from "@/lib/redistribution-server";
 import { holderLine, statusLine, toneOf } from "@/lib/people";
 import { requireAccess } from "@/lib/session";
+import { AWAY_MAX } from "@/lib/away-log";
+import { loadAwayRows } from "@/lib/away-live";
+import { countsOf, loadTeam } from "@/lib/team-live";
 import { localTime } from "@/lib/time";
 import { AskPanel } from "@/components/AskPanel";
 import { PixelAvatar } from "@/components/PixelAvatar";
 import { WorldMap, type MapArc, type MapCrew, type MapZone } from "@/components/WorldMap";
 import { perguntarEcho } from "./actions";
+import "./inicio.css";
 
 /** "GMT-3" → -3; "GMT+5:30" → 5.5. Só exibição: a hora local vem do Intl. */
 function utcOffset(timeZone: string, at: Date): number {
@@ -75,13 +79,21 @@ function buildMap(team: readonly Persona[], now: Date) {
 export default async function InicioPage() {
   const me = await requireAccess("inicio");
   const now = new Date();
-  const scope = await teamScope(me);
-  const TEAM = scope.people;
-  const counts = teamCounts(TEAM);
+  const scope = await teamScope(me, await loadTeam(now));
+  const team = scope.people;
+  const counts = countsOf(team);
   const seesWork = canAskTwin(me.role);
-  const decisions = await currentDecisions();
-  const waiting = WAITING.filter((w) => w.ownerId === me.id && !(w.decisionId && w.decisionId in decisions));
-  const { crews, zones, arcs } = buildMap(TEAM, now);
+  // O RH nunca lê perguntas: a seção do que o agente fez não aparece para ele.
+  const seesAway = me.role !== "hr";
+  // Expediente e fuso do banco, quando houver: a janela começa no fim do último expediente registrado.
+  const meLive = team.find((p) => p.id === me.id) ?? me;
+  // Com banco, o plano de ausência vem dos planos esperando esta liderança, não da demonstração.
+  const [decisions, away, plans] = await Promise.all([currentDecisions(), seesAway ? loadAwayRows(meLive, now) : null, seesWork ? pendingPlans(me, now) : null]);
+  const waiting = [
+    ...(plans ?? []).map((p) => ({ id: "Plano", key: p.id, text: p.title, since: p.since })),
+    ...WAITING.filter((w) => w.ownerId === me.id && !(w.decisionId && w.decisionId in decisions) && !(plans && w.decisionId === "ferias-bruno")).map((w) => ({ ...w, key: w.id })),
+  ];
+  const { crews, zones, arcs } = buildMap(team, now);
 
   return (
     <>
@@ -94,7 +106,7 @@ export default async function InicioPage() {
       <TeamPicker scope={scope} back="/" />
 
       <ul className="crew-grid" role="list" aria-label="Equipe">
-        {TEAM.map((p) => (
+        {team.map((p) => (
           <li key={p.id}>
             <Link href={`/pessoas/${p.id}`} className="crew-tile">
               <PixelAvatar persona={p} size={64} />
@@ -106,15 +118,15 @@ export default async function InicioPage() {
       </ul>
 
       {seesWork && (
-        <section className="waiting-strip" aria-label="Aguardando você">
+        <section className="waiting-strip" aria-label="Tasks aguardando você">
           <span className="waiting-strip__label mono">
             <span className="dot dot--wait" aria-hidden="true" />
-            Aguardando você
+            Tasks aguardando você
           </span>
           {waiting.length > 0 ? (
             <ul className="waiting-strip__list" role="list">
               {waiting.map((w) => (
-                <li key={w.id} className="waiting-chip">
+                <li key={w.key} className="waiting-chip">
                   <span className="waiting-chip__title">{w.text}</span>
                   <span className="waiting-chip__meta mono">
                     {w.id} · {w.since}
@@ -124,6 +136,39 @@ export default async function InicioPage() {
             </ul>
           ) : (
             <p className="muted waiting-strip__empty">Nada esperando você agora.</p>
+          )}
+        </section>
+      )}
+
+      {away && (
+        <section className="away-log" aria-labelledby="enquanto-fora">
+          <header className="away-log__head">
+            <h2 id="enquanto-fora" className="away-log__title mono">
+              Enquanto você estava fora
+            </h2>
+            <span className="away-log__agent mono">
+              Agente de {me.name}
+              {away.since ? ` · desde ${localTime(away.since, meLive.timezone)}` : ""}
+            </span>
+          </header>
+          {away.rows.length > 0 ? (
+            <>
+              <ul className="away-log__list" role="list">
+                {away.rows.slice(0, AWAY_MAX).map((r) => (
+                  <li key={r.key} className="away-log__row">
+                    <span className="away-log__time mono">{r.time}</span>
+                    <span className={`dot dot--${r.tone === "wait" ? "wait" : "twin"}`} aria-hidden="true" />
+                    <p className="away-log__text">
+                      {r.text}
+                      {r.ref && <span className="away-log__ref mono">{r.ref}</span>}
+                    </p>
+                  </li>
+                ))}
+              </ul>
+              {away.rows.length > AWAY_MAX && <p className="away-log__more muted mono">e mais {away.rows.length - AWAY_MAX}</p>}
+            </>
+          ) : (
+            <p className="away-log__empty muted">Ninguém precisou do seu agente desde o fim do seu expediente.</p>
           )}
         </section>
       )}
@@ -164,7 +209,7 @@ export default async function InicioPage() {
 
       <p className="home-more">
         <Link href="/equipe" className="text-link">
-          Ver todas as {TEAM.length} pessoas, com estado e hora local
+          Ver todas as {team.length} pessoas, com estado e hora local
         </Link>
       </p>
     </>

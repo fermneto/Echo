@@ -18,6 +18,8 @@ catalog:
   "@types/react-dom": 19.3.0
   drizzle-kit: 0.31.11
   drizzle-orm: 0.45.4
+  gsap: 3.15.0
+  "@gsap/react": 2.1.2
   hono: 4.13.17
   next: 16.4.5
   pg: 8.23.1

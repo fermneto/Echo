@@ -79,7 +79,7 @@ function GainsBoard({ board, id }: { board: Board; id: string }) {
       ) : null}
       <Compare items={board.compare} />
       <Grid items={board.rest} />
-      {board.note ? <p className="note muted">{board.note}</p> : null}
+      {board.note ? <p className="note muted gains__note">{board.note}</p> : null}
     </>
   );
 }

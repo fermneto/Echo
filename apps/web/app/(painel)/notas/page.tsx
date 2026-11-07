@@ -1,49 +1,96 @@
 import { latest } from "@/lib/demo/notes";
 import { findMember } from "@/lib/demo/team";
+import type { Persona } from "@/lib/demo/types";
+import { panelDb } from "@/lib/db";
+import { MAX_BRAIN_NOTE } from "@/lib/notes";
+import { loadNotes } from "@/lib/notes-db";
 import { currentNotes } from "@/lib/notes-store";
-import { teamScope } from "@/lib/scope";
+import { scopeDbIds, teamScope } from "@/lib/scope";
+import { panelPersona } from "@/lib/panel-person";
 import { requireAccess } from "@/lib/session";
 import { PixelAvatar } from "@/components/PixelAvatar";
 import { NoteCard } from "./NoteCard";
+import "./notas.css";
 
 export const metadata = { title: "Notas · Echo" };
+export const dynamic = "force-dynamic";
 
 const FOLDER = { decisoes: "decisoes/", "nao-mexer": "nao-mexer.md", registros: "registros/" } as const;
+
+const LEAD = "O que cada gêmeo sabe, com versões e fontes. Cada pessoa corrige as próprias notas, e a próxima resposta já cita a versão nova: a correção humana sempre vence.";
+
+/** Notas de uma dona: cabeçalho com o bonequinho e a contagem, e uma nota por linha. */
+function Brain({ id, persona, name, count, children }: { id: string; persona?: Persona; name: string; count: number; children: React.ReactNode }) {
+  return (
+    <section className="card brain" aria-labelledby={`cerebro-${id}`}>
+      <header className="brain__who">
+        {persona ? <PixelAvatar persona={persona} size={32} decorative /> : null}
+        <h2 id={`cerebro-${id}`} className="card__title brain__name">
+          Notas de {name}
+        </h2>
+        <span className="mono muted brain__count">
+          {count} {count === 1 ? "nota" : "notas"}
+        </span>
+      </header>
+      <ul className="brain__notes" role="list">
+        {children}
+      </ul>
+    </section>
+  );
+}
 
 export default async function NotasPage() {
   const me = await requireAccess("notas");
   // Só as notas de quem é da equipe da pessoa (o RH nem chega a esta tela).
-  const visible = new Set((await teamScope(me)).people.map((p) => p.id));
+  const scope = await teamScope(me);
+  const db = panelDb();
+
+  if (db) {
+    const ids = scopeDbIds(scope);
+    // As notas da empresa (sem dona) valem para todos.
+    const groups = (await loadNotes(db, me)).filter((g) => !g.ownerId || ids.has(g.ownerId));
+    return (
+      <>
+        <h1 className="hero-title hero-title--page">Notas</h1>
+        <p className="lead">{LEAD}</p>
+        {groups.length === 0 ? (
+          <p className="note muted">Nenhuma nota visível para você ainda. Elas aparecem conforme os gêmeos registram decisões e você ou a equipe escrevem.</p>
+        ) : (
+          <div className="brain-grid">
+            {groups.map((g) => (
+              <Brain key={g.ownerId ?? "equipe"} id={g.ownerId ?? "equipe"} name={g.ownerId ? g.name : "toda a empresa"} count={g.notes.length} {...(g.ownerId ? { persona: panelPersona({ id: g.ownerId, name: g.name }) } : {})}>
+                {g.notes.map((n) => (
+                  <li key={`${n.id}@${latest(n).n}`}>
+                    <NoteCard note={n} path={n.path} canEdit={n.canEdit} maxLength={MAX_BRAIN_NOTE} />
+                  </li>
+                ))}
+              </Brain>
+            ))}
+          </div>
+        )}
+      </>
+    );
+  }
+
+  const visible = new Set(scope.people.map((p) => p.id));
   const notes = (await currentNotes()).filter((n) => visible.has(n.ownerId));
   const owners = [...new Set(notes.map((n) => n.ownerId))];
-
   return (
     <>
       <h1 className="hero-title hero-title--page">Notas</h1>
-      <p className="lead">O que cada gêmeo sabe, com versões e fontes. Cada pessoa corrige as próprias notas, e a próxima resposta já cita a versão nova: a correção humana sempre vence.</p>
+      <p className="lead">{LEAD}</p>
       <div className="brain-grid">
         {owners.map((id) => {
           const p = findMember(id)!;
           const mine = notes.filter((n) => n.ownerId === id);
           return (
-            <section key={id} className="card brain" aria-labelledby={`cerebro-${id}`}>
-              <header className="brain__who">
-                <PixelAvatar persona={p} size={32} decorative />
-                <h2 id={`cerebro-${id}`} className="card__title brain__name">
-                  Notas de {p.name}
-                </h2>
-                <span className="mono muted brain__count">
-                  {mine.length} {mine.length === 1 ? "nota" : "notas"}
-                </span>
-              </header>
-              <ul className="brain__notes" role="list">
-                {mine.map((n) => (
-                  <li key={`${n.id}@${latest(n).n}`}>
-                    <NoteCard note={n} path={`${p.name.toLowerCase()}/${FOLDER[n.folder]}`} canEdit={n.ownerId === me.id} />
-                  </li>
-                ))}
-              </ul>
-            </section>
+            <Brain key={id} id={id} persona={p} name={p.name} count={mine.length}>
+              {mine.map((n) => (
+                <li key={`${n.id}@${latest(n).n}`}>
+                  <NoteCard note={n} path={`${p.name.toLowerCase()}/${FOLDER[n.folder]}`} canEdit={n.ownerId === me.id} />
+                </li>
+              ))}
+            </Brain>
           );
         })}
       </div>
