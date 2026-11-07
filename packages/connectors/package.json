@@ -10,7 +10,8 @@
     "test": "vitest run --passWithNoTests",
     "slack:check": "tsx --env-file-if-exists=../../.env src/slack-check.ts",
     "github:check": "tsx --env-file-if-exists=../../.env src/github-check.ts",
-    "linear:check": "tsx --env-file-if-exists=../../.env src/linear-check.ts"
+    "linear:check": "tsx --env-file-if-exists=../../.env src/linear-check.ts",
+    "integracoes:ligar": "tsx --env-file-if-exists=../../.env src/dev-ligar.ts"
   },
   "dependencies": {
     "@echo/db": "workspace:*",

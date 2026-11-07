@@ -10,6 +10,8 @@ export const QUEUES = {
   slackMessage: "slack.message",
   /** Clique em botão do Slack (confirmar nota, Resolveu/Não resolveu…), já verificado. */
   slackInteraction: "slack.interaction",
+  /** Pede ao worker para executar as ações aprovadas de uma empresa agora (depois de uma aprovação). */
+  actionsDrain: "actions.drain",
 } as const;
 export type QueueName = (typeof QUEUES)[keyof typeof QUEUES];
 

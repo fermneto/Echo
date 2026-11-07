@@ -1,7 +1,7 @@
 // Adaptador do GitHub (GitHub App) para a porta CodeHost, por HTTP, sem SDK.
 // Token de instalação de 1 hora, renovado num só lugar. Somente leitura: escrever é com packages/actions.
 import { createSign } from "node:crypto";
-import type { CodeHost } from "./index.ts";
+import type { CodeHost, CodeWriter } from "./index.ts";
 import { taskKeyFrom, type ExternalPullRequest, type LivePullRequest } from "./normalized.ts";
 import { RefreshingToken } from "./tokens.ts";
 
@@ -165,7 +165,7 @@ function toPr(repo: string, pr: any): ExternalPullRequest {
 /** PRs com até 3.000 arquivos: acima disso o GitHub corta e a análise automática não roda. */
 const MAX_FILE_PAGES = 30;
 
-export class GithubCodeHost implements CodeHost {
+export class GithubCodeHost implements CodeHost, CodeWriter {
   constructor(
     private readonly app: GithubApp,
     readonly installationId: string,
@@ -218,6 +218,18 @@ export class GithubCodeHost implements CodeHost {
       if (data.length < 100) break;
     }
     return out;
+  }
+
+  // ---------- Escritas (só packages/actions, depois de aprovação)
+
+  async comment(repo: string, number: number, body: string): Promise<{ id: string }> {
+    const { data } = await this.app.request<{ id: number }>(`/repos/${repo}/issues/${number}/comments`, () => this.app.installationToken(this.installationId), { method: "POST", body: { body } });
+    return { id: String(data.id) };
+  }
+
+  async requestReviewers(repo: string, number: number, logins: string[]): Promise<void> {
+    if (logins.length === 0) return;
+    await this.app.request(`/repos/${repo}/pulls/${number}/requested_reviewers`, () => this.app.installationToken(this.installationId), { method: "POST", body: { reviewers: logins } });
   }
 
   /** Repositórios a que a instalação tem acesso. */

@@ -60,6 +60,8 @@ export const workerSchema = baseSchema.extend({
   /** App OAuth do Linear instalado como app (actor=app). */
   LINEAR_CLIENT_ID: optionalString,
   LINEAR_CLIENT_SECRET: optionalString,
+  /** Alternativa para testes: chave pessoal de API do Linear (lin_api_…). */
+  LINEAR_API_KEY: optionalString,
   HEARTBEAT_INTERVAL_MS: z.coerce.number().int().min(1000).default(30_000),
 });
 

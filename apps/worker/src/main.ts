@@ -3,6 +3,8 @@ import { loadConfig } from "@echo/config";
 import { createDb, createPool } from "@echo/db";
 import { PgBossQueue, QUEUES, type PingMessage } from "@echo/jobs";
 import { createLogger, initTracing, LogRunRecorder } from "@echo/observability";
+import { writersFromEnv } from "@echo/actions";
+import { registerActions } from "./actions.ts";
 import { registerInbox } from "./inbox.ts";
 
 const cfg = loadConfig("worker");
@@ -15,7 +17,9 @@ const db = createDb(pool);
 
 await queue.start();
 // Até a gravação em agent_runs estar ligada (frente Funções), as execuções vão para o log.
-await registerInbox(db, queue, new LogRunRecorder(log));
+const runs = new LogRunRecorder(log);
+await registerInbox(db, queue, runs);
+const stopActions = await registerActions({ db, writers: writersFromEnv(db, cfg) }, queue, runs, log);
 log.info({ demo: cfg.DEMO_MODE }, "worker no ar");
 
 // Confirma, a cada início, que a fila chega ao reviewer.
@@ -27,6 +31,7 @@ const heartbeat = setInterval(() => log.info({ uptimeS: Math.round(process.uptim
 async function shutdown(signal: string) {
   log.info({ signal }, "encerrando worker");
   clearInterval(heartbeat);
+  stopActions();
   await Promise.allSettled([queue.stop(), pool.end(), flush()]);
   process.exit(0);
 }

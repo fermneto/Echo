@@ -150,6 +150,13 @@ describe("Linear", () => {
     expect(tokens()).toBe(1);
   });
 
+  it("chave pessoal vai sem Bearer", async () => {
+    let auth = "";
+    const tracker = new LinearTracker({ token: "lin_api_abc", fetch: async (_u, i) => ((auth = new Headers(i.headers).get("authorization")!), Response.json({ data: { issue: null } })) });
+    expect(await tracker.getTask("ECH-1")).toBeNull();
+    expect(auth).toBe("lin_api_abc");
+  });
+
   it("401 renova o token e tenta de novo; duplicada conta como cancelada", async () => {
     let n = 0;
     const { tracker, tokens } = setup(() => (++n === 1 ? new Response("{}", { status: 401 }) : Response.json({ data: { issue: node({ state: { type: "duplicate", name: "Duplicate" } }) } })));

@@ -18,6 +18,19 @@ export interface IssueTracker {
   listOpenTasks(): Promise<{ tasks: ExternalTask[]; truncated: boolean }>;
 }
 
+/**
+ * Escritas nas plataformas. SÓ packages/actions usa, e só para ações aprovadas no outbox.
+ * Os agentes recebem as portas de leitura acima, nunca estas.
+ */
+export interface CodeWriter {
+  comment(repo: string, number: number, body: string): Promise<{ id: string }>;
+  requestReviewers(repo: string, number: number, logins: string[]): Promise<void>;
+}
+export interface IssueWriter {
+  assignIssue(linearIssueId: string, assigneeLinearUserId: string | null): Promise<void>;
+  comment(linearIssueId: string, body: string): Promise<{ id: string }>;
+}
+
 export type Presence = "active" | "away" | "unknown";
 
 export interface ChatPlatform {

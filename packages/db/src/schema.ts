@@ -363,6 +363,8 @@ export const outboxActions = pgTable("outbox_actions", {
   state: text("state").notNull().default("pending"), // pending | approved | running | done | failed
   attempts: integer("attempts").notNull().default(0),
   error: text("error"),
+  /** Início da última execução: ação presa em "running" volta para a fila depois de um tempo. */
+  startedAt: ts("started_at"),
   createdAt: createdAt(),
 }, (t) => [uniqueIndex("outbox_key").on(t.orgId, t.idempotencyKey)]);
 

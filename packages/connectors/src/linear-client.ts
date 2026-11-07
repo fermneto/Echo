@@ -1,6 +1,6 @@
 // Adaptador do Linear (app OAuth com actor=app) para a porta IssueTracker, por GraphQL.
 // Token de aplicativo renovado num só lugar. Somente leitura: escrever é com packages/actions.
-import type { IssueTracker } from "./index.ts";
+import type { IssueTracker, IssueWriter } from "./index.ts";
 import { linearState } from "./linear.ts";
 import type { ExternalTask } from "./normalized.ts";
 import { RefreshingToken } from "./tokens.ts";
@@ -54,7 +54,7 @@ export interface LinearOptions {
   now?: () => number;
 }
 
-export class LinearTracker implements IssueTracker {
+export class LinearTracker implements IssueTracker, IssueWriter {
   private readonly fetch: FetchLike;
   private readonly timeoutMs: number;
   private readonly token: RefreshingToken;
@@ -88,12 +88,18 @@ export class LinearTracker implements IssueTracker {
     return { token: body.access_token, expiresAt: (this.opts.now ?? Date.now)() + body.expires_in * 1000 };
   }
 
+  private async authHeader(): Promise<string> {
+    const t = await this.token.get();
+    return t.startsWith("lin_api_") ? t : `Bearer ${t}`;
+  }
+
   /** Consulta GraphQL. Um 401 renova o token e tenta mais uma vez. */
   async query<T>(query: string, variables: Record<string, unknown> = {}): Promise<T> {
     for (let attempt = 0; ; attempt++) {
       const res = await this.fetch("https://api.linear.app/graphql", {
         method: "POST",
-        headers: { "content-type": "application/json", authorization: `Bearer ${await this.token.get()}` },
+        // Chave pessoal (lin_api_…) vai sem "Bearer"; token OAuth vai com.
+        headers: { "content-type": "application/json", authorization: await this.authHeader() },
         body: JSON.stringify({ query, variables }),
         signal: AbortSignal.timeout(this.timeoutMs),
       });
@@ -140,6 +146,31 @@ export class LinearTracker implements IssueTracker {
   /** Reconciliação: tarefas encerradas desde uma data (7 dias). */
   listClosedTasksSince(since: Date): Promise<{ tasks: ExternalTask[]; truncated: boolean }> {
     return this.list(CLOSED_SINCE_QUERY, { since: since.toISOString() });
+  }
+
+  // ---------- Escritas (só packages/actions, depois de aprovação)
+
+  async assignIssue(linearIssueId: string, assigneeLinearUserId: string | null): Promise<void> {
+    const d = await this.query<{ issueUpdate: { success: boolean } }>(
+      "mutation($id: String!, $assigneeId: String) { issueUpdate(id: $id, input: { assigneeId: $assigneeId }) { success } }",
+      { id: linearIssueId, assigneeId: assigneeLinearUserId },
+    );
+    if (!d.issueUpdate.success) throw new LinearApiError(200, "issueUpdate sem sucesso");
+  }
+
+  async comment(linearIssueId: string, body: string): Promise<{ id: string }> {
+    const d = await this.query<{ commentCreate: { success: boolean; comment: { id: string } } }>(
+      "mutation($issueId: String!, $body: String!) { commentCreate(input: { issueId: $issueId, body: $body }) { success comment { id } } }",
+      { issueId: linearIssueId, body },
+    );
+    if (!d.commentCreate.success) throw new LinearApiError(200, "commentCreate sem sucesso");
+    return { id: d.commentCreate.comment.id };
+  }
+
+  /** Pessoas do espaço, para ligar identidades no cadastro. */
+  async listUsers(): Promise<{ id: string; name: string; email?: string }[]> {
+    const d = await this.query<{ users: { nodes: { id: string; name: string; active: boolean }[] } }>("query { users(first: 100) { nodes { id name active } } }");
+    return d.users.nodes.filter((u) => u.active).map((u) => ({ id: u.id, name: u.name }));
   }
 
   /** Organização do app: o id vai para installation_routes (DEMO_LINEAR_ORG_ID). */

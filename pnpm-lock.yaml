@@ -346,6 +346,9 @@ importers:
 
   apps/worker:
     dependencies:
+      '@echo/actions':
+        specifier: workspace:*
+        version: link:../../packages/actions
       '@echo/config':
         specifier: workspace:*
         version: link:../../packages/config
@@ -396,9 +399,21 @@ importers:
 
   packages/actions:
     dependencies:
+      '@echo/connectors':
+        specifier: workspace:*
+        version: link:../connectors
+      '@echo/db':
+        specifier: workspace:*
+        version: link:../db
       '@echo/domain':
         specifier: workspace:*
         version: link:../domain
+      drizzle-orm:
+        specifier: 'catalog:'
+        version: 0.45.4(@opentelemetry/api@1.9.1)(@types/pg@8.23.1)(pg@8.23.1)
+      tsx:
+        specifier: 'catalog:'
+        version: 4.23.15
     devDependencies:
       '@types/node':
         specifier: 'catalog:'
