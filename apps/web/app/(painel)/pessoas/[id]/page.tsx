@@ -23,7 +23,6 @@ function Chips({ items }: { items: string[] }) {
     <ul className="chips" role="list">
       {items.map((i) => (
         <li key={i} className="chip mono">
-          <span className="dot dot--off" aria-hidden="true" />
           {i}
         </li>
       ))}

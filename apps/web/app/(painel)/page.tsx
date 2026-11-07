@@ -12,6 +12,7 @@ import { loadAwayRows } from "@/lib/away-live";
 import { countsOf, loadTeam } from "@/lib/team-live";
 import { localTime } from "@/lib/time";
 import { AskPanel } from "@/components/AskPanel";
+import { WaitingStrip } from "@/components/WaitingStrip";
 import { PixelAvatar } from "@/components/PixelAvatar";
 import { WorldMap, type MapArc, type MapCrew, type MapZone } from "@/components/WorldMap";
 import { perguntarEcho } from "./actions";
@@ -87,7 +88,14 @@ export default async function InicioPage() {
   // Com banco, o plano de ausência vem dos planos esperando esta liderança, não da demonstração.
   const [decisions, away, plans] = await Promise.all([currentDecisions(), seesAway ? loadAwayRows(meLive, now) : null, seesWork ? pendingPlans(me, now) : null]);
   const waiting = [
-    ...(plans ?? []).map((p) => ({ id: "Plano", key: p.id, text: p.title, since: p.since })),
+    ...(plans ?? []).map((p) => ({
+      id: "Plano",
+      key: p.id,
+      text: p.title,
+      since: p.since,
+      detail: "Montado por regra a partir da ausência, respeitando áreas e carga. Nada muda no Linear nem no GitHub até você aprovar.",
+      action: { label: "Revisar o plano", href: "/redistribuicao" },
+    })),
     ...WAITING.filter((w) => w.ownerId === me.id && !(w.decisionId && w.decisionId in decisions) && !(plans && w.decisionId === "ferias-bruno")).map((w) => ({ ...w, key: w.id })),
   ];
   const { crews, zones, arcs } = buildMap(team, now);
@@ -113,26 +121,7 @@ export default async function InicioPage() {
       </ul>
 
       {seesWork && (
-        <section className="waiting-strip" aria-label="Tasks aguardando você">
-          <span className="waiting-strip__label mono">
-            <span className="dot dot--wait" aria-hidden="true" />
-            Tasks aguardando você
-          </span>
-          {waiting.length > 0 ? (
-            <ul className="waiting-strip__list" role="list">
-              {waiting.map((w) => (
-                <li key={w.key} className="waiting-chip">
-                  <span className="waiting-chip__title">{w.text}</span>
-                  <span className="waiting-chip__meta mono">
-                    {w.id} · {w.since}
-                  </span>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="muted waiting-strip__empty">Nada esperando você agora.</p>
-          )}
-        </section>
+        <WaitingStrip items={waiting} />
       )}
 
       {away && (
