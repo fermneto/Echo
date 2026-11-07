@@ -299,6 +299,18 @@ describe("answer sem modelo", () => {
     expect(m.calls).toHaveLength(0);
     expect(r.warnings).toContain("resposta por regra: limite de custo do mês");
     expect(runs[0]!.result).toBe("fallback");
+    // Acima do dobro não conta nos ganhos: a volta segue no texto, mas não é gravada.
+    expect(r.text).toContain("Fernando volta");
+    expect(r.ownerReturnsAt).toBeUndefined();
+  });
+
+  it("resumo da ausência: tipo e uma linha de pedido e outra de resposta, por regra, só com dono", async () => {
+    const m = scripted([{ out: { status: "nao_sei", texto: "Não há registro sobre essa reunião.\nFernando decide na volta.", fontes: [], liberacao: null, precisa_do_dono: true } }]);
+    const { answer } = setup(m.call);
+    const r = await answer(ask("<@U1> Podemos marcar uma reunião de alinhamento na quinta?"));
+    expect(r.digest).toEqual({ kind: "reuniao", request: "Podemos marcar uma reunião de alinhamento na quinta?", reply: "Não há registro sobre essa reunião. Fernando decide na volta." });
+    const livre = await setup(null).answer(ask("o que é o Echo?", { ownerId: undefined }));
+    expect(livre.digest).toBeUndefined();
   });
 
   it("teto de 100%: o agente de quem está ausente segue com o modelo; a pergunta livre pausa", async () => {

@@ -3,7 +3,7 @@
 import type { AnswerRequest, AnswerResult } from "@echo/agents";
 import { answerBlocks, respondToInteraction, SLACK_ACTIONS, type ChatMessage, type ChatPlatform } from "@echo/connectors";
 import { absences, asSystem, identities, people, questions, withOrg, type Database } from "@echo/db";
-import { isAway } from "@echo/domain";
+import { digestKind, digestLine, isAway } from "@echo/domain";
 import type { Logger } from "@echo/observability";
 import { and, eq, gte, inArray, isNull, lt, or, sql } from "drizzle-orm";
 
@@ -66,12 +66,19 @@ export async function handleSlackMessage(d: SlackAnswerDeps, job: { orgId: strin
     if (presence === "unknown" && !(await awayBySchedule(d.db, orgId, owner, now))) return "silent";
   }
 
+  // As menções viram nomes, para o modelo ler; o texto da mensagem segue como dado.
+  const text = m.text.replace(/<@([UW][A-Z0-9_]+)(?:\|[^>]*)?>/g, (_, id: string) => (known.get(id) ? `@${known.get(id)!.name}` : "@alguém")).trim();
+  // Com dono, a linha do pedido entra já na reserva: se a resposta falhar, o resumo da ausência mostra "sem resposta".
+  // Na linha, a menção ao próprio dono sai (o resumo é para ele); as outras viram nomes.
+  const forDigest = m.text.replace(/<@([UW][A-Z0-9_]+)(?:\|[^>]*)?>/g, (_, id: string) => (id === ownerSlack ? "" : known.get(id) ? `@${known.get(id)!.name}` : "@alguém"));
+  const digest = owner ? { digestKind: digestKind(text), digestRequest: digestLine(forDigest) } : {};
+
   // Reserva: só uma execução publica. Falha antiga ou reserva parada há 5 min pode ser retomada.
   const sourceRef = `slack:${m.channel}:${m.ts}`;
   const [claimed] = await withOrg(d.db, orgId, (tx) =>
     tx
       .insert(questions)
-      .values({ orgId, askerId: asker.id, ownerId: owner?.id ?? null, kind: owner ? "gemeo" : m.isDm ? "dm" : "livre", channel: `slack:${m.channel}`, sourceRef, state: "processing", claimedBy: d.workerId })
+      .values({ orgId, askerId: asker.id, ownerId: owner?.id ?? null, kind: owner ? "gemeo" : m.isDm ? "dm" : "livre", channel: `slack:${m.channel}`, sourceRef, state: "processing", claimedBy: d.workerId, ...digest })
       .onConflictDoUpdate({
         target: [questions.orgId, questions.sourceRef],
         set: { state: "processing", claimedBy: d.workerId },
@@ -88,8 +95,6 @@ export async function handleSlackMessage(d: SlackAnswerDeps, job: { orgId: strin
   const agentLabel = owner ? `Agente de ${owner.name.split(" ")[0]}` : "Echo";
   await d.chat.postEphemeral(m.channel, m.userExternalId, `${agentLabel} consultando…`).catch(() => {});
 
-  // As menções viram nomes, para o modelo ler; o texto da mensagem segue como dado.
-  const text = m.text.replace(/<@([UW][A-Z0-9_]+)(?:\|[^>]*)?>/g, (_, id: string) => (known.get(id) ? `@${known.get(id)!.name}` : "@alguém")).trim();
   try {
     const r = await d.answer({ orgId, askerId: asker.id, ...(owner ? { ownerId: owner.id } : {}), text, channel: "slack" });
     const body = [r.text, ...r.warnings.map((w) => `_Aviso: ${w}_`)].join("\n\n");
@@ -108,6 +113,8 @@ export async function handleSlackMessage(d: SlackAnswerDeps, job: { orgId: strin
           needsOwner: r.needsOwner,
           ownerReturnsAt: r.ownerReturnsAt ?? null,
           answeredAt: now,
+          // Resumo da ausência (F5b): tipo e uma linha de pedido e outra de resposta, por regra no answer().
+          ...(r.digest ? { digestKind: r.digest.kind, digestRequest: digest.digestRequest ?? r.digest.request, digestReply: r.digest.reply } : {}),
         })
         .where(eq(questions.id, claimed.id)),
     );
