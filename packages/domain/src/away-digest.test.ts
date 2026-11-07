@@ -1,7 +1,7 @@
 // Resumo da ausência (etapa 13): tipo por regra, linha única, início e fim do expediente com 3 h entre envios,
 // férias esperando a volta e até 20 itens por seção.
 import { describe, expect, it } from "vitest";
-import { awayDigest, awayDigestDue, type DigestItem, digestKind, digestLine, digestPurgeBefore, digestSection } from "./away-digest.ts";
+import { awayDigest, awayDigestDue, citedByName, type DigestItem, digestKind, proposalCitation, digestLine, digestPurgeBefore, digestSection } from "./away-digest.ts";
 import type { Absence, Person } from "./types.ts";
 
 const fernando: Person = { id: "fernando", orgId: "o", name: "Fernando", role: "member", timezone: "America/Fortaleza", workHours: { days: [1, 2, 3, 4, 5], start: "09:00", end: "18:00" }, skills: [], areas: [], active: true };
@@ -21,6 +21,32 @@ describe("tipo e linhas", () => {
     expect(digestLine("<!here> veja <https://x.co/a|o plano> em <#C1|geral> e <https://y.co>")).toBe("veja o plano em #geral e https://y.co");
     const long = digestLine("a".repeat(300));
     expect(long).toHaveLength(140);
+  });
+
+  it("citado só pelo nome: primeiro nome único ou nome completo, sem acento, palavra inteira", () => {
+    const team = [
+      { id: "f", name: "Fernando Neto" },
+      { id: "e", name: "Eduardo" },
+      { id: "y1", name: "Yan Lassis" },
+      { id: "y2", name: "Yan Costa" },
+      { id: "a", name: "Ana" },
+    ];
+    expect(citedByName("o FERNANDO pode revisar?", team).map((p) => p.id)).toEqual(["f"]);
+    expect(citedByName("fernandinho e eduardos", team)).toEqual([]); // palavra inteira
+    expect(citedByName("o Yan pode ver?", team)).toEqual([]); // primeiro nome repetido: não adivinha
+    expect(citedByName("o Yan Lassis pode ver?", team).map((p) => p.id)).toEqual(["y1"]);
+    expect(citedByName("<@UFER> e o Édúardo", team).map((p) => p.id)).toEqual(["e"]);
+    expect(citedByName("banana", team)).toEqual([]);
+
+    expect(proposalCitation("Que tal o Fernando revisar a API amanhã?", team, "e")?.id).toBe("f");
+    expect(proposalCitation("Podemos marcar uma reunião com o Eduardo?", team, "f")?.id).toBe("e");
+    expect(proposalCitation("O Fernando terminou a API.", team, "e")).toBeUndefined(); // não é proposta
+    expect(proposalCitation("Que tal o Fernando e o Eduardo revisarem?", team, "a")).toBeUndefined(); // mais de um
+    expect(proposalCitation("Proponho que eu, Eduardo, revise.", team, "e")).toBeUndefined(); // o próprio autor
+  });
+
+  it("linha longa termina em reticências", () => {
+    const long = digestLine("a".repeat(300));
     expect(long.endsWith("…")).toBe(true);
   });
 });

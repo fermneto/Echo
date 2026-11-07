@@ -74,6 +74,11 @@ export interface AnswerResult {
    * Só quando há dono. Quem grava a pergunta guarda estes campos; as linhas somem na entrega ou em 30 dias.
    */
   digest?: { kind: DigestKind; request: string; reply: string };
+  /**
+   * Gasto do mês acima do dobro do limite: a resposta saiu por regra, sem modelo. Quem grava a pergunta
+   * a guarda como falha em `questions` (docs/produto.md → Teto de custo), e ela não conta nos ganhos.
+   */
+  overLimit?: true;
 }
 
 export interface ValidationIssue {

@@ -91,6 +91,41 @@ describe.skipIf(!url)("F2 no Slack (Postgres real, papel comum)", () => {
     expect(posted).toHaveLength(1);
   });
 
+  it("acima do dobro do limite: a resposta por regra sai no tópico, mas fica como falha e não volta a sair", async () => {
+    const { chat, posted } = fakeChat("away");
+    const m = msg({ channel: "C7" });
+    const over = async () => ({ ...answered, usedModel: false, ownerReturnsAt: undefined, overLimit: true as const });
+    expect(await handleSlackMessage({ db: app, chat, answer: over, log, workerId: "w" }, { orgId, message: m })).toBe("answered");
+    expect(posted).toHaveLength(1);
+    const [q] = await db.select().from(questions).where(and(eq(questions.orgId, orgId), eq(questions.sourceRef, `slack:C7:${m.ts}`)));
+    expect(q).toMatchObject({ state: "failed", ownerReturnsAt: null, answer: answered.text });
+    // Reenvio do aviso: a falha já respondida não é retomada.
+    expect(await handleSlackMessage({ db: app, chat, answer: over, log, workerId: "w" }, { orgId, message: m })).toBe("duplicate");
+    expect(posted).toHaveLength(1);
+  });
+
+  it("proposta citando o dono só pelo nome: sem resposta nem status, mas entra no resumo se ele está fora", async () => {
+    let asked = false;
+    const { chat, posted } = fakeChat("active");
+    (chat as unknown as { getPresence: () => Promise<Presence> }).getPresence = async () => ((asked = true), "active");
+    const deps = (iso: string) => ({ db: app, chat, answer, log, workerId: "w", now: () => new Date(iso) });
+    const proposta = (ts: string, text = "Que tal o Fernando revisar a API amanhã?") => msg({ channel: "C8", ts, text, mentions: [] });
+
+    // Sábado: Fernando fora pelo expediente cadastrado.
+    expect(await handleSlackMessage(deps("2026-11-07T15:00:00Z"), { orgId, message: proposta("8.1") })).toBe("noted");
+    expect(await handleSlackMessage(deps("2026-11-07T15:00:00Z"), { orgId, message: proposta("8.1") })).toBe("duplicate");
+    // Segunda ao meio-dia em Fortaleza: no expediente, nada fica.
+    expect(await handleSlackMessage(deps("2026-11-09T15:00:00Z"), { orgId, message: proposta("8.2") })).toBe("skipped");
+    // Não é proposta: nada fica.
+    expect(await handleSlackMessage(deps("2026-11-07T15:00:00Z"), { orgId, message: proposta("8.3", "o Fernando terminou a API") })).toBe("skipped");
+    expect(posted).toHaveLength(0);
+    expect(asked).toBe(false);
+
+    const rows = await db.select().from(questions).where(and(eq(questions.orgId, orgId), eq(questions.channel, "slack:C8")));
+    expect(rows).toHaveLength(1);
+    expect(rows[0]).toMatchObject({ kind: "citacao", state: "silent", askerId: ids.edu, ownerId: ids.fer, needsOwner: true, digestKind: "proposta", digestRequest: "Que tal o Fernando revisar a API amanhã?", answer: null, ownerReturnsAt: null });
+  });
+
   it("pergunta direta ao bot não consulta o status; quem não está cadastrado é ignorado", async () => {
     let asked = false;
     const { chat } = fakeChat("active");

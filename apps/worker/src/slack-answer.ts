@@ -3,7 +3,7 @@
 import type { AnswerRequest, AnswerResult } from "@echo/agents";
 import { answerBlocks, respondToInteraction, SLACK_ACTIONS, type ChatMessage, type ChatPlatform } from "@echo/connectors";
 import { absences, asSystem, identities, people, questions, withOrg, type Database } from "@echo/db";
-import { digestKind, digestLine, isAway } from "@echo/domain";
+import { digestKind, digestLine, isAway, proposalCitation } from "@echo/domain";
 import type { Logger } from "@echo/observability";
 import { and, eq, gte, inArray, isNull, lt, or, sql } from "drizzle-orm";
 
@@ -19,7 +19,7 @@ export interface SlackAnswerDeps {
   textTtlMs?: number;
 }
 
-export type SlackAnswerOutcome = "answered" | "silent" | "duplicate" | "skipped";
+export type SlackAnswerOutcome = "answered" | "silent" | "noted" | "duplicate" | "skipped";
 
 type Known = { id: string; name: string; timezone: string; workHours: { days: number[]; start: string; end: string } };
 
@@ -45,6 +45,44 @@ async function awayBySchedule(db: Database, orgId: string, p: Known, now: Date):
   return isAway(person, abs.map((a) => ({ personId: a.personId, startsAt: a.startsAt, endsAt: a.endsAt, kind: a.kind as "vacation" })), now).away;
 }
 
+/**
+ * F5b, passo 2: proposta (ou pedido de reunião) que cita uma pessoa só pelo nome, sem menção. Não há resposta
+ * no canal nem leitura do status do Slack (não houve menção): vale o expediente cadastrado. Se a pessoa está
+ * fora, fica só a linha do resumo da ausência dela, que some na entrega ou em 30 dias.
+ */
+async function noteNamedProposal(d: SlackAnswerDeps, orgId: string, m: ChatMessage, asker: Known, now: Date): Promise<SlackAnswerOutcome> {
+  if (m.mentions.length > 0) return "skipped"; // menção a quem não é da empresa: não é citação pelo nome
+  const rows = await withOrg(d.db, orgId, (tx) =>
+    tx
+      .select({ id: people.id, name: people.name, timezone: people.timezone, workHours: people.workHours })
+      .from(people)
+      .innerJoin(identities, and(eq(identities.personId, people.id), eq(identities.platform, "slack")))
+      .where(and(eq(people.orgId, orgId), eq(people.active, true))),
+  );
+  const cited = proposalCitation(m.text, rows, asker.id);
+  if (!cited || !(await awayBySchedule(d.db, orgId, cited, now))) return "skipped";
+  const [noted] = await withOrg(d.db, orgId, (tx) =>
+    tx
+      .insert(questions)
+      .values({
+        orgId,
+        askerId: asker.id,
+        ownerId: cited.id,
+        kind: "citacao",
+        channel: `slack:${m.channel}`,
+        sourceRef: `slack:${m.channel}:${m.ts}`,
+        // Sem resposta: não entra nos ganhos, só no resumo.
+        state: "silent",
+        needsOwner: true,
+        digestKind: digestKind(m.text),
+        digestRequest: digestLine(m.text),
+      })
+      .onConflictDoNothing()
+      .returning({ id: questions.id }),
+  );
+  return noted ? "noted" : "duplicate";
+}
+
 export async function handleSlackMessage(d: SlackAnswerDeps, job: { orgId: string; message: ChatMessage }): Promise<SlackAnswerOutcome> {
   const { orgId, message: m } = job;
   const now = d.now?.() ?? new Date();
@@ -55,8 +93,8 @@ export async function handleSlackMessage(d: SlackAnswerDeps, job: { orgId: strin
   const ownerSlack = m.mentions.find((u) => u !== m.userExternalId && known.has(u));
   const owner = ownerSlack ? known.get(ownerSlack) : undefined;
   const direct = m.mentionsBot || m.isDm || Boolean(m.inEchoThread);
-  // Sem dono e sem falar com o bot: "quem sabe" é outro fluxo (F9).
-  if (!owner && !direct) return "skipped";
+  // Sem dono e sem falar com o bot: proposta citada só pelo nome vai para o resumo; "quem sabe" é outro fluxo (F9).
+  if (!owner && !direct) return noteNamedProposal(d, orgId, m, asker, now);
 
   // Status lido só agora, na menção, com limite de 1,5 s. Nunca gravado nem logado.
   // Ativo = ninguém responde por ele. Sem resposta do Slack, vale o expediente cadastrado.
@@ -85,7 +123,8 @@ export async function handleSlackMessage(d: SlackAnswerDeps, job: { orgId: strin
         // Pergunta já dada como perdida (com aviso a quem perguntou) não volta a ser respondida.
         where: and(
           sql`${questions.digestKind} is distinct from 'falha_avisada'`,
-          or(eq(questions.state, "failed"), and(eq(questions.state, "processing"), lt(questions.createdAt, new Date(now.getTime() - 5 * 60_000)))),
+          // Falha que já publicou resposta (acima do dobro do limite) também não sai de novo.
+          or(and(eq(questions.state, "failed"), isNull(questions.answer)), and(eq(questions.state, "processing"), lt(questions.createdAt, new Date(now.getTime() - 5 * 60_000)))),
         ),
       })
       .returning({ id: questions.id }),
@@ -104,7 +143,8 @@ export async function handleSlackMessage(d: SlackAnswerDeps, job: { orgId: strin
       tx
         .update(questions)
         .set({
-          state: "answered",
+          // Acima do dobro do limite de custo, a resposta por regra fica como falha (fora dos ganhos).
+          state: r.overLimit ? "failed" : "answered",
           // O texto da pergunta fica por pouco tempo, só para o dono conferir.
           text,
           textExpiresAt: new Date(now.getTime() + (d.textTtlMs ?? 48 * 3_600_000)),

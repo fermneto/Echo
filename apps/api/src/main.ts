@@ -1,7 +1,7 @@
 import { serve } from "@hono/node-server";
 import { listenPort, loadConfig } from "@echo/config";
 import { applyHrEvent, hrSecret, receive, routeOrg, TokenCipher } from "@echo/connectors";
-import { createDb, createPool, identities, ping, withOrg } from "@echo/db";
+import { createDb, createPool, identities, people, ping, withOrg } from "@echo/db";
 import { PgBossQueue, QUEUES } from "@echo/jobs";
 import { createLogger, initTracing } from "@echo/observability";
 import { and, eq } from "drizzle-orm";
@@ -27,9 +27,13 @@ const app = createApp({
     routeOrg: (kind, externalId) => routeOrg(db, kind, externalId),
     slackContext: async (orgId) => {
       const rows = await withOrg(db, orgId, (tx) =>
-        tx.select({ id: identities.externalId }).from(identities).where(and(eq(identities.orgId, orgId), eq(identities.platform, "slack"))),
+        tx
+          .select({ id: identities.externalId, name: people.name, active: people.active })
+          .from(identities)
+          .innerJoin(people, eq(people.id, identities.personId))
+          .where(and(eq(identities.orgId, orgId), eq(identities.platform, "slack"))),
       );
-      return { registeredUserIds: new Set(rows.map((r) => r.id)) };
+      return { registeredUserIds: new Set(rows.map((r) => r.id)), registeredPeople: rows.filter((r) => r.active).map(({ id, name }) => ({ id, name })) };
     },
     orgSecrets: { hr: async (orgId) => (cipher ? hrSecret(db, cipher, orgId) : null) },
     hr: async (orgId, event) => {
