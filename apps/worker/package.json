@@ -9,6 +9,7 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
+    "@echo/brain": "workspace:*",
     "@echo/config": "workspace:*",
     "@echo/observability": "workspace:*",
     "@echo/jobs": "workspace:*",
