@@ -61,6 +61,10 @@ export async function receive(db: Database, queue: Pick<JobQueue, "send">, d: De
   return inserted ? "queued" : "duplicate";
 }
 
+/** O Slack informa, em cada evento, o user_id do bot que o recebeu. */
+export const slackBotUserIdOf = (body: any): string | undefined =>
+  (body?.authorizations as { user_id?: string; is_bot?: boolean }[] | undefined)?.find((a) => a.is_bot)?.user_id;
+
 export interface ProcessOptions {
   /** user_id do bot Echo no Slack, para separar a menção ao bot das menções a pessoas. */
   slackBotUserId?: string | undefined;
@@ -82,7 +86,7 @@ export async function processInbox(db: Database, inboxId: string, opts: ProcessO
         ? normalizeGithub(eventName ?? "", body)
         : row.source === "linear"
           ? normalizeLinear(body)
-          : normalizeSlack(body, opts.slackBotUserId);
+          : normalizeSlack(body, opts.slackBotUserId ?? slackBotUserIdOf(body));
     const result = await ingest(db, row.orgId, events);
     const onlyIgnored = result.applied === 0 && result.messages.length === 0;
     // Texto do Slack não fica guardado depois de processado: a mensagem segue na fila do F2.

@@ -8,6 +8,8 @@ export const QUEUES = {
   inboxProcess: "inbox.process",
   /** Mensagem do Slack que pede resposta do agente (F2, frente Funções). */
   slackMessage: "slack.message",
+  /** Clique em botão do Slack (confirmar nota, Resolveu/Não resolveu…), já verificado. */
+  slackInteraction: "slack.interaction",
 } as const;
 export type QueueName = (typeof QUEUES)[keyof typeof QUEUES];
 

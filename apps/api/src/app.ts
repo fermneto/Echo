@@ -1,9 +1,11 @@
 import { Hono } from "hono";
+import { registerWebhooks, type WebhookDeps } from "./webhooks.ts";
 
 export interface AppDeps {
   /** Verifica dependências essenciais (banco). */
   ready: () => Promise<boolean>;
   version?: string | undefined;
+  webhooks?: WebhookDeps;
 }
 
 /** Rotas da API. Sem regra de negócio aqui: só conecta pacotes. */
@@ -16,6 +18,8 @@ export function createApp(deps: AppDeps): Hono {
     const db = await deps.ready().catch(() => false);
     return c.json({ ok: db, checks: { db } }, db ? 200 : 503);
   });
+
+  if (deps.webhooks) registerWebhooks(app, deps.webhooks);
 
   app.notFound((c) => c.json({ error: "não encontrado" }, 404));
   app.onError((err, c) => {

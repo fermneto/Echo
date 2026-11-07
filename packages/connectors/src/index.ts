@@ -53,4 +53,4 @@ export { githubRouteKey, normalizeGithub, parseCoauthors } from "./github.ts";
 export { linearRouteKey, linearState, normalizeLinear } from "./linear.ts";
 export { HELP_REACTIONS, isWhoKnows, normalizeSlack, slackShouldKeep, type SlackEntryContext } from "./slack.ts";
 export { ingest, type IngestResult } from "./ingest.ts";
-export { processInbox, receive, routeOrg, type Delivery, type InboxJob, type InboxSource, type ProcessOptions } from "./inbox.ts";
+export { processInbox, receive, routeOrg, slackBotUserIdOf, type Delivery, type InboxJob, type InboxSource, type ProcessOptions } from "./inbox.ts";

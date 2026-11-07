@@ -36,6 +36,10 @@ const database = {
 
 export const apiSchema = baseSchema.extend({
   ...database,
+  // Segredos dos webhooks. Sem eles, a rota responde 503 em vez de aceitar aviso sem assinatura.
+  GITHUB_WEBHOOK_SECRET: optionalString,
+  SLACK_SIGNING_SECRET: optionalString,
+  LINEAR_WEBHOOK_SECRET: optionalString,
   // A Render define PORT; localmente usamos API_PORT.
   PORT: port(3001).optional(),
   API_PORT: port(3001),

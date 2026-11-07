@@ -176,6 +176,7 @@ async function recordReaction(tx: Tx, orgId: string, r: Extract<NormalizedEvent,
 }
 
 export interface IngestResult {
+  orgId: string;
   applied: number;
   ignored: string[];
   /** Mensagens que seguem para o fluxo de resposta (F2), fora deste pacote. */
@@ -184,7 +185,7 @@ export interface IngestResult {
 
 /** Aplica os eventos de um aviso numa transação. Em erro, nada é gravado e a fila tenta de novo. */
 export async function ingest(db: Database, orgId: string, events: NormalizedEvent[]): Promise<IngestResult> {
-  const result: IngestResult = { applied: 0, ignored: [], messages: [] };
+  const result: IngestResult = { orgId, applied: 0, ignored: [], messages: [] };
   await db.transaction(async (tx) => {
     for (const ev of events) {
       switch (ev.kind) {
