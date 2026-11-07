@@ -42,7 +42,9 @@ export async function reconcileOnce(d: ReconcileDeps): Promise<{ skipped: boolea
               const r = await reconcileGithub(d.db, orgId, gh, now, { brainsRepository: d.brainsRepository });
               d.log.info({ orgId, ...r }, "reconciliação do GitHub");
             }, { orgId }).catch((err) => d.log.error({ orgId, err: String(err) }, "falha na reconciliação do GitHub"));
-            await mirrorOrg(d, orgId).catch((err) => d.log.error({ orgId, err: String(err) }, "falha no espelho das notas"));
+            // Pela mesma fila do push (uma por empresa), para duas sincronizações da mesma empresa não correrem juntas.
+            if (d.queue && d.brainsRepository) await d.queue.send(QUEUES.brainMirror, { orgId }, { singletonKey: orgId }).catch((err) => d.log.error({ orgId, err: String(err) }, "falha ao pedir o espelho das notas"));
+            else await mirrorOrg(d, orgId).catch((err) => d.log.error({ orgId, err: String(err) }, "falha no espelho das notas"));
           }
         }
         for (const cal of await calendarsForOrg(d.db, d.platforms, orgId)) {

@@ -150,8 +150,9 @@ describe.skipIf(!url)("sincronização do espelho (Postgres real)", () => {
       await tx.insert(teams).values({ id: team, orgId: org, name: "Produto" });
       for (const [name, pid] of Object.entries(id)) await tx.insert(people).values({ id: pid, orgId: org, teamId: team, name, role: name === "marina" ? "leader" : "member", timezone: "America/Fortaleza", workHours: hours });
       await tx.insert(identities).values([
-        { orgId: org, personId: id.fernando, platform: "github", externalId: "login:fernando-teste", login: "Fernando-Teste" },
-        { orgId: org, personId: id.eduardo, platform: "github", externalId: "login:eduardo-teste", login: "eduardo-teste" },
+        // Como o adaptador do GitHub e o seed gravam: id numérico ou `demo-<key>`, com o login à parte (maiúsculas não importam).
+        { orgId: org, personId: id.fernando, platform: "github", externalId: "583231", login: "Fernando-Teste" },
+        { orgId: org, personId: id.eduardo, platform: "github", externalId: "demo-eduardo", login: "eduardo-teste" },
       ]);
       await tx.insert(brainNotes).values([
         { orgId: org, personId: id.fernando, path: "agente-fernando/decisoes/tempo-limite.md", kind: "decisao", visibility: "team", content: "Tempo limite de 5 s." },
@@ -165,6 +166,12 @@ describe.skipIf(!url)("sincronização do espelho (Postgres real)", () => {
   afterAll(async () => {
     await asSystem(db, (tx) => tx.delete(orgs).where(eq(orgs.id, org)));
     await pool.end();
+  });
+
+  it("lista cortada: nota fora da lista não é exportada por cima nem dada como apagada", async () => {
+    const r = await syncMirror(db, org, { ...repo, listFiles: async () => ({ files: new Map(), truncated: true }), readBlob: repo.readBlob.bind(repo), editsSince: repo.editsSince.bind(repo) }, "org-teste/brains");
+    expect(r.exports.filter((e) => e.path !== PRODUCT_NOTE_PATH)).toEqual([]);
+    expect(r.warnings.filter((w) => w.path !== PRODUCT_NOTE_PATH)).toEqual([]);
   });
 
   it("primeira rodada exporta só as notas de equipe (empresa de uma equipe só); pessoais e privadas nunca; a segunda não faz nada", async () => {

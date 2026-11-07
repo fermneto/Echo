@@ -2,7 +2,8 @@
 // Cada ação tem chave única (não roda duas vezes), é reservada por atualização condicional
 // (dois workers não executam a mesma) e só roda aprovada — exceto as listadas em REQUIRES_APPROVAL como false.
 import { FileChangedError, type ChatPlatform, type CodeWriter, type IssueWriter } from "@echo/connectors";
-import { asSystem, auditLog, brainNotes, identities, outboxActions, planItems, tasks, withOrg, type Database, type Tx } from "@echo/db";
+import { asSystem, auditLog, brainNotes, identities, outboxActions, people, planItems, tasks, withOrg, type Database, type Tx } from "@echo/db";
+import { isMirrorExportable, soleTeam } from "@echo/domain";
 import { and, asc, eq, inArray, lt, sql } from "drizzle-orm";
 import { REQUIRES_APPROVAL, type ActionType, type OutboxAction } from "./index.ts";
 
@@ -141,6 +142,8 @@ async function run(deps: ExecutorDeps, row: Row): Promise<void> {
     }
     case "github.mirror_write": {
       const p = row.payload as ActionPayloads["github.mirror_write"];
+      // A nota pode ter ficado pessoal ou privada (ou a empresa ganhado outra equipe) depois de a ação entrar na fila.
+      if (!(await stillExportable(db, orgId, p.noteId))) throw new PermanentActionError("a nota não pode mais ir para o espelho; a próxima sincronização a tira do repositório");
       let sha: string;
       try {
         ({ sha } = await need("code", "GitHub").putFile(p.repo, p.path, p.content, `Echo: atualiza ${p.path}`, p.previousSha));
@@ -257,3 +260,14 @@ export async function releaseStuckActions(db: Database, olderThanMs = 10 * 60_00
   return rows.length;
 }
 
+
+/** Confere de novo, na hora de escrever, se a nota ainda pode ir para o repositório (regra de packages/domain). */
+async function stillExportable(db: Database, orgId: string, noteId: string): Promise<boolean> {
+  return withOrg(db, orgId, async (tx) => {
+    const [note] = await tx.select({ visibility: brainNotes.visibility, personId: brainNotes.personId }).from(brainNotes).where(and(eq(brainNotes.orgId, orgId), eq(brainNotes.id, noteId)));
+    if (!note) return false;
+    const staff = await tx.select({ id: people.id, role: people.role, teamId: people.teamId, active: people.active }).from(people).where(eq(people.orgId, orgId));
+    const ownerTeamId = note.personId ? (staff.find((p) => p.id === note.personId)?.teamId ?? null) : null;
+    return isMirrorExportable({ ...note, ownerTeamId }, soleTeam(staff));
+  });
+}

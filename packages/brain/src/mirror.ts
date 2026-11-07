@@ -13,7 +13,8 @@
 // Se uma nota deixa de ser exportável, o arquivo sai do repositório. O RH não deve ter acesso ao repositório.
 import { createHash } from "node:crypto";
 import { auditLog, brainNotes, identities, people, withOrg, type Database } from "@echo/db";
-import { and, eq } from "drizzle-orm";
+import { isMirrorExportable, soleTeam } from "@echo/domain";
+import { and, eq, or, sql } from "drizzle-orm";
 import type { NoteKind, Visibility } from "./index.ts";
 import { createPgBrainStore } from "./pg.ts";
 
@@ -99,23 +100,9 @@ export function parseNoteFile(text: string): string {
   return body.replace(/\n+$/, "");
 }
 
-/**
- * Se a nota pode ir para o repositório, que toda a empresa lê.
- * `oneTeam`: a equipe de todas as pessoas da empresa fora o RH, se for uma só (e todas tiverem equipe).
- */
-export function isExported(n: Pick<MirrorNote, "visibility" | "personId"> & { ownerTeamId?: string | null }, oneTeam: string | null): boolean {
-  if (n.visibility !== "team") return false;
-  if (n.personId === null) return true;
-  return oneTeam !== null && n.ownerTeamId === oneTeam;
-}
-
-/** A equipe única da empresa (fora o RH), ou null se houver mais de uma ou alguém sem equipe. */
-export function soleTeam(staff: readonly { role: string; teamId: string | null; active: boolean }[]): string | null {
-  const ids = new Set(staff.filter((p) => p.active && p.role !== "hr").map((p) => p.teamId));
-  if (ids.size !== 1) return null;
-  const [only] = ids;
-  return only ?? null;
-}
+/** O que pode ir para o repositório: regra pura em packages/domain, a mesma que o executor confere antes de escrever. */
+export const isExported = isMirrorExportable;
+export { soleTeam };
 
 export type NoteAction =
   | { kind: "in_sync" }
@@ -198,13 +185,16 @@ export async function syncMirror(db: Database, orgId: string, source: MirrorSour
   for (const note of notes) {
     if (!exported(note)) {
       // Já saiu do Git: esquece o ponto de sincronização, para voltar como arquivo novo se um dia puder.
-      if (note.sha !== null && !files.has(note.path)) await withOrg(db, orgId, (tx) => tx.update(brainNotes).set({ sha: null }).where(and(eq(brainNotes.orgId, orgId), eq(brainNotes.id, note.id))));
+      // Com a lista cortada, "não está na lista" não quer dizer que saiu do Git: o sha só é esquecido com a lista inteira.
+      if (note.sha !== null && !truncated && !files.has(note.path)) await withOrg(db, orgId, (tx) => tx.update(brainNotes).set({ sha: null }).where(and(eq(brainNotes.orgId, orgId), eq(brainNotes.id, note.id))));
       continue;
     }
     if (!isValidNotePath(note.path)) {
       out.warnings.push({ code: "nota_fora_da_regra", path: note.path });
       continue;
     }
+    // Lista cortada: um arquivo fora dela pode existir; nada de exportar por cima nem marcar como apagado.
+    if (truncated && !files.has(note.path)) continue;
     const action = planNote(note, files.get(note.path));
     switch (action.kind) {
       case "in_sync":
@@ -262,7 +252,16 @@ async function editorByLogin(db: Database, orgId: string, login: string) {
       .select({ personId: people.id, role: people.role, teamId: people.teamId })
       .from(identities)
       .innerJoin(people, and(eq(people.orgId, identities.orgId), eq(people.id, identities.personId)))
-      .where(and(eq(identities.orgId, orgId), eq(identities.platform, "github"), eq(identities.externalId, `login:${login.toLowerCase()}`), eq(people.active, true))),
+            // O login do GitHub, sem diferença de maiúsculas (como em resolvePeople, no ingest); `login:<x>` é o formato antigo.
+      .where(
+        and(
+          eq(identities.orgId, orgId),
+          eq(identities.platform, "github"),
+          or(eq(sql`lower(${identities.login})`, login.toLowerCase()), eq(identities.externalId, `login:${login.toLowerCase()}`)),
+          eq(people.active, true),
+        ),
+      )
+      .limit(1),
   );
   return row ?? null;
 }

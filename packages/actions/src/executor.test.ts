@@ -162,6 +162,16 @@ describe.skipIf(!url)("executor do outbox (Postgres real)", () => {
     expect(repoFiles.get("equipe/acordos.md")).toBe("sha-editado-no-git");
   });
 
+  it("espelho: nota que virou pessoal depois de entrar na fila não é escrita", async () => {
+    calls.length = 0;
+    const [note] = await db.insert(brainNotes).values({ orgId, path: "equipe/regras.md", kind: "equipe", content: "Regra.", visibility: "team" }).returning();
+    await enqueueAction(app, orgId, { type: "github.mirror_write", target: "github:org-teste/brains", idempotencyKey: "mirror:pessoal", payload: { repo: "org-teste/brains", noteId: note!.id, path: note!.path, content: "Regra.\n" } });
+    await db.update(brainNotes).set({ visibility: "person" }).where(eq(brainNotes.id, note!.id));
+    expect((await drainActions(deps(), orgId)).failed).toBe(1);
+    expect(calls).toEqual([]);
+    expect(repoFiles.has("equipe/regras.md")).toBe(false);
+  });
+
   it("espelho: remove do brains a nota que não pode ficar lá, zera o sha e não apaga um arquivo que mudou", async () => {
     calls.length = 0;
     const [note] = await db.insert(brainNotes).values({ orgId, path: "agente-x/diario.md", kind: "diario", content: "Pessoal.", visibility: "person", sha: "sha-antigo" }).returning();
