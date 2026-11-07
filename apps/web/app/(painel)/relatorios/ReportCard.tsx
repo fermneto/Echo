@@ -40,7 +40,7 @@ export function Helps({ r }: { r: WeekReport }) {
               {h.to}: {h.what}
             </span>
             <span className="chip mono">
-              <span className="dot dot--on" aria-hidden="true" />
+              <span className="dot dot--off" aria-hidden="true" />
               {h.source}
             </span>
           </li>
@@ -117,7 +117,7 @@ export function HelpForm({ people }: { people: string[] }) {
       <p className="muted help-intro">Opcional. A ajuda confirmada por você aparece no relatório de quem ajudou.</p>
       {done ? (
         <p className="help-done" role="status">
-          <span className="dot dot--on" aria-hidden="true" /> Ajuda registrada no relatório de {done}.
+          Ajuda registrada no relatório de {done}.
         </p>
       ) : (
         <form
@@ -130,7 +130,10 @@ export function HelpForm({ people }: { people: string[] }) {
           <label className="field-row__k mono" htmlFor="quem">
             Quem ajudou
           </label>
-          <select id="quem" name="quem" className="field">
+          <select id="quem" name="quem" className="field" defaultValue="" required>
+            <option value="" disabled>
+              Escolha quem ajudou
+            </option>
             {people.map((p) => (
               <option key={p}>{p}</option>
             ))}

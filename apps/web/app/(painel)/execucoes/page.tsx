@@ -1,13 +1,13 @@
 import { latest } from "@/lib/demo/notes";
 import { DAY_RUNS, NIGHT_RUNS } from "@/lib/demo/runs";
+import { currentDecisions } from "@/lib/decisions-store";
 import { currentNotes } from "@/lib/notes-store";
-import { requireAccess } from "@/lib/session";
+import { demoMode, requireAccess } from "@/lib/session";
 import { RunsBoard, type AuditEntry } from "./RunsBoard";
 
 export const metadata = { title: "Custo e execuções · Echo" };
 
 const BASE_AUDIT: AuditEntry[] = [
-  { at: "05/11 16:04", actor: "Marina", action: "aprovou o plano", target: "férias de Bruno" },
   { at: "05/11 09:12", actor: "Fernando", action: "confirmou a nota do dia", target: "05/11" },
   { at: "04/11 18:30", actor: "Carla", action: "confirmou uma ajuda", target: "Bruno · ECH-133" },
 ];
@@ -18,11 +18,17 @@ export default async function ExecucoesPage() {
     .filter((n) => n.versions.length > 1)
     .map((n) => ({ at: latest(n).at, actor: latest(n).by, action: "corrigiu a nota", target: `${n.title} (versão ${latest(n).n})` }));
 
+  const decisions = await currentDecisions();
+  const decided: AuditEntry[] = [
+    ...(decisions["ech-160"] ? [{ at: decisions["ech-160"].at, actor: decisions["ech-160"].by, action: "atribuiu", target: "ECH-160 a Carla" }] : []),
+    ...(decisions["ferias-bruno"] ? [{ at: decisions["ferias-bruno"].at, actor: decisions["ferias-bruno"].by, action: "aprovou o plano", target: "férias de Bruno (3 mudanças)" }] : []),
+  ];
+
   return (
     <>
       <h1 className="hero-title hero-title--page">Custo e execuções</h1>
       <p className="lead">Quanto custou cada fluxo e o rastro de cada execução. O custo sai dos tokens e da tabela de preços; o que sai por regra não usa modelo e custa zero.</p>
-      <RunsBoard day={DAY_RUNS} night={NIGHT_RUNS} audit={[...edits, ...BASE_AUDIT]} />
+      <RunsBoard day={DAY_RUNS} night={NIGHT_RUNS} audit={[...decided, ...edits, ...BASE_AUDIT]} rehearsal={demoMode()} />
     </>
   );
 }

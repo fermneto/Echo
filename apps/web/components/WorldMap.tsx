@@ -43,6 +43,8 @@ const RGB = { on: [152, 255, 56], twin: [77, 141, 255], wait: [224, 179, 84] } a
 /** Raio, em graus, da área colorida em volta de cada cidade. */
 const ACTIVE_RADIUS = 10;
 const MIN_Z = 1;
+/** Largura mínima do mapa: em telas estreitas ele fica mais largo que a moldura e se arrasta de lado. */
+const MIN_MAP_W = 720;
 const MAX_Z = 6;
 /** Resolução máxima do canvas (dpr × zoom), para não estourar memória em zoom alto. */
 const MAX_RENDER = 5;
@@ -55,7 +57,12 @@ type View = { z: number; tx: number; ty: number };
 type Selected = { crew: string; person: string | null; pinned: boolean };
 const easeOut = (t: number) => 1 - (1 - t) ** 3;
 
-export function WorldMap({ crews, zones, arcs, nowIso }: { crews: MapCrew[]; zones: MapZone[]; arcs: MapArc[]; nowIso: string }) {
+/** Rótulo vai para cima do grupo quando outro grupo logo abaixo usaria a mesma linha. */
+function labelUp(c: MapCrew, all: MapCrew[]): boolean {
+  return all.some((o) => o !== c && c.location[0] > o.location[0] && c.location[0] - o.location[0] < 6 && Math.abs(c.location[1] - o.location[1]) < 25);
+}
+
+export function WorldMap({ crews, zones, arcs, nowIso, canAsk = true }: { crews: MapCrew[]; zones: MapZone[]; arcs: MapArc[]; nowIso: string; canAsk?: boolean }) {
   const wrap = useRef<HTMLElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const stage = useRef<HTMLDivElement>(null);
@@ -95,7 +102,7 @@ export function WorldMap({ crews, zones, arcs, nowIso }: { crews: MapCrew[]; zon
       if (!land) return;
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
       const scale = Math.min(dpr * viewRef.current.z, MAX_RENDER);
-      const w = box.offsetWidth;
+      const w = Math.max(box.offsetWidth, MIN_MAP_W);
       const h = (w * SPAN) / 360;
       el.width = Math.round(w * scale);
       el.height = Math.round(h * scale);
@@ -168,16 +175,24 @@ export function WorldMap({ crews, zones, arcs, nowIso }: { crews: MapCrew[]; zon
     return () => clearTimeout(t);
   }, [view.z]);
 
+  /** w e h: tamanho do mapa; fw: largura da moldura (menor que o mapa em telas estreitas). */
   const size = () => {
-    const w = wrap.current?.offsetWidth ?? 0;
-    return { w, h: (w * SPAN) / 360 };
+    const fw = wrap.current?.offsetWidth ?? 0;
+    const w = Math.max(fw, MIN_MAP_W);
+    return { w, h: (w * SPAN) / 360, fw };
   };
 
   /** Mantém o mapa cobrindo a moldura: nada de faixa vazia nas bordas. */
   const fit = (v: View): View => {
-    const { w, h } = size();
+    const { w, h, fw } = size();
     const z = clamp(v.z, MIN_Z, MAX_Z);
-    return { z, tx: clamp(v.tx, w - w * z, 0), ty: clamp(v.ty, h - h * z, 0) };
+    return { z, tx: clamp(v.tx, fw - w * z, 0), ty: clamp(v.ty, h - h * z, 0) };
+  };
+
+  /** O mundo inteiro, centrado na moldura. */
+  const home = (): View => {
+    const { w, fw } = size();
+    return { z: 1, tx: Math.min(0, (fw - w) / 2), ty: 0 };
   };
 
   /** Pinta a posição atual no palco e reposiciona o cartão aberto, sem passar pelo React. */
@@ -186,6 +201,7 @@ export function WorldMap({ crews, zones, arcs, nowIso }: { crews: MapCrew[]; zon
     const v = viewRef.current;
     const el = stage.current;
     if (el) {
+      el.style.width = `${size().w}px`;
       el.style.transform = `translate3d(${v.tx}px, ${v.ty}px, 0) scale(${v.z})`;
       el.style.setProperty("--z", String(v.z));
     }
@@ -212,8 +228,8 @@ export function WorldMap({ crews, zones, arcs, nowIso }: { crews: MapCrew[]; zon
   /** Zoom em torno de um ponto da moldura (cx, cy em px); animado nos botões e no duplo clique. */
   const zoomAt = useCallback(
     (factor: number, cx?: number, cy?: number, animate = false) => {
-      const { w, h } = size();
-      const px = cx ?? w / 2;
+      const { h, fw } = size();
+      const px = cx ?? fw / 2;
       const py = cy ?? h / 2;
       const from = viewRef.current;
       const to = clamp(from.z * factor, MIN_Z, MAX_Z);
@@ -241,13 +257,16 @@ export function WorldMap({ crews, zones, arcs, nowIso }: { crews: MapCrew[]; zon
     const start = performance.now();
     const step = (now: number) => {
       const t = easeOut(Math.min(1, (now - start) / 320));
-      setView({ z: from.z + (1 - from.z) * t, tx: from.tx * (1 - t), ty: from.ty * (1 - t) });
+      const to = home();
+      setView({ z: from.z + (1 - from.z) * t, tx: from.tx + (to.tx - from.tx) * t, ty: from.ty * (1 - t) });
       motion.current = t < 1 ? requestAnimationFrame(step) : null;
     };
     motion.current = requestAnimationFrame(step);
   };
 
   useLayoutEffect(() => {
+    viewRef.current = fit(home());
+    setCommitted({ ...viewRef.current });
     paint();
     return () => {
       if (frame.current !== null) cancelAnimationFrame(frame.current);
@@ -363,23 +382,23 @@ export function WorldMap({ crews, zones, arcs, nowIso }: { crews: MapCrew[]; zon
   }, [selected]);
 
   const at = (key: string) => crews.find((c) => c.key === key);
-  const { w, h } = size();
+  const { fw } = size();
   const sel = shown?.sel ?? null;
   const crew = sel ? at(sel.crew) : undefined;
   const person = sel?.person ? crew?.people.find((p) => p.id === sel.person) : crew?.people.length === 1 ? crew.people[0] : undefined;
-  const CARD_W = Math.min(300, w - 24);
+  const CARD_W = Math.min(300, fw - 24);
 
   /** O cartão fica ao lado do bonequinho, centrado na altura dele e sempre dentro do mapa. */
   const cardPos = () => {
     if (!crew) return { left: 0, top: 0, toLeft: false };
     const v = viewRef.current;
-    const { w: cw, h: ch } = size();
-    const cardW = Math.min(300, cw - 24);
+    const { w: cw, h: ch, fw } = size();
+    const cardW = Math.min(300, fw - 24);
     const cx = v.tx + x(crew.location[1]) * cw * v.z;
     const cy = v.ty + y(crew.location[0]) * ch * v.z - 20;
-    const toLeft = cx + 28 + cardW > cw - 12;
+    const toLeft = cx + 28 + cardW > fw - 12;
     return {
-      left: clamp(toLeft ? cx - 28 - cardW : cx + 28, 12, cw - cardW - 12),
+      left: clamp(toLeft ? cx - 28 - cardW : cx + 28, 12, fw - cardW - 12),
       top: clamp(cy - cardH / 2, 8, Math.max(8, ch - cardH - 8)),
       toLeft,
     };
@@ -471,7 +490,7 @@ export function WorldMap({ crews, zones, arcs, nowIso }: { crews: MapCrew[]; zon
         {crews.map((c) => (
           <div
             key={c.key}
-            className={`wmap__crew wmap__crew--${c.tone}${x(c.location[1]) > 0.82 ? " is-flipped" : ""}${selected?.crew === c.key ? " is-open" : ""}`}
+            className={`wmap__crew wmap__crew--${c.tone}${x(c.location[1]) > 0.82 ? " is-flipped" : ""}${labelUp(c, crews) ? " is-up" : ""}${selected?.crew === c.key ? " is-open" : ""}`}
             style={{ left: `${x(c.location[1]) * 100}%`, top: `${y(c.location[0]) * 100}%` }}
           >
             <span className="wmap__people">
@@ -583,9 +602,16 @@ export function WorldMap({ crews, zones, arcs, nowIso }: { crews: MapCrew[]; zon
             {person.status}
           </p>
           <p className="wmap__card-holder">{person.holder}</p>
-          <Link href={`/pessoas/${person.id}`} className="wmap__card-link mono">
-            VER FICHA →
-          </Link>
+          <div className="wmap__card-links">
+            <Link href={`/pessoas/${person.id}`} className="wmap__card-link mono">
+              VER FICHA →
+            </Link>
+            {canAsk && person.tone !== "on" && (
+              <Link href={`/pessoas/${person.id}#perguntar`} className="wmap__card-link mono">
+                PERGUNTAR AO GÊMEO →
+              </Link>
+            )}
+          </div>
         </div>
       )}
 

@@ -1,12 +1,14 @@
 import { ABSENCE, PLAN, UNASSIGNED } from "@/lib/demo/redistribution";
 import { findMember, TEAM } from "@/lib/demo/team";
+import { currentDecisions } from "@/lib/decisions-store";
 import { requireAccess } from "@/lib/session";
 import { Redistribution } from "./Redistribution";
 
 export const metadata = { title: "Redistribuição · Echo" };
 
 export default async function RedistribuicaoPage() {
-  const me = await requireAccess("redistribuicao");
+  await requireAccess("redistribuicao");
+  const decisions = await currentDecisions();
   const absent = findMember(ABSENCE.personId)!;
   return (
     <>
@@ -17,7 +19,8 @@ export default async function RedistribuicaoPage() {
         absence={{ name: absent.name, kind: ABSENCE.kind, from: ABSENCE.from, to: ABSENCE.to }}
         plan={PLAN}
         unassigned={UNASSIGNED}
-        leader={me.name}
+        approved={decisions["ferias-bruno"] ?? null}
+        looseApproved={decisions["ech-160"] ?? null}
       />
     </>
   );

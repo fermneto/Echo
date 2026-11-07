@@ -1,5 +1,6 @@
 import type { AnswerResult } from "@echo/agents";
 import type { SourceRef } from "@echo/domain";
+import { dueLabel, ECH_128_DUE } from "../due";
 import { WAITING } from "./feed";
 import { findNote, latest, notesWith, TIMEOUT_NOTE, type Note } from "./notes";
 import type { Persona } from "./types";
@@ -43,8 +44,8 @@ export function askEchoDemo(question: string, team: readonly Persona[], notes: r
   }
 
   if (/pendente|esperando|aguardando/.test(q)) {
-    const list = WAITING.filter((w) => !w.leaderOnly).map((w) => `${w.text.toLowerCase()} (${w.id})`);
-    return reply(`Há ${list.length} itens esperando alguém: ${names(list)}.`, [{ label: "plano da manhã e registros da equipe", ref: "team:waiting" }]);
+    const list = WAITING.filter((w) => !w.leaderOnly).map((w) => `${w.text} (${w.id})`);
+    return reply(`Há ${list.length} itens esperando alguém. ${list.join(". ")}.`, [{ label: "plano da manhã e registros da equipe", ref: "team:waiting" }]);
   }
 
   if (/\bprs?\b|pull request|revis[aã]o/.test(q)) {
@@ -55,7 +56,12 @@ export function askEchoDemo(question: string, team: readonly Persona[], notes: r
   }
 
   if (/atras|prazo/.test(q)) {
-    return reply("Nenhuma tarefa passou do prazo. A ECH-128, de Fernando, vence nesta sexta e está em andamento.", [{ label: "ECH-128 no Linear", ref: "linear:ECH-128" }]);
+    const due = dueLabel(ECH_128_DUE, new Date(), "America/Fortaleza");
+    const late = due.startsWith("venceu");
+    return reply(
+      late ? `A ECH-128, de Fernando, ${due} e segue em andamento. É a única tarefa da equipe fora do prazo.` : `Nenhuma tarefa passou do prazo. A ECH-128, de Fernando, ${due} e está em andamento.`,
+      [{ label: "ECH-128 no Linear", ref: "linear:ECH-128" }],
+    );
   }
 
   if (/sabe de|entende de/.test(q)) return reply("Ninguém tem registro nesse tema.");

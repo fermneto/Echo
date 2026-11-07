@@ -93,8 +93,8 @@ export const MOMENTS: StackItem[] = [
     content: (
       <Moment at="2026-11-06T01:15:00Z" where="TYO" tone="on" who="marina" title="Marina redistribui as férias de Bruno" decides="Nada muda até a liderança aprovar">
         <Row k="ECH-133 → Carla" v="pagamentos, com folga" />
-        <Row k="ECH-137 → Yan" v="escolhida pela folga" />
-        <Row k="Revisão PR 36 → Eduardo" v="mais folga" />
+        <Row k="ECH-137 → Eduardo" v="escolhida pela folga" />
+        <Row k="Revisão PR 36 → Fernando" v="mais folga" />
       </Moment>
     ),
   },

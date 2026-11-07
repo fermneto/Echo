@@ -18,7 +18,7 @@ export const ROUTES = {
   equipe: { href: "/equipe", label: "Pessoas", hint: "Quem é quem, onde está e quando volta.", roles: ALL },
   pessoa: { href: "/pessoas", label: "Ficha da pessoa", roles: ALL },
   redistribuicao: { href: "/redistribuicao", label: "Redistribuição", hint: "Ausências viram um plano. Nada muda sem você aprovar.", roles: ["leader"] },
-  relatorios: { href: "/relatorios", label: "Relatórios", hint: "A semana de cada pessoa, conferida antes do RH.", roles: ALL },
+  relatorios: { href: "/relatorios", label: "Relatórios", hint: "A sua semana, conferida por você antes de seguir ao RH.", roles: ALL },
   ganhos: { href: "/ganhos", label: "Ganhos", hint: "Espera evitada e revisões, só em totais.", roles: ["leader", "hr"] },
   execucoes: { href: "/execucoes", label: "Custo e execuções", hint: "Quanto custou cada fluxo e o rastro de cada execução.", roles: ["leader"] },
   configuracao: { href: "/configuracao", label: "Configuração", hint: "Conexões, pessoas, RH e limite de custo.", roles: ["leader", "hr"] },
@@ -27,11 +27,11 @@ export const ROUTES = {
 
 export type RouteId = keyof typeof ROUTES;
 
+/** Só telas prontas entram no menu; Nota do dia, Configuração e Simulador voltam quando existirem. */
 export const NAV_GROUPS: readonly { label: string; routes: readonly RouteId[] }[] = [
-  { label: "Meu dia", routes: ["plano", "notaDoDia"] },
+  { label: "Meu dia", routes: ["plano"] },
   { label: "Equipe", routes: ["equipe", "notas"] },
-  { label: "Gestão", routes: ["relatorios", "redistribuicao", "ganhos", "execucoes", "configuracao"] },
-  { label: "Demo", routes: ["simulador"] },
+  { label: "Gestão", routes: ["redistribuicao", "relatorios", "ganhos", "execucoes"] },
 ];
 
 export function canSee(role: Role, route: RouteId, opts: { demo: boolean }): boolean {

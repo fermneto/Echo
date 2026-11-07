@@ -49,6 +49,11 @@ function List({ items }: { items: string[] }) {
   );
 }
 
+export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
+  const p = findMember((await params).id);
+  return { title: p ? `${p.name} · Echo` : "Pessoa · Echo" };
+}
+
 export default async function PessoaPage({ params }: { params: Promise<{ id: string }> }) {
   const me = await requireAccess("pessoa");
   const now = new Date();
@@ -76,15 +81,9 @@ export default async function PessoaPage({ params }: { params: Promise<{ id: str
           <h1 className="app-title">{persona.name}</h1>
           <p className="lead">
             {persona.title}
-            {persona.simulated && <span className="tag mono">persona simulada</span>}
           </p>
           <StatusChip persona={persona} />
         </div>
-        {isMe && (
-          <span className="button-pill is-disabled" title="Chega com a edição do contexto">
-            Editar meu contexto
-          </span>
-        )}
       </header>
 
       <div className="profile-grid">
@@ -213,7 +212,7 @@ export default async function PessoaPage({ params }: { params: Promise<{ id: str
           {profile.skills.length > 0 && (
             <section className="card" aria-labelledby="skills">
               <h2 id="skills" className="card__title">
-                Skills
+                Habilidades
               </h2>
               {profile.skills.map((g) => (
                 <Field key={g.label} k={g.label}>

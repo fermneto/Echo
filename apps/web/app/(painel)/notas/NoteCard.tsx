@@ -4,8 +4,8 @@ import { useActionState, useEffect, useState } from "react";
 import { latest, MAX_NOTE, type Note } from "@/lib/demo/notes";
 import { editarNota, type EditState } from "./actions";
 
-/** Uma nota do cérebro: texto atual, histórico de versões e correção no lugar. */
-export function NoteCard({ note, path }: { note: Note; path: string }) {
+/** Uma nota: texto atual, histórico de versões e correção no lugar (só para quem é dona da nota). */
+export function NoteCard({ note, path, canEdit }: { note: Note; path: string; canEdit: boolean }) {
   const v = latest(note);
   const [editing, setEditing] = useState(false);
   const [history, setHistory] = useState(false);
@@ -53,17 +53,18 @@ export function NoteCard({ note, path }: { note: Note; path: string }) {
             {t}
           </span>
         ))}
-        <span className={`chip mono${v.n > 1 ? " is-on" : ""}`}>
-          {v.n > 1 && <span className="dot dot--on" aria-hidden="true" />}
+        <span className={`chip mono${v.n > 1 ? " is-edited" : ""}`}>
           Versão {v.n} · {v.n > 1 ? `corrigida por ${v.by}` : v.by} · {v.at}
         </span>
       </div>
 
       {!editing && (
         <div className="note__actions">
-          <button type="button" className="link-button mono" onClick={() => setEditing(true)}>
-            CORRIGIR
-          </button>
+          {canEdit && (
+            <button type="button" className="link-button mono" onClick={() => setEditing(true)}>
+              CORRIGIR
+            </button>
+          )}
           {note.versions.length > 1 && (
             <button type="button" className="link-button mono" aria-expanded={history} onClick={() => setHistory((h) => !h)}>
               {history ? "ESCONDER VERSÕES" : `VER ${note.versions.length} VERSÕES`}

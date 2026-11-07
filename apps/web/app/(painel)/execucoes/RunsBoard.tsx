@@ -10,7 +10,7 @@ const seconds = (ms: number) => (ms < 1000 ? `${ms} ms` : ms < 60_000 ? `${(ms /
 const tokens = (n: number) => (n >= 1000 ? `${Math.round(n / 1000)} mil` : String(n));
 
 /** Totais por fluxo, limite mensal, lista de agent_runs e auditoria, com os controles de ensaio. */
-export function RunsBoard({ day, night, audit }: { day: readonly Run[]; night: readonly Run[]; audit: AuditEntry[] }) {
+export function RunsBoard({ day, night, audit, rehearsal }: { day: readonly Run[]; night: readonly Run[]; audit: AuditEntry[]; rehearsal: boolean }) {
   const [simulated, setSimulated] = useState(false);
   const [recreated, setRecreated] = useState(false);
   const [pending, start] = useTransition();
@@ -21,6 +21,7 @@ export function RunsBoard({ day, night, audit }: { day: readonly Run[]; night: r
 
   return (
     <>
+      {rehearsal && (
       <section className="card rehearsal" aria-labelledby="ensaio">
         <h2 id="ensaio" className="card__title">
           Controles de ensaio
@@ -45,13 +46,13 @@ export function RunsBoard({ day, night, audit }: { day: readonly Run[]; night: r
             {pending ? "Recriando…" : "Recriar a demonstração"}
           </button>
           {recreated && !pending && (
-            <span className="chip mono is-on" role="status">
-              <span className="dot dot--on" aria-hidden="true" />
+            <span className="chip mono" role="status">
               Demonstração recriada
             </span>
           )}
         </div>
       </section>
+      )}
 
       <dl className="metrics runs-metrics">
         {[

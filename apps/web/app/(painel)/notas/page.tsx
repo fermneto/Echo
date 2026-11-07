@@ -10,14 +10,14 @@ export const metadata = { title: "Notas · Echo" };
 const FOLDER = { decisoes: "decisoes/", "nao-mexer": "nao-mexer.md", registros: "registros/" } as const;
 
 export default async function NotasPage() {
-  await requireAccess("notas");
+  const me = await requireAccess("notas");
   const notes = await currentNotes();
   const owners = [...new Set(notes.map((n) => n.ownerId))];
 
   return (
     <>
       <h1 className="hero-title hero-title--page">Notas</h1>
-      <p className="lead">O que cada gêmeo sabe, com versões e fontes. Corrija uma nota e a próxima resposta já cita a versão nova: a correção humana sempre vence.</p>
+      <p className="lead">O que cada gêmeo sabe, com versões e fontes. Cada pessoa corrige as próprias notas, e a próxima resposta já cita a versão nova: a correção humana sempre vence.</p>
       <div className="brain-grid">
         {owners.map((id) => {
           const p = findMember(id)!;
@@ -27,7 +27,7 @@ export default async function NotasPage() {
               <header className="brain__who">
                 <PixelAvatar persona={p} size={32} decorative />
                 <h2 id={`cerebro-${id}`} className="card__title brain__name">
-                  Cérebro de {p.name}
+                  Notas de {p.name}
                 </h2>
                 <span className="mono muted brain__count">
                   {mine.length} {mine.length === 1 ? "nota" : "notas"}
@@ -36,7 +36,7 @@ export default async function NotasPage() {
               <ul className="brain__notes" role="list">
                 {mine.map((n) => (
                   <li key={`${n.id}@${latest(n).n}`}>
-                    <NoteCard note={n} path={`${p.name.toLowerCase()}/${FOLDER[n.folder]}`} />
+                    <NoteCard note={n} path={`${p.name.toLowerCase()}/${FOLDER[n.folder]}`} canEdit={n.ownerId === me.id} />
                   </li>
                 ))}
               </ul>

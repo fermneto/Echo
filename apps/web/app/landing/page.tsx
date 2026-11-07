@@ -115,7 +115,7 @@ const DETAIL = {
   tyo: (
     <div className="lp-chat">
       <Line who="Echo" meta="para Marina · TYO 10:15">
-        Plano para as férias de Bruno (10 a 21/11): ECH-133 → Carla, ECH-137 → Yan, revisão do PR 36 → Eduardo. Nada muda até você aprovar.
+        Plano para as férias de Bruno (10 a 21/11): ECH-133 → Carla, ECH-137 → Eduardo, revisão do PR 36 → Fernando. Nada muda até você aprovar.
       </Line>
       <Line who="Marina, Bruno, Carla" meta={`no expediente · TYO ${TYO_T}`}>
         Respondem por si mesmos durante o dia.
@@ -308,7 +308,10 @@ export default function LandingPage() {
               <li>
                 <span className="lp-dot lp-dot--wait" aria-hidden="true" /> {COUNTS.wait} de férias
               </li>
-              <li className="lp-legend__hint">Passe o mouse num ponto para ver a conversa</li>
+              <li className="lp-legend__hint">
+                <span className="lp-hint--hover">Passe o mouse num ponto para ver a conversa</span>
+                <span className="lp-hint--touch">Toque num ponto para ver a conversa</span>
+              </li>
             </ul>
           </div>
         </section>
@@ -320,7 +323,7 @@ export default function LandingPage() {
                 Conecta onde a equipe já trabalha.
               </h2>
               <p className="lp-integrations__lead">
-                GitHub, Slack, Linear e Claude hoje. Agenda, CI, incidentes, outros trackers e chats a seguir.
+                GitHub, Slack, Linear, agenda e CI hoje, com Claude por trás. Jira, GitLab, Teams e Notion a seguir.
               </p>
             </div>
             <IntegrationsCarousel />
@@ -357,7 +360,7 @@ export default function LandingPage() {
               </li>
             ))}
             <li className="lp-day__item lp-day__cta-wrap">
-              <Link href="/entrar" className="lp-day__cta-link">
+              <Link href="/entrar?persona=eduardo" className="lp-day__cta-link">
                 <span className="lp-mono lp-day__when">Agora mesmo</span>
                 <span className="lp-day__what">Veja a noite de Fernando na demo</span>
                 <span className="lp-day__who">Entrar como Eduardo →</span>
@@ -436,6 +439,19 @@ export default function LandingPage() {
           <p className="lp-mono lp-stack">GITHUB · LINEAR · SLACK · RH POR AVISO ASSINADO · POWERED BY CLAUDE</p>
         </section>
 
+        <section className="lp-section lp-closing" aria-labelledby="fechamento">
+          <h2 id="fechamento" className="lp-headline">
+            Amanhã cedo, a resposta já estará lá.
+          </h2>
+          <div className="lp-actions">
+            <Link href="/entrar" className="lp-btn lp-btn--paper">
+              Testar a demo
+            </Link>
+            <a href="#como-funciona" className="lp-btn lp-btn--ghost">
+              Ver como funciona
+            </a>
+          </div>
+        </section>
       </main>
 
       <footer className="lp-footer">
