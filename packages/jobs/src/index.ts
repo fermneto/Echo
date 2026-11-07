@@ -10,6 +10,10 @@ export const QUEUES = {
   slackMessage: "slack.message",
   /** Clique em botão do Slack (confirmar nota, Resolveu/Não resolveu…), já verificado. */
   slackInteraction: "slack.interaction",
+  /** Rascunho da nota do dia de uma pessoa (F3). Chave única: pessoa + data. */
+  dailyNoteDraft: "daily_note.draft",
+  /** Prazo de 2 h do rascunho: sem resposta, vira auto_unreviewed. */
+  dailyNoteTimeout: "daily_note.timeout",
 } as const;
 export type QueueName = (typeof QUEUES)[keyof typeof QUEUES];
 

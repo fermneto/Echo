@@ -9,13 +9,15 @@
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
+    "@echo/agents": "workspace:*",
     "@echo/brain": "workspace:*",
     "@echo/config": "workspace:*",
     "@echo/observability": "workspace:*",
     "@echo/jobs": "workspace:*",
     "tsx": "catalog:",
     "@echo/connectors": "workspace:*",
-    "@echo/db": "workspace:*"
+    "@echo/db": "workspace:*",
+    "@echo/domain": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "catalog:",

@@ -68,6 +68,8 @@ export interface BranchMark {
   to?: string;
   reason?: string;
   until?: string;
+  /** Liberação trazida de uma nota anterior já confirmada: a validade conta desta data (ISO), não da nota nova. */
+  confirmedAt?: string;
 }
 
 export type DailyNoteState = "draft" | "confirmed" | "auto_unreviewed";

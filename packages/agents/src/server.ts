@@ -1,13 +1,18 @@
 // Dependências padrão do fluxo de resposta, só no servidor: Postgres, BrainStore e a chave da empresa.
 import Anthropic from "@anthropic-ai/sdk";
 import { createPgBrainStore } from "@echo/brain/pg";
-import { agentRuns, createDb, createPool, type Database, withOrg } from "@echo/db";
+import { createPgOutbox } from "@echo/actions/pg";
+import { agentRuns, asSystem, createDb, createPool, type Database, orgs, withOrg } from "@echo/db";
+import { endOfDayDue } from "@echo/domain";
 import type { AgentRun, RunRecorder } from "@echo/observability";
 import { type AnswerDeps, createAnswer, type ModelCall } from "./answer.ts";
 import type { AnswerRequest, AnswerResult } from "./index.ts";
+import { createEndOfDay, type EndOfDay } from "./daily-note.ts";
 import { createPgAgentData } from "./pg-data.ts";
+import { createPgDailyNoteStore } from "./pg-notes.ts";
 
 export { createPgAgentData } from "./pg-data.ts";
+export { createPgDailyNoteStore } from "./pg-notes.ts";
 
 /** Grava cada execução em agent_runs, dentro da empresa (RLS). */
 export function createDbRunRecorder(db: Database): RunRecorder {
@@ -43,6 +48,33 @@ export function serverAnswerDeps(db: Database, apiKey: string | undefined): Answ
     model: apiKey ? anthropicModelCall(apiKey) : null,
     recorder: createDbRunRecorder(db),
   };
+}
+
+/** Fluxo do fim do expediente com Postgres, outbox e a chave da empresa (sem chave, "onde parou" por regra). */
+export function serverEndOfDay(db: Database, apiKey: string | undefined, webUrl: string): EndOfDay {
+  return createEndOfDay({
+    data: (orgId) => createPgAgentData(db, orgId),
+    notes: (orgId) => createPgDailyNoteStore(db, orgId),
+    outbox: (orgId) => createPgOutbox(db, orgId),
+    model: apiKey ? anthropicModelCall(apiKey) : null,
+    recorder: createDbRunRecorder(db),
+    webUrl,
+  });
+}
+
+/** Quem está no fim do expediente agora, em todas as empresas. A chave pessoa + data deixa repetir sem efeito. */
+export async function dueEndOfDay(db: Database, now: Date): Promise<{ orgId: string; personId: string; date: string }[]> {
+  const orgIds = await asSystem(db, (tx) => tx.select({ id: orgs.id }).from(orgs));
+  const due: { orgId: string; personId: string; date: string }[] = [];
+  for (const { id: orgId } of orgIds) {
+    const data = createPgAgentData(db, orgId);
+    const [people, absences] = await Promise.all([data.people(), data.absences()]);
+    for (const person of people) {
+      const d = endOfDayDue(person, absences, now);
+      if (d) due.push({ orgId, personId: person.id, date: d.date });
+    }
+  }
+  return due;
 }
 
 let cached: ((req: AnswerRequest) => Promise<AnswerResult>) | undefined;

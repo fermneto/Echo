@@ -198,6 +198,8 @@ export interface BranchMarkRow {
   to?: string;
   reason?: string;
   until?: string;
+  /** Liberação trazida de nota anterior confirmada (ISO): a validade conta desta data. */
+  confirmedAt?: string;
 }
 
 /** Nota do dia: draft → confirmed | auto_unreviewed. */
@@ -402,7 +404,7 @@ export const agentRuns = pgTable("agent_runs", {
   costUsd: numeric("cost_usd", { precision: 10, scale: 6 }),
   durationMs: integer("duration_ms").notNull(),
   tools: jsonb("tools").$type<string[]>().notNull().default([]),
-  result: text("result").notNull(), // ok | fallback | refused | failed
+  result: text("result").notNull(), // ok | fallback | refused | failed | skipped
   error: text("error"),
   createdAt: createdAt(),
 }, (t) => [index("agent_runs_org_flow").on(t.orgId, t.flow, t.createdAt)]);

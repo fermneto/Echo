@@ -355,6 +355,9 @@ importers:
 
   apps/worker:
     dependencies:
+      '@echo/agents':
+        specifier: workspace:*
+        version: link:../../packages/agents
       '@echo/brain':
         specifier: workspace:*
         version: link:../../packages/brain
@@ -367,6 +370,9 @@ importers:
       '@echo/db':
         specifier: workspace:*
         version: link:../../packages/db
+      '@echo/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
       '@echo/jobs':
         specifier: workspace:*
         version: link:../../packages/jobs
@@ -411,9 +417,15 @@ importers:
 
   packages/actions:
     dependencies:
+      '@echo/db':
+        specifier: workspace:*
+        version: link:../db
       '@echo/domain':
         specifier: workspace:*
         version: link:../domain
+      drizzle-orm:
+        specifier: 'catalog:'
+        version: 0.45.4(@opentelemetry/api@1.9.1)(@types/pg@8.23.1)(pg@8.23.1)
     devDependencies:
       '@types/node':
         specifier: 'catalog:'
@@ -430,6 +442,9 @@ importers:
       '@anthropic-ai/sdk':
         specifier: 'catalog:'
         version: 1.6.0(zod@4.6.7)
+      '@echo/actions':
+        specifier: workspace:*
+        version: link:../actions
       '@echo/brain':
         specifier: workspace:*
         version: link:../brain

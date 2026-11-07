@@ -60,6 +60,10 @@ export const workerSchema = baseSchema.extend({
   ...database,
   ...anthropic,
   HEARTBEAT_INTERVAL_MS: z.coerce.number().int().min(1000).default(30_000),
+  // Endereço do painel, para o botão "Editar no painel" da nota do dia.
+  WEB_URL: z.url().default("http://localhost:3000"),
+  // Intervalo da agenda do fim do expediente (nota do dia).
+  END_OF_DAY_SCAN_MS: z.coerce.number().int().min(10_000).default(300_000),
 });
 
 export const reviewerSchema = baseSchema.extend({ ...database, ...anthropic });

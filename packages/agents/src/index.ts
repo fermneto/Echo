@@ -91,6 +91,20 @@ export { validateAnswer } from "./validator.ts";
 export { isWhoKnowsQuestion, topicPhrase } from "./who-knows.ts";
 export { createAnswer, type AnswerDeps, type ModelCall } from "./answer.ts";
 export type { AgentData, ExpertiseOverride, OrgSettings } from "./data.ts";
+export {
+  CONFIRM_ACTION_ID,
+  createEndOfDay,
+  draftMessage,
+  noteConfirmAction,
+  type ConfirmOutcome,
+  type DailyNoteStore,
+  type DraftOutcome,
+  type EndOfDay,
+  type EndOfDayDeps,
+  type NoteOutbox,
+  type NotePatch,
+  type StoredDailyNote,
+} from "./daily-note.ts";
 
 /**
  * Fluxo de resposta (F2) com as dependências padrão: Postgres (DATABASE_URL) e a chave da empresa

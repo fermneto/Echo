@@ -56,11 +56,12 @@ function toPr(r: typeof pullRequests.$inferSelect): PullRequest {
   };
 }
 
-const mark = (m: { branch: string; to?: string; reason?: string; until?: string }) => ({
+export const mark = (m: { branch: string; to?: string; reason?: string; until?: string; confirmedAt?: string }) => ({
   branch: m.branch,
   ...(m.to ? { to: m.to } : {}),
   ...(m.reason ? { reason: m.reason } : {}),
   ...(m.until ? { until: m.until } : {}),
+  ...(m.confirmedAt ? { confirmedAt: m.confirmedAt } : {}),
 });
 
 export function createPgAgentData(db: Database, orgId: string): AgentData {

@@ -99,9 +99,13 @@ const noteSource = (note: DailyNote): SourceRef => ({
 const prSource = (pr: PullRequest): SourceRef => ({ label: `PR ${pr.number}`, ref: `github:pr/${pr.number}` });
 const taskSource = (task: Task): SourceRef => ({ label: task.key, ref: `linear:${task.key}` });
 
-/** Até quando a liberação vale: 7 dias depois da confirmação, ou até o fim do dia "until" (UTC), o que vier antes. */
-function releaseExpiry(note: DailyNote, mark: BranchMark): number {
-  const base = note.confirmedAt?.getTime() ?? Date.parse(`${note.date}T00:00:00Z`);
+/**
+ * Até quando a liberação vale: 7 dias depois da confirmação, ou até o fim do dia "until" (UTC), o que vier antes.
+ * Liberação trazida de nota anterior conta da confirmação original, para a nota nova não esticar o prazo.
+ */
+export function releaseExpiry(note: DailyNote, mark: BranchMark): number {
+  const carried = mark.confirmedAt ? Date.parse(mark.confirmedAt) : Number.NaN;
+  const base = !Number.isNaN(carried) ? carried : (note.confirmedAt?.getTime() ?? Date.parse(`${note.date}T00:00:00Z`));
   const byDays = base + RULES.releaseValidDays * DAY;
   if (!mark.until) return byDays;
   const until = Date.parse(`${addDays(mark.until, 1)}T00:00:00Z`);
@@ -109,7 +113,8 @@ function releaseExpiry(note: DailyNote, mark: BranchMark): number {
 }
 
 /**
- * Liberação vale 7 dias (ou até "until") e só de nota confirmada: auto_unreviewed mantém reservas e não libera.
+ * Liberação vale 7 dias (ou até "until") e só de nota confirmada: auto_unreviewed mantém reservas e não libera
+ * nada novo (só o que já vinha confirmado de antes).
  * Reserva vence liberação na mesma branch. Sem nota, o estado vem do PR, dos commits e da tarefa.
  */
 export function branchStatus(input: BranchStatusInput): BranchStatusResult {
@@ -119,7 +124,9 @@ export function branchStatus(input: BranchStatusInput): BranchStatusResult {
     const reserved = note.reserved.find((m) => m.branch === branch);
     if (reserved) return { status: "reserved", mark: reserved, sources: [noteSource(note), ...(pr ? [prSource(pr)] : [])] };
     const released = note.released.find((m) => m.branch === branch);
-    if (released && note.state === "confirmed" && now.getTime() < releaseExpiry(note, released)) {
+    // Nota automática não libera nada novo; só mantém o que a pessoa já tinha confirmado antes.
+    const confirmedByPerson = released && (note.state === "confirmed" || released.confirmedAt !== undefined);
+    if (released && confirmedByPerson && now.getTime() < releaseExpiry(note, released)) {
       return { status: "released", mark: released, sources: [noteSource(note)] };
     }
   }
