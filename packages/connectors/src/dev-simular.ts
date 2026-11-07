@@ -15,7 +15,7 @@ const fail = (m: string): never => {
 };
 if (!env.DATABASE_URL) fail("DATABASE_URL ausente no .env.");
 const api = (env.API_PUBLIC_URL || `http://localhost:${env.API_PORT ?? 3001}`).replace(/\/$/, "");
-const pool = createPool(env.DATABASE_URL!, 2);
+const pool = createPool(env.DATABASE_URL!, 2, { defaultScope: "system" });
 const db = createDb(pool);
 const ORG_NAME = "Simulação de integrações";
 const R = { github: "sim-installation-555", slack: "T_SIMULACAO", linear: "sim-linear-org", vercel: "team_simulacao" };

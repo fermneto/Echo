@@ -52,7 +52,7 @@ const PERSONA_NAMES: Record<Persona, string> = {
 
 /** Acha a empresa de demonstração e as personas que o seed criou. */
 async function loadDemo(databaseUrl: string): Promise<{ orgId: string; ids: PersonaIds }> {
-  const pool = createPool(databaseUrl, 1);
+  const pool = createPool(databaseUrl, 1, { defaultScope: "system" });
   try {
     const org = await pool.query<{ id: string }>("select id from orgs where is_demo order by created_at desc limit 1");
     const orgId = org.rows[0]?.id;
