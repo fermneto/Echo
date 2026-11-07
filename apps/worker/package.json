@@ -10,6 +10,7 @@
     "reconciliar": "tsx --env-file-if-exists=../../.env src/reconcile-now.ts"
   },
   "dependencies": {
+    "@echo/brain": "workspace:*",
     "@echo/config": "workspace:*",
     "@echo/observability": "workspace:*",
     "@echo/jobs": "workspace:*",
