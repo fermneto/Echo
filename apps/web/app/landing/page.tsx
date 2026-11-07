@@ -2,6 +2,8 @@ import type { CSSProperties } from "react";
 import Link from "next/link";
 import { EchoGlobe, type GlobeArc, type GlobePoint } from "@/components/landing/EchoGlobe";
 import { DotField } from "@/components/landing/DotField";
+import { CardStack } from "@/components/landing/CardStack";
+import { MOMENTS } from "@/components/landing/moments";
 import { IntegrationsCarousel } from "@/components/landing/integrations";
 import { PixelSprite } from "@/components/PixelSprite";
 import { lookFor } from "@/lib/demo/looks";
@@ -16,12 +18,6 @@ export const metadata = {
 
 /* Conteúdo: docs/produto.md. Exemplos de produto são sintéticos e marcados como "Exemplo". */
 
-const NIGHT = [
-  { at: "18:00", tone: "on", who: "Fernando confere e publica" },
-  { at: "03:12", tone: "twin", who: "Quem perguntou decide" },
-  { at: "05:40", tone: "twin", who: "Fernando aprova de manhã" },
-  { at: "08:45", tone: "on", who: "Fernando reordena e aprova" },
-] as const;
 
 const DAY = [
   { when: "Durante o dia", what: "Registro", text: "O gêmeo registra commits, PRs, tarefas e ajudas confirmadas.", who: "Ninguém: é só registro." },
@@ -188,97 +184,14 @@ export default function LandingPage() {
           </div>
         </section>
 
-        <section className="lp-section" aria-labelledby="noite-titulo">
+        <section className="lp-section" id="em-acao" aria-labelledby="em-acao-titulo">
           <div className="lp-section__intro">
-            <h2 id="noite-titulo" className="lp-headline">
-              Uma noite de Fernando, em documentos.
+            <h2 id="em-acao-titulo" className="lp-headline">
+              O Echo em ação, entre fusos.
             </h2>
-            <p className="lp-lead">Tudo o que o agente prepara enquanto ele dorme, e quem decide sobre cada coisa.</p>
+            <p className="lp-lead">Uma noite da equipe da demo: Fernando dorme em Fortaleza, Eduardo trabalha em Joanesburgo e Tóquio vive a tarde. Cada momento diz quem decide.</p>
           </div>
-          <div className="lp-night" id="noite" aria-label="Uma noite de Fernando, de 18:00 a 08:45 em Fortaleza">
-            <ol className="lp-axis" aria-hidden="true">
-              {NIGHT.map((n, i) => (
-                <li key={n.at} style={{ "--i": i } as CSSProperties}>
-                  <span className={`lp-pin lp-pin--${n.tone}`} />
-                  <span className="lp-mono">{i === 0 ? `FOR ${n.at}` : n.at}</span>
-                </li>
-              ))}
-            </ol>
-
-            <div className="lp-windows">
-              <article className="lp-win" style={{ "--i": 0, "--r": "-1.5deg" } as CSSProperties}>
-                <header className="lp-win__head">
-                  Nota do dia · Fernando <Pill />
-                </header>
-                <div className="lp-win__body">
-                  <p className="lp-row">
-                    <span>ech-131-api-v2</span>
-                    <span className="lp-mono lp-on">LIBERADA</span>
-                  </p>
-                  <p className="lp-row">
-                    <span>ech-128-tempo-limite</span>
-                    <span className="lp-mono lp-wait">RESERVADA</span>
-                  </p>
-                  <p className="lp-row">
-                    <span>Parou em</span>
-                    <span className="lp-mono">cliente.ts</span>
-                  </p>
-                </div>
-                <footer className="lp-win__foot">{NIGHT[0].who}</footer>
-              </article>
-
-              <article className="lp-win" style={{ "--i": 1, "--r": "1deg" } as CSSProperties}>
-                <header className="lp-win__head">
-                  #time-produto <Pill />
-                </header>
-                <div className="lp-win__body">
-                  <p>
-                    <b>Eduardo</b> @Fernando posso seguir com a ech-131-api-v2?
-                  </p>
-                  <p>
-                    <b className="lp-twin">Agente de Fernando</b> Sim: liberada na nota do dia confirmada. Fernando volta às 9h de Fortaleza.
-                  </p>
-                  <span className="lp-source">Fonte: nota do dia (confirmada)</span>
-                </div>
-                <footer className="lp-win__foot">{NIGHT[1].who}</footer>
-              </article>
-
-              <article className="lp-win" style={{ "--i": 2, "--r": "-0.6deg" } as CSSProperties}>
-                <header className="lp-win__head">
-                  Revisão noturna · PR 41 <Pill />
-                </header>
-                <div className="lp-win__body">
-                  <pre className="lp-diff" aria-label="Diferença no código">
-                    <span className="lp-diff__del">− timeout: 30_000</span>
-                    <span className="lp-diff__add">+ timeout: 8_000</span>
-                  </pre>
-                  <p>Correção pronta numa versão separada. Nada foi aprovado.</p>
-                </div>
-                <footer className="lp-win__foot">{NIGHT[2].who}</footer>
-              </article>
-
-              <article className="lp-win" style={{ "--i": 3, "--r": "1.4deg" } as CSSProperties}>
-                <header className="lp-win__head">
-                  Plano da manhã <Pill />
-                </header>
-                <div className="lp-win__body">
-                  <p className="lp-row">
-                    <span>Aprovar correção</span>
-                    <span className="lp-mono">PR 41</span>
-                  </p>
-                  <p className="lp-row">
-                    <span>Responder Eduardo</span>
-                    <span className="lp-mono">ech-128</span>
-                  </p>
-                  <p className="lp-row">
-                    <span>Revisar PR de Carla</span>
-                    <span className="lp-mono">PR 34</span>
-                  </p>
-                </div>
-                <footer className="lp-win__foot">{NIGHT[3].who}</footer>
-              </article>
-            </div>
-          </div>
+          <CardStack items={MOMENTS} label="Momentos do Echo entre fusos" />
         </section>
 
         <section className="lp-section" id="como-funciona" aria-labelledby="ciclo">
