@@ -3,7 +3,9 @@
   "private": true,
   "type": "module",
   "packageManager": "pnpm@12.16.1",
-  "engines": { "node": ">=24" },
+  "engines": {
+    "node": ">=24"
+  },
   "scripts": {
     "dev": "turbo run dev",
     "build": "turbo run build",
@@ -12,7 +14,10 @@
     "db:up": "docker compose up -d --wait db",
     "db:down": "docker compose down",
     "db:migrate": "pnpm --filter @echo/db migrate",
-    "db:generate": "pnpm --filter @echo/db generate"
+    "db:generate": "pnpm --filter @echo/db generate",
+    "db:seed": "pnpm --filter @echo/seed seed",
+    "evals": "pnpm --filter @echo/evals evals",
+    "e2e": "echo \"e2e: etapa 16 (frente Avaliador)\" && exit 1"
   },
   "devDependencies": {
     "@types/node": "catalog:",

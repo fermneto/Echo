@@ -1,0 +1,13 @@
+{
+  "name": "@echo/seed",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run --passWithNoTests",
+    "seed": "tsx src/index.ts"
+  },
+  "dependencies": { "@echo/db": "workspace:*", "@echo/domain": "workspace:*", "tsx": "catalog:" },
+  "devDependencies": { "@types/node": "catalog:", "typescript": "catalog:", "vitest": "catalog:" }
+}
