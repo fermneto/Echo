@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { reportFor, SENT_TO_HR, summaryLine } from "@/lib/demo/reports";
-import { findMember, TEAM } from "@/lib/demo/team";
+import { findMember } from "@/lib/demo/team";
+import { teamScope } from "@/lib/scope";
+import { scopeLabel, TeamPicker } from "@/components/TeamPicker";
 import { requireAccess } from "@/lib/session";
 import { PixelAvatar } from "@/components/PixelAvatar";
 import { HelpForm, Helps, ReportCard } from "./ReportCard";
@@ -9,20 +11,34 @@ export const metadata = { title: "Relatórios · Echo" };
 
 export default async function RelatoriosPage({ searchParams }: { searchParams: Promise<{ pessoa?: string }> }) {
   const me = await requireAccess("relatorios");
+  const scope = await teamScope(me);
+  const TEAM = scope.people;
 
   if (me.role === "hr") {
     // Uma pessoa por vez, abrindo pelas ajudas: nada de números lado a lado para comparar.
+    // Só os relatórios das equipes que o RH acompanha.
+    const sent = SENT_TO_HR.filter((x) => TEAM.some((p) => p.id === x));
     const pick = (await searchParams).pessoa;
-    const id = SENT_TO_HR.find((x) => x === pick) ?? SENT_TO_HR[0];
+    const id = sent.find((x) => x === pick) ?? sent[0];
+    if (!id) {
+      return (
+        <>
+          <h1 className="hero-title hero-title--page">Relatórios enviados</h1>
+          <TeamPicker scope={scope} back="/relatorios" />
+          <p className="lead">Nenhum relatório enviado por {scopeLabel(scope)} nesta semana.</p>
+        </>
+      );
+    }
     const p = findMember(id)!;
     const r = reportFor(id);
     return (
       <>
         <h1 className="hero-title hero-title--page">Relatórios enviados</h1>
-        <p className="lead">O que cada pessoa conferiu e enviou nesta semana. Sem nota, sem ranking e sem acesso às notas de ninguém.</p>
+        <p className="lead">O que cada pessoa conferiu e enviou nesta semana, de {scopeLabel(scope)}. Sem nota, sem ranking e sem acesso às notas de ninguém.</p>
+        <TeamPicker scope={scope} back="/relatorios" />
         <div className="hr-reports">
           <nav className="hr-reports__list" aria-label="Pessoas com relatório enviado">
-            {SENT_TO_HR.map((x) => {
+            {sent.map((x) => {
               const who = findMember(x)!;
               return (
                 <Link key={x} href={`/relatorios?pessoa=${x}`} className={`hr-reports__item${x === id ? " is-current" : ""}`} aria-current={x === id ? "page" : undefined}>

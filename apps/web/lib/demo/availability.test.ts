@@ -29,7 +29,11 @@ describe("disponibilidade pelo relógio", () => {
     vi.setSystemTime(new Date("2026-11-06T13:00:00Z"));
     expect(fernando.availability.kind).toBe("working");
     vi.setSystemTime(new Date("2026-11-06T22:00:00Z"));
-    expect(fernando.availability).toEqual({ kind: "off", returns: "segunda às 9h, horário de Fortaleza" });
+    // Sexta, 19h em Fortaleza: volta no sábado (todos trabalham no fim de semana).
+    expect(fernando.availability).toEqual({ kind: "off", returns: "amanhã às 9h, horário de Fortaleza" });
+    // Segunda, 19h: a terça é folga, então volta na quarta.
+    vi.setSystemTime(new Date("2026-11-09T22:00:00Z"));
+    expect(fernando.availability).toEqual({ kind: "off", returns: "quarta às 9h, horário de Fortaleza" });
     expect(findPersona("yan")!.availability.kind).toBe("vacation");
   });
 });

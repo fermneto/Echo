@@ -7,6 +7,7 @@ import { findMember } from "@/lib/demo/team";
 import { suggestedQuestions } from "@/lib/demo/twin";
 import { latest } from "@/lib/demo/notes";
 import { currentNotes } from "@/lib/notes-store";
+import { teamScope } from "@/lib/scope";
 import { requireAccess } from "@/lib/session";
 import { localTime } from "@/lib/time";
 import { AskPanel } from "@/components/AskPanel";
@@ -59,6 +60,8 @@ export default async function PessoaPage({ params }: { params: Promise<{ id: str
   const now = new Date();
   const persona = findMember((await params).id);
   if (!persona) notFound();
+  // Membro e liderança só abrem a ficha de quem é da própria equipe; o RH, das equipes que acompanha.
+  if (!(await teamScope(me)).people.some((p) => p.id === persona.id)) notFound();
   const profile = profileFor(persona);
   const brain = (await currentNotes()).filter((n) => n.ownerId === persona.id);
   const notes = brain.length ? brain.map((n) => ({ title: n.title, excerpt: latest(n).body, tags: n.tags })) : profile.notes;

@@ -2,7 +2,9 @@ import Link from "next/link";
 import { canAskTwin } from "@/lib/access";
 import { ECHO_SUGGESTIONS } from "@/lib/demo/echo";
 import { WAITING } from "@/lib/demo/feed";
-import { teamCounts, TEAM } from "@/lib/demo/team";
+import { teamCounts } from "@/lib/demo/team";
+import { teamScope } from "@/lib/scope";
+import { scopeLabel, TeamPicker } from "@/components/TeamPicker";
 import type { Persona } from "@/lib/demo/types";
 import { currentDecisions } from "@/lib/decisions-store";
 import { holderLine, statusLine, toneOf } from "@/lib/people";
@@ -73,7 +75,9 @@ function buildMap(team: readonly Persona[], now: Date) {
 export default async function InicioPage() {
   const me = await requireAccess("inicio");
   const now = new Date();
-  const counts = teamCounts();
+  const scope = await teamScope(me);
+  const TEAM = scope.people;
+  const counts = teamCounts(TEAM);
   const seesWork = canAskTwin(me.role);
   const decisions = await currentDecisions();
   const waiting = WAITING.filter((w) => w.ownerId === me.id && !(w.decisionId && w.decisionId in decisions));
@@ -86,6 +90,8 @@ export default async function InicioPage() {
         Agora · {counts.on} no expediente · {counts.away} gêmeos cobrindo · {zones.length} fusos
       </p>
       <h1 className="hero-title">{counts.on > 0 ? "Quem está trabalhando agora" : "Ninguém no expediente agora"}</h1>
+      <p className="muted">Você vê {scopeLabel(scope)}.</p>
+      <TeamPicker scope={scope} back="/" />
 
       <ul className="crew-grid" role="list" aria-label="Equipe">
         {TEAM.map((p) => (

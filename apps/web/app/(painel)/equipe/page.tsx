@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { canAskTwin } from "@/lib/access";
-import { TEAM } from "@/lib/demo/team";
+import { teamScope } from "@/lib/scope";
+import { scopeLabel, TeamPicker } from "@/components/TeamPicker";
 import { statusLine, toneOf } from "@/lib/people";
 import { requireAccess } from "@/lib/session";
 import { localTime } from "@/lib/time";
@@ -12,13 +13,16 @@ export default async function EquipePage() {
   const me = await requireAccess("equipe");
   const now = new Date();
   const seesWork = canAskTwin(me.role);
+  const scope = await teamScope(me);
+  const TEAM = scope.people;
   const zones = new Set(TEAM.map((p) => p.timezone)).size;
   return (
     <>
       <h1 className="hero-title hero-title--page">Pessoas</h1>
       <p className="lead">
-        {TEAM.length} pessoas em {zones} fusos. Abra a ficha para ver a disponibilidade{seesWork ? " e perguntar ao gêmeo" : ""}.
+        {TEAM.length} pessoas em {zones} fusos, de {scopeLabel(scope)}. Abra a ficha para ver a disponibilidade{seesWork ? " e perguntar ao gêmeo" : ""}.
       </p>
+      <TeamPicker scope={scope} back="/equipe" />
       <ul className="people-list" role="list">
         {TEAM.map((p) => (
           <li key={p.id} className="people-row">

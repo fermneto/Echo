@@ -1,5 +1,6 @@
 import { live } from "./availability";
 import { PERSONAS } from "./personas";
+import { LEADERS, TEAM_OF } from "./teams";
 import type { Persona } from "./types";
 import { WEEK, WORLD } from "./world";
 
@@ -41,7 +42,8 @@ const fromWorld: Persona[] = WORLD.map((m) =>
     name: m.name,
     title: TITLE[m.id] ?? "Engenharia",
     story: "Persona simulada",
-    role: "member",
+    role: LEADERS.has(m.id) ? "leader" : "member",
+    teamId: TEAM_OF[m.id],
     city: m.city,
     cityCode: m.cityCode,
     timezone: m.timezone,
@@ -65,9 +67,10 @@ export function findMember(id: string): Persona | undefined {
   return TEAM.find((p) => p.id === id);
 }
 
-export function teamCounts() {
-  const on = TEAM.filter((p) => p.availability.kind === "working").length;
-  const away = TEAM.length - on;
-  const zones = new Set(TEAM.map((p) => p.timezone)).size;
-  return { on, away, zones, total: TEAM.length };
+/** Contagem de um recorte da equipe (o que a pessoa logada pode ver). */
+export function teamCounts(people: readonly Persona[] = TEAM) {
+  const on = people.filter((p) => p.availability.kind === "working").length;
+  const away = people.length - on;
+  const zones = new Set(people.map((p) => p.timezone)).size;
+  return { on, away, zones, total: people.length };
 }

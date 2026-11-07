@@ -1,6 +1,7 @@
 import { latest } from "@/lib/demo/notes";
 import { findMember } from "@/lib/demo/team";
 import { currentNotes } from "@/lib/notes-store";
+import { teamScope } from "@/lib/scope";
 import { requireAccess } from "@/lib/session";
 import { PixelAvatar } from "@/components/PixelAvatar";
 import { NoteCard } from "./NoteCard";
@@ -11,7 +12,9 @@ const FOLDER = { decisoes: "decisoes/", "nao-mexer": "nao-mexer.md", registros: 
 
 export default async function NotasPage() {
   const me = await requireAccess("notas");
-  const notes = await currentNotes();
+  // Só as notas de quem é da equipe da pessoa (o RH nem chega a esta tela).
+  const visible = new Set((await teamScope(me)).people.map((p) => p.id));
+  const notes = (await currentNotes()).filter((n) => visible.has(n.ownerId));
   const owners = [...new Set(notes.map((n) => n.ownerId))];
 
   return (

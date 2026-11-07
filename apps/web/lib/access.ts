@@ -53,6 +53,27 @@ export function navFor(role: Role, opts: { demo: boolean }): NavGroup[] {
   })).filter((g) => g.items.length > 0);
 }
 
+/**
+ * Equipes que a pessoa vê.
+ * - RH: as que escolheu acompanhar (sem escolha, todas). Pode trocar a qualquer momento.
+ * - Membro e liderança: só a própria. Sem equipe cadastrada (empresa sem equipes), vê todas,
+ *   para o painel não ficar vazio.
+ */
+export function visibleTeamIds(me: { role: Role; teamId?: string | undefined }, allTeamIds: readonly string[], followed?: readonly string[] | null): string[] {
+  if (me.role === "hr") {
+    const chosen = (followed ?? []).filter((id) => allTeamIds.includes(id));
+    return followed == null ? [...allTeamIds] : chosen;
+  }
+  if (!me.teamId) return [...allTeamIds];
+  return [me.teamId];
+}
+
+/** Quem aparece para a pessoa: ela mesma e quem é de uma equipe visível. O RH não aparece para os membros. */
+export function canSeePerson(me: { id: string }, target: { id: string; teamId?: string | undefined }, visible: readonly string[]): boolean {
+  if (target.id === me.id) return true;
+  return Boolean(target.teamId && visible.includes(target.teamId));
+}
+
 /** Perguntar ao gêmeo lê notas e tarefas: o RH não pode. */
 export function canAskTwin(role: Role): boolean {
   return role !== "hr";

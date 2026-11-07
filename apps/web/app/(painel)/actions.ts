@@ -5,7 +5,7 @@ import { canAskTwin } from "@/lib/access";
 import { askAgent, panelRequest, recordIn } from "@/lib/agent";
 import { panelDb } from "@/lib/db";
 import { askEchoDemo } from "@/lib/demo/echo";
-import { TEAM } from "@/lib/demo/team";
+import { teamScope } from "@/lib/scope";
 import { currentNotes } from "@/lib/notes-store";
 import { currentPersona } from "@/lib/session";
 
@@ -18,7 +18,8 @@ export async function perguntarEcho(prev: AskState, formData: FormData): Promise
   const db = panelDb();
   if (!db) {
     await new Promise((r) => setTimeout(r, 900));
-    return { turns: [...prev.turns, { question, reply: askEchoDemo(question, TEAM, await currentNotes()) }] };
+    const { people } = await teamScope(me);
+    return { turns: [...prev.turns, { question, reply: askEchoDemo(question, people, await currentNotes()) }] };
   }
   const r = await askAgent(panelRequest({ orgId: me.orgId, askerId: me.id, question }), { record: recordIn(db) });
   return r.ok ? { turns: [...prev.turns, { question, reply: r.reply }] } : { ...prev, error: r.error };
