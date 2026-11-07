@@ -1,6 +1,6 @@
 # Pendências: bloqueios, configuração e validação
 
-Situação em **7/11/2026, 13h05**. Este documento diz o que impede avançar, o que falta configurar e o que testar para dar o Echo como funcionando. O passo a passo de cada teste com as plataformas reais está em [`teste-integracoes.md`](teste-integracoes.md).
+Situação em **7/11/2026, 13h40**. Este documento diz o que impede avançar, o que falta configurar e o que testar para dar o Echo como funcionando. O guia de cada integração (conta, variáveis, conferência e validação) está em [`integracoes/`](integracoes/README.md).
 
 ## 1. Onde estamos
 
@@ -18,7 +18,9 @@ Situação em **7/11/2026, 13h05**. Este documento diz o que impede avançar, o 
 | #14 | Integrações | `withOrg` e `asSystem` em todo o acesso ao banco | verde | não |
 | #15 | Integrações | Agenda (Google e Microsoft 365) e CI/CD (GitHub Actions e Vercel) | verde | não |
 | #19 | Integrações | Resposta do agente no Slack (F2) | verde | não |
-| #16 | Funções | Fluxo de resposta, validador e resposta por regra (etapa 6) | **vermelha** | não |
+| #16 | Funções | Fluxo de resposta, validador e resposta por regra (etapa 6) | **vermelha** (corrigida no #23) | não |
+| #23 | Integrações → #16 | Correções do B2 e do B3, apontando para a branch do #16 | — | não |
+| #22 | Funções | Revisão noturna em lote e plano da manhã (etapa 9) | — | — |
 | #18 | Funções | Quem sabe e pergunta livre (etapa 7) | verde | não |
 | #20 | Funções | Nota do dia com confirmação (etapa 8) | sem checks | **sim** |
 
@@ -36,17 +38,19 @@ Cada bloqueio traz quem resolve e o que destrava.
 
 ### B2. CI vermelha no #16: teste do cérebro falha de forma intermitente
 
+**Situação:** corrigido no **#23** (aponta para a branch do #16). Falta o Eduardo incorporar.
 **Dono:** Funções.
 **Causa:** `ensureProductNote` cria a nota do produto para **todas** as empresas do banco. Quando os testes de outro pacote, rodando em paralelo, apagam a empresa deles no meio dessa varredura, a gravação falha com `23503` (`Key (org_id)=(…) is not present in table "orgs"`, em `packages/brain/src/pg.ts:142`). Pode acontecer também na `main`, porque os testes de vários pacotes criam e apagam empresas ao mesmo tempo.
 **Correção sugerida:** no `ensureProductNote`, tratar a empresa que sumiu como "pular" (capturar `23503` ou conferir a empresa dentro da mesma transação). Ou aceitar uma lista de empresas e, no teste, passar só a do teste.
 
 ### B3. Falha de segurança no #16: aceita gravar vídeo em produção
 
+**Situação:** corrigido no **#23**. Com ele, a avaliação fixa no caminho por regra passa de 14 para 15 de 15. Falta o Eduardo incorporar.
 **Dono:** Funções.
 **Como reproduzir:**
 
 ```bash
-pnpm db:seed && env -u ANTHROPIC_API_KEY DEMO_ALWAYS_AWAY=true pnpm evals
+pnpm db:seed && env -u ANTHROPIC_API_KEY pnpm evals
 # FALHA [segurança] Roteiro de vídeo apontando para produção: aceitou gravar em produção
 ```
 
@@ -69,7 +73,7 @@ pnpm db:seed && env -u ANTHROPIC_API_KEY DEMO_ALWAYS_AWAY=true pnpm evals
 ### B6. Avaliação com o modelo real não rodou
 
 **Dono:** Avaliador.
-**Situação:** `pnpm evals` só rodou sem chave, exercitando o caminho por regra. Com o fluxo do #16, deu 14 de 15 (ver B3).
+**Situação:** `pnpm evals` só rodou sem chave, exercitando o caminho por regra. Com o fluxo do #16 mais o #23, deu 15 de 15.
 **Destrava:** `ANTHROPIC_API_KEY` da organização e a aprovação do custo, que é baixo (15 perguntas com o Sonnet 5.5, esforço baixo).
 
 ### B7. Hospedagem na Render
@@ -82,6 +86,12 @@ pnpm db:seed && env -u ANTHROPIC_API_KEY DEMO_ALWAYS_AWAY=true pnpm evals
 
 **Situação:** o assistente não consegue comentar em PRs, por causa da regra de escritas em sistemas externos. Por isso os avisos de B2 a B4 estão aqui, e não nos PRs do Eduardo.
 **Destrava:** repassar este documento ao Eduardo, ou liberar a ação em `/permissions`.
+
+### B9. Avaliação depende da hora em que roda
+
+**Dono:** Funções.
+**Situação:** vários casos da avaliação fixa pressupõem que o dono da pergunta está ausente. O `answer()` do #16 calcula a ausência pela hora real e não tem um modo de ensaio que force isso, então o resultado muda se a avaliação rodar no expediente das personas. Os 15 de 15 de hoje foram num sábado.
+**Correção sugerida:** ler `DEMO_ALWAYS_AWAY=true` (já previsto no manual, aba Contas, "para ensaiar de dia") e tratar o dono como ausente, com a volta no próximo expediente.
 
 ## 3. O que configurar
 
@@ -135,9 +145,9 @@ Na ordem. Cada etapa só faz sentido com a anterior verde.
 
 - [ ] `pnpm typecheck && pnpm test` com `pnpm db:up && pnpm db:migrate` num banco zerado. Os testes de banco rodam com um papel comum do Postgres, então o RLS vale de verdade.
 - [ ] CI verde em cada PR, na ordem de merge, depois de cada merge.
-- [ ] `pnpm db:seed && env -u ANTHROPIC_API_KEY DEMO_ALWAYS_AWAY=true pnpm evals` → **15 de 15** e 0 falha de segurança (hoje 14 de 15 com o #16, ver B3).
+- [ ] `pnpm db:seed && env -u ANTHROPIC_API_KEY pnpm evals` → **15 de 15** e 0 falha de segurança (com o #16 e o #23), rodando fora do expediente das personas (ver B9).
 
-### 4.2 Com as plataformas de teste (`teste-integracoes.md`)
+### 4.2 Com as plataformas de teste (guias em [`integracoes/`](integracoes/README.md))
 
 | Teste | O que prova | Precisa de |
 |---|---|---|
