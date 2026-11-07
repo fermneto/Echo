@@ -67,7 +67,7 @@ select kind, source_ref, confirmed from contributions order by occurred_at desc 
 
 Esperado: três linhas (as duas mensagens e a reação). O `texto` fica vazio depois de processado. A ajuda aparece com `source_ref = <canal>:<ts>`, sem texto.
 
-### S2. Resposta do agente (precisa do #16 e da [Anthropic](anthropic.md))
+### S2. Resposta do agente (precisa do #19 e, para usar o modelo, da [Anthropic](anthropic.md))
 
 Com a pessoa citada **ausente** (status "ausente" no Slack, ou fora do expediente) e com uma nota do dia confirmada dela:
 

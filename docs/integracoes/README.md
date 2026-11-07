@@ -12,7 +12,7 @@ Use **só espaços de teste e dados sintéticos**. A situação geral e os bloqu
 | 1 | [Slack](slack.md) | Canal da pergunta e da resposta, e login no painel | #3, #11, #19 |
 | 2 | [GitHub](github.md) | Commits, PRs, revisões e checks | #5, #7, #8 |
 | 3 | [Linear](linear.md) | Tarefas e mudança de responsável aprovada | #5, #7, #8 |
-| 4 | [Anthropic](anthropic.md) | Resposta do agente com o modelo | #16 |
+| 4 | [Anthropic](anthropic.md) | Resposta do agente com o modelo | já na `main` |
 | 5 | [Aviso de RH](rh.md) | Férias e afastamentos assinados | #11 |
 | 6 | [Agenda: Google Workspace](agenda-google.md) | "Fora do escritório" e férias detectadas | #15 |
 | 7 | [Agenda: Microsoft 365](agenda-microsoft.md) | Idem, mais o expediente da caixa | #15 |
