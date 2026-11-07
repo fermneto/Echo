@@ -327,8 +327,8 @@ function compose(input: {
     usedModel: input.usedModel,
     warnings: [...input.warnings],
     kind: input.kind,
-    // Resumo da ausência: tipo e linhas por regra, só para quem tem dono.
-    ...(ownerName ? { digest: { kind: digestKind(input.question), request: digestLine(input.question), reply: digestLine(out.texto) } } : {}),
+    // Resumo da ausência: tipo e linhas por regra, só quando o dono está fora (o resumo é "enquanto você estava fora").
+    ...(ownerName && away?.away ? { digest: { kind: digestKind(input.question), request: digestLine(input.question), reply: digestLine(out.texto) } } : {}),
   };
 }
 

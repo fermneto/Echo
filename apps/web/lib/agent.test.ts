@@ -16,12 +16,32 @@ describe("pergunta do painel no fluxo real", () => {
     expect("ownerId" in real).toBe(false); // Echo da equipe
   });
 
-  it("devolve a resposta do fluxo; falha vira mensagem, sem resposta simulada", async () => {
+  it("devolve a resposta do fluxo e grava a pergunta; falha vira mensagem, sem resposta simulada nem gravação", async () => {
     const reply: AnswerResult = { agentName: "Agente de Fernando", text: "Sim.", sources: [], needsOwner: false, usedModel: true, warnings: [] };
-    expect(await askAgent(panelRequest({ orgId: "demo", askerId: "eduardo", ownerId: "fernando", question: "oi" }), async () => reply)).toEqual({ ok: true, reply });
-    const failed = await askAgent(panelRequest({ orgId: "demo", askerId: "eduardo", question: "oi" }), async () => {
-      throw new Error("banco fora");
+    const recorded: unknown[] = [];
+    const record = async (req: unknown, r: unknown) => recorded.push([req, r]);
+    const req = panelRequest({ orgId: "demo", askerId: "eduardo", ownerId: "fernando", question: "oi" });
+    expect(await askAgent(req, { run: async () => reply, record })).toEqual({ ok: true, reply });
+    expect(recorded).toEqual([[req, reply]]);
+
+    const failed = await askAgent(panelRequest({ orgId: "demo", askerId: "eduardo", question: "oi" }), {
+      run: async () => {
+        throw new Error("banco fora");
+      },
+      record,
     });
     expect(failed).toEqual({ ok: false, error: "O agente não conseguiu responder agora. Tente de novo em instantes." });
+    expect(recorded).toHaveLength(1);
+  });
+
+  it("falha só na gravação não esconde a resposta", async () => {
+    const reply: AnswerResult = { agentName: "Echo", text: "Carla está livre.", sources: [], needsOwner: false, usedModel: true, warnings: [] };
+    const r = await askAgent(panelRequest({ orgId: "demo", askerId: "eduardo", question: "quem está livre?" }), {
+      run: async () => reply,
+      record: async () => {
+        throw new Error("banco fora");
+      },
+    });
+    expect(r).toEqual({ ok: true, reply });
   });
 });
