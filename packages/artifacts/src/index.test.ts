@@ -55,6 +55,12 @@ describe("checkSpec", () => {
     expect(c.issues[0]).toMatch(/^completado por regra: tarefa:ECH-128/);
   });
 
+  it("blocos do mesmo componente viram um só, sem o título de um deles", () => {
+    const c = checkSpec({ kind: "nota", blocks: [ok.blocks[0], { component: "lista_pendencias", title: "Revisão", factIds: ["travou:0"] }, { component: "lista_pendencias", title: "Prazo", factIds: ["travou:1"] }] }, day);
+    const pend = c.spec.blocks.filter((b) => b.component === "lista_pendencias");
+    expect(pend).toEqual([{ component: "lista_pendencias", factIds: ["travou:0", "travou:1"] }]);
+  });
+
   it("o modelo não esconde fato: bloqueio que ficou de fora entra no fim", () => {
     const c = checkSpec({ kind: "nota", blocks: [ok.blocks[0]] }, day);
     expect(c.spec.blocks.find((b) => b.component === "lista_pendencias")!.factIds).toEqual(["travou:0", "travou:1"]);

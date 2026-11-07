@@ -32,7 +32,7 @@ export default async function ResumosPage({ searchParams }: { searchParams: Prom
         <h1 className="hero-title hero-title--page">Resumo do dia, {dayMonth(view.date)}</h1>
         <div className="summary__badges">
           {state && <span className={`summary__status summary__status--${state.tone}`}>{state.label}</span>}
-          <span className="summary__by">{view.model ? `Layout montado por ${modelName(view.model)}, modelo aberto na nossa infraestrutura` : "Layout padrão, por regra"}</span>
+          <span className={view.model ? "summary__by" : "summary__by summary__by--rule"}>{view.model ? `Layout por ${modelName(view.model)} · modelo aberto` : "Layout padrão, por regra"}</span>
         </div>
       </div>
       <p className="lead">Feito pelo Agente de {first} a partir do GitHub, do Linear e da sua nota. Números e nomes vêm dos fatos, nunca do modelo.</p>
