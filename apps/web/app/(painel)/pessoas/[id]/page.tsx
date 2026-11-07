@@ -6,6 +6,8 @@ import { DEMO_NOW } from "@/lib/demo/personas";
 import { profileFor } from "@/lib/demo/profiles";
 import { findMember } from "@/lib/demo/team";
 import { suggestedQuestions } from "@/lib/demo/twin";
+import { latest } from "@/lib/demo/notes";
+import { currentNotes } from "@/lib/notes-store";
 import { requireAccess } from "@/lib/session";
 import { localTime } from "@/lib/time";
 import { AskPanel } from "@/components/AskPanel";
@@ -53,6 +55,8 @@ export default async function PessoaPage({ params }: { params: Promise<{ id: str
   const persona = findMember((await params).id);
   if (!persona) notFound();
   const profile = profileFor(persona);
+  const brain = (await currentNotes()).filter((n) => n.ownerId === persona.id);
+  const notes = brain.length ? brain.map((n) => ({ title: n.title, excerpt: latest(n).body, tags: n.tags })) : profile.notes;
   const isMe = me.id === persona.id;
   const away = persona.availability.kind !== "working";
   const seesWork = canAskTwin(me.role);
@@ -148,15 +152,17 @@ export default async function PessoaPage({ params }: { params: Promise<{ id: str
             </section>
           )}
 
-          {seesWork && profile.notes.length > 0 && (
+          {seesWork && notes.length > 0 && (
             <section className="card" aria-labelledby="notas">
               <h2 id="notas" className="card__title">
                 Notas
               </h2>
               <ul className="note-list" role="list">
-                {profile.notes.map((n) => (
+                {notes.map((n) => (
                   <li key={n.title}>
-                    <p className="note-list__title">{n.title}</p>
+                    <p className="note-list__title">
+                      <Link href="/notas">{n.title}</Link>
+                    </p>
                     <p className="note-list__excerpt">{n.excerpt}</p>
                     <Chips items={n.tags} />
                   </li>

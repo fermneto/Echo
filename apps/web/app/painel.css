@@ -1846,3 +1846,112 @@ select.field option {
     grid-template-columns: 1fr;
   }
 }
+
+/* Notas (cérebros) */
+.brain-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr));
+  gap: var(--space-xl);
+  margin-top: var(--space-2xl);
+  align-items: start;
+}
+.brain__who {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  margin-bottom: var(--space-lg);
+}
+.brain__name {
+  margin: 0;
+}
+.brain__count {
+  margin-left: auto;
+  font-size: 11px;
+}
+.brain__notes {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.brain__notes > li {
+  padding: var(--space-lg) 0;
+  border-top: 1px solid var(--color-line);
+}
+.brain__notes > li:first-child {
+  border-top: 0;
+  padding-top: 0;
+}
+.note {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+.note p,
+.note h3 {
+  margin: 0;
+}
+.note__path {
+  font-size: 11px;
+}
+.note__title {
+  font-size: 15px;
+  font-weight: 500;
+}
+.note__body {
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--color-paper);
+}
+.note__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.chip.is-on {
+  color: var(--color-signal-on);
+}
+.note__actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-md);
+  align-items: center;
+}
+.note__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+.note__textarea {
+  min-height: 88px;
+  resize: vertical;
+  line-height: 1.5;
+}
+.note__error {
+  font-size: 13px;
+  color: var(--color-danger);
+}
+.note__history {
+  margin: 0;
+  padding: var(--space-md) var(--space-lg);
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  border: 1px solid var(--color-line);
+  border-radius: var(--rounded-md);
+  background: var(--color-black);
+  font-size: 13px;
+}
+.note__history li {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.note__history .mono {
+  font-size: 11px;
+}
+.note__old {
+  color: var(--color-ash);
+  text-decoration: line-through;
+  text-decoration-color: var(--color-iron);
+}
