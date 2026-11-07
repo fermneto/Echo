@@ -45,6 +45,8 @@ export const apiSchema = baseSchema.extend({
   GITHUB_WEBHOOK_SECRET: optionalString,
   SLACK_SIGNING_SECRET: optionalString,
   LINEAR_WEBHOOK_SECRET: optionalString,
+  /** Segredo do webhook de deploys da Vercel (etapa 19). */
+  VERCEL_WEBHOOK_SECRET: optionalString,
   /** Chave das credenciais guardadas (openssl rand -hex 32), igual em web, api e worker. */
   ENCRYPTION_KEY: optionalString.pipe(z.string().regex(/^[0-9a-f]{64}$/i, "precisa ter 64 caracteres hex (openssl rand -hex 32)").optional()),
   // A Render define PORT; localmente usamos API_PORT.
@@ -82,6 +84,12 @@ export const workerSchema = baseSchema.extend({
   LINEAR_CLIENT_SECRET: optionalString,
   /** Alternativa para testes: chave pessoal de API do Linear (lin_api_…). */
   LINEAR_API_KEY: optionalString,
+  /** Google Agenda: conta de serviço com delegação no domínio (o admin do Workspace autoriza o escopo). */
+  GOOGLE_SERVICE_ACCOUNT_EMAIL: optionalString,
+  GOOGLE_SERVICE_ACCOUNT_KEY: optionalString,
+  /** Microsoft 365: app multi-tenant; o tenant de cada empresa vem de installation_routes. */
+  MICROSOFT_CLIENT_ID: optionalString,
+  MICROSOFT_CLIENT_SECRET: optionalString,
   HEARTBEAT_INTERVAL_MS: z.coerce.number().int().min(1000).default(30_000),
   /** Intervalo da reconciliação com GitHub e Linear (padrão: 10 minutos). */
   RECONCILE_INTERVAL_MS: z.coerce.number().int().min(60_000).default(10 * 60_000),

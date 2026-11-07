@@ -14,6 +14,8 @@ export const QUEUES = {
   actionsDrain: "actions.drain",
   /** Ausência registrada (painel, RH ou agenda): a frente Funções monta a redistribuição. */
   absenceRegistered: "absence.registered",
+  /** Férias detectadas na agenda: a liderança confirma antes de qualquer plano. */
+  absenceSuggested: "absence.suggested",
 } as const;
 export type QueueName = (typeof QUEUES)[keyof typeof QUEUES];
 

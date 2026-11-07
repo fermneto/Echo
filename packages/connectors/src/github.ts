@@ -72,6 +72,26 @@ function toPr(repo: GhRepo, pr: GhPr): ExternalPullRequest {
   };
 }
 
+/** Conclusão de uma suíte (ou de um check) → estado resumido. */
+export function checksStateOf(conclusion: string | null | undefined): "success" | "failure" | "pending" | "neutral" {
+  switch (conclusion) {
+    case "success":
+      return "success";
+    case "failure":
+    case "timed_out":
+    case "cancelled":
+    case "action_required":
+    case "startup_failure":
+      return "failure";
+    case "neutral":
+    case "skipped":
+    case "stale":
+      return "neutral";
+    default:
+      return "pending";
+  }
+}
+
 /** Instalação do GitHub App que enviou o aviso: aponta para a empresa em installation_routes. */
 export const githubRouteKey = (body: any): string | undefined => (body?.installation?.id ? String(body.installation.id) : undefined);
 
@@ -127,6 +147,21 @@ export function normalizeGithub(event: string, body: any): NormalizedEvent[] {
         // Só a referência: o texto do comentário é dado e não é guardado aqui.
         data: { path: c.path, line: c.line ?? null, prAuthorLogin: pr.user.login },
       },
+    }];
+  }
+
+  if (event === "check_suite" && body.action === "completed") {
+    const cs = body.check_suite;
+    const prNumbers: number[] = (cs?.pull_requests ?? []).map((p: { number: number }) => p.number);
+    if (!cs?.head_sha || prNumbers.length === 0) return [{ kind: "ignored", reason: "check_suite sem PR" }];
+    return [{
+      kind: "checks",
+      repository: repo.full_name,
+      headSha: cs.head_sha,
+      prNumbers,
+      state: checksStateOf(cs.conclusion),
+      url: `https://github.com/${repo.full_name}/commit/${cs.head_sha}/checks`,
+      at: new Date(cs.updated_at ?? Date.now()),
     }];
   }
 

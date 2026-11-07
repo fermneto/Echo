@@ -20,6 +20,10 @@ interface PessoaTeste {
   linear?: string;
   /** matrícula no sistema de RH */
   rh?: string;
+  /** conta no Google Workspace (e-mail), para a agenda */
+  google?: string;
+  /** conta no Microsoft 365 (e-mail ou id), para a agenda */
+  microsoft?: string;
 }
 
 const env = process.env;
@@ -59,6 +63,8 @@ for (const p of pessoas) await withOrg(db, orgId, async (db) => {
     p.github ? { platform: "github", externalId: `login:${p.github.toLowerCase()}`, login: p.github } : null,
     p.linear ? { platform: "linear", externalId: p.linear, login: null } : null,
     p.rh ? { platform: "rh", externalId: p.rh, login: null } : null,
+    p.google ? { platform: "google", externalId: p.google.toLowerCase(), login: null } : null,
+    p.microsoft ? { platform: "microsoft", externalId: p.microsoft.toLowerCase(), login: null } : null,
   ].filter((a): a is { platform: string; externalId: string; login: string | null } => a !== null);
   for (const a of accounts) {
     await db
@@ -74,6 +80,9 @@ const routes = [
   ["slack", env.DEMO_SLACK_TEAM_ID],
   ["github", env.DEMO_GITHUB_INSTALLATION_ID],
   ["linear", env.DEMO_LINEAR_ORG_ID],
+  ["google", env.DEMO_GOOGLE_DOMAIN],
+  ["microsoft", env.DEMO_MICROSOFT_TENANT_ID],
+  ["vercel", env.DEMO_VERCEL_TEAM_ID],
 ] as const;
 for (const [kind, externalId] of routes) {
   if (!externalId) {

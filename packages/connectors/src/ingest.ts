@@ -1,6 +1,6 @@
 // F1: grava os eventos normalizados em work_events, tasks, pull_requests e contributions.
 // Quem é quem sai da tabela identities. Sem correspondência, o fato fica sem pessoa: nunca adivinhar.
-import { contributions, identities, pullRequests, tasks, withOrg, workEvents, type Database, type Tx } from "@echo/db";
+import { contributions, deployments, identities, pullRequests, tasks, withOrg, workEvents, type Database, type Tx } from "@echo/db";
 import { and, eq, inArray, or, sql } from "drizzle-orm";
 import { HELP_REACTIONS } from "./slack.ts";
 import type { ExternalActor, ExternalPullRequest, ExternalTask, ExternalWorkEvent, NormalizedEvent, Platform } from "./normalized.ts";
@@ -176,6 +176,35 @@ async function recordReaction(tx: Tx, orgId: string, r: Extract<NormalizedEvent,
     .onConflictDoNothing();
 }
 
+/** Checks do último commit do PR: só estado e link. Commit antigo não sobrescreve o atual. */
+async function recordChecks(tx: Tx, orgId: string, c: Extract<NormalizedEvent, { kind: "checks" }>): Promise<void> {
+  await tx
+    .update(pullRequests)
+    .set({ checksState: c.state, checksUrl: c.url, checksUpdatedAt: c.at, testsState: c.state })
+    .where(
+      and(
+        eq(pullRequests.orgId, orgId),
+        eq(pullRequests.repository, c.repository),
+        inArray(pullRequests.number, c.prNumbers),
+        or(sql`${pullRequests.headSha} is null`, eq(pullRequests.headSha, c.headSha)),
+        or(sql`${pullRequests.checksUpdatedAt} is null`, sql`${pullRequests.checksUpdatedAt} <= ${c.at.toISOString()}::timestamptz`),
+      ),
+    );
+}
+
+/** Deploy por commit; aviso atrasado não volta o estado para trás. */
+async function recordDeployment(tx: Tx, orgId: string, d: Extract<NormalizedEvent, { kind: "deployment" }>["deployment"]): Promise<void> {
+  const values = { repository: d.repository ?? null, sha: d.sha ?? null, branch: d.branch ?? null, environment: d.environment, state: d.state, url: d.url ?? null, occurredAt: d.at, updatedAt: new Date() };
+  await tx
+    .insert(deployments)
+    .values({ orgId, provider: d.provider, externalId: d.externalId, ...values })
+    .onConflictDoUpdate({
+      target: [deployments.orgId, deployments.provider, deployments.externalId],
+      set: values,
+      where: sql`${deployments.occurredAt} <= ${d.at.toISOString()}::timestamptz`,
+    });
+}
+
 export interface IngestResult {
   orgId: string;
   applied: number;
@@ -206,6 +235,12 @@ export async function ingest(db: Database, orgId: string, events: NormalizedEven
           break;
         case "reaction":
           await recordReaction(tx, orgId, ev);
+          break;
+        case "checks":
+          await recordChecks(tx, orgId, ev);
+          break;
+        case "deployment":
+          await recordDeployment(tx, orgId, ev.deployment);
           break;
         case "chat_message":
           result.messages.push(ev.message);

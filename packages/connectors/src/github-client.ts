@@ -2,7 +2,8 @@
 // Token de instalação de 1 hora, renovado num só lugar. Somente leitura: escrever é com packages/actions.
 import { createSign } from "node:crypto";
 import type { CodeHost, CodeWriter } from "./index.ts";
-import { taskKeyFrom, type ExternalPullRequest, type LivePullRequest } from "./normalized.ts";
+import { checksStateOf } from "./github.ts";
+import { taskKeyFrom, type ChecksState, type ExternalPullRequest, type LivePullRequest } from "./normalized.ts";
 import { RefreshingToken } from "./tokens.ts";
 
 type FetchLike = (input: string, init: RequestInit) => Promise<Response>;
@@ -218,6 +219,18 @@ export class GithubCodeHost implements CodeHost, CodeWriter {
       if (data.length < 100) break;
     }
     return out;
+  }
+
+  /** Checks de um commit ao vivo: só estado, nomes que falharam e o link, nunca logs. */
+  async getChecks(repo: string, ref: string): Promise<{ state: ChecksState | "none"; total: number; failed: string[]; running: number; url: string }> {
+    const { data } = await this.get<{ total_count: number; check_runs: { name: string; status: string; conclusion: string | null }[] }>(
+      `/repos/${repo}/commits/${encodeURIComponent(ref)}/check-runs?per_page=100`,
+    );
+    const runs = data.check_runs;
+    const failed = runs.filter((r) => r.status === "completed" && checksStateOf(r.conclusion) === "failure").map((r) => r.name);
+    const running = runs.filter((r) => r.status !== "completed").length;
+    const state: ChecksState | "none" = runs.length === 0 ? "none" : failed.length ? "failure" : running ? "pending" : runs.every((r) => checksStateOf(r.conclusion) === "neutral") ? "neutral" : "success";
+    return { state, total: data.total_count, failed, running, url: `https://github.com/${repo}/commit/${ref}/checks` };
   }
 
   // ---------- Escritas (só packages/actions, depois de aprovação)

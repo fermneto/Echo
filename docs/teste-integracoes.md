@@ -14,6 +14,8 @@ O que este teste cobre:
 | F | Aviso perdido é recuperado pela reconciliação | `pull_requests`, `work_events` e `tasks` |
 | G | Aviso de RH assinado registra férias, sem o motivo; cancelamento e matrícula desconhecida | `absences` e `audit_log` |
 | H | Login no painel com o Slack, sessão de 12 h; pessoa não cadastrada ou desligada não entra | O painel |
+| I | "Fora do escritório" na agenda vira ausência; férias viram sugestão; expediente vira sugestão | `absences` e `people` |
+| J | Checks do GitHub Actions e deploys da Vercel chegam; "passou?" e "está em produção?" | `pull_requests` e `deployments` |
 
 A resposta do agente no Slack (F2) é da frente Funções: por enquanto a mensagem chega até a fila `slack.message` e para ali.
 
@@ -278,6 +280,61 @@ pnpm --filter @echo/web dev
 select actor, action, created_at from audit_log where action = 'login:slack' order by created_at desc limit 3;
 ```
 
+### I. Agenda (Google ou Microsoft 365)
+
+O Echo lê **só** os eventos de "fora do escritório", a resposta automática (Microsoft) e o expediente. Título, descrição e participantes nunca são pedidos: a consulta já vem limitada a id, horário e tipo.
+
+**Google Workspace** (conta de teste do Workspace):
+1. No Google Cloud, crie um projeto, ative a **Google Calendar API** e crie uma **conta de serviço** com chave JSON. Copie `client_email` para `GOOGLE_SERVICE_ACCOUNT_EMAIL` e `private_key` (em uma linha, com `\n`) para `GOOGLE_SERVICE_ACCOUNT_KEY`.
+2. No **Admin do Workspace → Segurança → Controles de API → Delegação em todo o domínio**, adicione o *Client ID* da conta de serviço com o escopo `https://www.googleapis.com/auth/calendar.events.readonly`.
+3. `DEMO_GOOGLE_DOMAIN=<seu domínio>` e, em `DEMO_IDENTITIES`, `"google": "<e-mail da pessoa>"`.
+
+**Microsoft 365** (tenant de teste):
+1. No **Microsoft Entra → Registros de aplicativo**, registre um app, crie um segredo e dê as permissões **de aplicativo** `Calendars.ReadBasic` e `MailboxSettings.Read`, com **consentimento do administrador**. `MICROSOFT_CLIENT_ID` e `MICROSOFT_CLIENT_SECRET`.
+2. `DEMO_MICROSOFT_TENANT_ID=<id do tenant>` e, em `DEMO_IDENTITIES`, `"microsoft": "<e-mail da pessoa>"`.
+
+Confira e ligue:
+
+```bash
+pnpm integracoes:agenda yan@seudominio.com            # mostra só períodos de fora do escritório e o expediente
+pnpm integracoes:ligar
+```
+
+Teste:
+
+1. Na agenda do Yan, crie um **Fora do escritório** de algumas horas amanhã. Na do Eduardo, um de **10 dias** na semana que vem.
+2. Rode `pnpm integracoes:reconciliar` (ou espere a rodada do worker).
+
+```sql
+select p.name, a.kind, a.inferred, a.confirmed_at is not null as vale, a.starts_at, a.ends_at from absences a join people p on p.id = a.person_id where a.source = 'calendar';
+select name, work_hours, work_hours_suggested from people where work_hours_suggested is not null;
+```
+
+Esperado: Yan com `kind = ooo`, `vale = t` (curta vale na hora); Eduardo com `kind = vacation`, `vale = f` (sugestão para a liderança, na fila `absence.suggested`, sem plano). Com Microsoft, o expediente da caixa diferente do cadastrado aparece em `work_hours_suggested` e só vale quando a pessoa aceitar.
+
+3. Mova o evento do Yan para outro horário e apague o do Eduardo. Rode de novo: o do Yan é atualizado e o do Eduardo, cancelado (`cancelled_at`). Rodar de novo sem mudanças não cria nada.
+
+### J. CI/CD (GitHub Actions e Vercel)
+
+**GitHub Actions:** o GitHub App já recebe `check_suite` (passo 2). No repositório de teste, crie `.github/workflows/ci.yml` com um job simples e abra um PR (teste B). Quando a CI terminar:
+
+```sql
+select number, head_sha, checks_state, checks_url, checks_updated_at from pull_requests order by updated_at desc limit 3;
+```
+
+Esperado: `checks_state = success` (ou `failure`) e o link dos checks do commit. Nada de log é guardado. Um aviso de commit antigo não sobrescreve o atual.
+
+**Vercel:**
+1. Importe o repositório de teste na Vercel (time de teste). Em **Team Settings → Webhooks**, crie um webhook para `https://<API>/webhooks/vercel` com os eventos de **deployment** (criado, sucesso, erro, cancelado, promovido) e copie o segredo para `VERCEL_WEBHOOK_SECRET`. O webhook do time depende do plano da Vercel; uma integração da Vercel envia os mesmos eventos.
+2. `DEMO_VERCEL_TEAM_ID=<id do time>` (Team Settings → General) e `pnpm integracoes:ligar`.
+3. Faça push no PR: a Vercel cria um preview. Una o PR: a Vercel publica em produção.
+
+```sql
+select environment, state, branch, left(sha, 7) as sha, url, occurred_at from deployments order by occurred_at desc limit 5;
+```
+
+Esperado: um `preview` `ready` da branch do PR e, depois do merge, um `production` `ready`. As funções `ciStatus` e `deployStatus` (pacote `@echo/connectors`) respondem "os testes passaram?" (ao vivo no GitHub, ou o último aviso marcado como não ao vivo) e "já está em produção?" (PR unido e deploy de produção pronto depois do merge). É o que as ferramentas `get_ci_status` e `get_deploy_status` do agente vão usar.
+
 ## Se algo der errado
 
 | Sintoma | Causa provável |
@@ -295,5 +352,10 @@ select actor, action, created_at from audit_log where action = 'login:slack' ord
 | Slack: `redirect_uri did not match` | A Redirect URL do app não é exatamente `PANEL_URL/api/sessao/slack/retorno` |
 | Login: "espaço do Slack não está ligado" | `DEMO_SLACK_TEAM_ID` não ligado: rode `pnpm integracoes:ligar` |
 | RH 401 | Segredo trocado (`pnpm integracoes:rh` gera outro) ou relógio com mais de 5 min de diferença |
+| Agenda Google `invalid_grant` ou `unauthorized_client` | Falta a delegação no domínio com o escopo `calendar.events.readonly`, ou o e-mail não é do domínio |
+| Agenda Microsoft `AADSTS…` / 403 | App sem as permissões de aplicativo ou sem consentimento do administrador |
+| Ausência da agenda não aparece | Pessoa sem `"google"`/`"microsoft"` em `DEMO_IDENTITIES`, ou o evento não é do tipo "fora do escritório" |
+| Vercel 401 | `VERCEL_WEBHOOK_SECRET` diferente do segredo do webhook |
+| Deploy chega mas não aparece | `DEMO_VERCEL_TEAM_ID` não ligado (aviso de time desconhecido é descartado) |
 | Reconciliação "Outro worker está reconciliando agora" | Há um worker no ar fazendo a rodada; espere alguns segundos |
 | Linear `tarefa … sem id no Linear` | Tarefa não importada: rode `pnpm integracoes:ligar` de novo |

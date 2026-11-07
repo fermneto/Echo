@@ -22,7 +22,7 @@ const app = createApp({
   ready: () => ping(pool),
   version: process.env.RENDER_GIT_COMMIT?.slice(0, 7),
   webhooks: {
-    secrets: { github: cfg.GITHUB_WEBHOOK_SECRET, slack: cfg.SLACK_SIGNING_SECRET, linear: cfg.LINEAR_WEBHOOK_SECRET },
+    secrets: { github: cfg.GITHUB_WEBHOOK_SECRET, slack: cfg.SLACK_SIGNING_SECRET, linear: cfg.LINEAR_WEBHOOK_SECRET, vercel: cfg.VERCEL_WEBHOOK_SECRET },
     receive: (d) => receive(db, queue, d),
     routeOrg: (kind, externalId) => routeOrg(db, kind, externalId),
     slackContext: async (orgId) => {

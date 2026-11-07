@@ -4,6 +4,8 @@ import {
   type HrEvent,
   type HrResult,
   githubRouteKey,
+  vercelRouteKey,
+  verifyVercel,
   linearRouteKey,
   slackShouldKeep,
   verifyGithub,
@@ -16,7 +18,7 @@ import {
 import type { Context, Hono } from "hono";
 
 export interface WebhookDeps {
-  secrets: { github?: string | undefined; slack?: string | undefined; linear?: string | undefined };
+  secrets: { github?: string | undefined; slack?: string | undefined; linear?: string | undefined; vercel?: string | undefined };
   /** Segredos por empresa, para as rotas /o/<empresa>. Sem eles, essas rotas respondem 503. */
   orgSecrets?: {
     slack?: (orgId: string) => Promise<string | null>;
@@ -73,6 +75,23 @@ export function registerWebhooks(app: Hono, deps: WebhookDeps): void {
       return c.body(null, 200);
     } catch (err) {
       return fail(c, err, "github");
+    }
+  });
+
+  // ---------- Vercel (deploys de preview e produção)
+  app.post("/webhooks/vercel", async (c) => {
+    const secret = deps.secrets.vercel;
+    if (!secret) return c.body(null, 503);
+    const raw = await c.req.text();
+    if (!verifyVercel(secret, raw, headersOf(c)).ok) return c.body(null, 401);
+    const body = parseJson(raw);
+    if (!body?.id || !body?.type) return c.body(null, 400);
+    if (!String(body.type).startsWith("deployment.")) return c.body(null, 200);
+    try {
+      await deps.receive({ source: "vercel", deliveryId: body.id, routeKey: vercelRouteKey(body), payload: body });
+      return c.body(null, 200);
+    } catch (err) {
+      return fail(c, err, "vercel");
     }
   });
 

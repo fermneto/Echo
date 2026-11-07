@@ -79,7 +79,24 @@ export type NormalizedEvent =
   | { kind: "pr_upsert"; pr: ExternalPullRequest }
   | { kind: "chat_message"; message: ChatMessage }
   | { kind: "reaction"; channel: string; ts: string; reaction: string; reactorExternalId: string; authorExternalId: string; at: Date }
+  | { kind: "checks"; repository: string; headSha: string; prNumbers: number[]; state: ChecksState; url: string; at: Date }
+  | { kind: "deployment"; deployment: ExternalDeployment }
   | { kind: "ignored"; reason: string };
+
+/** Estado dos checks de um commit: só o resumo, nunca logs. */
+export type ChecksState = "success" | "failure" | "pending" | "neutral";
+
+export interface ExternalDeployment {
+  provider: "vercel";
+  externalId: string;
+  repository?: string | undefined;
+  sha?: string | undefined;
+  branch?: string | undefined;
+  environment: "preview" | "production";
+  state: "building" | "ready" | "error" | "canceled";
+  url?: string | undefined;
+  at: Date;
+}
 
 /** Identificador de tarefa no nome da branch ou no título: "ech-128-tempo-limite" → "ECH-128". */
 export function taskKeyFrom(...texts: (string | undefined | null)[]): string | undefined {

@@ -42,6 +42,8 @@ services:
         sync: false
       - key: LINEAR_WEBHOOK_SECRET
         sync: false
+      - key: VERCEL_WEBHOOK_SECRET
+        sync: false
       - key: ENCRYPTION_KEY
         sync: false
       - key: DATABASE_URL
@@ -95,6 +97,14 @@ services:
       - key: LINEAR_CLIENT_ID
         sync: false
       - key: LINEAR_CLIENT_SECRET
+        sync: false
+      - key: GOOGLE_SERVICE_ACCOUNT_EMAIL
+        sync: false
+      - key: GOOGLE_SERVICE_ACCOUNT_KEY
+        sync: false
+      - key: MICROSOFT_CLIENT_ID
+        sync: false
+      - key: MICROSOFT_CLIENT_SECRET
         sync: false
       - key: ENCRYPTION_KEY
         sync: false

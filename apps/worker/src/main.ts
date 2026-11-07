@@ -22,7 +22,7 @@ await queue.start();
 const runs = new LogRunRecorder(log);
 await registerInbox(db, queue, runs, { brainsRepository: cfg.BRAINS_REPOSITORY });
 const stopActions = await registerActions({ db, writers: writersFromEnv(db, cfg) }, queue, runs, log);
-const stopReconcile = scheduleReconcile({ db, pool, platforms: platformsFromEnv(cfg), runs, log, brainsRepository: cfg.BRAINS_REPOSITORY }, cfg.RECONCILE_INTERVAL_MS);
+const stopReconcile = scheduleReconcile({ db, pool, platforms: platformsFromEnv(cfg), runs, log, brainsRepository: cfg.BRAINS_REPOSITORY, queue }, cfg.RECONCILE_INTERVAL_MS);
 log.info({ demo: cfg.DEMO_MODE }, "worker no ar");
 
 // Confirma, a cada início, que a fila chega ao reviewer.

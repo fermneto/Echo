@@ -1,4 +1,4 @@
-import { sign, type Delivery } from "@echo/connectors";
+import { sign, signVercel, type Delivery } from "@echo/connectors";
 import { describe, expect, it } from "vitest";
 import { createApp } from "./app.ts";
 import type { WebhookDeps } from "./webhooks.ts";
@@ -141,5 +141,24 @@ describe("aviso de RH", () => {
     expect((await post(app, `/webhooks/rh/o/${OTHER}`, body, sign.hr("rh-sec", body, nowS))).status).toBe(503);
     const bad = JSON.stringify({ id: "x", employee_id: "1", starts_at: "2026-11-10", ends_at: "2026-11-11", kind: "vacation" });
     expect((await post(app, `/webhooks/rh/o/${ORG_RH}`, bad, sign.hr("rh-sec", bad, nowS))).status).toBe(400);
+  });
+});
+
+describe("webhook da Vercel", () => {
+  const body = JSON.stringify({ id: "evt_1", type: "deployment.succeeded", createdAt: NOW, payload: { team: { id: "team_x" }, target: "production", deployment: { id: "dpl_1", url: "app.vercel.app", meta: {} } } });
+
+  it("grava o deploy com a rota do time; recusa assinatura errada e falta de segredo", async () => {
+    const { app, received } = setup({ secrets: { ...S, vercel: "vc-sec" } });
+    expect((await post(app, "/webhooks/vercel", body, signVercel("vc-sec", body))).status).toBe(200);
+    expect(received).toMatchObject([{ source: "vercel", deliveryId: "evt_1", routeKey: "team_x" }]);
+    expect((await post(app, "/webhooks/vercel", body, signVercel("outro", body))).status).toBe(401);
+    expect((await post(setup().app, "/webhooks/vercel", body, signVercel("vc-sec", body))).status).toBe(503);
+  });
+
+  it("evento que não é de deploy responde 200 sem gravar", async () => {
+    const other = JSON.stringify({ id: "evt_2", type: "project.created", payload: {} });
+    const { app, received } = setup({ secrets: { ...S, vercel: "vc-sec" } });
+    expect((await post(app, "/webhooks/vercel", other, signVercel("vc-sec", other))).status).toBe(200);
+    expect(received).toHaveLength(0);
   });
 });

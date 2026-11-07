@@ -22,7 +22,8 @@
     "acao:testar": "pnpm --filter @echo/actions acao:testar",
     "integracoes:conferir": "pnpm --filter @echo/connectors slack:check; pnpm --filter @echo/connectors github:check; pnpm --filter @echo/connectors linear:check",
     "integracoes:reconciliar": "pnpm --filter @echo/worker reconciliar",
-    "integracoes:rh": "pnpm --filter @echo/connectors integracoes:rh"
+    "integracoes:rh": "pnpm --filter @echo/connectors integracoes:rh",
+    "integracoes:agenda": "pnpm --filter @echo/connectors agenda:check"
   },
   "devDependencies": {
     "@types/node": "catalog:",

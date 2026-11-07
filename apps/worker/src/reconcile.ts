@@ -1,4 +1,5 @@
-import { connectedOrgs, githubForOrg, reconcileGithub, reconcileLinear, type Platforms } from "@echo/connectors";
+import { calendarsForOrg, connectedOrgs, githubForOrg, reconcileGithub, reconcileLinear, syncCalendar, type Platforms } from "@echo/connectors";
+import { QUEUES, type JobQueue } from "@echo/jobs";
 import type { createPool, Database } from "@echo/db";
 import { withRun, type Logger, type RunRecorder } from "@echo/observability";
 
@@ -12,6 +13,8 @@ export interface ReconcileDeps {
   runs: RunRecorder;
   log: Logger;
   brainsRepository?: string | undefined;
+  /** Para avisar a liderança das férias detectadas na agenda. */
+  queue?: Pick<JobQueue, "send">;
   now?: () => Date;
 }
 
@@ -39,6 +42,13 @@ export async function reconcileOnce(d: ReconcileDeps): Promise<{ skipped: boolea
               d.log.info({ orgId, ...r }, "reconciliação do GitHub");
             }, { orgId }).catch((err) => d.log.error({ orgId, err: String(err) }, "falha na reconciliação do GitHub"));
           }
+        }
+        for (const cal of await calendarsForOrg(d.db, d.platforms, orgId)) {
+          await withRun(d.runs, `calendar_${cal.provider}`, async () => {
+            const r = await syncCalendar(d.db, orgId, cal, now);
+            for (const s of r.suggestions) await d.queue?.send(QUEUES.absenceSuggested, { orgId, ...s }, { singletonKey: s.absenceId });
+            d.log.info({ orgId, provider: cal.provider, ...r, suggestions: r.suggestions.length, shortRegistered: r.shortRegistered.length }, "sincronização da agenda");
+          }, { orgId }).catch((err) => d.log.error({ orgId, err: String(err) }, "falha na sincronização da agenda"));
         }
         if (kinds.includes("linear") && d.platforms.linear) {
           await withRun(d.runs, "reconcile_linear", async () => {

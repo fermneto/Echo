@@ -6,8 +6,9 @@ import { normalizeGithub } from "./github.ts";
 import { ingest, type IngestResult } from "./ingest.ts";
 import { normalizeLinear } from "./linear.ts";
 import { normalizeSlack } from "./slack.ts";
+import { normalizeVercel } from "./vercel.ts";
 
-export type InboxSource = "github" | "slack" | "linear";
+export type InboxSource = "github" | "slack" | "linear" | "vercel";
 
 export interface Delivery {
   source: InboxSource;
@@ -95,7 +96,9 @@ export async function processInbox(db: Database, job: InboxJob | string, opts: P
         ? normalizeGithub(eventName ?? "", body)
         : row.source === "linear"
           ? normalizeLinear(body)
-          : normalizeSlack(body, opts.slackBotUserId ?? slackBotUserIdOf(body));
+          : row.source === "vercel"
+            ? normalizeVercel(body)
+            : normalizeSlack(body, opts.slackBotUserId ?? slackBotUserIdOf(body));
     const result = await ingest(db, row.orgId, events);
     const onlyIgnored = result.applied === 0 && result.messages.length === 0;
     // Texto do Slack não fica guardado depois de processado: a mensagem segue na fila do F2.
