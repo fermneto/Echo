@@ -1,7 +1,7 @@
 // Validador da resposta do agente (etapa 6). Roda em código, depois do modelo e antes de publicar.
 // Recusa: fonte que não foi consultada, liberação que não existe, assunto proibido, primeira pessoa
 // como o trabalhador e número que não veio das regras. Qualquer problema → resposta por regra.
-import type { AnswerOutput, AnswerValidator, ValidationIssue } from "./index.ts";
+import type { AnswerOutput, AnswerValidator, ValidationIssue } from "./contracts.ts";
 
 const norm = (s: string) => s.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
 const sentences = (t: string) => t.split(/(?<=[.!?;])\s+|\n+/).map((s) => s.trim()).filter(Boolean);
