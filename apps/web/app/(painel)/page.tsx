@@ -2,7 +2,6 @@ import Link from "next/link";
 import { canAskTwin } from "@/lib/access";
 import { ECHO_SUGGESTIONS } from "@/lib/demo/echo";
 import { WAITING } from "@/lib/demo/feed";
-import { DEMO_NOW } from "@/lib/demo/personas";
 import { teamCounts, TEAM } from "@/lib/demo/team";
 import type { Persona } from "@/lib/demo/types";
 import { requireAccess } from "@/lib/session";
@@ -36,7 +35,7 @@ function holderLine(p: Persona): string {
   return `Agente de ${p.name} responde pelo que ficou registrado até a volta.`;
 }
 
-function buildMap(team: readonly Persona[]) {
+function buildMap(team: readonly Persona[], now: Date) {
   const byCity = new Map<string, Persona[]>();
   for (const p of team) if (p.location) byCity.set(p.cityCode, [...(byCity.get(p.cityCode) ?? []), p]);
 
@@ -53,7 +52,7 @@ function buildMap(team: readonly Persona[]) {
         name: p.name,
         title: p.title,
         city: p.city,
-        time: localTime(DEMO_NOW, p.timezone),
+        time: localTime(now, p.timezone),
         status: statusLine(p),
         holder: holderLine(p),
         tone: toneOf(p),
@@ -65,8 +64,8 @@ function buildMap(team: readonly Persona[]) {
 
   const offsets = new Map<number, string>();
   for (const p of team) {
-    const off = utcOffset(p.timezone, DEMO_NOW);
-    if (!offsets.has(off)) offsets.set(off, `UTC${off >= 0 ? "+" : "−"}${String(Math.abs(off)).replace(".5", ":30")} · ${localTime(DEMO_NOW, p.timezone)}`);
+    const off = utcOffset(p.timezone, now);
+    if (!offsets.has(off)) offsets.set(off, `UTC${off >= 0 ? "+" : "−"}${String(Math.abs(off)).replace(".5", ":30")} · ${localTime(now, p.timezone)}`);
   }
   const zones: MapZone[] = [...offsets.entries()].sort((a, b) => a[0] - b[0]).map(([off, label]) => ({ lng: off * 15, label }));
 
@@ -78,18 +77,20 @@ function buildMap(team: readonly Persona[]) {
     const near = [...working].sort((a, b) => Math.abs(a.location[1] - c.location[1]) - Math.abs(b.location[1] - c.location[1]))[0];
     if (near) arcs.push({ from: near.key, to: c.key, tone: "twin" });
   }
-  if (byCity.has("JNB") && byCity.has("TYO")) arcs.push({ from: "JNB", to: "TYO", tone: "on" });
+  // Quem está no expediente fica ligado entre si, do oeste para o leste.
+  const east = [...working].sort((a, b) => a.location[1] - b.location[1]);
+  for (let i = 1; i < east.length; i++) arcs.push({ from: east[i - 1]!.key, to: east[i]!.key, tone: "on" });
 
   return { crews, zones, arcs };
 }
 
 export default async function InicioPage() {
   const me = await requireAccess("inicio");
+  const now = new Date();
   const counts = teamCounts();
   const seesWork = canAskTwin(me.role);
   const waiting = WAITING.filter((w) => w.ownerId === me.id);
-  const focus = TEAM.find((p) => p.id === "fernando")!;
-  const { crews, zones, arcs } = buildMap(TEAM);
+  const { crews, zones, arcs } = buildMap(TEAM, now);
 
   return (
     <>
@@ -98,9 +99,6 @@ export default async function InicioPage() {
         Agora · {counts.on} no expediente · {counts.away} gêmeos cobrindo · {counts.zones} fusos
       </p>
       <h1 className="hero-title">Quem está trabalhando agora</h1>
-      <p className="lead">
-        {focus.name} está fora em {focus.city}, {localTime(DEMO_NOW, focus.timezone)}. O gêmeo de {focus.name} responde enquanto isso.
-      </p>
 
       <ul className="crew-grid" role="list" aria-label="Equipe">
         {TEAM.map((p) => (
@@ -108,7 +106,7 @@ export default async function InicioPage() {
             <Link href={`/pessoas/${p.id}`} className="crew-tile">
               <PixelAvatar persona={p} size={64} />
               <span className="crew-tile__name">{p.name}</span>
-              <span className="crew-tile__time mono">{localTime(DEMO_NOW, p.timezone)}</span>
+              <span className="crew-tile__time mono">{localTime(now, p.timezone)}</span>
             </Link>
           </li>
         ))}
@@ -156,7 +154,7 @@ export default async function InicioPage() {
         <h2 id="mapa" className="label-caps section__title">
           A equipe pelo mundo
         </h2>
-        <WorldMap crews={crews} zones={zones} arcs={arcs} nowIso={DEMO_NOW.toISOString()} />
+        <WorldMap crews={crews} zones={zones} arcs={arcs} nowIso={now.toISOString()} />
         <p className="wmap-legend mono">
           <span>
             <span className="dot dot--on" aria-hidden="true" /> no expediente
@@ -195,7 +193,7 @@ export default async function InicioPage() {
               <div className="people-row__cell">
                 <span className="people-row__k mono">Hora local</span>
                 <span className="people-row__v mono">
-                  {p.cityCode} {localTime(DEMO_NOW, p.timezone)}
+                  {p.cityCode} {localTime(now, p.timezone)}
                 </span>
               </div>
               <div className="people-row__actions">

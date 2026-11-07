@@ -70,14 +70,19 @@
 /* Logotipo e navegação flutuante */
 .lp-logo {
   font-family: var(--font-display);
-  font-size: 20px;
-  font-weight: 500;
-  letter-spacing: -0.03em;
+  font-size: 21px;
+  font-weight: 700;
+  letter-spacing: -0.055em;
   text-decoration: none;
   color: var(--color-cloud);
 }
-.lp-logo > span {
-  color: var(--color-signal-on);
+.lp-logo__dot {
+  display: inline-block;
+  width: 0.27em;
+  height: 0.27em;
+  margin-left: 0.07em;
+  border-radius: 50%;
+  background: var(--color-signal-on);
 }
 .lp-nav {
   position: sticky;
@@ -530,7 +535,7 @@
   display: block;
   font-family: var(--font-display);
   font-size: var(--echo-size);
-  font-weight: 500;
+  font-weight: 700;
   letter-spacing: -0.06em;
   line-height: 0.78;
 }

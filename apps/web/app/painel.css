@@ -25,15 +25,21 @@
 }
 
 /* Logotipo */
+/* echo. em peso forte e espaçamento apertado; o ponto é um círculo verde na linha de base. */
 .logo {
   font-family: var(--font-display);
-  font-size: 20px;
-  font-weight: 500;
-  letter-spacing: -0.03em;
+  font-size: 21px;
+  font-weight: 700;
+  letter-spacing: -0.055em;
   text-decoration: none;
 }
 .logo__dot {
-  color: var(--color-signal-on);
+  display: inline-block;
+  width: 0.27em;
+  height: 0.27em;
+  margin-left: 0.07em;
+  border-radius: 50%;
+  background: var(--color-signal-on);
 }
 
 /* Cabeçalho: logo e pessoa em cima, abas embaixo */
@@ -156,18 +162,6 @@
   color: var(--color-fog);
 }
 
-.demo-banner {
-  display: block;
-  width: fit-content;
-  max-width: 100%;
-  margin: 0 0 var(--space-3xl);
-  padding: 6px 12px;
-  font-size: 11px;
-  color: var(--color-fog);
-  background: var(--color-chip);
-  border: 1px solid var(--color-line);
-  border-radius: var(--rounded-sm);
-}
 
 /* Página */
 .page {
@@ -1265,12 +1259,35 @@
   box-shadow: 0 12px 32px rgb(0 0 0 / 55%);
   cursor: default;
   user-select: text;
-  animation: wmap-card-in 180ms ease-out;
+  transform-origin: left center;
+  /* Entra vindo do lado da pessoa; ao trocar de pessoa, desliza até a nova posição. */
+  animation: wmap-card-in 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+  transition:
+    left 200ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    top 200ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.wmap__card.is-left {
+  --card-from: 8px;
+  transform-origin: right center;
+}
+.wmap__card.is-leaving {
+  pointer-events: none;
+  animation: wmap-card-out 170ms ease-in forwards;
+}
+/* Enquanto o mapa se move, o cartão acompanha sem atraso. */
+.wmap.is-moving .wmap__card {
+  transition: none;
 }
 @keyframes wmap-card-in {
   from {
     opacity: 0;
-    margin-top: 4px;
+    transform: translateX(var(--card-from, -8px)) scale(0.96);
+  }
+}
+@keyframes wmap-card-out {
+  to {
+    opacity: 0;
+    transform: translateX(var(--card-from, -8px)) scale(0.97);
   }
 }
 .wmap__card p {
@@ -2780,5 +2797,12 @@ select.field option {
   .ask-field__ghost > span {
     animation-duration: 1ms;
     animation-delay: 0ms !important;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .wmap__card,
+  .wmap__card.is-leaving {
+    animation-duration: 1ms;
+    transition: none;
   }
 }

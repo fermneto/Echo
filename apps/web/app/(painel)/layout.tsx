@@ -32,9 +32,6 @@ export default async function PainelLayout({ children }: { children: ReactNode }
         </div>
       </header>
       <main className="page">
-        {demo && (
-          <p className="demo-banner mono">Demonstração: dados sintéticos. Só Fernando, Eduardo e Yan são pessoas reais; as demais são personas simuladas.</p>
-        )}
         {children}
       </main>
     </>

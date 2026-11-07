@@ -13,7 +13,7 @@ describe("askTwinDemo", () => {
     expect(r.agentName).toBe("Agente de Fernando");
     expect(r.text).toMatch(/^Sim, para ech-131-api-v2/);
     expect(labels(r)).toContain("nota do dia de Fernando (confirmada)");
-    expect(r.text).toContain("volta às 9h, horário de Fortaleza");
+    expect(r.text).toContain("volta hoje às 9h, horário de Fortaleza");
     expect(r.needsOwner).toBe(false);
   });
 
