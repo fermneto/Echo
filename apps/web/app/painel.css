@@ -1095,6 +1095,23 @@
   background: var(--color-black);
   overflow: hidden;
 }
+.wmap {
+  cursor: grab;
+  touch-action: pan-y;
+  user-select: none;
+}
+.wmap.is-zoomed {
+  touch-action: none;
+}
+.wmap.is-dragging {
+  cursor: grabbing;
+}
+.wmap__stage {
+  --z: 1;
+  position: relative;
+  transform-origin: 0 0;
+  will-change: transform;
+}
 .wmap__canvas {
   display: block;
   width: 100%;
@@ -1103,10 +1120,12 @@
   position: absolute;
   top: 0;
   bottom: 0;
-  border-left: 1px dashed rgb(255 255 255 / 9%);
+  border-left: calc(1px / var(--z)) dashed rgb(255 255 255 / 9%);
   pointer-events: none;
 }
 .wmap__zone-label {
+  scale: calc(1 / var(--z));
+  transform-origin: 0 0;
   position: absolute;
   top: 8px;
   left: 6px;
@@ -1131,8 +1150,9 @@
 }
 .wmap__arc {
   fill: none;
-  stroke-width: 1.2;
-  stroke-dasharray: 4 5;
+  /* O traço não engrossa com o zoom do mapa (a escala vem de fora do SVG). */
+  stroke-width: calc(1.2px / var(--z));
+  stroke-dasharray: calc(4px / var(--z)) calc(5px / var(--z));
   animation: wmap-flow 1.6s linear infinite;
 }
 .wmap__arc--twin {
@@ -1143,7 +1163,7 @@
 }
 @keyframes wmap-flow {
   to {
-    stroke-dashoffset: -18;
+    stroke-dashoffset: calc(-18px / var(--z));
   }
 }
 .wmap__crew {
@@ -1152,7 +1172,12 @@
   flex-direction: column;
   align-items: flex-start;
   translate: -5px -100%;
+  scale: calc(1 / var(--z));
+  transform-origin: 5px 100%;
   pointer-events: none;
+}
+.wmap__crew.is-open {
+  z-index: 2;
 }
 .wmap__people {
   display: flex;
@@ -1189,6 +1214,7 @@
 .wmap__crew.is-flipped {
   align-items: flex-end;
   translate: calc(-100% + 5px) -100%;
+  transform-origin: calc(100% - 5px) 100%;
 }
 .wmap__crew.is-flipped .wmap__people {
   margin-left: 0;
@@ -1196,6 +1222,167 @@
 }
 .wmap__crew--on .wmap__label {
   color: var(--color-signal-on);
+}
+.wmap__person {
+  display: block;
+  padding: 2px 1px 0;
+  border: 0;
+  border-radius: var(--rounded-sm);
+  background: transparent;
+  cursor: pointer;
+  pointer-events: auto;
+  transition: background 150ms ease-out, translate 150ms ease-out;
+}
+.wmap__person:hover,
+.wmap__person.is-selected {
+  background: rgb(255 255 255 / 10%);
+  translate: 0 -2px;
+}
+.wmap__person:focus-visible {
+  outline: 1px solid var(--color-cloud);
+  outline-offset: 1px;
+}
+.wmap__card {
+  position: absolute;
+  z-index: 5;
+  padding: var(--space-md) var(--space-lg) var(--space-lg);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  border: 1px solid var(--color-edge);
+  border-radius: var(--rounded-lg);
+  background: color-mix(in srgb, var(--color-panel) 94%, transparent);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 12px 32px rgb(0 0 0 / 55%);
+  cursor: default;
+  user-select: text;
+  animation: wmap-card-in 180ms ease-out;
+}
+@keyframes wmap-card-in {
+  from {
+    opacity: 0;
+    margin-top: 4px;
+  }
+}
+.wmap__card p {
+  margin: 0;
+}
+.wmap__card-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+}
+.wmap__card-name {
+  font-size: 16px;
+  font-weight: 500;
+}
+.wmap__card-title {
+  font-size: 13px;
+}
+.wmap__card-meta {
+  font-size: 11px;
+}
+.wmap__card-close {
+  display: grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  margin-left: auto;
+  align-self: flex-start;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--color-ash);
+  cursor: pointer;
+}
+.wmap__card-close:hover {
+  background: var(--color-chip);
+  color: var(--color-cloud);
+}
+.wmap__card-close svg,
+.wmap__controls svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.wmap__card-status {
+  width: fit-content;
+}
+.wmap__card-holder {
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--color-fog);
+}
+.wmap__card-link {
+  width: fit-content;
+  font-size: 11px;
+  color: var(--color-cloud);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  text-decoration-color: var(--color-iron);
+}
+.wmap__card-link:hover {
+  text-decoration-color: var(--color-cloud);
+}
+.wmap__controls {
+  position: absolute;
+  right: var(--space-gutter);
+  bottom: var(--space-md);
+  z-index: 4;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--color-edge);
+  border-radius: var(--rounded-md);
+  background: rgb(0 0 0 / 75%);
+  overflow: hidden;
+}
+.wmap__controls button {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--color-fog);
+  font: inherit;
+  font-size: 16px;
+  cursor: pointer;
+}
+.wmap__controls button + button {
+  border-top: 1px solid var(--color-edge);
+}
+.wmap__controls button:hover:not(:disabled) {
+  background: var(--color-chip);
+  color: var(--color-cloud);
+}
+.wmap__controls button:disabled {
+  color: var(--color-iron);
+  cursor: default;
+}
+.wmap__hint {
+  position: absolute;
+  left: 50%;
+  bottom: var(--space-md);
+  z-index: 4;
+  translate: -50% 0;
+  margin: 0;
+  padding: 4px 10px;
+  border-radius: var(--rounded-sm);
+  background: rgb(0 0 0 / 80%);
+  font-size: 11px;
+  color: var(--color-fog);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 200ms ease-out;
+}
+.wmap__hint.is-on {
+  opacity: 1;
 }
 .wmap-legend {
   display: flex;

@@ -29,6 +29,13 @@ function statusLine(p: Persona): string {
   return `Fora, volta ${a.returns.replace(/, horário de .*/, "")}`;
 }
 
+function holderLine(p: Persona): string {
+  const a = p.availability;
+  if (a.kind === "working") return `${p.name} está no expediente e responde por si.`;
+  if (a.kind === "vacation") return `Agente de ${p.name} responde pelo que ficou registrado. Ninguém chama quem está de férias.`;
+  return `Agente de ${p.name} responde pelo que ficou registrado até a volta.`;
+}
+
 function buildMap(team: readonly Persona[]) {
   const byCity = new Map<string, Persona[]>();
   for (const p of team) if (p.location) byCity.set(p.cityCode, [...(byCity.get(p.cityCode) ?? []), p]);
@@ -41,7 +48,18 @@ function buildMap(team: readonly Persona[]) {
       location: people[0]!.location!,
       tone,
       label: names.length > 3 ? `${names.slice(0, 3).join(", ")} +${names.length - 3}` : names.join(", "),
-      people: people.map((p) => ({ id: p.id, mode: toneOf(p) === "on" ? "person" : toneOf(p) === "twin" ? "twin" : "away", hair: p.hair ?? "short" })),
+      people: people.map((p) => ({
+        id: p.id,
+        name: p.name,
+        title: p.title,
+        city: p.city,
+        time: localTime(DEMO_NOW, p.timezone),
+        status: statusLine(p),
+        holder: holderLine(p),
+        tone: toneOf(p),
+        mode: toneOf(p) === "on" ? "person" : toneOf(p) === "twin" ? "twin" : "away",
+        hair: p.hair ?? "short",
+      })),
     };
   });
 
