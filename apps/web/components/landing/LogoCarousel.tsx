@@ -13,16 +13,14 @@ export type CarouselLogo = { name: string; status: "hoje" | "em breve"; path?: s
 const CYCLE_MS = 2000;
 const EXIT_MS = 300;
 
-/** Distribui em colunas por rodízio, sem sorteio: a primeira leva é sempre a mesma. */
+/**
+ * Distribui em colunas por rodízio, sem sorteio e sem repetir: a primeira leva é sempre a
+ * mesma. Colunas podem ter tamanhos diferentes; cada uma dá a volta no próprio tamanho.
+ */
 export function distribute<T>(items: readonly T[], columns: number): T[][] {
   const cols: T[][] = Array.from({ length: columns }, () => []);
   items.forEach((item, i) => cols[i % columns]!.push(item));
-  const max = Math.max(...cols.map((c) => c.length));
-  cols.forEach((c, ci) => {
-    let k = ci;
-    while (c.length < max) c.push(items[k++ % items.length]!);
-  });
-  return cols;
+  return cols.filter((c) => c.length > 0);
 }
 
 function Logo({ logo }: { logo: CarouselLogo }) {
