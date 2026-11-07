@@ -16,6 +16,8 @@ const PR_STATE: Record<string, string> = { open: "aberto", draft: "em rascunho",
 const EVALUATION = /(?<!\p{L})(bom|boa|[óo]tim[oa]|ruim|melhor|pior)\s+(funcion[áa]ri|profissional|colega)|promo[çc]|demiss|demitir|sal[áa]ri|aumento|ranking|desempenho|avali[ae]/iu;
 const APPROVAL = /(?<!\p{L})(aprov|merge|publi(?:car|que|ca)(?!\p{L})|produ[çc][ãa]o|deploy)/iu;
 const REASSIGN = /(?<!\p{L})(atribu|reatribu|transfer|redistribu|assum(?:ir|a) (?:as|todas))/iu;
+/** Pedido de gravação pelo chat: os vídeos das entregas saem só do fluxo do relatório, em preview. */
+const RECORDING = /(?<!\p{L})(grav(?:e|ar|em)|film(?:e|ar|em)|fa[çc]a (?:um|o) v[íi]deo)(?!\p{L})/iu;
 
 const BRANCH = /(?<![\w-])([a-z][a-z0-9]*-\d+-[a-z0-9][a-z0-9-]*)(?![\w-])/gi;
 const TASK_KEY = /(?<![\w-])([A-Za-z][A-Za-z0-9]*-\d+)(?![\w-])/g;
@@ -53,6 +55,9 @@ export async function ruleAnswer(ctx: ToolContext, question: string): Promise<An
   const refuse = (texto: string): AnswerOutput => ({ status: "recusado", texto, fontes: [], liberacao: null, precisa_do_dono: false });
 
   if (EVALUATION.test(question)) return refuse(`${who} não avalia pessoas, não dá notas nem compara colegas.`);
+  if (RECORDING.test(question)) {
+    return refuse(`${who} não grava vídeos por pedido no chat e nunca em produção: os vídeos das entregas são gravados só em ambientes de preview, com dados sintéticos, pelo relatório semanal, e a pessoa aprova antes do envio.`);
+  }
   if (APPROVAL.test(question)) return refuse(`${who} não aprova PRs nem publica em produção: essa decisão é sempre de uma pessoa.`);
   if (REASSIGN.test(question)) return refuse(`${who} não muda tarefas; a redistribuição passa por aprovação da liderança no painel.`);
 

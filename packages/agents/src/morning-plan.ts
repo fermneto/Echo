@@ -90,7 +90,7 @@ export function createMorningPlan(deps: MorningPlanDeps) {
       let dmQueued = false;
       if (slackUser) {
         const msg = planMessage(plan, deps.webUrl);
-        const r = await deps.outbox(orgId).enqueue({ type: "slack.dm", target: `slack:user:${slackUser}`, payload: { user: slackUser, text: msg.text, blocks: msg.blocks }, idempotencyKey: `morning_plan:${personId}:${date}` });
+        const r = await deps.outbox(orgId).enqueue({ type: "slack.dm", target: `person:${personId}`, payload: { personId, text: msg.text, blocks: msg.blocks }, idempotencyKey: `morning_plan:${personId}:${date}` });
         dmQueued = !r.duplicate;
       }
       return done({ status: "created", plan, dmQueued });
