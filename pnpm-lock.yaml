@@ -315,9 +315,15 @@ importers:
 
   apps/web:
     dependencies:
+      '@echo/agents':
+        specifier: workspace:*
+        version: link:../../packages/agents
       '@echo/config':
         specifier: workspace:*
         version: link:../../packages/config
+      '@echo/domain':
+        specifier: workspace:*
+        version: link:../../packages/domain
       next:
         specifier: 'catalog:'
         version: 16.4.5(@opentelemetry/api@1.9.1)(@types/node@24.19.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)

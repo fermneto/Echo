@@ -3,8 +3,9 @@
   "compilerOptions": {
     "lib": ["es2024", "dom", "dom.iterable"],
     "jsx": "react-jsx",
-    "plugins": [{ "name": "next" }]
+    "plugins": [{ "name": "next" }],
+    "paths": { "@/*": ["./*"] }
   },
-  "include": ["next-env.d.ts", "app", "next.config.ts", ".next/types/**/*.ts"],
+  "include": ["next-env.d.ts", "app", "lib", "components", "next.config.ts", ".next/types/**/*.ts"],
   "exclude": ["node_modules"]
 }
