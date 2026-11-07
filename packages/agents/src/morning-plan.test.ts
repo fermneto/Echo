@@ -48,7 +48,7 @@ describe("plano da manhã", () => {
     expect(plan.items.slice(0, 2).map((i) => i.kind)).toEqual(["review_request", "question"]);
 
     expect(outbox).toHaveLength(1);
-    expect(outbox[0]).toMatchObject({ type: "slack.dm", target: "slack:user:U-FER", idempotencyKey: "morning_plan:fernando:2026-11-09" });
+    expect(outbox[0]).toMatchObject({ type: "slack.dm", target: "person:fernando", payload: { personId: "fernando" }, idempotencyKey: "morning_plan:fernando:2026-11-09" });
     const text = (outbox[0]!.payload as { text: string }).text;
     expect(text.split("\n")[0]).toBe("*Seu plano de hoje*");
     expect(text).toContain("• *PR 34 de Carla espera sua revisão* — revisão pedida a você, há 2 dias");

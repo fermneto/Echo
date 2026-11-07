@@ -12,7 +12,7 @@ export function createPgOutbox(db: Database, orgId: string) {
       return withOrg(db, orgId, async (tx) => {
         const [created] = await tx
           .insert(outboxActions)
-          .values({ orgId, type: action.type, target: action.target, payload: action.payload, idempotencyKey: action.idempotencyKey, approvedBy: action.approvedBy ?? null, state: action.approvedBy ? "approved" : "pending" })
+          .values({ orgId, type: action.type, target: action.target, payload: action.payload, idempotencyKey: action.idempotencyKey, approvedBy: action.approvedBy ?? null, state: action.approvedBy || !REQUIRES_APPROVAL[action.type] ? "approved" : "pending" })
           .onConflictDoNothing()
           .returning({ id: outboxActions.id });
         if (created) return { id: created.id, duplicate: false };

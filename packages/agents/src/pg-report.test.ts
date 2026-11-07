@@ -85,7 +85,7 @@ describe.skipIf(!url)("relatório semanal em Postgres", () => {
     expect(row!.text).toBe("Na semana, Carla teve 0 entregas diretas, 2 commits e 3 revisões. Teve 5 ajudas confirmadas a colegas: Bruno (2), Fernando (2), Yan (1).");
 
     const [notice] = await asSystem(db, (tx) => tx.select().from(outboxActions).where(and(eq(outboxActions.orgId, org), eq(outboxActions.idempotencyKey, `weekly_report_notice:${row!.id}`))));
-    expect(notice).toMatchObject({ type: "slack.dm", state: "pending", payload: { personId: carla } });
+    expect(notice).toMatchObject({ type: "slack.dm", state: "approved", payload: { personId: carla } });
     // Outra empresa não vê.
     expect(await createPgReportStore(db, other).byId(row!.id)).toBeNull();
 
