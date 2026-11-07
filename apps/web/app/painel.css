@@ -2121,3 +2121,107 @@ select.field option {
     grid-template-columns: repeat(2, 1fr);
   }
 }
+
+/* Ganhos */
+.gains-hero {
+  margin-top: var(--space-2xl);
+}
+.gains-hero .card__title {
+  margin: 0;
+}
+.gains-hero__v {
+  margin: var(--space-sm) 0;
+  font-family: var(--font-display);
+  font-size: clamp(48px, 8vw, 80px);
+  line-height: 1;
+  letter-spacing: -0.02em;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-signal-twin-text);
+}
+.gains-hero p:last-child {
+  margin: 0;
+  max-width: 60ch;
+  font-size: 14px;
+}
+.gains__kind {
+  margin: 0 0 4px;
+  font-size: 10px;
+  text-transform: uppercase;
+  color: var(--color-ash);
+}
+.gains__kind.is-estimate {
+  color: var(--color-signal-wait);
+}
+.gains-hero .gains__kind {
+  color: var(--color-signal-wait);
+}
+.gains-compare {
+  margin-top: var(--space-xl);
+}
+.compare {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr));
+  gap: var(--space-xl);
+}
+.compare__item {
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+}
+.compare__row {
+  display: grid;
+  grid-template-columns: 84px 1fr 56px;
+  align-items: center;
+  gap: var(--space-md);
+}
+.compare__k {
+  font-size: 11px;
+}
+.compare__track {
+  height: 10px;
+  border-radius: var(--rounded-hair);
+  background: var(--color-line);
+  overflow: hidden;
+}
+.compare__bar {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+}
+.compare__bar.is-before {
+  background: var(--color-iron);
+}
+.compare__bar.is-after {
+  background: var(--color-signal-twin);
+}
+.compare__v {
+  font-size: 13px;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.gains-grid {
+  list-style: none;
+  margin: var(--space-xl) 0 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+  gap: var(--space-md);
+}
+.gain p {
+  margin: 0;
+}
+.gain__label {
+  font-size: 14px;
+  color: var(--color-fog);
+}
+.gain__v {
+  margin: 6px 0 !important;
+  font-size: 32px;
+  line-height: 1.1;
+  font-variant-numeric: tabular-nums;
+}
+.gain__detail {
+  font-size: 13px;
+  line-height: 1.45;
+}
