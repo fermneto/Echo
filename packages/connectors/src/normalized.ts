@@ -71,6 +71,8 @@ export interface ChatMessage {
   isDm: boolean;
   /** Autor da mensagem-mãe do tópico (para saber se é um tópico do Echo). */
   parentUserId?: string | undefined;
+  /** A mensagem continua um tópico aberto pelo Echo (responde sem nova marcação). */
+  inEchoThread?: boolean | undefined;
 }
 
 export type NormalizedEvent =

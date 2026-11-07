@@ -14,6 +14,7 @@ export interface PlatformEnv {
   /** Alternativa para testes: chave pessoal de API do Linear (lin_api_…). */
   LINEAR_API_KEY?: string | undefined;
   SLACK_BOT_TOKEN?: string | undefined;
+  SLACK_API_BASE_URL?: string | undefined;
   GOOGLE_SERVICE_ACCOUNT_EMAIL?: string | undefined;
   GOOGLE_SERVICE_ACCOUNT_KEY?: string | undefined;
   MICROSOFT_CLIENT_ID?: string | undefined;
@@ -36,7 +37,7 @@ export function platformsFromEnv(env: PlatformEnv): Platforms {
     : env.LINEAR_CLIENT_ID && env.LINEAR_CLIENT_SECRET
       ? new LinearTracker({ clientId: env.LINEAR_CLIENT_ID, clientSecret: env.LINEAR_CLIENT_SECRET })
       : undefined;
-  const chat = env.SLACK_BOT_TOKEN ? new SlackChat({ token: env.SLACK_BOT_TOKEN }) : undefined;
+  const chat = env.SLACK_BOT_TOKEN ? new SlackChat({ token: env.SLACK_BOT_TOKEN, ...(env.SLACK_API_BASE_URL ? { baseUrl: env.SLACK_API_BASE_URL } : {}) }) : undefined;
   const google =
     env.GOOGLE_SERVICE_ACCOUNT_EMAIL && env.GOOGLE_SERVICE_ACCOUNT_KEY ? new GoogleCalendar({ clientEmail: env.GOOGLE_SERVICE_ACCOUNT_EMAIL, privateKey: env.GOOGLE_SERVICE_ACCOUNT_KEY }) : undefined;
   const ms = env.MICROSOFT_CLIENT_ID && env.MICROSOFT_CLIENT_SECRET ? { clientId: env.MICROSOFT_CLIENT_ID, clientSecret: env.MICROSOFT_CLIENT_SECRET } : undefined;

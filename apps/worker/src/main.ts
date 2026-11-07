@@ -4,6 +4,10 @@ import { createDb, createPool } from "@echo/db";
 import { PgBossQueue, QUEUES, type PingMessage } from "@echo/jobs";
 import { createLogger, initTracing, LogRunRecorder } from "@echo/observability";
 import { writersFromEnv } from "@echo/actions";
+import * as agents from "@echo/agents";
+import type { AnswerRequest, AnswerResult } from "@echo/agents";
+import { handleSlackInteraction, handleSlackMessage } from "./slack-answer.ts";
+import type { SlackMessageJob } from "./inbox.ts";
 import { registerActions } from "./actions.ts";
 import { registerInbox } from "./inbox.ts";
 import { scheduleReconcile } from "./reconcile.ts";
@@ -22,7 +26,25 @@ await queue.start();
 const runs = new LogRunRecorder(log);
 await registerInbox(db, queue, runs, { brainsRepository: cfg.BRAINS_REPOSITORY });
 const stopActions = await registerActions({ db, writers: writersFromEnv(db, cfg) }, queue, runs, log);
-const stopReconcile = scheduleReconcile({ db, pool, platforms: platformsFromEnv(cfg), runs, log, brainsRepository: cfg.BRAINS_REPOSITORY, queue }, cfg.RECONCILE_INTERVAL_MS);
+// F2: resposta no Slack com o fluxo da frente Funções (answer de @echo/agents).
+const platforms = platformsFromEnv(cfg);
+const answer = (agents as { answer?: (req: AnswerRequest) => Promise<AnswerResult> }).answer;
+if (platforms.chat && answer) {
+  const chat = platforms.chat;
+  const workerId = `worker:${process.pid}`;
+  await queue.work<SlackMessageJob>(QUEUES.slackMessage, async (job) => {
+    const outcome = await handleSlackMessage({ db, chat, answer, log, workerId }, job.data);
+    log.info({ orgId: job.data.orgId, outcome }, "mensagem do Slack");
+  });
+  await queue.work<{ orgId: string; payload: unknown }>(QUEUES.slackInteraction, async (job) => {
+    const outcome = await handleSlackInteraction({ db, log }, job.data);
+    log.info({ orgId: job.data.orgId, outcome }, "clique no Slack");
+  });
+} else {
+  log.warn({ slack: Boolean(platforms.chat), answer: Boolean(answer) }, "resposta no Slack desligada: falta SLACK_BOT_TOKEN ou o fluxo answer() de @echo/agents");
+}
+
+const stopReconcile = scheduleReconcile({ db, pool, platforms, runs, log, brainsRepository: cfg.BRAINS_REPOSITORY, queue }, cfg.RECONCILE_INTERVAL_MS);
 log.info({ demo: cfg.DEMO_MODE }, "worker no ar");
 
 // Confirma, a cada início, que a fila chega ao reviewer.

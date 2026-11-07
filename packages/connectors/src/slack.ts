@@ -7,7 +7,7 @@ export const HELP_REACTIONS = new Set(["pray", "raised_hands", "obrigado", "ajud
 const WHO_KNOWS = /\b(algu[eé]m|quem)\s+(sabe|entende|conhece|manja)\s+(de|sobre|do|da|dos|das|como|o que)\b/i;
 export const isWhoKnows = (text: string) => WHO_KNOWS.test(text);
 
-const mentionsIn = (text: string) => [...text.matchAll(/<@([UW][A-Z0-9]+)(?:\|[^>]*)?>/g)].map((m) => m[1]!);
+const mentionsIn = (text: string) => [...text.matchAll(/<@([UW][A-Z0-9_]+)(?:\|[^>]*)?>/g)].map((m) => m[1]!);
 
 export interface SlackEntryContext {
   /** user_id do bot Echo no espaço. */
@@ -59,6 +59,7 @@ export function normalizeSlack(envelope: any, botUserId?: string): NormalizedEve
       mentionsBot: e.type === "app_mention" || (botUserId ? mentions.includes(botUserId) : false),
       isDm: e.channel_type === "im",
       parentUserId: e.parent_user_id,
+      inEchoThread: Boolean(botUserId && e.thread_ts && e.parent_user_id === botUserId),
     };
     return [{ kind: "chat_message", message }];
   }
