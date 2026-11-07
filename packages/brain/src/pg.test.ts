@@ -6,7 +6,7 @@ import type pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { BrainStore, Viewer } from "./index.ts";
 import { CorrectionProtectedError, createPgBrainStore } from "./pg.ts";
-import { ensureProductNote, PRODUCT_NOTE_PATH } from "./product-note.ts";
+import { createProductNote, ensureProductNote, PRODUCT_NOTE_PATH } from "./product-note.ts";
 
 const url = process.env.DATABASE_URL;
 
@@ -122,5 +122,10 @@ describe.skipIf(!url)("BrainStore em Postgres", () => {
     expect(rows).toEqual([{ version: 1 }]);
     const [note] = await store.search(viewer("eduardo"), "como o echo funciona");
     expect(note?.path).toBe(PRODUCT_NOTE_PATH);
+  });
+
+  it("empresa que sumiu entre a listagem e a gravação é pulada, sem erro", async () => {
+    // É o que acontece quando os testes de outro pacote apagam a empresa deles durante a varredura.
+    expect(await createProductNote(db, randomUUID())).toBe(false);
   });
 });
