@@ -11,8 +11,12 @@ export type WeekReport = {
   commits: number;
   reviews: number;
   helps: Help[];
+  /** Ajudas contadas pela regra, quando a lista vem de outra consulta (banco). Sem ele, vale o tamanho da lista. */
+  helpCount?: number;
   delays: string[];
 };
+
+export const helpTotal = (r: WeekReport): number => r.helpCount ?? r.helps.length;
 
 const REPORTS: Record<string, WeekReport> = {
   carla: {
@@ -56,5 +60,5 @@ export const SENT_TO_HR = ["carla", "fernando", "eduardo"] as const;
 /** Frase do resumo, montada por regra a partir dos números (o modelo só redigiria isto). */
 export function summaryLine(name: string, r: WeekReport): string {
   const n = (v: number, one: string, many: string) => `${v} ${v === 1 ? one : many}`;
-  return `${name} registrou na semana ${n(r.deliveries, "entrega", "entregas")}, ${n(r.commits, "commit", "commits")} e ${n(r.reviews, "revisão", "revisões")}, e ${n(r.helps.length, "ajuda confirmada", "ajudas confirmadas")} a colegas.`;
+  return `${name} registrou na semana ${n(r.deliveries, "entrega", "entregas")}, ${n(r.commits, "commit", "commits")} e ${n(r.reviews, "revisão", "revisões")}, e ${n(helpTotal(r), "ajuda confirmada", "ajudas confirmadas")} a colegas.`;
 }
