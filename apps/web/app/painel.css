@@ -2568,10 +2568,11 @@ select.field option {
   margin: 0;
 }
 .gains-hero__v {
-  margin: var(--space-sm) 0;
+  margin: 6px 0;
   font-family: var(--font-display);
-  font-size: clamp(48px, 8vw, 80px);
-  line-height: 1;
+  font-size: clamp(26px, 3vw, 36px);
+  font-weight: 500;
+  line-height: 1.1;
   letter-spacing: -0.02em;
   font-variant-numeric: tabular-nums;
   color: var(--color-signal-twin-text);
@@ -2643,24 +2644,28 @@ select.field option {
   margin: var(--space-xl) 0 0;
   padding: 0;
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 210px), 1fr));
   gap: var(--space-md);
+}
+.card.gain {
+  padding: var(--space-lg) var(--space-xl);
 }
 .gain p {
   margin: 0;
 }
 .gain__label {
-  font-size: 14px;
+  font-size: 13px;
   color: var(--color-fog);
 }
 .gain__v {
-  margin: 6px 0 !important;
-  font-size: 32px;
-  line-height: 1.1;
+  margin: 4px 0 !important;
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 1.25;
   font-variant-numeric: tabular-nums;
 }
 .gain__detail {
-  font-size: 13px;
+  font-size: 12px;
   line-height: 1.45;
 }
 
@@ -3047,4 +3052,8 @@ select.field option {
 }
 .home-more {
   margin: var(--space-xl) 0 0;
+}
+.gains__note {
+  padding: var(--space-md) 0 0;
+  font-size: 13px;
 }
