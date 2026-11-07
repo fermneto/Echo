@@ -95,6 +95,19 @@ describe.skipIf(!url)("ingest e caixa de entrada (Postgres real)", () => {
     return processInbox(app, inboxId, { slackBotUserId: "UBOT" });
   };
 
+  it("push no repositório do espelho não é trabalho, mas pede sincronização das notas", async () => {
+    const queue = new InMemoryQueue();
+    let inboxId = "";
+    await queue.work<InboxJob>(QUEUES.inboxProcess, async (j) => void (inboxId = j.data.inboxId));
+    const body = { ...ghPush(), repository: { full_name: "Org-Teste/Brains" } };
+    await deliver(queue, { source: "github", deliveryId: `gh-${suffix}-brains`, orgId, eventName: "push", payload: body });
+    const before = (await db.select().from(workEvents).where(eq(workEvents.orgId, orgId))).length;
+    const r = await processInbox(app, inboxId, { brainsRepository: "org-teste/brains" });
+    expect(r?.brainsPush).toBe(true);
+    expect(r?.applied).toBe(0);
+    expect((await db.select().from(workEvents).where(eq(workEvents.orgId, orgId))).length).toBe(before);
+  });
+
   it("PR fora de ordem não sobrescreve dado mais novo", async () => {
     await run("github", "pull_request", ghPr("opened", { updated_at: "2026-11-06T21:00:00Z" }), "pr1");
     await run("github", "pull_request", ghPr("closed", { state: "closed", merged: true, merged_at: "2026-11-07T10:00:00Z", updated_at: "2026-11-07T10:00:00Z" }), "pr2");

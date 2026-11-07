@@ -13,6 +13,7 @@ import { createInteractionRouter } from "./slack-interactions.ts";
 import type { SlackMessageJob } from "./inbox.ts";
 import { registerActions } from "./actions.ts";
 import { registerInbox } from "./inbox.ts";
+import { registerMirror } from "./mirror.ts";
 import { scheduleReconcile } from "./reconcile.ts";
 import { githubForOrg, platformsFromEnv } from "@echo/connectors";
 import { registerEndOfDay } from "./end-of-day.ts";
@@ -54,6 +55,7 @@ if (platforms.chat && answer) {
   log.warn({ slack: Boolean(platforms.chat), answer: Boolean(answer) }, "resposta no Slack desligada: falta SLACK_BOT_TOKEN ou o fluxo answer() de @echo/agents");
 }
 
+await registerMirror({ db, platforms, runs, log, brainsRepository: cfg.BRAINS_REPOSITORY, queue });
 const stopReconcile = scheduleReconcile({ db, pool, platforms, runs, log, brainsRepository: cfg.BRAINS_REPOSITORY, queue }, cfg.RECONCILE_INTERVAL_MS);
 log.info({ demo: cfg.DEMO_MODE }, "worker no ar");
 // Nota do produto em toda empresa que ainda não a tem (etapa 5). Falha aqui não derruba o worker.

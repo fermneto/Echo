@@ -16,6 +16,8 @@ export const QUEUES = {
   absenceRegistered: "absence.registered",
   /** Férias detectadas na agenda: a liderança confirma antes de qualquer plano. */
   absenceSuggested: "absence.suggested",
+  /** Push no repositório brains: sincronizar o espelho das notas da empresa (etapa 14). */
+  brainMirror: "brain.mirror",
   /** Rascunho da nota do dia de uma pessoa (F3). Chave única: pessoa + data. */
   dailyNoteDraft: "daily_note.draft",
   /** Prazo de 2 h do rascunho: sem resposta, vira auto_unreviewed. */
