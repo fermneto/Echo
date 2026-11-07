@@ -87,7 +87,7 @@ describe.skipIf(!url)("noite e manhã em Postgres", () => {
 
     const comments = await asSystem(db, (tx) => tx.select().from(outboxActions).where(eq(outboxActions.orgId, org)));
     expect(comments).toHaveLength(1);
-    expect(comments[0]).toMatchObject({ type: "github.comment", target: "github:teste/app#44", state: "pending" });
+    expect(comments[0]).toMatchObject({ type: "github.comment", target: "github:teste/app#44", state: "approved", payload: { repo: "teste/app", number: 44 } });
     expect((comments[0]!.payload as { body: string }).body).toMatch(/^\*\*Análise automática do Echo\.\*\* Isto não é uma aprovação/);
 
     // Manhã: a agenda acha Fernando, e o plano traz a pergunta de Eduardo e o achado da noite.

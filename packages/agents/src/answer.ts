@@ -31,6 +31,17 @@ export interface AnswerDeps {
   recorder: RunRecorder;
   clock?: Clock;
   limits?: Partial<{ maxRounds: number; timeoutMs: number }>;
+  /** Ensaio de dia (DEMO_ALWAYS_AWAY): o dono é tratado como ausente, com a volta no próximo expediente. */
+  alwaysAway?: boolean;
+}
+
+/** No expediente, a volta "de ensaio" é o próximo início de expediente depois do fim de hoje. */
+function rehearsalAway(owner: Parameters<typeof isAway>[0], absences: Parameters<typeof isAway>[1], now: Date): AwayResult {
+  for (let h = 1; h <= 72; h++) {
+    const later = isAway(owner, absences, new Date(now.getTime() + h * 3_600_000));
+    if (later.away) return { away: true, reason: "off_hours", ...(later.returnsAt ? { returnsAt: later.returnsAt } : {}) };
+  }
+  return { away: true, reason: "off_hours" };
 }
 
 /** Recusa por política com reencaminhamento automático no servidor (refusals-and-fallback). */
@@ -77,7 +88,8 @@ export function createAnswer(deps: AnswerDeps): (req: AnswerRequest) => Promise<
       if (req.ownerId && !owner) throw new Error("dono do agente não pertence a esta empresa");
 
       const ownerName = owner ? firstName(owner) : undefined;
-      const away: AwayResult | undefined = owner ? isAway(owner, absences, now) : undefined;
+      const real: AwayResult | undefined = owner ? isAway(owner, absences, now) : undefined;
+      const away: AwayResult | undefined = owner && real && !real.away && deps.alwaysAway ? rehearsalAway(owner, absences, now) : real;
       const ownerNote = owner ? await data.latestDailyNote(owner.id) : null;
       const ctx: ToolContext = { data, brain: deps.brain(req.orgId), now, asker, owner, settings, people, absences, state };
 

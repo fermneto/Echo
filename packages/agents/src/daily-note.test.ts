@@ -137,7 +137,7 @@ describe("rascunho do fim do expediente", () => {
     // Mensagem privada pelo outbox, com Confirmar e Editar no painel.
     expect(outbox).toHaveLength(1);
     const dm = outbox[0]!;
-    expect(dm).toMatchObject({ type: "slack.dm", target: "slack:user:U-FER", idempotencyKey: "daily_note:fernando:2026-11-06" });
+    expect(dm).toMatchObject({ type: "slack.dm", target: "person:fernando", payload: { personId: "fernando" }, idempotencyKey: "daily_note:fernando:2026-11-06" });
     const payload = dm.payload as { text: string; blocks: { type: string; elements?: { action_id: string; value?: string; url?: string }[] }[] };
     expect(payload.text).toContain("*Liberado (ainda válido):* `ech-131-api-v2` para Eduardo (O formato da API está fechado)");
     expect(payload.text).toContain("*Reservado:* `ech-128-tempo-limite` (Até a revisão do PR sair)");
