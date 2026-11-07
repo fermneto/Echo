@@ -1835,13 +1835,13 @@
   margin: var(--space-md) 0 0;
   padding: 0;
 }
-.work-list li,
-.note-list li {
+.work-list > li,
+.note-list > li {
   padding: var(--space-md) 0;
   border-top: 1px solid var(--color-line);
 }
-.work-list li:first-child,
-.note-list li:first-child {
+.work-list > li:first-child,
+.note-list > li:first-child {
   border-top: 0;
   padding-top: 0;
 }
