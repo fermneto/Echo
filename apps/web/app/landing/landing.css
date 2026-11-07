@@ -504,10 +504,6 @@
   font-size: 17px;
   max-width: 60ch;
 }
-.lp-stack {
-  margin: var(--space-xl) 0 0;
-  color: var(--color-ash);
-}
 
 /* Rodapé */
 .lp-footer {

@@ -117,8 +117,8 @@ export function WorldMap({ crews, zones, arcs, nowIso, canAsk = true }: { crews:
           const solar = (((utcHours + lng / 15) % 24) + 24) % 24;
           const night = solar < 6 || solar >= 18;
           // Terra sem ninguém fica discreta; a noite, bem mais apagada que o dia.
-          let rgb: readonly number[] = [150, 150, 150];
-          let a = night ? 0.12 : 0.32;
+          let rgb: readonly number[] = [175, 175, 175];
+          let a = night ? 0.26 : 0.46;
           let rr = r;
           for (const c of crews) {
             const d = Math.hypot(lat - c.location[0], (lng - c.location[1]) * Math.cos((lat * Math.PI) / 180));

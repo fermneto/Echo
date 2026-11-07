@@ -436,7 +436,6 @@ export default function LandingPage() {
               </div>
             ))}
           </dl>
-          <p className="lp-mono lp-stack">GITHUB · LINEAR · SLACK · RH POR AVISO ASSINADO · POWERED BY CLAUDE</p>
         </section>
 
       </main>
