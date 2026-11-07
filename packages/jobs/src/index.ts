@@ -4,6 +4,10 @@ import { PgBoss } from "pg-boss";
 export const QUEUES = {
   reviewerPing: "reviewer.ping",
   reviewerPong: "reviewer.pong",
+  /** Aviso gravado em inbox_events, a processar (F1). */
+  inboxProcess: "inbox.process",
+  /** Mensagem do Slack que pede resposta do agente (F2, frente Funções). */
+  slackMessage: "slack.message",
 } as const;
 export type QueueName = (typeof QUEUES)[keyof typeof QUEUES];
 

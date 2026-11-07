@@ -1,6 +1,6 @@
 // Portas das plataformas externas. Frente: Integrações implementa os adaptadores.
 // Os agentes usam SÓ estas interfaces (nunca Octokit/Slack/Linear direto).
-import type { PullRequest, Task, WorkEvent } from "@echo/domain";
+import type { PullRequest, Task } from "@echo/domain";
 
 /** Nenhuma porta de leitura escreve. Escrita só via packages/actions, depois de aprovação. */
 export interface CodeHost {
@@ -16,16 +16,7 @@ export interface IssueTracker {
 }
 
 export type Presence = "active" | "away" | "unknown";
-export interface ChatMessage {
-  channel: string;
-  ts: string;
-  threadTs?: string;
-  userExternalId: string;
-  text: string;
-  mentions: string[]; // ids externos citados
-  mentionsBot: boolean;
-  isDm: boolean;
-}
+
 export interface ChatPlatform {
   /** Lido só na menção, com limite de 1,5 s. NUNCA gravar nem logar o resultado. */
   getPresence(userExternalId: string, timeoutMs?: number): Promise<Presence>;
@@ -48,18 +39,18 @@ export interface HrSource {
   parse(rawBody: string, headers: Record<string, string>): HrAbsenceEvent;
 }
 
-/** Evento normalizado a partir de um webhook (F1). */
-export type NormalizedEvent =
-  | { kind: "work_event"; event: WorkEvent; externalLogin?: string }
-  | { kind: "task_upsert"; task: Task; externalUpdatedAt: Date }
-  | { kind: "pr_upsert"; pr: PullRequest }
-  | { kind: "chat_message"; message: ChatMessage }
-  | { kind: "reaction"; channel: string; ts: string; reaction: string; userExternalId: string; itemUserExternalId: string }
-  | { kind: "ignored"; reason: string };
-
 /** Webhook verificado e pronto para gravar em inbox_events. */
 export interface VerifiedDelivery {
   source: "github" | "slack" | "linear" | "rh";
   deliveryId: string;
   payload: unknown;
 }
+
+export * from "./normalized.ts";
+export { TokenCipher } from "./crypto.ts";
+export { sign, verifyGithub, verifyHr, verifyLinear, verifySlack, type Verification } from "./signatures.ts";
+export { githubRouteKey, normalizeGithub, parseCoauthors } from "./github.ts";
+export { linearRouteKey, linearState, normalizeLinear } from "./linear.ts";
+export { HELP_REACTIONS, isWhoKnows, normalizeSlack, slackShouldKeep, type SlackEntryContext } from "./slack.ts";
+export { ingest, type IngestResult } from "./ingest.ts";
+export { processInbox, receive, routeOrg, type Delivery, type InboxJob, type InboxSource, type ProcessOptions } from "./inbox.ts";
