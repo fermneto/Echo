@@ -22,7 +22,17 @@ export function ollamaBaseUrl(value: string): string {
   return /^https?:\/\//.test(v) ? v : `http://${v}`;
 }
 
+/** Classificador genérico (triagem, juiz da delegação): pergunta objetiva, saída presa ao esquema JSON. */
+export interface OllamaClassifier {
+  readonly model: string;
+  classify(request: { system: string; user: string; schema: object }, signal: AbortSignal): Promise<{ raw: unknown; inputTokens?: number; outputTokens?: number }>;
+}
+
 export function ollamaTriage(opts: OllamaTriageOptions): TriageModel {
+  return ollamaClassifier(opts);
+}
+
+export function ollamaClassifier(opts: OllamaTriageOptions): OllamaClassifier {
   const doFetch = opts.fetch ?? fetch;
   const url = `${ollamaBaseUrl(opts.baseUrl)}/api/chat`;
   return {

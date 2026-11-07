@@ -1,8 +1,8 @@
 // Correções em Postgres. Toda consulta em withOrg com filtro explícito de org_id; cada mudança de estado só
 // sai do estado esperado (a mesma correção nunca avança duas vezes).
-import { type Database, fixRuns, outboxActions, pullRequests, reviews, withOrg } from "@echo/db";
-import type { FixSkipReason, PlanFix } from "@echo/domain";
-import { and, eq, gte, inArray, sql } from "drizzle-orm";
+import { type Database, fixRuns, outboxActions, people, pullRequests, reviews, withOrg } from "@echo/db";
+import { cleanAgentText, type FixSkipReason, type PlanFix } from "@echo/domain";
+import { and, eq, gte, inArray, isNull, sql } from "drizzle-orm";
 import type { FixCandidate, FixState, FixStore, FixTestResult, StoredFix } from "./fix.ts";
 import type { Finding } from "./night-review.ts";
 
@@ -154,8 +154,11 @@ export function createPgFixStore(db: Database, orgId: string): FixStore & { fixe
     async markFailed(id, from, error) {
       return move(id, from, { state: "failed", error: error.slice(0, 2000) }, { to: "reviewed", from: ["fix_queued", "fix_ready", "approved"] });
     },
-    async decide(id, by, to, at) {
-      return move(id, "ready", { state: to, decidedBy: by, decidedAt: at }, to === "approved" ? { to: "approved", from: ["fix_ready"] } : { to: "reviewed", from: ["fix_ready"] });
+    async decide(id, by, to, at, via = { via: "pessoa" }) {
+      return move(id, "ready", { state: to, decidedBy: by, decidedAt: at, decidedVia: via.via, ...(via.via === "delegacao" ? { delegationNote: via.note } : {}) }, to === "approved" ? { to: "approved", from: ["fix_ready"] } : { to: "reviewed", from: ["fix_ready"] });
+    },
+    async noteDelegation(id, note) {
+      await run((tx) => tx.update(fixRuns).set({ delegationNote: note.slice(0, 400) }).where(and(eq(fixRuns.orgId, orgId), eq(fixRuns.id, id))));
     },
     async markApplied(id) {
       return move(id, "approved", { state: "applied" }, { to: "applied", from: ["approved"] });
@@ -170,5 +173,16 @@ export function createPgFixStore(db: Database, orgId: string): FixStore & { fixe
         tests: f.testsReported && TESTS.has(f.testsReported as FixTestResult) ? (f.testsReported as FixTestResult) : "nao_rodou",
       }));
     },
+  };
+}
+
+/** Nome e delegação escrita da pessoa, para o juiz da delegação (fix.delegation.of). */
+export function pgDelegationOf(db: Database) {
+  return async (orgId: string, personId: string): Promise<{ name: string; text: string | null; updatedAt?: Date } | null> => {
+    const [p] = await withOrg(db, orgId, (tx) =>
+      tx.select({ name: people.name, text: people.delegation, updatedAt: people.delegationUpdatedAt }).from(people).where(and(eq(people.orgId, orgId), eq(people.id, personId), isNull(people.offboardedAt))),
+    );
+    if (!p) return null;
+    return { name: p.name.split(/\s+/)[0] ?? p.name, text: cleanAgentText(p.text), ...(p.updatedAt ? { updatedAt: p.updatedAt } : {}) };
   };
 }

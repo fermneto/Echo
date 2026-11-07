@@ -14,7 +14,12 @@ import { AskPanel } from "@/components/AskPanel";
 import { PixelAvatar } from "@/components/PixelAvatar";
 import { HolderPanel, StatusChip } from "@/components/Status";
 import { RailTrack } from "@/components/TimeRail";
-import { perguntar } from "./actions";
+import { AgentProfileForm } from "@/components/AgentProfileForm";
+import { AGENT_PROFILE_RULES, NEVER_DELEGATED } from "@echo/domain";
+import { personIdFor } from "@/lib/agent";
+import { panelDb } from "@/lib/db";
+import { gainsOrgId } from "@/lib/gains";
+import { perguntar, salvarPerfilDoAgente } from "./actions";
 
 const DAYS = ["domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sábado"];
 
@@ -67,6 +72,8 @@ export default async function PessoaPage({ params }: { params: Promise<{ id: str
   const isMe = me.id === persona.id;
   const away = persona.availability.kind !== "working";
   const seesWork = canAskTwin(me.role);
+  const db = isMe ? panelDb() : null;
+  const own = db ? await import("@echo/agents/perfil").then(({ readAgentProfile }) => readAgentProfile(db, gainsOrgId(me.orgId), personIdFor(me.id))) : null;
 
   return (
     <>
@@ -150,6 +157,27 @@ export default async function PessoaPage({ params }: { params: Promise<{ id: str
                 placeholder={`Por exemplo: onde ${persona.name} parou?`}
                 suggestions={suggestedQuestions(persona)}
               />
+            </section>
+          )}
+
+          {isMe && (
+            <section className="card" aria-labelledby="seu-agente">
+              <h2 id="seu-agente" className="card__title">
+                Seu agente
+              </h2>
+              <AgentProfileForm
+                save={salvarPerfilDoAgente}
+                personId={me.id}
+                firstName={persona.name.split(" ")[0] ?? persona.name}
+                style={own?.style ?? ""}
+                delegation={own?.delegation ?? ""}
+                delegationSince={own?.delegationUpdatedAt ? own.delegationUpdatedAt.toLocaleDateString("pt-BR", { timeZone: persona.timezone }) : null}
+                maxChars={AGENT_PROFILE_RULES.maxChars}
+                never={NEVER_DELEGATED}
+                fixRules={`Mesmo com a delegação, a correção só é unida sozinha com testes passando, até ${AGENT_PROFILE_RULES.delegatedFixMaxFiles} arquivos, fora de autenticação, pagamentos, migrações e infraestrutura, e se o rascunho não mudou. Você recebe o aviso com o motivo e pode desfazer.`}
+                disabled={!db}
+              />
+              {!db && <p className="muted">Sem banco neste ambiente: o texto não é gravado.</p>}
             </section>
           )}
 

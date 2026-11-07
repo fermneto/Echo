@@ -8,6 +8,7 @@ import {
   checkFixDiff,
   type Clock,
   costLevel,
+  delegatedFixGate,
   fixBranch,
   fixDecision,
   fixMergeCheck,
@@ -18,6 +19,7 @@ import {
 } from "@echo/domain";
 import type { AgentRun, RunRecorder } from "@echo/observability";
 import type { AgentData } from "./data.ts";
+import { DELEGATION_RULES, type DelegationModel, runDelegation } from "./delegation.ts";
 import { MODELS } from "./index.ts";
 import { APPROVAL_PATTERN, cleanText, type Finding, PEOPLE_PATTERN, SEVERITY_LABEL } from "./night-review.ts";
 
@@ -106,10 +108,23 @@ export interface FixStore {
   markReady(id: string, draft: { number: number; headSha: string }): Promise<boolean>;
   /** De `from` para `failed`, com o erro; a revisão volta a `reviewed`. */
   markFailed(id: string, from: FixState, error: string): Promise<boolean>;
-  /** `ready` → `approved` ou `declined`, com quem decidiu. */
-  decide(id: string, by: string, to: "approved" | "declined", at: Date): Promise<boolean>;
+  /** `ready` → `approved` ou `declined`, com quem decidiu e como (no painel ou pela delegação escrita). */
+  decide(id: string, by: string, to: "approved" | "declined", at: Date, via?: FixDecidedVia): Promise<boolean>;
+  /** Por que a delegação não cobriu esta correção (a pessoa vê no plano). Não muda o estado. */
+  noteDelegation(id: string, note: string): Promise<void>;
   /** `approved` → `applied`; a revisão também. */
   markApplied(id: string): Promise<boolean>;
+}
+
+/** pessoa: decidiu no painel. delegacao: o agente decidiu pela delegação escrita da pessoa, com o motivo. */
+export type FixDecidedVia = { via: "pessoa" } | { via: "delegacao"; note: string };
+
+/** Delegação (opcional): juiz pequeno e o texto da pessoa. Sem isto, toda correção espera a pessoa. */
+export interface FixDelegationDeps {
+  judge: DelegationModel;
+  timeoutMs: number;
+  /** Nome e delegação escrita do autor; null se a pessoa não existe nesta empresa. */
+  of: (orgId: string, personId: string) => Promise<{ name: string; text: string | null; updatedAt?: Date } | null>;
 }
 
 export interface FixOutbox {
@@ -126,6 +141,7 @@ export interface FixDeps {
   outbox: (orgId: string) => FixOutbox;
   recorder: RunRecorder;
   clock?: Clock;
+  delegation?: FixDelegationDeps | null;
 }
 
 // ---------- fix.json do agente, validado em código
@@ -293,6 +309,7 @@ export function createFix(deps: FixDeps) {
         if (await store.markReady(fix.id, { number: draft.number, headSha: draft.headSha })) {
           out.ready++;
           await record({ flow: "fix_ready", orgId, durationMs: 0, result: "ok" });
+          await delegate(orgId, fix.id);
         }
       } else if (r?.state === "failed") {
         if (await store.markFailed(fix.id, "draft_queued", `rascunho não criado: ${r.error ?? "erro"}`)) out.failed++;
@@ -318,7 +335,7 @@ export function createFix(deps: FixDeps) {
    * Meu plano: o autor aprova ou recusa. Aprovar confere, na hora, que o rascunho não mudou e enfileira a
    * união com a aprovação registrada; a versão do rascunho vai junto, e a execução recusa se ela mudar.
    */
-  async function decide(orgId: string, by: string, fixId: string, decision: "approve" | "decline"): Promise<FixDecisionOutcome> {
+  async function decide(orgId: string, by: string, fixId: string, decision: "approve" | "decline", via: FixDecidedVia = { via: "pessoa" }): Promise<FixDecisionOutcome> {
     const started = performance.now();
     const finish = (outcome: FixDecisionOutcome, result: AgentRun["result"], tools: string[] = []) =>
       record({ flow: "fix_decision", orgId, durationMs: Math.round(performance.now() - started), result, tools, ...("reason" in outcome ? { error: outcome.reason } : {}) }).then(() => outcome);
@@ -328,7 +345,7 @@ export function createFix(deps: FixDeps) {
     if (!fix.pr.authorId || by !== fix.pr.authorId) return finish({ status: "denied" }, "refused");
 
     if (decision === "decline") {
-      if (!(await store.decide(fixId, by, "declined", clock.now()))) return finish({ status: "conflict" }, "skipped");
+      if (!(await store.decide(fixId, by, "declined", clock.now(), via))) return finish({ status: "conflict" }, "skipped");
       return finish({ status: "declined" }, "ok");
     }
     const host = deps.codeHost(orgId);
@@ -339,7 +356,7 @@ export function createFix(deps: FixDeps) {
     ]);
     const check = fixMergeCheck({ by, authorId: fix.pr.authorId, fixState: fix.state, draftHeadSha: fix.draftHeadSha, draft, pr });
     if (!check.ok) return finish({ status: "refused", reason: check.reason }, "refused");
-    if (!(await store.decide(fixId, by, "approved", clock.now()))) return finish({ status: "conflict" }, "skipped");
+    if (!(await store.decide(fixId, by, "approved", clock.now(), via))) return finish({ status: "conflict" }, "skipped");
     await deps.outbox(orgId).enqueue({
       type: "github.merge_fix",
       target: `github:${fix.pr.repository}#${fix.draftPrNumber}`,
@@ -348,6 +365,53 @@ export function createFix(deps: FixDeps) {
       approvedBy: by,
     });
     return finish({ status: "approved" }, "ok", ["github.merge_fix"]);
+  }
+
+  /**
+   * Correção pronta: se o autor escreveu uma delegação, as travas fixas (delegatedFixGate) e o juiz pequeno decidem
+   * se ela cobre esta correção. Cobrindo, a união segue pelo mesmo `decide` do painel (mesma conferência do
+   * rascunho), registrada como aprovação do autor pela delegação, e o autor recebe o aviso com o motivo. Não
+   * cobrindo ou na dúvida, a correção espera o autor, com a nota do porquê.
+   */
+  async function delegate(orgId: string, fixId: string): Promise<void> {
+    const del = deps.delegation;
+    if (!del) return;
+    const started = performance.now();
+    const store = deps.fixes(orgId);
+    const fix = await store.get(fixId);
+    if (!fix?.pr.authorId || fix.state !== "ready") return;
+    const owner = await del.of(orgId, fix.pr.authorId);
+    if (!owner?.text) return;
+    const ms = () => Math.round(performance.now() - started);
+    const gate = delegatedFixGate(owner.text, { files: fix.files, tests: fix.tests });
+    if (!gate.ok) {
+      await store.noteDelegation(fixId, `Ficou com você: ${gate.reason}.`);
+      await record({ flow: "fix_delegation", orgId, durationMs: ms(), result: "skipped", error: gate.reason, tools: ["travas"] });
+      return;
+    }
+    const out = await runDelegation(del.judge, { decision: "aplicar_correcao", ownerName: owner.name, delegation: owner.text, fix: { repository: fix.pr.repository, prNumber: fix.pr.number, files: fix.files, tests: fix.tests } }, del.timeoutMs);
+    const usage = { model: out.model, costUsd: 0, ...(out.inputTokens !== undefined ? { inputTokens: out.inputTokens } : {}), ...(out.outputTokens !== undefined ? { outputTokens: out.outputTokens } : {}) };
+    if (!out.verdict?.cabe) {
+      const why = out.verdict ? out.verdict.motivo : `o juiz não respondeu (${out.error ?? "sem resposta"})`;
+      await store.noteDelegation(fixId, `Ficou com você: ${why}`.slice(0, DELEGATION_RULES.maxNoteChars));
+      await record({ flow: "fix_delegation", orgId, durationMs: ms(), ...usage, result: out.verdict ? "skipped" : "fallback", error: why, tools: ["travas", "juiz"] });
+      return;
+    }
+    const since = owner.updatedAt ? ` de ${owner.updatedAt.toISOString().slice(0, 10)}` : "";
+    const note = `Unida pela sua delegação${since}: ${out.verdict.motivo}`.slice(0, DELEGATION_RULES.maxNoteChars);
+    const r = await decide(orgId, fix.pr.authorId, fixId, "approve", { via: "delegacao", note });
+    if (r.status !== "approved") {
+      await store.noteDelegation(fixId, `Ficou com você: a delegação cobria, mas a conferência do rascunho recusou (${"reason" in r ? r.reason : r.status}).`);
+      await record({ flow: "fix_delegation", orgId, durationMs: ms(), ...usage, result: "skipped", error: `conferência: ${r.status}`, tools: ["travas", "juiz"] });
+      return;
+    }
+    await deps.outbox(orgId).enqueue({
+      type: "slack.dm",
+      target: `person:${fix.pr.authorId}`,
+      payload: { personId: fix.pr.authorId, text: `Agente de ${owner.name}: a correção do PR #${fix.pr.number} (${fix.pr.repository}) foi unida pela sua delegação${since}. Motivo: ${out.verdict.motivo} Para desfazer, reverta o commit da união no PR. Para mudar o que o agente decide por você, edite a delegação no painel.` },
+      idempotencyKey: `fix_delegated:${fixId}`,
+    });
+    await record({ flow: "fix_delegation", orgId, durationMs: ms(), ...usage, result: "ok", tools: ["travas", "juiz", "github.merge_fix", "slack.dm"] });
   }
 
   return { pending, run, sync, decide };

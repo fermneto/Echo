@@ -18,7 +18,7 @@ await registerPing(queue, (msg) => log.info({ from: msg.from, nonce: msg.nonce }
 
 // Correção (etapa 10). O PR, o token de 1 h só leitura e o estado do rascunho vêm do GitHub pela frente de
 // Integrações (CodeHost); até a porta existir, não há candidatos e nenhuma sessão é aberta.
-const fix = serverFix(db, { apiKey: cfg.ANTHROPIC_API_KEY, agentId: cfg.FIX_AGENT_ID, environmentId: cfg.FIX_ENVIRONMENT_ID, timeoutMs: cfg.FIX_TIMEOUT_MS, codeHost: () => null });
+const fix = serverFix(db, { apiKey: cfg.ANTHROPIC_API_KEY, agentId: cfg.FIX_AGENT_ID, environmentId: cfg.FIX_ENVIRONMENT_ID, timeoutMs: cfg.FIX_TIMEOUT_MS, codeHost: () => null, judge: cfg.TRIAGE_OLLAMA_URL ? { url: cfg.TRIAGE_OLLAMA_URL, model: cfg.TRIAGE_MODEL, timeoutMs: cfg.TRIAGE_TIMEOUT_MS } : undefined });
 const fixing = await registerFix(queue, { fix, orgIds: () => allOrgIds(db), timeoutMs: cfg.FIX_TIMEOUT_MS });
 const runFix = () =>
   fixing.tick().then(

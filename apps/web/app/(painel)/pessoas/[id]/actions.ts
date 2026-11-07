@@ -1,7 +1,8 @@
 "use server";
 
 import { canAskTwin } from "@/lib/access";
-import { askAgent, panelRequest, recordIn } from "@/lib/agent";
+import { askAgent, panelRequest, personIdFor, recordIn } from "@/lib/agent";
+import { gainsOrgId } from "@/lib/gains";
 import { panelDb } from "@/lib/db";
 import { findMember } from "@/lib/demo/team";
 import { askTwinDemo } from "@/lib/demo/twin";
@@ -27,4 +28,17 @@ export async function perguntar(prev: AskState, formData: FormData): Promise<Ask
   }
   const r = await askAgent(panelRequest({ orgId: me.orgId, askerId: me.id, ownerId: target.id, question }), { record: recordIn(db) });
   return r.ok ? { turns: [...prev.turns, { question, reply: r.reply }] } : { ...prev, error: r.error };
+}
+
+export type ProfileState = { saved?: string; error?: string };
+
+/** O próprio texto do agente: como ele responde e até onde decide pela pessoa. Só a pessoa grava o dela. */
+export async function salvarPerfilDoAgente(_prev: ProfileState, formData: FormData): Promise<ProfileState> {
+  const me = await currentPersona();
+  if (!me || String(formData.get("pessoa") ?? "") !== me.id) return { error: "Só a própria pessoa muda o jeito do agente dela." };
+  const db = panelDb();
+  if (!db) return { error: "Sem banco neste ambiente: o texto não foi gravado." };
+  const { saveAgentProfile } = await import("@echo/agents/perfil");
+  const ok = await saveAgentProfile(db, gainsOrgId(me.orgId), personIdFor(me.id), { style: String(formData.get("estilo") ?? ""), delegation: String(formData.get("delegacao") ?? "") }, new Date());
+  return ok ? { saved: new Date().toISOString() } : { error: "Pessoa não encontrada nesta empresa." };
 }

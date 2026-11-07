@@ -195,7 +195,7 @@ async function modelLoop(input: {
   const messages: MessageParam[] = [
     {
       role: "user",
-      content: questionMessage({ req: input.req, askerName: firstName(ctx.asker), askerRole: ctx.asker.role, ownerName: input.ownerName, ownerAway: input.ownerAway, today: input.today }),
+      content: questionMessage({ req: input.req, askerName: firstName(ctx.asker), askerRole: ctx.asker.role, ownerName: input.ownerName, ownerAway: input.ownerAway, ownerStyle: ctx.owner?.agentStyle, today: input.today }),
     },
   ];
   const controller = new AbortController();

@@ -13,10 +13,10 @@ import { createPgDailyNoteStore } from "./pg-notes.ts";
 import { createMorningPlan, type MorningPlan } from "./morning-plan.ts";
 import { type BatchApi, createNightReview, type NightReview, type ReviewSource } from "./night-review.ts";
 import { createPgPlanStore, createPgReviewStore } from "./pg-night.ts";
-import { ollamaTriage } from "./triage-ollama.ts";
+import { ollamaClassifier, ollamaTriage } from "./triage-ollama.ts";
 import { createFix, type Fix, type FixCodeHost } from "./fix.ts";
 import { createManagedFixSandbox, fixAgentParams, fixEnvironmentParams } from "./managed-fix.ts";
-import { createPgFixStore } from "./pg-fix.ts";
+import { createPgFixStore, pgDelegationOf } from "./pg-fix.ts";
 import { createRedistribution, type Redistribution } from "./redistribution.ts";
 import { createPgRedistributionStore } from "./pg-redistribution.ts";
 import { createWeeklyReport, type WeeklyReport } from "./report.ts";
@@ -136,7 +136,7 @@ export function serverMorningPlan(db: Database, webUrl: string): MorningPlan {
  * FIX_ENVIRONMENT_ID, não há ambiente; sem a porta do GitHub (Integrações), não há correção. `decide` (Meu plano)
  * só precisa da porta do GitHub.
  */
-export function serverFix(db: Database, opts: { apiKey?: string | undefined; agentId?: string | undefined; environmentId?: string | undefined; timeoutMs?: number; codeHost: (orgId: string) => FixCodeHost | null }): Fix {
+export function serverFix(db: Database, opts: { apiKey?: string | undefined; agentId?: string | undefined; environmentId?: string | undefined; timeoutMs?: number; codeHost: (orgId: string) => FixCodeHost | null; judge?: { url: string; model: string; timeoutMs: number } | undefined }): Fix {
   const sandbox =
     opts.apiKey && opts.agentId && opts.environmentId
       ? createManagedFixSandbox(new Anthropic({ apiKey: opts.apiKey, maxRetries: 2 }), { agentId: opts.agentId, environmentId: opts.environmentId, ...(opts.timeoutMs ? { timeoutMs: opts.timeoutMs } : {}) })
@@ -148,6 +148,8 @@ export function serverFix(db: Database, opts: { apiKey?: string | undefined; age
     sandbox,
     outbox: (orgId) => createPgOutbox(db, orgId),
     recorder: createDbRunRecorder(db),
+    // Com o Ollama (o mesmo da triagem), a delegação escrita pela pessoa pode unir a correção por ela.
+    delegation: opts.judge ? { judge: ollamaClassifier({ baseUrl: opts.judge.url, model: opts.judge.model }), timeoutMs: opts.judge.timeoutMs, of: pgDelegationOf(db) } : null,
   });
 }
 

@@ -136,6 +136,25 @@ describe("answer com modelo", () => {
     expect(user).toContain("Qual o plano do faturamento?");
   });
 
+  it("estilo da pessoa vai fora de <dados> só no gêmeo; as instruções fixas seguem iguais (cache)", async () => {
+    const data = memoryData();
+    const withStyle: AgentData = { ...data, people: async () => (await data.people()).map((p) => (p.id === "fernando" ? { ...p, agentStyle: "Respondo curto, explico o porquê numa frase e sempre aponto o próximo passo." } : p)) };
+    const out: AnswerOutput = { status: "nao_sei", texto: "Não há registro sobre isso; a dúvida fica para Fernando.", fontes: [], liberacao: null, precisa_do_dono: true };
+    const twin = scripted([{ out }]);
+    await setup(twin.call, withStyle).answer(ask("Qual o plano do faturamento?"));
+    const user = String(twin.calls[0]!.messages[0]!.content);
+    expect(user.indexOf("<estilo_da_pessoa>")).toBeGreaterThan(user.indexOf("</dados>"));
+    expect(user).toContain("aponto o próximo passo");
+
+    const plain = scripted([{ out }]);
+    await setup(plain.call).answer(ask("Qual o plano do faturamento?"));
+    expect(JSON.stringify(plain.calls[0]!.system)).toBe(JSON.stringify(twin.calls[0]!.system));
+
+    const echo = scripted([{ out: { ...out, precisa_do_dono: false } }]);
+    await setup(echo.call, withStyle).answer(ask("quem trabalha com pagamentos?", { ownerId: undefined }));
+    expect(String(echo.calls[0]!.messages[0]!.content)).not.toContain("estilo_da_pessoa");
+  });
+
   it("liberação falsa do modelo é recusada duas vezes e a resposta sai por regra", async () => {
     const falsa: AnswerOutput = { status: "respondido", texto: "Pode mexer na ech-128-tempo-limite.", fontes: [NOTE_REF], liberacao: { alvo: "ech-128-tempo-limite", tipo: "branch" }, precisa_do_dono: false };
     const m = scripted([{ tools: [{ name: "search_brain", input: { consulta: "tempo limite", tarefa: null, branch: null, pr: null } }, { name: "get_daily_note", input: { pessoa: null } }] }, { out: falsa }, { out: falsa }, { out: falsa }]);

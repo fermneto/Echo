@@ -22,6 +22,8 @@ export interface Person {
   skills: string[];
   areas: string[];
   active: boolean;
+  /** Como a pessoa quer que o agente dela responda (texto dela, já limpo por cleanAgentText). */
+  agentStyle?: string | undefined;
 }
 
 export type AbsenceKind = "vacation" | "leave" | "unexpected" | "ooo";
