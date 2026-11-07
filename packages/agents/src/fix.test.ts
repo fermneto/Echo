@@ -94,7 +94,7 @@ describe("correção", () => {
     // O ambiente recebe o token só leitura, a versão analisada e o limite de US$ 2.
     expect(s.sandboxCalls[0]).toMatchObject({ repository: "org/app", headSha: "sha44", token: "tok-1h-leitura", budgetUsd: 2, prFiles: ["src/filtros.ts"], findings: [finding] });
     // O rascunho vai pelo outbox, sem aprovação (não muda o PR), na branch echo/fix-pr-44.
-    expect(s.outbox[0]).toMatchObject({ type: "github.draft_pr", idempotencyKey: "fix_draft:fix1", payload: { repository: "org/app", base: "ech-128-filtro", baseSha: "sha44", branch: "echo/fix-pr-44", patch: PATCH, draft: true } });
+    expect(s.outbox[0]).toMatchObject({ type: "github.draft_pr", idempotencyKey: "fix_draft:fix1", payload: { repo: "org/app", base: "ech-128-filtro", baseSha: "sha44", branch: "echo/fix-pr-44", patch: PATCH, draft: true } });
     expect(s.outbox[0]!.approvedBy).toBeUndefined();
     expect((s.outbox[0]!.payload as { body: string }).body).toMatch(/^\*\*Correção preparada pelo Echo\*\* para o PR #44, em rascunho, para aprovação do autor\. Isto não é uma aprovação/);
     expect(s.runs.at(-1)).toMatchObject({ flow: "fix", result: "ok", model: "claude-sonnet-5-5", costUsd: 0.42, tools: ["managed_agents.session", "github.draft_pr"] });
@@ -107,7 +107,7 @@ describe("correção", () => {
     // Só o autor aprova; a união leva a versão do rascunho e a aprovação registrada.
     expect(await s.flow.decide("org", "eduardo", "fix1", "approve")).toEqual({ status: "denied" });
     expect(await s.flow.decide("org", "fernando", "fix1", "approve")).toEqual({ status: "approved" });
-    expect(s.outbox[1]).toMatchObject({ type: "github.merge_fix", approvedBy: "fernando", idempotencyKey: "fix_merge:fix1", payload: { repository: "org/app", number: 45, sha: "d45", base: "ech-128-filtro" } });
+    expect(s.outbox[1]).toMatchObject({ type: "github.merge_fix", approvedBy: "fernando", idempotencyKey: "fix_merge:fix1", payload: { repo: "org/app", number: 45, sha: "d45", base: "ech-128-filtro" } });
     expect(await s.flow.decide("org", "fernando", "fix1", "approve")).toMatchObject({ status: "refused", reason: "nao_esta_pronta" });
 
     s.outboxRows.set("fix_merge:fix1", { state: "done", result: { merged: true } });

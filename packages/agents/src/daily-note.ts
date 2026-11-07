@@ -361,7 +361,8 @@ export function createEndOfDay(deps: EndOfDayDeps) {
       if (slackUser) {
         const names = new Map(people.map((p) => [p.id, firstName(p)]));
         const msg = draftMessage(note, names, deps.webUrl);
-        const r = await deps.outbox(orgId).enqueue({ type: "slack.dm", target: `slack:user:${slackUser}`, payload: { user: slackUser, text: msg.text, blocks: msg.blocks }, idempotencyKey: `daily_note:${personId}:${date}` });
+        // Contrato do executor: a pessoa pelo id do Echo (ele acha a conta do Slack); os botões vão em `blocks`.
+        const r = await deps.outbox(orgId).enqueue({ type: "slack.dm", target: `person:${personId}`, payload: { personId, text: msg.text, blocks: msg.blocks }, idempotencyKey: `daily_note:${personId}:${date}` });
         dmQueued = !r.duplicate;
       }
       return finish(
