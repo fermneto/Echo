@@ -855,22 +855,99 @@
 }
 
 .lp-chat {
-  position: absolute;
-  left: -14%;
-  bottom: -4%;
-  width: min(340px, 80%);
-  padding: 16px;
   display: flex;
   flex-direction: column;
   gap: 6px;
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--color-paper);
+}
+.lp-chat__warn {
+  color: var(--color-signal-wait);
+  font-size: 13px;
+}
+.lp-legend__hint {
+  margin-top: 4px;
+  padding-top: 6px;
+  border-top: 1px solid var(--color-line);
+  font-size: 12px;
+  color: var(--color-ash);
+}
+
+/* Etiquetas clicáveis e o cartão que abre ao clicar num ponto */
+.globe__label {
+  background: none;
+  border: 0;
+  padding: 0;
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.globe__label:hover .globe__tag {
+  border-color: var(--color-iron);
+}
+.globe__label:focus-visible {
+  outline: none;
+}
+.globe__label:focus-visible .globe__tag {
+  outline: 2px solid var(--color-cloud);
+  outline-offset: 2px;
+}
+.globe__popup {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 5;
+  width: min(340px, 86vw);
+  translate: 22px -50%;
+  will-change: transform;
+}
+.globe__popup[data-side="left"] {
+  translate: calc(-100% - 22px) -50%;
+}
+.globe__popup-card {
+  position: relative;
+  padding: 16px 16px 14px;
   background: var(--color-panel);
   border: 1px solid var(--color-edge);
   border-radius: var(--rounded-xl);
   box-shadow: var(--shadow-float);
-  font-size: 14px;
-  line-height: 1.45;
-  color: var(--color-paper);
-  animation: lp-deal 0.9s var(--ease-enter) 0.6s both;
+  animation: lp-pop 0.35s var(--ease-enter) both;
+}
+@keyframes lp-pop {
+  from {
+    opacity: 0;
+    transform: scale(0.96) translateY(6px);
+  }
+}
+.globe__popup .lp-chat__head:first-child {
+  padding-right: 26px;
+}
+.globe__close {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 24px;
+  height: 24px;
+  display: grid;
+  place-items: center;
+  border: 0;
+  border-radius: var(--rounded-md);
+  background: transparent;
+  color: var(--color-ash);
+  cursor: pointer;
+}
+.globe__close:hover {
+  color: var(--color-cloud);
+  background: var(--color-charcoal);
+}
+.globe__close:focus-visible {
+  outline: 2px solid var(--color-cloud);
+}
+.globe__close svg {
+  width: 14px;
+  height: 14px;
 }
 .lp-chat p {
   margin: 0;
@@ -1074,13 +1151,6 @@
     justify-self: center;
     width: min(520px, 100%);
     margin-top: var(--space-xl);
-  }
-  .lp-chat {
-    position: relative;
-    left: auto;
-    bottom: auto;
-    width: 100%;
-    margin-top: calc(-1 * var(--space-3xl));
   }
   .lp-legend {
     top: 0;
@@ -1296,5 +1366,21 @@
   }
   .moment__time {
     font-size: 15px;
+  }
+}
+
+/* No celular, o cartão do ponto abre fixo na parte de baixo da tela. */
+@media (max-width: 640px) {
+  .globe__popup,
+  .globe__popup[data-side="left"] {
+    position: fixed;
+    left: 16px;
+    right: 16px;
+    top: auto;
+    bottom: 16px;
+    width: auto;
+    translate: none;
+    transform: none !important;
+    opacity: 1 !important;
   }
 }

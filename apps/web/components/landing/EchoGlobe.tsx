@@ -9,6 +9,7 @@ import { WORLD_MAP_PNG } from "./worldMap";
  * Em volta de cada cidade, os próprios pontos do globo mudam de cor, verde onde há gente no
  * expediente e azul onde o gêmeo está no comando, com uma onda que pulsa saindo da cidade.
  * Arcos entre as pessoas com um brilho que corre; etiquetas acompanham cada ponto.
+ * Clicar num ponto (ou na etiqueta) abre o cartão daquele lugar; fecha com Esc, clique fora ou ×.
  * Arrasta com inércia, gira sozinho, pausa fora da tela e respeita prefers-reduced-motion.
  */
 
@@ -23,6 +24,10 @@ export type GlobePoint = {
   /** Lado da etiqueta em relação ao ponto. */
   side?: "left" | "right";
   label: ReactNode;
+  /** Nome curto para leitores de tela ("Fortaleza"). */
+  place: string;
+  /** O que aparece ao clicar no ponto. */
+  detail?: ReactNode;
 };
 
 export type GlobeArc = { id: string; from: [number, number]; to: [number, number]; tone: Tone };
@@ -65,8 +70,34 @@ function loadLand(): Promise<(lat: number, lng: number) => boolean> {
 export function EchoGlobe({ points, arcs, focusLongitude = -5, theta = 0.32 }: { points: GlobePoint[]; arcs: GlobeArc[]; focusLongitude?: number; theta?: number }) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const labelRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const labelRefs = useRef<(HTMLButtonElement | null)[]>([]);
+  const popupRef = useRef<HTMLDivElement>(null);
   const [ready, setReady] = useState(false);
+  const [open, setOpen] = useState<number | null>(null);
+  const openRef = useRef<number | null>(null);
+  openRef.current = open;
+  /** Redesenha um quadro já (o globo parado, com movimento reduzido, não redesenha sozinho). */
+  const redraw = useRef<() => void>(() => {});
+
+  useEffect(() => {
+    const id = requestAnimationFrame(() => redraw.current());
+    return () => cancelAnimationFrame(id);
+  }, [open]);
+
+  // Fecha com Esc ou clique fora do globo.
+  useEffect(() => {
+    if (open === null) return;
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && setOpen(null);
+    const onDown = (e: PointerEvent) => {
+      if (!wrapRef.current?.contains(e.target as Node)) setOpen(null);
+    };
+    document.addEventListener("keydown", onKey);
+    document.addEventListener("pointerdown", onDown);
+    return () => {
+      document.removeEventListener("keydown", onKey);
+      document.removeEventListener("pointerdown", onDown);
+    };
+  }, [open]);
 
   useEffect(() => {
     const canvas = canvasRef.current;
@@ -89,6 +120,8 @@ export function EchoGlobe({ points, arcs, focusLongitude = -5, theta = 0.32 }: {
     let lastMove: { x: number; y: number; t: number } | null = null;
 
     const cities = points.map((p) => ({ ...p, v: toVec(p.location[0], p.location[1]) }));
+    /** Posição na tela de cada cidade no último quadro (para o clique). */
+    const screen = cities.map(() => ({ x: 0, y: 0, z: -1 }));
     const arcVecs = arcs.map((a) => ({ ...a, a: toVec(a.from[0], a.from[1]), b: toVec(a.to[0], a.to[1]) }));
     let dots: Dot[] = [];
 
@@ -192,11 +225,20 @@ export function EchoGlobe({ points, arcs, focusLongitude = -5, theta = 0.32 }: {
         const [x, y, z] = rotate(p.v, phi, tilt);
         const sx = c + x * r;
         const sy = c - y * r;
+        screen[i] = { x: sx, y: sy, z };
         const label = labelRefs.current[i];
         const alpha = Math.max(0, Math.min(1, (z - 0.08) / 0.25));
+        const isOpen = openRef.current === i;
         if (label) {
           label.style.transform = `translate(${sx.toFixed(1)}px, ${sy.toFixed(1)}px)`;
-          label.style.opacity = String(alpha);
+          label.style.opacity = String(isOpen ? 0 : alpha);
+          label.style.pointerEvents = alpha > 0.5 && !isOpen ? "auto" : "none";
+        }
+        const popup = popupRef.current;
+        if (isOpen && popup) {
+          popup.style.transform = `translate(${sx.toFixed(1)}px, ${sy.toFixed(1)}px)`;
+          popup.style.opacity = String(Math.max(0.15, alpha));
+          popup.dataset.side = sx > c ? "left" : "right";
         }
         if (z <= 0) return;
         const [pr, pg, pb] = RGB[p.tone];
@@ -210,9 +252,18 @@ export function EchoGlobe({ points, arcs, focusLongitude = -5, theta = 0.32 }: {
         }
         ctx.fillStyle = `rgba(${pr},${pg},${pb},${Math.max(0.3, alpha).toFixed(3)})`;
         ctx.beginPath();
-        ctx.arc(sx, sy, 5, 0, Math.PI * 2);
+        ctx.arc(sx, sy, isOpen ? 7 : 5, 0, Math.PI * 2);
         ctx.fill();
+        if (isOpen) {
+          ctx.strokeStyle = "rgba(250,250,250,0.9)";
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
+        }
       });
+    };
+
+    redraw.current = () => {
+      if (dots.length) draw(performance.now());
     };
 
     const tick = (t: number) => {
@@ -269,7 +320,35 @@ export function EchoGlobe({ points, arcs, focusLongitude = -5, theta = 0.32 }: {
     });
     ro.observe(wrap);
 
+    let downAt: { x: number; y: number } | null = null;
+    /** Cidade sob o ponteiro (raio de 16 px), visível na face da frente. */
+    const hit = (e: PointerEvent) => {
+      const b = canvas.getBoundingClientRect();
+      const x = e.clientX - b.left;
+      const y = e.clientY - b.top;
+      let best = -1;
+      let bestD = 16;
+      screen.forEach((p, i) => {
+        if (p.z <= 0.05 || !cities[i]?.detail) return;
+        const d = Math.hypot(p.x - x, p.y - y);
+        if (d < bestD) {
+          best = i;
+          bestD = d;
+        }
+      });
+      return best;
+    };
+    const onHover = (e: PointerEvent) => {
+      if (drag) return;
+      canvas.style.cursor = hit(e) >= 0 ? "pointer" : "grab";
+    };
+    const onClick = (e: PointerEvent) => {
+      if (!downAt || Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y) > 5) return;
+      const i = hit(e);
+      setOpen((cur) => (i < 0 ? null : cur === i ? null : i));
+    };
     const onDown = (e: PointerEvent) => {
+      downAt = { x: e.clientX, y: e.clientY };
       drag = { x: e.clientX, y: e.clientY, phi, tilt };
       vel = { phi: 0, tilt: 0 };
       lastMove = null;
@@ -295,6 +374,8 @@ export function EchoGlobe({ points, arcs, focusLongitude = -5, theta = 0.32 }: {
       canvas.style.cursor = "grab";
     };
     canvas.addEventListener("pointerdown", onDown);
+    canvas.addEventListener("pointermove", onHover);
+    canvas.addEventListener("pointerup", onClick);
     window.addEventListener("pointermove", onMove, { passive: true });
     window.addEventListener("pointerup", onUp, { passive: true });
 
@@ -304,6 +385,8 @@ export function EchoGlobe({ points, arcs, focusLongitude = -5, theta = 0.32 }: {
       io.disconnect();
       ro.disconnect();
       canvas.removeEventListener("pointerdown", onDown);
+      canvas.removeEventListener("pointermove", onHover);
+      canvas.removeEventListener("pointerup", onClick);
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
     };
@@ -313,17 +396,32 @@ export function EchoGlobe({ points, arcs, focusLongitude = -5, theta = 0.32 }: {
     <div className="globe" ref={wrapRef}>
       <canvas ref={canvasRef} className={`globe__canvas${ready ? " is-ready" : ""}`} aria-label="Globo com a equipe da demonstração em Fortaleza, Joanesburgo e Tóquio" role="img" />
       {points.map((p, i) => (
-        <div
+        <button
           key={p.id}
+          type="button"
           ref={(el) => {
             labelRefs.current[i] = el;
           }}
           className={`globe__label globe__label--${p.tone}${p.side === "left" ? " globe__label--left" : ""}`}
-          aria-hidden="true"
+          aria-label={`Ver o que acontece em ${p.place}`}
+          aria-expanded={open === i}
+          onClick={() => setOpen((cur) => (cur === i ? null : i))}
         >
           {p.label}
-        </div>
+        </button>
       ))}
+      {open !== null && points[open]?.detail && (
+        <div ref={popupRef} className="globe__popup" role="dialog" aria-label={`Conversa em ${points[open]!.place}`}>
+          <div className="globe__popup-card">
+            <button type="button" className="globe__close" onClick={() => setOpen(null)} aria-label="Fechar">
+              <svg viewBox="0 0 16 16" aria-hidden="true">
+                <path d="m4 4 8 8M12 4l-8 8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+              </svg>
+            </button>
+            {points[open]!.detail}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

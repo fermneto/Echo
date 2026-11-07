@@ -1,4 +1,4 @@
-import type { CSSProperties } from "react";
+import type { CSSProperties, ReactNode } from "react";
 import Link from "next/link";
 import { EchoGlobe, type GlobeArc, type GlobePoint } from "@/components/landing/EchoGlobe";
 import { DotField } from "@/components/landing/DotField";
@@ -74,12 +74,74 @@ function GlobeCrew({ ids, mode = "person", code, tz, caption }: { ids: string[];
 
 const YAN: [number, number] = [43.06, 141.35];
 
+/** Uma fala no cartão do ponto: quem, onde e que horas, e o que disse. */
+function Line({ who, agent, meta, children }: { who: string; agent?: boolean; meta: string; children: ReactNode }) {
+  return (
+    <>
+      <p className={`lp-chat__head${agent ? " lp-chat__head--agent" : ""}`}>
+        <b>{who}</b>
+        <span className="lp-mono">{meta}</span>
+      </p>
+      <p>{children}</p>
+    </>
+  );
+}
+
+const JNB_T = localTime(DEMO_NOW, "Africa/Johannesburg");
+const FOR_T = localTime(DEMO_NOW, "America/Fortaleza");
+const TYO_T = localTime(DEMO_NOW, "Asia/Tokyo");
+
+const DETAIL = {
+  fernando: (
+    <div className="lp-chat">
+      <Line who="Eduardo" meta={`JNB ${JNB_T}`}>
+        @Fernando posso seguir com a branch ech-131-api-v2?
+      </Line>
+      <Line who="Agente de Fernando" agent meta={`Fernando está fora · FOR ${FOR_T}`}>
+        Sim: Fernando deixou essa branch liberada na nota do dia confirmada. Ele volta às 9h.
+      </Line>
+      <span className="lp-source">Fonte: nota do dia de Fernando</span>
+    </div>
+  ),
+  jnb: (
+    <div className="lp-chat">
+      <Line who="Eduardo e Rita" meta={`no expediente · JNB ${JNB_T}`}>
+        Os dois estão trabalhando agora. O Echo não responde por quem está no expediente: a pergunta vai direto para a pessoa.
+      </Line>
+      <span className="lp-source">Fonte: expedientes cadastrados</span>
+    </div>
+  ),
+  tyo: (
+    <div className="lp-chat">
+      <Line who="Echo" meta="para Marina · TYO 10:15">
+        Plano para as férias de Bruno (10 a 21/11): ECH-133 → Carla, ECH-137 → Yan, revisão do PR 36 → Eduardo. Nada muda até você aprovar.
+      </Line>
+      <Line who="Marina, Bruno, Carla" meta={`no expediente · TYO ${TYO_T}`}>
+        Respondem por si mesmos durante o dia.
+      </Line>
+      <span className="lp-source">Fonte: carga e áreas da equipe</span>
+    </div>
+  ),
+  yan: (
+    <div className="lp-chat">
+      <Line who="Eduardo" meta="JNB 09:02">
+        @Yan o ECH-140 já terminou?
+      </Line>
+      <Line who="Agente de Yan" agent meta="Yan está de férias · TYO 16:02">
+        Está &ldquo;Em andamento&rdquo; no Linear agora, prazo na sexta. O PR ligado está aberto, sem revisão.
+      </Line>
+      <p className="lp-chat__warn">Aviso: Yan não confirmou a nota do dia mais recente.</p>
+      <span className="lp-source">Fonte: ECH-140 no Linear (ao vivo)</span>
+    </div>
+  ),
+};
+
 /** Halo verde onde há gente no expediente; azul onde o gêmeo está no comando. */
 const POINTS: GlobePoint[] = [
-  { id: "fernando", location: CITY.FOR!, tone: "twin", halo: 15, label: <GlobeCrew ids={["fernando"]} mode="twin" caption="Gêmeo de Fernando" code="FOR" tz="America/Fortaleza" /> },
-  { id: "jnb", location: CITY.JNB!, tone: "on", halo: 14, label: <GlobeCrew ids={["eduardo", "rita"]} caption="Eduardo, Rita" code="JNB" tz="Africa/Johannesburg" /> },
-  { id: "tyo", location: CITY.TYO!, tone: "on", halo: 12, label: <GlobeCrew ids={["marina", "bruno", "carla"]} caption="Marina, Bruno, Carla" code="TYO" tz="Asia/Tokyo" /> },
-  { id: "yan", location: YAN, tone: "wait", halo: 6, side: "left", label: <GlobeCrew ids={["yan"]} mode="away" caption="Gêmeo de Yan · férias" code="TYO" tz="Asia/Tokyo" /> },
+  { id: "fernando", location: CITY.FOR!, tone: "twin", halo: 15, place: "Fortaleza", detail: DETAIL.fernando, label: <GlobeCrew ids={["fernando"]} mode="twin" caption="Gêmeo de Fernando" code="FOR" tz="America/Fortaleza" /> },
+  { id: "jnb", location: CITY.JNB!, tone: "on", halo: 14, place: "Joanesburgo", detail: DETAIL.jnb, label: <GlobeCrew ids={["eduardo", "rita"]} caption="Eduardo, Rita" code="JNB" tz="Africa/Johannesburg" /> },
+  { id: "tyo", location: CITY.TYO!, tone: "on", halo: 12, place: "Tóquio", detail: DETAIL.tyo, label: <GlobeCrew ids={["marina", "bruno", "carla"]} caption="Marina, Bruno, Carla" code="TYO" tz="Asia/Tokyo" /> },
+  { id: "yan", location: YAN, tone: "wait", halo: 6, side: "left", place: "Tóquio, com Yan de férias", detail: DETAIL.yan, label: <GlobeCrew ids={["yan"]} mode="away" caption="Gêmeo de Yan · férias" code="TYO" tz="Asia/Tokyo" /> },
 ];
 
 /** Branco: a pergunta da vez. Azul: um agente respondendo. Verde: quem está trabalhando agora. */
@@ -153,20 +215,8 @@ export default function LandingPage() {
               <li>
                 <span className="lp-dot lp-dot--wait" aria-hidden="true" /> {COUNTS.wait} de férias
               </li>
+              <li className="lp-legend__hint">Clique num ponto para ver a conversa</li>
             </ul>
-            <article className="lp-chat" aria-label="Exemplo de resposta do agente">
-              <p className="lp-chat__head">
-                <b>Eduardo</b>
-                <span className="lp-mono">JNB {localTime(DEMO_NOW, "Africa/Johannesburg")}</span>
-              </p>
-              <p>@Fernando posso seguir com a branch ech-131-api-v2?</p>
-              <p className="lp-chat__head lp-chat__head--agent">
-                <b className="lp-twin">Agente de Fernando</b>
-                <span className="lp-mono">Fernando está fora · FOR {localTime(DEMO_NOW, "America/Fortaleza")}</span>
-              </p>
-              <p>Sim: Fernando deixou essa branch liberada na nota do dia confirmada. Ele volta às 9h.</p>
-              <span className="lp-source">Fonte: nota do dia de Fernando</span>
-            </article>
           </div>
         </section>
 
