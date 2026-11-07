@@ -3,16 +3,20 @@ import Anthropic from "@anthropic-ai/sdk";
 import { createPgBrainStore } from "@echo/brain/pg";
 import { createPgOutbox } from "@echo/actions/pg";
 import { agentRuns, asSystem, createDb, createPool, type Database, orgs, withOrg } from "@echo/db";
-import { endOfDayDue } from "@echo/domain";
+import { endOfDayDue, morningDue } from "@echo/domain";
 import type { AgentRun, RunRecorder } from "@echo/observability";
 import { type AnswerDeps, createAnswer, type ModelCall } from "./answer.ts";
 import type { AnswerRequest, AnswerResult } from "./index.ts";
 import { createEndOfDay, type EndOfDay } from "./daily-note.ts";
 import { createPgAgentData } from "./pg-data.ts";
 import { createPgDailyNoteStore } from "./pg-notes.ts";
+import { createMorningPlan, type MorningPlan } from "./morning-plan.ts";
+import { type BatchApi, createNightReview, type NightReview, type ReviewSource } from "./night-review.ts";
+import { createPgPlanStore, createPgReviewStore } from "./pg-night.ts";
 
 export { createPgAgentData } from "./pg-data.ts";
 export { createPgDailyNoteStore } from "./pg-notes.ts";
+export { createPgPlanStore, createPgReviewStore } from "./pg-night.ts";
 
 /** Grava cada execução em agent_runs, dentro da empresa (RLS). */
 export function createDbRunRecorder(db: Database): RunRecorder {
@@ -60,6 +64,67 @@ export function serverEndOfDay(db: Database, apiKey: string | undefined, webUrl:
     recorder: createDbRunRecorder(db),
     webUrl,
   });
+}
+
+/** API de lotes da Anthropic com a chave da empresa. */
+export function anthropicBatchApi(apiKey: string): BatchApi {
+  const client = new Anthropic({ apiKey, maxRetries: 2 });
+  return {
+    async create(requests) {
+      const b = await client.messages.batches.create({ requests });
+      return { id: b.id };
+    },
+    async status(id) {
+      return (await client.messages.batches.retrieve(id)).processing_status;
+    },
+    async *results(id) {
+      for await (const item of await client.messages.batches.results(id)) yield item as never;
+    },
+  };
+}
+
+/**
+ * Revisão noturna com Postgres, outbox e a API de lotes. O diff vem do GitHub (`diffs`, frente de Integrações);
+ * sem chave da API, não há revisão.
+ */
+export function serverNightReview(db: Database, apiKey: string | undefined, diffs: (orgId: string) => ReviewSource): NightReview {
+  return createNightReview({
+    data: (orgId) => createPgAgentData(db, orgId),
+    brain: (orgId) => createPgBrainStore(db, orgId),
+    reviews: (orgId) => createPgReviewStore(db, orgId),
+    diffs,
+    outbox: (orgId) => createPgOutbox(db, orgId),
+    batches: apiKey ? anthropicBatchApi(apiKey) : null,
+    recorder: createDbRunRecorder(db),
+  });
+}
+
+export function serverMorningPlan(db: Database, webUrl: string): MorningPlan {
+  return createMorningPlan({
+    data: (orgId) => createPgAgentData(db, orgId),
+    plans: (orgId) => createPgPlanStore(db, orgId),
+    outbox: (orgId) => createPgOutbox(db, orgId),
+    recorder: createDbRunRecorder(db),
+    webUrl,
+  });
+}
+
+export async function allOrgIds(db: Database): Promise<string[]> {
+  return (await asSystem(db, (tx) => tx.select({ id: orgs.id }).from(orgs))).map((o) => o.id);
+}
+
+/** Quem está perto do início do expediente agora, em todas as empresas (plano da manhã). */
+export async function dueMorning(db: Database, now: Date): Promise<{ orgId: string; personId: string; date: string }[]> {
+  const due: { orgId: string; personId: string; date: string }[] = [];
+  for (const orgId of await allOrgIds(db)) {
+    const data = createPgAgentData(db, orgId);
+    const [people, absences] = await Promise.all([data.people(), data.absences()]);
+    for (const person of people) {
+      const d = morningDue(person, absences, now);
+      if (d) due.push({ orgId, personId: person.id, date: d.date });
+    }
+  }
+  return due;
 }
 
 /** Quem está no fim do expediente agora, em todas as empresas. A chave pessoa + data deixa repetir sem efeito. */

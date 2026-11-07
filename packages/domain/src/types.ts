@@ -61,6 +61,9 @@ export interface PullRequest {
   reviewerIds: string[];
   openedAt?: Date | undefined;
   mergedAt?: Date | undefined;
+  /** Estado das checagens (CI) na última versão. */
+  checksState?: "success" | "failure" | "pending" | undefined;
+  headSha?: string | undefined;
 }
 
 export interface BranchMark {

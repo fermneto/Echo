@@ -105,6 +105,19 @@ export {
   type NotePatch,
   type StoredDailyNote,
 } from "./daily-note.ts";
+export {
+  createNightReview,
+  reviewComment,
+  validFindings,
+  type BatchApi,
+  type Finding,
+  type NightReview,
+  type NightReviewDeps,
+  type PrDiff,
+  type ReviewSource,
+  type ReviewStore,
+} from "./night-review.ts";
+export { createMorningPlan, planMessage, type MorningPlan, type MorningPlanDeps, type PlanStore, type StoredPlan } from "./morning-plan.ts";
 
 /**
  * Fluxo de resposta (F2) com as dependências padrão: Postgres (DATABASE_URL) e a chave da empresa

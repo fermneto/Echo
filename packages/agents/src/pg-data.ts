@@ -39,7 +39,7 @@ function toTask(r: typeof tasks.$inferSelect): Task {
   };
 }
 
-function toPr(r: typeof pullRequests.$inferSelect): PullRequest {
+export function toPr(r: typeof pullRequests.$inferSelect): PullRequest {
   return {
     id: r.id,
     repository: r.repository,
@@ -53,6 +53,8 @@ function toPr(r: typeof pullRequests.$inferSelect): PullRequest {
     reviewerIds: r.reviewerIds,
     openedAt: opt(r.openedAt),
     mergedAt: opt(r.mergedAt),
+    checksState: r.checksState === "success" || r.checksState === "failure" || r.checksState === "pending" ? r.checksState : undefined,
+    headSha: opt(r.headSha),
   };
 }
 

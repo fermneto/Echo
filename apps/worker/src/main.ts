@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { dueEndOfDay, serverEndOfDay } from "@echo/agents/server";
+import { allOrgIds, dueEndOfDay, dueMorning, serverEndOfDay, serverMorningPlan, serverNightReview } from "@echo/agents/server";
 import { ensureProductNote } from "@echo/brain/pg";
 import { loadConfig } from "@echo/config";
 import { createDb, createPool } from "@echo/db";
@@ -7,6 +7,7 @@ import { PgBossQueue, QUEUES, type PingMessage } from "@echo/jobs";
 import { createLogger, initTracing, LogRunRecorder } from "@echo/observability";
 import { registerEndOfDay } from "./end-of-day.ts";
 import { registerInbox } from "./inbox.ts";
+import { registerNight } from "./night.ts";
 
 const cfg = loadConfig("worker");
 const log = createLogger("worker", cfg.LOG_LEVEL);
@@ -36,6 +37,23 @@ const runEndOfDay = () =>
 void runEndOfDay();
 const endOfDayTimer = setInterval(() => void runEndOfDay(), cfg.END_OF_DAY_SCAN_MS);
 
+// Noite (F4) e manhã (F5). O diff dos PRs vem do GitHub pela frente de Integrações; até a porta existir,
+// nenhum PR tem diff e a revisão noturna não envia lote.
+const night = await registerNight(queue, {
+  night: serverNightReview(db, cfg.ANTHROPIC_API_KEY, () => ({ getDiff: async () => null })),
+  morning: serverMorningPlan(db, cfg.WEB_URL),
+  orgIds: () => allOrgIds(db),
+  dueMorning: (now) => dueMorning(db, now),
+  nightHourUtc: cfg.NIGHT_REVIEW_UTC_HOUR,
+});
+const runNight = () =>
+  night.tick().then(
+    (r) => (r.night > 0 || r.morning > 0) && log.info(r, "noite e manhã na fila"),
+    (err) => log.error({ err }, "falha na agenda da noite e da manhã"),
+  );
+void runNight();
+const nightTimer = setInterval(() => void runNight(), cfg.END_OF_DAY_SCAN_MS);
+
 // Confirma, a cada início, que a fila chega ao reviewer.
 await queue.work<PingMessage>(QUEUES.reviewerPong, async (job) => log.info({ nonce: job.data.nonce }, "reviewer respondeu ao ping"));
 await queue.send<PingMessage>(QUEUES.reviewerPing, { from: "worker", sentAt: new Date().toISOString(), nonce: randomUUID() });
@@ -46,6 +64,7 @@ async function shutdown(signal: string) {
   log.info({ signal }, "encerrando worker");
   clearInterval(heartbeat);
   clearInterval(endOfDayTimer);
+  clearInterval(nightTimer);
   await Promise.allSettled([queue.stop(), pool.end(), flush()]);
   process.exit(0);
 }

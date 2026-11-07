@@ -64,6 +64,8 @@ export const workerSchema = baseSchema.extend({
   WEB_URL: z.url().default("http://localhost:3000"),
   // Intervalo da agenda do fim do expediente (nota do dia).
   END_OF_DAY_SCAN_MS: z.coerce.number().int().min(10_000).default(300_000),
+  // Hora UTC em que o lote da revisão noturna é criado, uma vez por noite por empresa.
+  NIGHT_REVIEW_UTC_HOUR: z.coerce.number().int().min(0).max(23).default(5),
 });
 
 export const reviewerSchema = baseSchema.extend({ ...database, ...anthropic });

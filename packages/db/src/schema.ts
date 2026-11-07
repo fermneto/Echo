@@ -248,7 +248,9 @@ export const reviews = pgTable("reviews", {
   batchId: text("batch_id"),
   model: text("model"),
   findings: jsonb("findings").notNull().default([]),
-  state: text("state").notNull().default("queued"), // queued | batched | reviewed | fix_queued | fix_ready | approved | applied | no_findings | failed
+  /** Arquivos do diff enviado ao lote: achado em arquivo fora desta lista é descartado. */
+  files: jsonb("files").$type<string[]>().notNull().default([]),
+  state: text("state").notNull().default("queued"), // queued | batched | reviewed | fix_queued | fix_ready | approved | applied | no_findings | too_large | failed
   costUsd: numeric("cost_usd", { precision: 10, scale: 4 }),
   createdAt: createdAt(),
 }, (t) => [uniqueIndex("reviews_pr_sha").on(t.orgId, t.prId, t.headSha)]);

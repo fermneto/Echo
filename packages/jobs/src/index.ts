@@ -14,6 +14,12 @@ export const QUEUES = {
   dailyNoteDraft: "daily_note.draft",
   /** Prazo de 2 h do rascunho: sem resposta, vira auto_unreviewed. */
   dailyNoteTimeout: "daily_note.timeout",
+  /** Revisão noturna de uma empresa: filtro, lote e envio (F4). Até 3 tentativas, 30 min entre elas. */
+  nightReview: "review.night",
+  /** Busca os lotes terminados e publica as análises pelo outbox. */
+  reviewCollect: "review.collect",
+  /** Plano da manhã de uma pessoa (F5). Chave única: pessoa + data. */
+  morningPlan: "morning_plan.build",
 } as const;
 export type QueueName = (typeof QUEUES)[keyof typeof QUEUES];
 
@@ -27,6 +33,8 @@ export interface SendOptions {
   /** Chave única: o mesmo valor não gera dois jobs na mesma fila enquanto o primeiro existir. */
   singletonKey?: string;
   retryLimit?: number;
+  /** Espera fixa entre tentativas; sem ela, a espera cresce a cada tentativa. */
+  retryDelaySeconds?: number;
   startAfterSeconds?: number;
 }
 
@@ -71,7 +79,7 @@ export class PgBossQueue implements JobQueue {
     return this.boss.send(name, data, {
       ...(opts.singletonKey ? { singletonKey: opts.singletonKey } : {}),
       retryLimit: opts.retryLimit ?? 3,
-      retryBackoff: true,
+      ...(opts.retryDelaySeconds ? { retryDelay: opts.retryDelaySeconds, retryBackoff: false } : { retryBackoff: true }),
       ...(opts.startAfterSeconds ? { startAfter: opts.startAfterSeconds } : {}),
     });
   }
