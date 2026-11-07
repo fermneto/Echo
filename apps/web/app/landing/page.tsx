@@ -2,6 +2,8 @@ import type { CSSProperties } from "react";
 import Link from "next/link";
 import { EchoGlobe, type GlobeArc, type GlobePoint } from "@/components/landing/EchoGlobe";
 import { IntegrationsMarquee } from "@/components/landing/integrations";
+import { PixelSprite } from "@/components/PixelSprite";
+import { lookFor } from "@/lib/demo/looks";
 import { DEMO_NOW, PERSONAS } from "@/lib/demo/personas";
 import { localTime } from "@/lib/time";
 import "./landing.css";
@@ -54,12 +56,20 @@ const CITY: Record<string, [number, number]> = {
   TYO: [35.68, 139.65],
 };
 
-function GlobeLabel({ names, code, tz }: { names: string; code: string; tz: string }) {
+/** Etiqueta presa ao ponto: a hora local em cima e os bonequinhos de pé sobre o ponto. */
+function GlobeCrew({ ids, twin, code, tz, caption }: { ids: string[]; twin?: boolean; code: string; tz: string; caption: string }) {
   return (
     <>
-      <span className="globe__who">{names}</span>
-      <span className="lp-mono">
-        {code} {localTime(DEMO_NOW, tz)}
+      <span className="globe__tag">
+        <span className="globe__who">{caption}</span>
+        <span className="lp-mono">
+          {code} {localTime(DEMO_NOW, tz)}
+        </span>
+      </span>
+      <span className="globe__crew">
+        {ids.map((id) => (
+          <PixelSprite key={id} look={lookFor(id)} mode={twin ? "twin" : "person"} size={40} />
+        ))}
       </span>
     </>
   );
@@ -67,10 +77,10 @@ function GlobeLabel({ names, code, tz }: { names: string; code: string; tz: stri
 
 /** Pontos da demo: Fernando dorme em Fortaleza, Eduardo trabalha em Joanesburgo, Yan está de férias. */
 const POINTS: GlobePoint[] = [
-  { id: "fernando", location: CITY.FOR!, tone: "twin", label: <GlobeLabel names="Agente de Fernando" code="FOR" tz="America/Fortaleza" /> },
-  { id: "jnb", location: CITY.JNB!, tone: "on", label: <GlobeLabel names="Eduardo, Rita" code="JNB" tz="Africa/Johannesburg" /> },
-  { id: "tyo", location: CITY.TYO!, tone: "on", label: <GlobeLabel names="Marina, Bruno, Carla" code="TYO" tz="Asia/Tokyo" /> },
-  { id: "yan", location: [37.4, 141.6], tone: "wait", label: <GlobeLabel names="Yan · férias" code="TYO" tz="Asia/Tokyo" /> },
+  { id: "fernando", location: CITY.FOR!, tone: "twin", label: <GlobeCrew ids={["fernando"]} twin caption="Gêmeo de Fernando" code="FOR" tz="America/Fortaleza" /> },
+  { id: "jnb", location: CITY.JNB!, tone: "on", label: <GlobeCrew ids={["eduardo", "rita"]} caption="Eduardo, Rita" code="JNB" tz="Africa/Johannesburg" /> },
+  { id: "tyo", location: CITY.TYO!, tone: "on", label: <GlobeCrew ids={["marina", "bruno", "carla"]} caption="Marina, Bruno, Carla" code="TYO" tz="Asia/Tokyo" /> },
+  { id: "yan", location: [37.4, 141.6], tone: "wait", label: <GlobeCrew ids={["yan"]} twin caption="Gêmeo de Yan · férias" code="TYO" tz="Asia/Tokyo" /> },
 ];
 
 /** Branco: a pergunta da vez. Azul: um agente respondendo. Verde: quem está trabalhando agora. */

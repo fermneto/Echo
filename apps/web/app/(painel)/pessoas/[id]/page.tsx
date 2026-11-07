@@ -18,7 +18,10 @@ export default async function PessoaPage({ params }: { params: Promise<{ id: str
     <div className="split">
       <div className="split__text">
         <div className="profile-head">
-          <PixelAvatar persona={persona} size={72} />
+          <figure className="profile-avatar">
+            <PixelAvatar persona={persona} size={120} />
+            {persona.availability.kind !== "working" && <figcaption className="mono">Gêmeo de {persona.name} no comando</figcaption>}
+          </figure>
           <div>
             <p className="mono muted">
               {persona.cityCode} {localTime(DEMO_NOW, persona.timezone)}
