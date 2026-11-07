@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useEffect, useRef, useState } from "react";
+import { flushSync } from "react-dom";
 import type { AskState } from "@/lib/ask";
 import { AskField } from "./AskField";
 import { ProductWindow } from "./ProductWindow";
@@ -40,6 +41,7 @@ export function AskPanel({
   const [question, setQuestion] = useState("");
   const [asking, setAsking] = useState("");
   const input = useRef<HTMLInputElement>(null);
+  const form = useRef<HTMLFormElement>(null);
 
   useEffect(() => {
     if (!pending) setAsking("");
@@ -97,6 +99,7 @@ export function AskPanel({
       </ol>
 
       <form
+        ref={form}
         action={action}
         className="ask-form"
         onSubmit={() => {
@@ -133,9 +136,11 @@ export function AskPanel({
               key={s}
               type="button"
               className="chip-button"
+              disabled={pending}
               onClick={() => {
-                setQuestion(s);
-                input.current?.focus();
+                // A sugestão já vai como pergunta: preenche o campo e envia.
+                flushSync(() => setQuestion(s));
+                form.current?.requestSubmit();
               }}
             >
               {s}
