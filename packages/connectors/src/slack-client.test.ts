@@ -1,15 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { answerBlocks, dailyNoteDraftBlocks, fitText, respondToInteraction, SLACK_ACTIONS, SlackApiError, SlackChat } from "./slack-client.ts";
 
-type Call = { url: string; body: any; auth: string | null };
+type Call = { url: string; body: any; auth: string | null; form: boolean };
 
-/** Slack falso: responde por método e registra as chamadas. */
+/** Slack falso: responde por método e registra as chamadas (corpo JSON ou formulário). */
 function fakeSlack(handlers: Record<string, (body: any) => Response | Promise<Response>>) {
   const calls: Call[] = [];
   const fetch = async (url: string, init: RequestInit) => {
     const method = url.split("/").pop()!;
-    const body = JSON.parse(String(init.body ?? "{}"));
-    calls.push({ url, body, auth: new Headers(init.headers).get("authorization") });
+    const form = (new Headers(init.headers).get("content-type") ?? "").startsWith("application/x-www-form-urlencoded");
+    const body = form ? Object.fromEntries(new URLSearchParams(String(init.body ?? ""))) : JSON.parse(String(init.body ?? "{}"));
+    calls.push({ url, body, auth: new Headers(init.headers).get("authorization"), form });
     const h = handlers[method];
     if (!h) return Response.json({ ok: false, error: "unknown_method" });
     return h(body);
@@ -22,6 +23,12 @@ describe("getPresence", () => {
     const { chat, calls } = fakeSlack({ "users.getPresence": () => Response.json({ ok: true, presence: "away" }) });
     expect(await chat.getPresence("UFER")).toBe("away");
     expect(calls[0]).toMatchObject({ body: { user: "UFER" }, auth: "Bearer xoxb-teste" });
+  });
+
+  it("vai como formulário: com corpo JSON o Slack ignora o user e devolve o status do próprio bot", async () => {
+    const { chat, calls } = fakeSlack({ "users.getPresence": () => Response.json({ ok: true, presence: "away" }) });
+    await chat.getPresence("UYAN");
+    expect(calls[0]).toMatchObject({ form: true, body: { user: "UYAN" } });
   });
 
   it("erro, resposta estranha ou demora viram unknown (reserva: isAway)", async () => {
@@ -70,6 +77,15 @@ describe("mensagens privadas e efêmeras", () => {
     expect(calls[0]!.body).toMatchObject({ channel: "UFER" });
     expect(calls[0]!.body.blocks[1].elements.map((e: any) => e.action_id)).toEqual([SLACK_ACTIONS.confirmDailyNote, SLACK_ACTIONS.editDailyNote]);
     expect(calls[1]!.body).toEqual({ channel: "C1", user: "UEDU", text: "Agente de Fernando consultando…" });
+  });
+
+  it("aviso 'consultando' é mensagem comum no tópico, com o nome do agente, e pode ser apagado", async () => {
+    const { chat, calls } = fakeSlack({ "chat.postMessage": () => Response.json({ ok: true, channel: "C1", ts: "5.5" }), "chat.delete": () => Response.json({ ok: true }) });
+    const notice = await chat.postNotice({ channel: "C1", threadTs: "1.1", agentName: "Agente de Fernando", text: "_Agente de Fernando consultando os registros…_" });
+    expect(notice).toEqual({ channel: "C1", ts: "5.5" });
+    expect(calls[0]!.body).toMatchObject({ channel: "C1", thread_ts: "1.1", username: "Agente de Fernando" });
+    await chat.deleteMessage(notice!.channel, notice!.ts);
+    expect(calls[1]!.body).toEqual({ channel: "C1", ts: "5.5" });
   });
 });
 

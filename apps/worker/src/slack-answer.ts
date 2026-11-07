@@ -14,6 +14,8 @@ export interface SlackAnswerDeps {
   answer: (req: AnswerRequest) => Promise<AnswerResult>;
   log: Logger;
   workerId: string;
+  /** Ensaio de dia (DEMO_ALWAYS_AWAY): quem é citado é tratado como ausente, sem consultar o status. */
+  alwaysAway?: boolean;
   now?: () => Date;
   /** Prazo do texto da pergunta, para o dono conferir (depois é apagado). */
   textTtlMs?: number;
@@ -98,7 +100,7 @@ export async function handleSlackMessage(d: SlackAnswerDeps, job: { orgId: strin
 
   // Status lido só agora, na menção, com limite de 1,5 s. Nunca gravado nem logado.
   // Ativo = ninguém responde por ele. Sem resposta do Slack, vale o expediente cadastrado.
-  if (owner && !m.mentionsBot) {
+  if (owner && !m.mentionsBot && !d.alwaysAway) {
     const presence = await d.chat.getPresence(ownerSlack!, 1_500);
     if (presence === "active") return "silent";
     if (presence === "unknown" && !(await awayBySchedule(d.db, orgId, owner, now))) return "silent";
@@ -132,13 +134,15 @@ export async function handleSlackMessage(d: SlackAnswerDeps, job: { orgId: strin
   if (!claimed) return "duplicate";
 
   const agentLabel = owner ? `Agente de ${owner.name.split(" ")[0]}` : "Echo";
-  await d.chat.postEphemeral(m.channel, m.userExternalId, `${agentLabel} consultando…`).catch(() => {});
+  // Aviso temporário no tópico, apagado depois da resposta (mensagem efêmera não pode ser apagada pelo bot).
+  const threadTs = m.threadTs ?? m.ts;
+  const notice = (await d.chat.postNotice?.({ channel: m.channel, threadTs, agentName: agentLabel, text: `_${agentLabel} consultando os registros…_` }).catch(() => null)) ?? null;
 
   try {
     const r = await d.answer({ orgId, askerId: asker.id, ...(owner ? { ownerId: owner.id } : {}), text, channel: "slack" });
     const body = [r.text, ...r.warnings.map((w) => `_Aviso: ${w}_`)].join("\n\n");
     const blocks = answerBlocks({ text: body, sources: r.sources, questionId: claimed.id });
-    await d.chat.postAgentReply({ channel: m.channel, threadTs: m.threadTs ?? m.ts, agentName: r.agentName, text: body, ...(blocks ? { blocks } : {}) });
+    await d.chat.postAgentReply({ channel: m.channel, threadTs, agentName: r.agentName, text: body, ...(blocks ? { blocks } : {}) });
     await withOrg(d.db, orgId, (tx) =>
       tx
         .update(questions)
@@ -162,6 +166,8 @@ export async function handleSlackMessage(d: SlackAnswerDeps, job: { orgId: strin
   } catch (err) {
     await withOrg(d.db, orgId, (tx) => tx.update(questions).set({ state: "failed" }).where(eq(questions.id, claimed.id))).catch(() => {});
     throw err;
+  } finally {
+    if (notice) await d.chat.deleteMessage?.(notice.channel, notice.ts).catch((err) => d.log.warn({ err: String(err) }, "falha ao apagar o aviso consultando"));
   }
 }
 
@@ -205,31 +211,53 @@ export async function giveUpStaleQuestions(d: { db: Database; chat: ChatPlatform
   return stale.length;
 }
 
-/** Botões Resolveu / Não resolveu: só quem perguntou avalia. O retorno vai pelo response_url. */
+/** A mensagem original sem os botões, com a avaliação no rodapé. */
+function ratedBlocks(original: unknown, helpful: boolean): unknown[] {
+  const blocks = Array.isArray(original) ? original.filter((b) => (b as { type?: string })?.type !== "actions") : [];
+  return [...blocks, { type: "context", elements: [{ type: "mrkdwn", text: `Avaliada por quem perguntou: *${helpful ? "Resolveu" : "Não resolveu"}*` }] }];
+}
+
+/**
+ * Botões Resolveu / Não resolveu: só quem perguntou avalia, e uma vez só.
+ * Na primeira avaliação, os botões saem da mensagem (replace_original pelo response_url).
+ */
 export async function handleSlackInteraction(
   d: { db: Database; log: Logger; respond?: typeof respondToInteraction },
   job: { orgId: string; payload: any },
-): Promise<"recorded" | "not_asker" | "ignored"> {
+): Promise<"recorded" | "already_rated" | "not_asker" | "ignored"> {
   const action = job.payload?.actions?.[0];
   const helpful = action?.action_id === SLACK_ACTIONS.answerHelpful ? true : action?.action_id === SLACK_ACTIONS.answerNotHelpful ? false : null;
   if (helpful === null || typeof action?.value !== "string") return "ignored";
   const known = await bySlack(d.db, job.orgId, [job.payload.user?.id ?? ""]);
   const who = known.get(job.payload.user?.id ?? "");
-  const rows = who
+  const [q] = who
+    ? await withOrg(d.db, job.orgId, (tx) =>
+        tx
+          .select({ askerId: questions.askerId, resolved: questions.resolved })
+          .from(questions)
+          .where(and(eq(questions.orgId, job.orgId), eq(questions.id, action.value), sql`${questions.state} = 'answered'`)),
+      )
+    : [];
+  const isAsker = Boolean(who && q && q.askerId === who.id);
+  // Só grava se ainda não foi avaliada: o segundo clique (ou um clique atrasado) não troca a avaliação.
+  const rows = isAsker
     ? await withOrg(d.db, job.orgId, (tx) =>
         tx
           .update(questions)
           .set({ resolved: helpful })
-          .where(and(eq(questions.orgId, job.orgId), eq(questions.id, action.value), eq(questions.askerId, who.id), sql`${questions.state} = 'answered'`))
+          .where(and(eq(questions.orgId, job.orgId), eq(questions.id, action.value), eq(questions.askerId, who!.id), sql`${questions.state} = 'answered'`, isNull(questions.resolved)))
           .returning({ id: questions.id }),
       )
     : [];
-  const ok = rows.length > 0;
+  const outcome = rows.length > 0 ? "recorded" : isAsker ? "already_rated" : "not_asker";
   const url = job.payload.response_url;
   if (typeof url === "string") {
-    await (d.respond ?? respondToInteraction)(url, { replace_original: false, response_type: "ephemeral", text: ok ? "Avaliação registrada. Obrigado." : "Só quem perguntou pode avaliar esta resposta." }).catch((err) =>
-      d.log.warn({ err: String(err) }, "falha ao responder o clique"),
-    );
+    const final = outcome === "recorded" ? helpful : (q?.resolved ?? null);
+    const body =
+      outcome !== "not_asker" && final !== null && Array.isArray(job.payload.message?.blocks)
+        ? { replace_original: true, text: job.payload.message.text ?? "", blocks: ratedBlocks(job.payload.message.blocks, final) }
+        : { replace_original: false, response_type: "ephemeral", text: outcome === "not_asker" ? "Só quem perguntou pode avaliar esta resposta." : outcome === "recorded" ? "Avaliação registrada. Obrigado." : "Esta resposta já foi avaliada." };
+    await (d.respond ?? respondToInteraction)(url, body).catch((err) => d.log.warn({ err: String(err) }, "falha ao responder o clique"));
   }
-  return ok ? "recorded" : "not_asker";
+  return outcome;
 }

@@ -13,13 +13,19 @@ const log = pino({ level: "silent" });
 function fakeChat(presence: Presence) {
   const posted: { channel: string; threadTs?: string; agentName: string; text: string; blocks?: unknown[] }[] = [];
   const ephemeral: string[] = [];
+  const notices: { channel: string; threadTs?: string; agentName: string; text: string }[] = [];
+  const deleted: string[] = [];
+  // Ordem dos passos no Slack, para conferir que o aviso só sai depois da resposta.
+  const steps: string[] = [];
   const chat = {
     getPresence: async () => presence,
     postEphemeral: async (_c: string, _u: string, t: string) => void ephemeral.push(t),
-    postAgentReply: async (i: (typeof posted)[number]) => (posted.push(i), { ts: "9.9" }),
+    postNotice: async (i: (typeof notices)[number]) => (notices.push(i), steps.push("aviso"), { channel: i.channel, ts: `n.${notices.length}` }),
+    deleteMessage: async (_c: string, ts: string) => void (deleted.push(ts), steps.push("apaga")),
+    postAgentReply: async (i: (typeof posted)[number]) => (posted.push(i), steps.push("resposta"), { ts: "9.9" }),
     sendDm: async () => {},
   } as unknown as ChatPlatform;
-  return { chat, posted, ephemeral };
+  return { chat, posted, ephemeral, notices, deleted, steps };
 }
 
 const answered: AnswerResult = {
@@ -69,11 +75,14 @@ describe.skipIf(!url)("F2 no Slack (Postgres real, papel comum)", () => {
     expect(await db.select().from(questions).where(eq(questions.orgId, orgId))).toHaveLength(0);
   });
 
-  it("dono ausente: 'consultando' só para quem chamou, resposta no tópico como agente, com fontes e botões", async () => {
-    const { chat, posted, ephemeral } = fakeChat("away");
+  it("dono ausente: 'consultando' temporário no tópico, resposta como agente, com fontes e botões", async () => {
+    const { chat, posted, ephemeral, notices, deleted, steps } = fakeChat("away");
     const m = msg();
     expect(await handleSlackMessage({ db: app, chat, answer, log, workerId: "w" }, { orgId, message: m })).toBe("answered");
-    expect(ephemeral).toEqual(["Agente de Fernando consultando…"]);
+    expect(notices).toEqual([{ channel: "C1", threadTs: m.ts, agentName: "Agente de Fernando", text: "_Agente de Fernando consultando os registros…_" }]);
+    expect(steps).toEqual(["aviso", "resposta", "apaga"]);
+    expect(deleted).toEqual(["n.1"]);
+    expect(ephemeral).toEqual([]);
     expect(seen.at(-1)).toMatchObject({ text: "@Fernando posso seguir com a branch ech-131-api-v2?", ownerId: ids.fer });
     expect(posted[0]).toMatchObject({ channel: "C1", threadTs: m.ts, agentName: "Agente de Fernando" });
     const [q] = await db.select().from(questions).where(eq(questions.orgId, orgId));
@@ -89,6 +98,24 @@ describe.skipIf(!url)("F2 no Slack (Postgres real, papel comum)", () => {
     // Reenvio do mesmo aviso: não publica de novo.
     expect(await handleSlackMessage({ db: app, chat, answer, log, workerId: "w" }, { orgId, message: m })).toBe("duplicate");
     expect(posted).toHaveLength(1);
+  });
+
+  it("ensaio de dia (DEMO_ALWAYS_AWAY): responde mesmo com o dono ativo, sem consultar o status", async () => {
+    let asked = false;
+    const { chat, posted } = fakeChat("active");
+    (chat as unknown as { getPresence: () => Promise<Presence> }).getPresence = async () => ((asked = true), "active");
+    expect(await handleSlackMessage({ db: app, chat, answer, log, workerId: "w", alwaysAway: true }, { orgId, message: msg({ channel: "C9" }) })).toBe("answered");
+    expect(asked).toBe(false);
+    expect(posted).toHaveLength(1);
+  });
+
+  it("falha na resposta: o aviso 'consultando' também é apagado", async () => {
+    const { chat, deleted } = fakeChat("away");
+    const boom = async () => {
+      throw new Error("modelo fora");
+    };
+    await expect(handleSlackMessage({ db: app, chat, answer: boom, log, workerId: "w" }, { orgId, message: msg({ channel: "C10" }) })).rejects.toThrow("modelo fora");
+    expect(deleted).toEqual(["n.1"]);
   });
 
   it("acima do dobro do limite: a resposta por regra sai no tópico, mas fica como falha e não volta a sair", async () => {
@@ -144,14 +171,31 @@ describe.skipIf(!url)("F2 no Slack (Postgres real, papel comum)", () => {
     expect(posted).toHaveLength(1);
   });
 
-  it("Resolveu: só quem perguntou registra; a resposta vai pelo response_url", async () => {
+  it("Resolveu: só quem perguntou avalia, uma vez só, e os botões saem da mensagem", async () => {
     const [q] = await db.select().from(questions).where(and(eq(questions.orgId, orgId), eq(questions.state, "answered"))).limit(1);
-    const said: string[] = [];
-    const respond = async (_u: string, b: object) => void said.push((b as { text: string }).text);
-    const click = (user: string) => ({ orgId, payload: { user: { id: user }, response_url: "https://hooks.slack.com/actions/x", actions: [{ action_id: "answer_helpful", value: q!.id }] } });
+    const said: Record<string, unknown>[] = [];
+    const respond = async (_u: string, b: object) => void said.push(b as Record<string, unknown>);
+    const message = {
+      text: "resposta",
+      blocks: [
+        { type: "section", text: { type: "mrkdwn", text: "resposta" } },
+        { type: "actions", elements: [] },
+      ],
+    };
+    const click = (user: string, action_id = "answer_helpful") => ({ orgId, payload: { user: { id: user }, response_url: "https://hooks.slack.com/actions/x", message, actions: [{ action_id, value: q!.id }] } });
+
     expect(await handleSlackInteraction({ db: app, log, respond }, click("UFER"))).toBe("not_asker");
+    expect(said[0]).toMatchObject({ replace_original: false, response_type: "ephemeral", text: "Só quem perguntou pode avaliar esta resposta." });
+
     expect(await handleSlackInteraction({ db: app, log, respond }, click("UEDU"))).toBe("recorded");
-    expect(said).toEqual(["Só quem perguntou pode avaliar esta resposta.", "Avaliação registrada. Obrigado."]);
+    expect(said[1]).toMatchObject({ replace_original: true, text: "resposta" });
+    const blocks = (said[1] as { blocks: { type: string }[] }).blocks;
+    expect(blocks.map((b) => b.type)).toEqual(["section", "context"]);
+    expect(JSON.stringify(blocks)).toContain("Avaliada por quem perguntou: *Resolveu*");
+
+    // Segundo clique (botão ainda na tela de outro aparelho): não troca a avaliação.
+    expect(await handleSlackInteraction({ db: app, log, respond }, click("UEDU", "answer_not_helpful"))).toBe("already_rated");
+    expect(JSON.stringify(said[2])).toContain("*Resolveu*");
     const [after] = await db.select().from(questions).where(eq(questions.id, q!.id));
     expect(after!.resolved).toBe(true);
   });
