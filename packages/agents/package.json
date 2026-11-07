@@ -2,11 +2,26 @@
   "name": "@echo/agents",
   "private": true,
   "type": "module",
-  "exports": { ".": "./src/index.ts" },
+  "exports": {
+    ".": "./src/index.ts"
+  },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run --passWithNoTests"
   },
-  "dependencies": { "@echo/domain": "workspace:*", "@echo/connectors": "workspace:*", "@echo/brain": "workspace:*", "zod": "catalog:" },
-  "devDependencies": { "@types/node": "catalog:", "typescript": "catalog:", "vitest": "catalog:" }
+  "dependencies": {
+    "@echo/domain": "workspace:*",
+    "@echo/connectors": "workspace:*",
+    "@echo/brain": "workspace:*",
+    "zod": "catalog:",
+    "@anthropic-ai/sdk": "catalog:",
+    "@echo/db": "workspace:*",
+    "@echo/observability": "workspace:*",
+    "drizzle-orm": "catalog:"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
 }

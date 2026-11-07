@@ -70,3 +70,4 @@ export interface ValidationIssue {
 
 /** Validador em código (etapa 6). Recusa a resposta se houver qualquer issue. */
 export type AnswerValidator = (out: AnswerOutput, ctx: { ownerName?: string; sourcesThisRun: string[]; releasedTargets: string[] }) => ValidationIssue[];
+export { validateAnswer } from "./validator.ts";
