@@ -16,7 +16,7 @@ export default async function PessoaPage({ params }: { params: Promise<{ id: str
     <div className="split">
       <div className="split__text">
         <p className="mono muted">
-          {persona.cityCode} {localTime(DEMO_NOW, persona.timeZone)}
+          {persona.cityCode} {localTime(DEMO_NOW, persona.timezone)}
         </p>
         <h1 className="app-title">{persona.name}</h1>
         <p className="lead">
@@ -35,7 +35,7 @@ export default async function PessoaPage({ params }: { params: Promise<{ id: str
           </div>
           <div>
             <dt className="mono muted">FUSO</dt>
-            <dd className="mono">{persona.timeZone}</dd>
+            <dd className="mono">{persona.timezone}</dd>
           </div>
           <div>
             <dt className="mono muted">ÁREAS</dt>

@@ -5,8 +5,8 @@ import type { Role } from "./demo/types";
  * O RH nunca vê cérebros, notas do dia, tarefas nem perguntas.
  */
 
-const ALL: readonly Role[] = ["member", "lead", "hr"];
-const PEOPLE: readonly Role[] = ["member", "lead"];
+const ALL: readonly Role[] = ["member", "leader", "hr"];
+const PEOPLE: readonly Role[] = ["member", "leader"];
 
 export type RouteDef = { href: string; label: string; roles: readonly Role[]; demoOnly?: boolean };
 
@@ -18,11 +18,11 @@ export const ROUTES = {
   notas: { href: "/notas", label: "Notas", roles: PEOPLE },
   equipe: { href: "/equipe", label: "Equipe", roles: ALL },
   pessoa: { href: "/pessoas", label: "Ficha da pessoa", roles: ALL },
-  redistribuicao: { href: "/redistribuicao", label: "Redistribuição", roles: ["lead"] },
+  redistribuicao: { href: "/redistribuicao", label: "Redistribuição", roles: ["leader"] },
   relatorios: { href: "/relatorios", label: "Relatórios", roles: ALL },
-  ganhos: { href: "/ganhos", label: "Ganhos", roles: ["lead", "hr"] },
-  execucoes: { href: "/execucoes", label: "Custo e execuções", roles: ["lead"] },
-  configuracao: { href: "/configuracao", label: "Configuração", roles: ["lead", "hr"] },
+  ganhos: { href: "/ganhos", label: "Ganhos", roles: ["leader", "hr"] },
+  execucoes: { href: "/execucoes", label: "Custo e execuções", roles: ["leader"] },
+  configuracao: { href: "/configuracao", label: "Configuração", roles: ["leader", "hr"] },
   simulador: { href: "/simulador", label: "Simulador", roles: ALL, demoOnly: true },
 } as const satisfies Record<string, RouteDef>;
 

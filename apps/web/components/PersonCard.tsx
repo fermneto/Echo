@@ -14,7 +14,7 @@ export function PersonCard({ persona }: { persona: Persona }) {
       <span className="person-card__name">{persona.name}</span>
       <span className="person-card__title">{persona.title}</span>
       <span className="mono muted">
-        {persona.cityCode} {localTime(DEMO_NOW, persona.timeZone)}
+        {persona.cityCode} {localTime(DEMO_NOW, persona.timezone)}
       </span>
       <StatusChip persona={persona} />
     </Link>

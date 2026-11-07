@@ -6,7 +6,7 @@ import { entrarComo } from "./actions";
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Entrar · Echo" };
 
-const ROLE_LABEL = { member: "Equipe", lead: "Liderança", hr: "RH" } as const;
+const ROLE_LABEL = { member: "Equipe", leader: "Liderança", hr: "RH" } as const;
 
 export default function EntrarPage() {
   const demo = demoMode();
@@ -16,7 +16,7 @@ export default function EntrarPage() {
       <h1 className="app-title">Entrar</h1>
       {demo ? (
         <>
-          <p className="lead">Escolha uma persona da demonstração. Cada uma vê só o que o papel dela permite.</p>
+          <p className="leader">Escolha uma persona da demonstração. Cada uma vê só o que o papel dela permite.</p>
           <form action={entrarComo} className="module persona-list">
             {PERSONAS.map((p) => (
               <button key={p.id} type="submit" name="persona" value={p.id} className="persona-row">
@@ -32,7 +32,7 @@ export default function EntrarPage() {
           <p className="mono muted">DADOS SINTÉTICOS · RH SIMULADO</p>
         </>
       ) : (
-        <p className="lead">O login com o Slack ainda não está disponível neste ambiente.</p>
+        <p className="leader">O login com o Slack ainda não está disponível neste ambiente.</p>
       )}
     </main>
   );

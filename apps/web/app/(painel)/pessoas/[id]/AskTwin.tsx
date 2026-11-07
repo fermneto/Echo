@@ -19,14 +19,18 @@ export function AskTwin({ personId, personName, askerName, suggestions }: { pers
             <p className="chat__line">
               <span className="chat__who">{askerName}</span> {t.question}
             </p>
-            <div className={`chat__line chat__reply chat__reply--${t.reply.kind}`}>
-              <span className="chat__who chat__who--twin">{t.reply.speaker}</span> {t.reply.text}
-              {t.reply.warning && <p className="chat__warning">Aviso: {t.reply.warning}</p>}
+            <div className="chat__line chat__reply">
+              <span className="chat__who chat__who--twin">{t.reply.agentName}</span> {t.reply.text}
+              {t.reply.warnings.map((w) => (
+                <p key={w} className="chat__warning">
+                  Aviso: {w}
+                </p>
+              ))}
               {t.reply.sources.length > 0 && (
                 <ul className="sources" role="list" aria-label="Fontes">
                   {t.reply.sources.map((s) => (
-                    <li key={s} className="pill-source mono">
-                      Fonte: {s}
+                    <li key={s.ref} className="pill-source mono">
+                      Fonte: {s.label}
                     </li>
                   ))}
                 </ul>

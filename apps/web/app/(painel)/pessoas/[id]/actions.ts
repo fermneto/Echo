@@ -2,11 +2,11 @@
 
 import { canAskTwin } from "@/lib/access";
 import { findPersona } from "@/lib/demo/personas";
+import type { AnswerResult } from "@echo/agents";
 import { askTwinDemo } from "@/lib/demo/twin";
-import type { TwinReply } from "@/lib/demo/types";
 import { currentPersona } from "@/lib/session";
 
-export type AskTurn = { question: string; reply: TwinReply };
+export type AskTurn = { question: string; reply: AnswerResult };
 export type AskState = { turns: AskTurn[]; error?: string };
 
 const MAX_QUESTION = 500;

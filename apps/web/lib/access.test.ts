@@ -10,7 +10,7 @@ describe("canSee", () => {
 
   it("só a liderança vê redistribuição e custo e execuções", () => {
     for (const r of ["redistribuicao", "execucoes"] as RouteId[]) {
-      expect(canSee("lead", r, demo)).toBe(true);
+      expect(canSee("leader", r, demo)).toBe(true);
       expect(canSee("member", r, demo)).toBe(false);
       expect(canSee("hr", r, demo)).toBe(false);
     }
@@ -19,7 +19,7 @@ describe("canSee", () => {
   it("ganhos e configuração: RH e liderança, nunca a pessoa da equipe", () => {
     for (const r of ["ganhos", "configuracao"] as RouteId[]) {
       expect(canSee("hr", r, demo)).toBe(true);
-      expect(canSee("lead", r, demo)).toBe(true);
+      expect(canSee("leader", r, demo)).toBe(true);
       expect(canSee("member", r, demo)).toBe(false);
     }
   });
@@ -42,7 +42,7 @@ describe("navFor", () => {
   });
 
   it("sem demonstração, o grupo Demo some", () => {
-    expect(navFor("lead", { demo: false }).map((g) => g.label)).not.toContain("Demo");
+    expect(navFor("leader", { demo: false }).map((g) => g.label)).not.toContain("Demo");
   });
 });
 
@@ -50,6 +50,6 @@ describe("canAskTwin", () => {
   it("o RH não pergunta ao gêmeo; equipe e liderança sim", () => {
     expect(canAskTwin("hr")).toBe(false);
     expect(canAskTwin("member")).toBe(true);
-    expect(canAskTwin("lead")).toBe(true);
+    expect(canAskTwin("leader")).toBe(true);
   });
 });

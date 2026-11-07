@@ -31,7 +31,7 @@ export default async function EquipePage() {
                 </td>
                 <td className="muted">{p.title}</td>
                 <td className="muted">{p.city}</td>
-                <td className="mono">{localTime(DEMO_NOW, p.timeZone)}</td>
+                <td className="mono">{localTime(DEMO_NOW, p.timezone)}</td>
                 <td>
                   <StatusChip persona={p} />
                 </td>
