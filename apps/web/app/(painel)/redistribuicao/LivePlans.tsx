@@ -1,5 +1,6 @@
 "use client";
 
+import { Reveal } from "@/components/Reveal";
 import { useState, useTransition } from "react";
 import { ABSENCE_KINDS, confirmText, type PlanView } from "@/lib/redistribution";
 import { aprovarPlano, descartarPlano, registrarAusencia, type FlowResult } from "./actions";
@@ -152,7 +153,7 @@ function PlanCard({ plan }: { plan: PlanView }) {
       )}
 
       {awaiting && confirming && (
-        <div className="plan-confirm" role="group" aria-labelledby={`confirmar-${plan.id}`}>
+        <Reveal className="plan-confirm" role="group" aria-labelledby={`confirmar-${plan.id}`}>
           <p id={`confirmar-${plan.id}`} className="plan-confirm__title">
             {confirm.title}
           </p>
@@ -165,14 +166,14 @@ function PlanCard({ plan }: { plan: PlanView }) {
               Voltar
             </button>
           </div>
-        </div>
+        </Reveal>
       )}
 
       {plan.outcome && (
-        <div className="plan-done" role="status">
+        <Reveal className="plan-done" role="status">
           <p className="plan-done__title">{plan.outcome.title}</p>
           <p className="plan-done__text">{plan.outcome.text}</p>
-        </div>
+        </Reveal>
       )}
       {warning && (
         <p className="redist-msg" role="status">

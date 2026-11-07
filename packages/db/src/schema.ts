@@ -434,9 +434,14 @@ export const dailyArtifacts = pgTable("daily_artifacts", {
   kind: text("kind").notNull(), // nota | plano | resumo
   date: text("date").notNull(),
   spec: jsonb("spec").notNull(),
+  /** Fatos calculados por regra no momento do resumo (o painel mostra números e nomes a partir deles). */
+  facts: jsonb("facts"),
+  /** Modelo que montou a especificação (null: layout padrão por regra). */
+  model: text("model"),
   version: integer("version").notNull().default(1),
   state: text("state").notNull().default("draft"), // draft | rendered | confirmed | fallback
-});
+  updatedAt: ts("updated_at"),
+}, (t) => [uniqueIndex("daily_artifacts_person_date_kind").on(t.orgId, t.personId, t.date, t.kind)]);
 
 export const featureVideos = pgTable("feature_videos", {
   id: id(),

@@ -43,6 +43,8 @@ const STEP = 1.7; // graus entre pontos
 const RGB = { on: [172, 255, 96], twin: [118, 170, 255], wait: [236, 196, 110] } as const;
 /** Raio, em graus, da área colorida em volta de cada cidade. */
 const ACTIVE_RADIUS = 10;
+/** Bonequinhos por cidade; o resto vira "+N", que abre a lista da cidade. */
+const MAX_SPRITES = 3;
 const MIN_Z = 1;
 /** Largura mínima do mapa: em telas estreitas ele fica mais largo que a moldura e se arrasta de lado. */
 const MIN_MAP_W = 720;
@@ -67,6 +69,9 @@ export function WorldMap({ crews, zones, arcs, nowIso, canAsk = true }: { crews:
   const wrap = useRef<HTMLElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const stage = useRef<HTMLDivElement>(null);
+  const frameW = useRef(0);
+  /** Último zoom e largura escritos no palco: só reescreve quando mudam. */
+  const painted = useRef({ z: -1, w: -1 });
   /**
    * A posição do mapa vive em `viewRef` e é pintada direto no DOM, uma vez por quadro: arrastar e
    * dar zoom não re-renderizam os bonecos. O React só recebe a posição final (`view`), ao parar.
@@ -159,6 +164,7 @@ export function WorldMap({ crews, zones, arcs, nowIso, canAsk = true }: { crews:
     };
     img.src = WORLD_MAP_PNG;
     const ro = new ResizeObserver(() => {
+      frameW.current = box.offsetWidth;
       draw();
       setView((v) => v);
     });
@@ -177,8 +183,10 @@ export function WorldMap({ crews, zones, arcs, nowIso, canAsk = true }: { crews:
   }, [view.z]);
 
   /** w e h: tamanho do mapa; fw: largura da moldura (menor que o mapa em telas estreitas). */
+  // Largura da moldura em cache: ler offsetWidth a cada quadro do arrasto força recalcular o layout.
   const size = () => {
-    const fw = wrap.current?.offsetWidth ?? 0;
+    if (!frameW.current) frameW.current = wrap.current?.offsetWidth ?? 0;
+    const fw = frameW.current;
     const w = Math.max(fw, MIN_MAP_W);
     return { w, h: (w * SPAN) / 360, fw };
   };
@@ -202,9 +210,17 @@ export function WorldMap({ crews, zones, arcs, nowIso, canAsk = true }: { crews:
     const v = viewRef.current;
     const el = stage.current;
     if (el) {
-      el.style.width = `${size().w}px`;
+      const w = size().w;
+      if (w !== painted.current.w) {
+        el.style.width = `${w}px`;
+        painted.current.w = w;
+      }
       el.style.transform = `translate3d(${v.tx}px, ${v.ty}px, 0) scale(${v.z})`;
-      el.style.setProperty("--z", String(v.z));
+      // Mudar --z recalcula o estilo de todos os grupos; no arrasto o zoom não muda.
+      if (v.z !== painted.current.z) {
+        el.style.setProperty("--z", String(v.z));
+        painted.current.z = v.z;
+      }
     }
     placeCard.current();
   };
@@ -495,7 +511,7 @@ export function WorldMap({ crews, zones, arcs, nowIso, canAsk = true }: { crews:
             style={{ left: `${x(c.location[1]) * 100}%`, top: `${y(c.location[0]) * 100}%` }}
           >
             <span className="wmap__people">
-              {c.people.map((p) => (
+              {c.people.slice(0, MAX_SPRITES).map((p) => (
                 <button
                   key={p.id}
                   type="button"
@@ -510,9 +526,25 @@ export function WorldMap({ crews, zones, arcs, nowIso, canAsk = true }: { crews:
                     setSelected((s) => (s?.person === p.id && s.pinned ? null : { crew: c.key, person: p.id, pinned: true }));
                   }}
                 >
-                  <PixelSprite look={{ hair: p.hair }} mode={p.mode} size={26} />
+                  <PixelSprite look={{ hair: p.hair }} mode={p.mode} size={22} />
                 </button>
               ))}
+              {c.people.length > MAX_SPRITES && (
+                <button
+                  type="button"
+                  className="wmap__more mono"
+                  aria-label={`Mais ${c.people.length - MAX_SPRITES} pessoas em ${c.people[0]?.city ?? c.key}`}
+                  onPointerEnter={(e) => hoverOpen(e, c.key, null)}
+                  onPointerLeave={hoverClose}
+                  onClick={() => {
+                    if (wasDrag()) return;
+                    cancelClose();
+                    setSelected({ crew: c.key, person: null, pinned: true });
+                  }}
+                >
+                  +{c.people.length - MAX_SPRITES}
+                </button>
+              )}
             </span>
             <button
               type="button"

@@ -13,10 +13,13 @@ import { createPgDailyNoteStore } from "./pg-notes.ts";
 import { createMorningPlan, type MorningPlan } from "./morning-plan.ts";
 import { type BatchApi, createNightReview, type NightReview, type ReviewSource } from "./night-review.ts";
 import { createPgPlanStore, createPgReviewStore } from "./pg-night.ts";
-import { ollamaClassifier, ollamaTriage } from "./triage-ollama.ts";
+import { ollamaJson, ollamaTriage } from "./triage-ollama.ts";
+import { createDaySummary, type DaySummary } from "./day-summary.ts";
+import { createPgArtifactStore } from "./pg-artifacts.ts";
 import { createFix, type Fix, type FixCodeHost } from "./fix.ts";
 import { createManagedFixSandbox, fixAgentParams, fixEnvironmentParams } from "./managed-fix.ts";
 import { createPgFixStore, pgDelegationOf } from "./pg-fix.ts";
+import type { DelegationModel } from "./delegation.ts";
 import { createRedistribution, type Redistribution } from "./redistribution.ts";
 import { createPgRedistributionStore } from "./pg-redistribution.ts";
 import { createWeeklyReport, type WeeklyReport } from "./report.ts";
@@ -29,7 +32,8 @@ import { createPgDigestStore } from "./pg-away-digest.ts";
 export { createPgAgentData } from "./pg-data.ts";
 export { createPgDailyNoteStore } from "./pg-notes.ts";
 export { createPgPlanStore, createPgReviewStore } from "./pg-night.ts";
-export { ollamaBaseUrl, ollamaTriage } from "./triage-ollama.ts";
+export { ollamaBaseUrl, ollamaJson, ollamaTriage } from "./triage-ollama.ts";
+export { createPgArtifactStore } from "./pg-artifacts.ts";
 export { createPgFixStore } from "./pg-fix.ts";
 export { createPgRedistributionStore } from "./pg-redistribution.ts";
 export { createPgReportStore } from "./pg-report.ts";
@@ -121,6 +125,21 @@ export function serverNightReview(db: Database, apiKey: string | undefined, diff
   });
 }
 
+/**
+ * Resumo do dia (etapa 26): depois do rascunho da nota, o modelo aberto do Ollama monta a especificação do
+ * resumo. Sem `ollama`, layout padrão por regra.
+ */
+export function serverDaySummary(db: Database, ollama?: { url: string; model: string; timeoutMs: number }): DaySummary {
+  return createDaySummary({
+    data: (orgId) => createPgAgentData(db, orgId),
+    notes: (orgId) => createPgDailyNoteStore(db, orgId),
+    artifacts: (orgId) => createPgArtifactStore(db, orgId),
+    model: ollama ? ollamaJson({ baseUrl: ollama.url, model: ollama.model }) : null,
+    recorder: createDbRunRecorder(db),
+    timeoutMs: ollama?.timeoutMs,
+  });
+}
+
 export function serverMorningPlan(db: Database, webUrl: string): MorningPlan {
   return createMorningPlan({
     data: (orgId) => createPgAgentData(db, orgId),
@@ -149,7 +168,7 @@ export function serverFix(db: Database, opts: { apiKey?: string | undefined; age
     outbox: (orgId) => createPgOutbox(db, orgId),
     recorder: createDbRunRecorder(db),
     // Com o Ollama (o mesmo da triagem), a delegação escrita pela pessoa pode unir a correção por ela.
-    delegation: opts.judge ? { judge: ollamaClassifier({ baseUrl: opts.judge.url, model: opts.judge.model }), timeoutMs: opts.judge.timeoutMs, of: pgDelegationOf(db) } : null,
+    delegation: opts.judge ? { judge: delegationJudge(ollamaJson({ baseUrl: opts.judge.url, model: opts.judge.model })), timeoutMs: opts.judge.timeoutMs, of: pgDelegationOf(db) } : null,
   });
 }
 
@@ -288,4 +307,9 @@ export async function defaultAnswer(): Promise<(req: AnswerRequest) => Promise<A
   const db = createDb(createPool(url, 4, { defaultScope: "none" }));
   cached = createAnswer(serverAnswerDeps(db, process.env.ANTHROPIC_API_KEY || undefined));
   return cached;
+}
+
+/** O juiz da delegação sobre o cliente JSON do Ollama (saída restrita ao esquema). */
+function delegationJudge(m: { model: string; json: (r: { system: string; user: string; schema: object }, s: AbortSignal) => Promise<{ raw: unknown; inputTokens?: number; outputTokens?: number }> }): DelegationModel {
+  return { model: m.model, classify: (request, signal) => m.json(request, signal) };
 }

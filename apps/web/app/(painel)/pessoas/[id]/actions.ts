@@ -7,6 +7,7 @@ import { gainsOrgId } from "@/lib/gains";
 import { panelDb } from "@/lib/db";
 import { findMember } from "@/lib/demo/team";
 import { askTwinDemo } from "@/lib/demo/twin";
+import { teamScope } from "@/lib/scope";
 import { currentPersona } from "@/lib/session";
 
 import { MAX_QUESTION, type AskState } from "@/lib/ask";
@@ -18,7 +19,7 @@ export async function perguntar(prev: AskState, formData: FormData): Promise<Ask
 
   const target = findMember(String(formData.get("pessoa") ?? ""));
   const question = String(formData.get("pergunta") ?? "").trim().slice(0, MAX_QUESTION);
-  if (!target) return { ...prev, error: "Pessoa não encontrada." };
+  if (!target || !(await teamScope(me)).people.some((p) => p.id === target.id)) return { ...prev, error: "Pessoa não encontrada." };
   if (!question) return { ...prev, error: "Escreva uma pergunta." };
 
   const db = panelDb();

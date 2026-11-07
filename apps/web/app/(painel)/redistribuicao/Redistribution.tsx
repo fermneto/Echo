@@ -1,5 +1,6 @@
 "use client";
 
+import { Reveal } from "@/components/Reveal";
 import { useState, useTransition } from "react";
 import type { Assignment } from "@/lib/demo/redistribution";
 import type { Decision } from "@/lib/decisions-store";
@@ -141,7 +142,7 @@ export function Redistribution({
             )}
 
             {phase === "confirmar" && (
-              <div className="plan-confirm" role="group" aria-labelledby="confirmar-titulo">
+              <Reveal className="plan-confirm" role="group" aria-labelledby="confirmar-titulo">
                 <p id="confirmar-titulo" className="plan-confirm__title">
                   Aplicar {plan.length} mudanças no Linear e no GitHub?
                 </p>
@@ -156,11 +157,11 @@ export function Redistribution({
                     Voltar
                   </button>
                 </div>
-              </div>
+              </Reveal>
             )}
 
             {phase === "aprovado" && (
-              <div className="plan-done" role="status">
+              <Reveal className="plan-done" role="status">
                 <p className="plan-done__title">
                   Plano aplicado{decision ? ` por ${decision.by}${decision.at ? ` em ${decision.at}` : ""}` : ""}.
                 </p>
@@ -170,7 +171,7 @@ export function Redistribution({
                 <button type="button" className="link-inline" onClick={() => apply(false)} disabled={pending}>
                   {pending ? "Desfazendo…" : "Desfazer e devolver as tarefas"}
                 </button>
-              </div>
+              </Reveal>
             )}
           </section>
         )}
@@ -206,7 +207,7 @@ export function Redistribution({
               </>
             )}
             {loose === "distribuida" && (
-              <div className="plan-done" role="status">
+              <Reveal className="plan-done" role="status">
                 <p className="plan-done__title">
                   {unassigned.item} atribuída a {unassigned.suggestion}
                   {looseDecision?.at ? ` em ${looseDecision.at}` : ""}.
@@ -214,7 +215,7 @@ export function Redistribution({
                 <button type="button" className="link-inline" onClick={() => applyLoose(false)} disabled={pending}>
                   Desfazer
                 </button>
-              </div>
+              </Reveal>
             )}
           </div>
         </section>

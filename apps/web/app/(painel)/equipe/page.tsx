@@ -1,10 +1,13 @@
 import Link from "next/link";
 import { canAskTwin } from "@/lib/access";
+import { teamScope } from "@/lib/scope";
+import { scopeLabel, TeamPicker } from "@/components/TeamPicker";
 import { statusLine, toneOf } from "@/lib/people";
 import { requireAccess } from "@/lib/session";
 import { loadTeam } from "@/lib/team-live";
 import { localTime } from "@/lib/time";
 import { PixelAvatar } from "@/components/PixelAvatar";
+import { SearchFilter } from "@/components/SearchFilter";
 
 export const metadata = { title: "Pessoas · Echo" };
 
@@ -13,16 +16,20 @@ export default async function EquipePage() {
   const now = new Date();
   const team = await loadTeam(now);
   const seesWork = canAskTwin(me.role);
-  const zones = new Set(team.map((p) => p.timezone)).size;
+  const scope = await teamScope(me, team);
+  const people = scope.people;
+  const zones = new Set(people.map((p) => p.timezone)).size;
   return (
     <>
       <h1 className="hero-title hero-title--page">Pessoas</h1>
       <p className="lead">
-        {team.length} pessoas em {zones} fusos. Abra a ficha para ver a disponibilidade{seesWork ? " e perguntar ao gêmeo" : ""}.
+        {people.length} pessoas em {zones} fusos, de {scopeLabel(scope)}. Abra a ficha para ver a disponibilidade{seesWork ? " e perguntar ao gêmeo" : ""}.
       </p>
+      <TeamPicker scope={scope} back="/equipe" />
+      <SearchFilter label="Buscar pessoas" placeholder="Buscar por nome, função, cidade ou estado" empty="Ninguém encontrado com essa busca.">
       <ul className="people-list" role="list">
-        {team.map((p) => (
-          <li key={p.id} className="people-row">
+        {people.map((p) => (
+          <li key={p.id} className="people-row" data-search={`${p.name} ${p.title} ${p.city} ${p.cityCode} ${statusLine(p)}`}>
             <PixelAvatar persona={p} size={40} />
             <div className="people-row__who">
               <p className="people-row__name">
@@ -56,6 +63,7 @@ export default async function EquipePage() {
           </li>
         ))}
       </ul>
+      </SearchFilter>
     </>
   );
 }

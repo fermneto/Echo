@@ -443,7 +443,7 @@ _IA e custos_
 | Relatório | Tempo real | Claude Sonnet 5.5 | Baixo |
 | Contradições entre notas | Uma vez por dia | Claude Haiku 5.5 | Baixo |
 | Cadastro por currículo | Durante o pedido | Claude | Baixo |
-| Resumo diário interativo | Tempo real curto, especificação de componentes | Claude Haiku 5.5 | Baixo |
+| Resumo do dia interativo | Depois do rascunho da nota, no worker (Ollama, CPU) | Qwen3 4B Instruct (modelo aberto) | — |
 | Roteiro e gravação do vídeo da entrega | Managed Agents com navegador | Claude Sonnet 5.5 | Médio |
 
 Plano da manhã e motivos da redistribuição saem por regra, sem modelo.
@@ -456,9 +456,17 @@ Plano da manhã e motivos da redistribuição saem por regra, sem modelo.
 
 Erro, tempo esgotado ou saída inválida: vale a regra.
 
+**Resumo do dia por modelo aberto.** Depois do rascunho da nota (e de novo quando a pessoa confirma pelo Slack), o worker monta os fatos do dia por regra, cada um com id: onde parou, o que travou, tarefas, PRs, contadores de atividade, liberado e reservado. O Qwen3 4B recebe os fatos com ids curtos (`f1`, `f2`...) e **sem números nem chaves no texto**, e devolve só a especificação: componentes da biblioteca fechada (`packages/artifacts`), ordem, títulos e frases curtas. O validador (`checkSpec`):
+- tira título ou frase com número, primeira pessoa, avaliação ou markup (o título vira o padrão do componente);
+- tira do bloco fato desconhecido, repetido ou no componente errado, e devolve o fato ao componente certo;
+- completa por regra todo fato que o modelo deixou de fora (um bloqueio nunca some);
+- com formato errado ou nenhum bloco aproveitável, usa o layout padrão.
+
+O painel mostra o resumo em `/resumos` (só a própria pessoa), com números, nomes e chaves vindos dos fatos. A mensagem do Slack da nota ganha o botão "Abrir resumo do dia". Cada resumo grava `daily_artifact` em `agent_runs` (custo zero por token). Medido em CPU local: ~25 a 75 s por resumo, ~500 a 700 tokens de entrada e ~150 a 450 de saída. Com o esquema JSON aninhado em `format`, o Ollama só gerava espaços: o resumo usa `format: "json"` com o formato no texto do pedido, e o validador garante o resto.
+
 Escolha do modelo (6 PRs de teste, CPU): Qwen3 4B Instruct acertou os 6, em ~14 s por PR. Qwen2.5-Coder 1.5B (2 GB de RAM) acertou os riscos, mas nunca marcou revisão leve, e sem as perguntas sim/não chegou a obedecer a um "responda trivial" no diff; a regra de texto dirigido a um modelo cobre esse caso.
 
-Cada triagem grava uma linha `night_triage` em `agent_runs` (custo zero por token). Sem `TRIAGE_OLLAMA_URL`, só a regra.
+Cada triagem grava uma linha `night_triage` em `agent_runs` (custo zero por token). Sem `SLM_OLLAMA_URL`, só a regra.
 
 **Estilo da pessoa no gêmeo.** `people.agent_style` é o texto da própria pessoa sobre como o agente dela responde, limpo por `cleanAgentText` (`packages/domain/src/agent-profile.ts`: sem caracteres de controle, sem `<` e `>`, até 1.200 caracteres). Entra na mensagem do gêmeo num bloco `<estilo_da_pessoa>`, depois de `</dados>`, porque quem escreveu é a dona do agente, não um terceiro. As instruções fixas (`ANSWER_SYSTEM`, com cache) têm a seção "Estilo da pessoa": o texto muda tom e jeito de explicar, nunca as regras nem o formato. O validador de primeira pessoa continua valendo. O Echo da equipe (sem dono) não recebe estilo.
 
@@ -467,7 +475,7 @@ Cada triagem grava uma linha `night_triage` em `agent_runs` (custo zero por toke
 2. `runDelegation` (`packages/agents/src/delegation.ts`): o juiz recebe só o texto da delegação e fatos estruturados (repositório, PR, arquivos, testes), nunca o diff, o título ou os achados; responde `{cabe, motivo}` presos ao esquema. As instruções listam `NEVER_DELEGATED` e mandam responder `false` na dúvida. Erro, tempo esgotado ou saída inválida: fica com o autor.
 3. Cabendo, a união segue pelo mesmo `decide` do painel (`fixMergeCheck`: rascunho e PR sem mudança), com `approvedBy` = autor e `fix_runs.decided_via = 'delegacao'` e o motivo em `delegation_note`. O autor recebe `slack.dm` com o motivo e como desfazer.
 
-Não cabendo, `delegation_note` guarda o porquê. Cada tentativa grava `fix_delegation` em `agent_runs` (custo zero por token). Sem `TRIAGE_OLLAMA_URL` no reviewer, não há delegação: toda correção espera o autor. A tela fica em `/pessoas/[id]` ("Seu agente"), só para a própria pessoa (`salvarPerfilDoAgente`, `packages/agents/src/pg-profile.ts`), com a lista "Decisões do seu agente" (`readAgentDecisions`). O motivo de não cobrir vai em `PlanFix.delegationNote`, no motivo do item da correção do plano da manhã e em Meu plano (`readPlanFixes`). Em Custo e execuções, `fix_delegation` aparece como "Delegação da correção (modelo aberto)". Sem banco, o painel guarda o texto num cookie (`echo_seu_agente`) e mostra decisões de exemplo.
+Não cabendo, `delegation_note` guarda o porquê. Cada tentativa grava `fix_delegation` em `agent_runs` (custo zero por token). Sem `SLM_OLLAMA_URL` no reviewer, não há delegação: toda correção espera o autor. A tela fica em `/pessoas/[id]` ("Seu agente"), só para a própria pessoa (`salvarPerfilDoAgente`, `packages/agents/src/pg-profile.ts`), com a lista "Decisões do seu agente" (`readAgentDecisions`). O motivo de não cobrir vai em `PlanFix.delegationNote`, no motivo do item da correção do plano da manhã e em Meu plano (`readPlanFixes`). Em Custo e execuções, `fix_delegation` aparece como "Delegação da correção (modelo aberto)". Sem banco, o painel guarda o texto num cookie (`echo_seu_agente`) e mostra decisões de exemplo.
 
 ### Ferramentas do agente (somente leitura)
 

@@ -1,5 +1,5 @@
 {
-  "id": "21f3502e-9562-412e-bc64-13336bb21c46",
+  "id": "9f978063-9c68-4a1d-b5a2-630611193637",
   "prevId": "dd477d20-30f5-4254-b851-2fc77f4f255c",
   "version": "7",
   "dialect": "postgresql",
@@ -870,6 +870,18 @@
           "primaryKey": false,
           "notNull": true
         },
+        "facts": {
+          "name": "facts",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "model": {
+          "name": "model",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
         "version": {
           "name": "version",
           "type": "integer",
@@ -883,9 +895,49 @@
           "primaryKey": false,
           "notNull": true,
           "default": "'draft'"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
         }
       },
-      "indexes": {},
+      "indexes": {
+        "daily_artifacts_person_date_kind": {
+          "name": "daily_artifacts_person_date_kind",
+          "columns": [
+            {
+              "expression": "org_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "person_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "date",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "kind",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
       "foreignKeys": {
         "daily_artifacts_org_id_orgs_id_fk": {
           "name": "daily_artifacts_org_id_orgs_id_fk",
@@ -1514,18 +1566,6 @@
         "decided_at": {
           "name": "decided_at",
           "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "decided_via": {
-          "name": "decided_via",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "delegation_note": {
-          "name": "delegation_note",
-          "type": "text",
           "primaryKey": false,
           "notNull": false
         },
@@ -2346,24 +2386,6 @@
         "away_instructions": {
           "name": "away_instructions",
           "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "agent_style": {
-          "name": "agent_style",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "delegation": {
-          "name": "delegation",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "delegation_updated_at": {
-          "name": "delegation_updated_at",
-          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
         },

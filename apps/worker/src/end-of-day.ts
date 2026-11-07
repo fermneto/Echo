@@ -1,4 +1,4 @@
-import type { EndOfDay } from "@echo/agents";
+import type { DaySummary, EndOfDay } from "@echo/agents";
 import { QUEUES, type JobQueue } from "@echo/jobs";
 import { HOUR, NOTE_RULES } from "@echo/domain";
 
@@ -17,6 +17,8 @@ export interface SlackInteractionJob {
 
 export interface EndOfDayWiring {
   flow: Pick<EndOfDay, "draft" | "expire" | "confirmFromSlack">;
+  /** Resumo do dia (etapa 26): entra na fila depois do rascunho e da confirmação pelo Slack. */
+  summary?: Pick<DaySummary, "generate">;
   /** Quem está no fim do expediente agora (dueEndOfDay em @echo/agents/server). */
   scan: (now: Date) => Promise<DailyNoteJob[]>;
   now?: () => Date;
@@ -40,8 +42,22 @@ export async function registerEndOfDay(queue: JobQueue, w: EndOfDayWiring): Prom
     const r = await w.flow.draft(orgId, personId, date);
     if (r.status === "created") {
       await queue.send<DailyNoteJob>(QUEUES.dailyNoteTimeout, job.data, { singletonKey: key(job.data), startAfterSeconds: (NOTE_RULES.confirmHours * HOUR) / 1000 });
+      if (w.summary) await queue.send<DailyNoteJob>(QUEUES.daySummary, job.data, { singletonKey: `${key(job.data)}:rascunho` });
     }
   });
+
+  if (w.summary) {
+    const summary = w.summary;
+    await queue.work<DailyNoteJob>(QUEUES.daySummary, async (job) => {
+      await summary.generate(job.data.orgId, job.data.personId, job.data.date);
+    });
+  }
+  // Confirmada pelo Slack: o resumo é montado de novo com o que a pessoa declarou.
+  const confirmed = async (orgId: string, payload: unknown) => {
+    const r = await w.flow.confirmFromSlack(orgId, payload);
+    if (w.summary && r?.status === "confirmed") await queue.send<DailyNoteJob>(QUEUES.daySummary, { orgId, personId: r.note.personId, date: r.note.date }, { singletonKey: `${orgId}:${r.note.personId}:${r.note.date}:confirmada` });
+    return r;
+  };
 
   await queue.work<DailyNoteJob>(QUEUES.dailyNoteTimeout, async (job) => {
     await w.flow.expire(job.data.orgId, job.data.personId, job.data.date);
@@ -49,10 +65,10 @@ export async function registerEndOfDay(queue: JobQueue, w: EndOfDayWiring): Prom
 
   // Outros botões (Resolveu / Não resolveu) chegam aqui também; o fluxo da nota só trata o Confirmar dela.
   if (w.interactions) {
-    w.interactions.add("nota-do-dia", async (job) => (await w.flow.confirmFromSlack(job.orgId, job.payload)) ?? "ignored");
+    w.interactions.add("nota-do-dia", async (job) => (await confirmed(job.orgId, job.payload)) ?? "ignored");
   } else {
     await queue.work<SlackInteractionJob>(QUEUES.slackInteraction, async (job) => {
-      await w.flow.confirmFromSlack(job.data.orgId, job.data.payload);
+      await confirmed(job.data.orgId, job.data.payload);
     });
   }
 

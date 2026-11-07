@@ -12,6 +12,7 @@
   "dependencies": {
     "@echo/actions": "workspace:*",
     "@echo/agents": "workspace:*",
+    "@echo/artifacts": "workspace:*",
     "@echo/brain": "workspace:*",
     "@echo/config": "workspace:*",
     "@echo/connectors": "workspace:*",
@@ -19,6 +20,8 @@
     "@echo/domain": "workspace:*",
     "@echo/jobs": "workspace:*",
     "@echo/observability": "workspace:*",
+    "@gsap/react": "catalog:",
+    "gsap": "catalog:",
     "next": "catalog:",
     "react": "catalog:",
     "react-dom": "catalog:",

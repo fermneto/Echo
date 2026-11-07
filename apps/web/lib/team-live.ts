@@ -8,8 +8,8 @@ import type { Availability, Persona } from "./demo/types";
 
 /**
  * Equipe com a disponibilidade do banco: expediente e fuso de `people`, ausências de `absences`, decididos por
- * `isAway` (packages/domain), a mesma regra que o agente usa ao responder. Só as 7 personas da demonstração têm
- * linha no seed; a equipe fictícia do mapa continua como em demo/team.ts. Sem banco, devolve TEAM sem mudança.
+ * `isAway` (packages/domain), a mesma regra que o agente usa ao responder. As 18 pessoas do mapa têm
+ * linha no seed; quem não tiver continua como em demo/team.ts. Sem banco, devolve TEAM sem mudança.
  */
 
 const DAY_NAME = ["domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sábado"];
