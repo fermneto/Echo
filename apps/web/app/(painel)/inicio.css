@@ -1,0 +1,68 @@
+/* Início: "Enquanto você estava fora" */
+.away-log {
+  margin-top: var(--space-xl);
+  border: 1px solid var(--color-line);
+  border-radius: var(--rounded-lg);
+  background: var(--color-panel);
+}
+.away-log__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: var(--space-sm);
+  padding: var(--space-md) var(--space-lg);
+  border-bottom: 1px solid var(--color-line);
+}
+.away-log__title {
+  margin: 0;
+  font-size: 11px;
+  font-weight: 400;
+  text-transform: uppercase;
+  color: var(--color-cloud);
+}
+.away-log__agent {
+  font-size: 11px;
+  color: var(--color-signal-twin-text);
+}
+.away-log__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.away-log__row {
+  display: grid;
+  grid-template-columns: 44px 12px 1fr;
+  align-items: baseline;
+  gap: var(--space-sm);
+  padding: 10px var(--space-lg);
+}
+.away-log__row + .away-log__row {
+  border-top: 1px solid var(--color-line);
+}
+.away-log__time {
+  font-size: 12px;
+  color: var(--color-ash);
+}
+.away-log__text {
+  margin: 0;
+  font-size: 14px;
+  color: var(--color-paper);
+  overflow-wrap: anywhere;
+}
+.away-log__ref {
+  margin-left: var(--space-sm);
+  font-size: 11px;
+  color: var(--color-ash);
+  white-space: nowrap;
+}
+.away-log__empty,
+.away-log__more {
+  margin: 0;
+  padding: var(--space-md) var(--space-lg);
+  font-size: 14px;
+}
+.away-log__more {
+  padding-top: 0;
+  font-size: 12px;
+}
