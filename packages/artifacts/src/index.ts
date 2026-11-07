@@ -160,6 +160,17 @@ export function checkSpec(raw: unknown, day: DayFacts): SpecCheck {
   if (issues.length) return fallback([...new Set(issues)]);
   if (!blocks.length) return fallback([...new Set(dropped), "sem blocos"]);
 
+  // Um bloco por componente: o modelo pequeno às vezes abre um bloco para cada cartão. Juntos, o título de um
+  // cartão não descreve o grupo: o bloco fica só com o rótulo fixo do componente.
+  for (let i = blocks.length - 1; i > 0; i--) {
+    const first = blocks.findIndex((b) => b.component === blocks[i]!.component);
+    if (first < i) {
+      const keep = blocks[first]!;
+      blocks[first] = { component: keep.component, factIds: [...keep.factIds, ...blocks[i]!.factIds] };
+      blocks.splice(i, 1);
+    }
+  }
+
   // Completa o que o modelo deixou de fora, na ordem padrão.
   const missing = day.facts.filter((f) => !used.has(f.id));
   for (const d of DEFAULT_ORDER) {
