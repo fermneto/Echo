@@ -34,6 +34,11 @@ const database = {
     .refine((v) => /^postgres(ql)?:\/\//.test(v), "precisa começar com postgres:// ou postgresql://"),
 };
 
+// Chave da organização na Anthropic (nunca o login do claude.ai). Opcional: sem ela, os fluxos usam a resposta por regra.
+const anthropic = {
+  ANTHROPIC_API_KEY: optionalString.pipe(z.string().startsWith("sk-ant-", "precisa começar com sk-ant-").optional()),
+};
+
 export const apiSchema = baseSchema.extend({
   ...database,
   // Segredos dos webhooks. Sem eles, a rota responde 503 em vez de aceitar aviso sem assinatura.
@@ -46,12 +51,14 @@ export const apiSchema = baseSchema.extend({
 });
 
 export const webSchema = baseSchema.extend({
+  ...anthropic,
   PORT: port(3000).optional(),
   WEB_PORT: port(3000),
 });
 
 export const workerSchema = baseSchema.extend({
   ...database,
+  ...anthropic,
   /** Token do bot do Slack (xoxb-…). Sem ele, o worker não fala no Slack. */
   SLACK_BOT_TOKEN: optionalString,
   /** GitHub App: id e chave privada (PEM; "\n" escapado é aceito). */
@@ -63,7 +70,7 @@ export const workerSchema = baseSchema.extend({
   HEARTBEAT_INTERVAL_MS: z.coerce.number().int().min(1000).default(30_000),
 });
 
-export const reviewerSchema = baseSchema.extend({ ...database });
+export const reviewerSchema = baseSchema.extend({ ...database, ...anthropic });
 
 export const schemas = { api: apiSchema, web: webSchema, worker: workerSchema, reviewer: reviewerSchema } as const;
 export type ServiceName = keyof typeof schemas;
