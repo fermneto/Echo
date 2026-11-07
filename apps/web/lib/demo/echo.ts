@@ -12,11 +12,18 @@ import type { Persona } from "./types";
 
 const names = (list: string[]) => (list.length <= 1 ? (list[0] ?? "") : `${list.slice(0, -1).join(", ")} e ${list.at(-1)}`);
 
+const AVAILABILITY = /expediente|dispon[ií]ve|quem est[aá] (trabalhando|online)|quantas pessoas/;
+
+/** Pergunta sobre quem está trabalhando agora: responde por regra, da mesma equipe que o mapa mostra. */
+export function isAvailabilityQuestion(question: string): boolean {
+  return AVAILABILITY.test(question.trim().toLowerCase());
+}
+
 export function askEchoDemo(question: string, team: readonly Persona[], notes: readonly Note[] = notesWith({})): AnswerResult {
   const reply = (text: string, sources: SourceRef[] = []): AnswerResult => ({ agentName: "Echo", text, sources, needsOwner: false, usedModel: false, warnings: [] });
   const q = question.trim().toLowerCase();
 
-  if (/expediente|dispon[ií]ve|quem est[aá] (trabalhando|online)|quantas pessoas/.test(q)) {
+  if (AVAILABILITY.test(q)) {
     const on = team.filter((p) => p.availability.kind === "working").map((p) => p.name);
     const away = team.length - on.length;
     return reply(

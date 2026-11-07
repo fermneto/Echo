@@ -37,3 +37,12 @@ describe("askEchoDemo", () => {
     for (const q of ECHO_SUGGESTIONS) expect(askEchoDemo(q, TEAM).sources.length).toBeGreaterThan(0);
   });
 });
+
+describe("isAvailabilityQuestion", () => {
+  it("reconhece perguntas sobre quem está trabalhando", async () => {
+    const { isAvailabilityQuestion } = await import("./echo");
+    expect(isAvailabilityQuestion("Quem está no expediente agora?")).toBe(true);
+    expect(isAvailabilityQuestion("quantas pessoas estão disponíveis?")).toBe(true);
+    expect(isAvailabilityQuestion("posso seguir com a ech-131?")).toBe(false);
+  });
+});
