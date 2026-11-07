@@ -17,7 +17,7 @@ export async function redistributionFlow() {
 }
 
 /**
- * Planos de ausência esperando esta liderança, para Meu plano e "Tarefas aguardando você". Null sem banco (vale a demo).
+ * Planos de ausência esperando esta liderança, para Meu plano e "Tasks aguardando você". Null sem banco (vale a demo).
  * Falha na leitura não derruba a página: fica no log e a lista vem vazia.
  */
 export async function pendingPlans(me: Persona, now: Date): Promise<ReturnType<typeof pendingPlanItem>[] | null> {

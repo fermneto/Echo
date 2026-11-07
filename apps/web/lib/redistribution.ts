@@ -124,7 +124,7 @@ export function absenceKind(label: string): (typeof KINDS)[AbsenceKindLabel] | n
   return (KINDS as Record<string, (typeof KINDS)[AbsenceKindLabel]>)[label] ?? null;
 }
 
-/** Item do Meu plano e do "Tarefas aguardando você" para um plano esperando a liderança. */
+/** Item do Meu plano e do "Tasks aguardando você" para um plano esperando a liderança. */
 export function pendingPlanItem(p: { id: string; title: string; createdAt: Date }, now: Date, timeZone: string) {
   return { id: `plano-${p.id}`, title: p.title, since: sinceLabel(p.createdAt, now, timeZone) };
 }
