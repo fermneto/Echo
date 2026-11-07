@@ -1179,9 +1179,16 @@
 }
 .wmap__people {
   display: flex;
-  gap: 1px;
+  gap: 2px;
   margin-left: 2px;
   margin-bottom: 3px;
+}
+/* No mapa, sem a grade apagada do bonequinho (que se mistura aos pontos) e com sombra para destacar. */
+.wmap__people .sprite .dot-off {
+  opacity: 0;
+}
+.wmap__people .sprite {
+  filter: drop-shadow(0 0 2px rgb(0 0 0 / 95%)) drop-shadow(0 0 4px rgb(0 0 0 / 80%)) brightness(1.35);
 }
 .wmap__dot {
   width: 9px;
@@ -1201,14 +1208,18 @@
 .wmap__crew--wait .wmap__dot {
   background: var(--color-signal-wait);
 }
+/* Nome em branco sobre etiqueta escura; a cor do estado fica no ponto ao lado. */
 .wmap__label {
   position: absolute;
   left: 16px;
-  bottom: -4px;
-  font-size: 11px;
+  bottom: -7px;
+  padding: 2px 6px;
+  font-size: 12px;
+  font-weight: 500;
   white-space: nowrap;
-  color: var(--color-signal-twin-text);
-  text-shadow: 0 1px 2px #000;
+  color: var(--color-cloud);
+  background: rgb(0 0 0 / 78%);
+  border-radius: var(--rounded-sm);
 }
 .wmap__crew.is-flipped .wmap__label {
   left: auto;
@@ -1222,12 +1233,6 @@
 .wmap__crew.is-flipped .wmap__people {
   margin-left: 0;
   margin-right: 2px;
-}
-.wmap__crew--on .wmap__label {
-  color: var(--color-signal-on);
-}
-.wmap__crew--wait .wmap__label {
-  color: var(--color-signal-wait);
 }
 .wmap__crew.is-up .wmap__label {
   bottom: calc(100% + 2px);
