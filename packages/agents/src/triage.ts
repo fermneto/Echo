@@ -21,6 +21,7 @@ export interface TriageRequest {
   system: string;
   user: string;
   schema: typeof TRIAGE_SCHEMA;
+  maxTokens?: number;
 }
 
 export const TRIAGE_SYSTEM = `Você lê um pull request antes da revisão automática de código e responde perguntas objetivas sobre ele.
@@ -52,7 +53,7 @@ export function triageRequest(input: TriageInput): TriageRequest {
     arquivos: input.files.map((f) => ({ caminho: f.path, adicionadas: f.additions, removidas: f.deletions })),
   };
   const patch = input.patch.slice(0, TRIAGE_RULES.maxPatchChars);
-  return { system: TRIAGE_SYSTEM, user: `<dados>\n${JSON.stringify(dados)}\n</dados>\n<diff>\n${patch}\n</diff>`, schema: TRIAGE_SCHEMA };
+  return { system: TRIAGE_SYSTEM, user: `<dados>\n${JSON.stringify(dados)}\n</dados>\n<diff>\n${patch}\n</diff>`, schema: TRIAGE_SCHEMA, maxTokens: 200 };
 }
 
 /** Respostas válidas ou null. O motivo é texto curto, sem menção (@) nem quebra de linha. */

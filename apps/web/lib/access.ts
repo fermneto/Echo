@@ -14,6 +14,7 @@ export const ROUTES = {
   inicio: { href: "/", label: "Início", roles: ALL },
   plano: { href: "/plano", label: "Meu plano", hint: "O que chegou para você hoje, em ordem de prioridade.", roles: PEOPLE },
   notaDoDia: { href: "/nota-do-dia", label: "Nota do dia", hint: "O rascunho do seu gêmeo para você conferir e publicar.", roles: PEOPLE },
+  resumo: { href: "/resumos", label: "Resumo do dia", hint: "O seu dia em uma página, montado por um modelo aberto a partir de fatos.", roles: PEOPLE },
   notas: { href: "/notas", label: "Notas", hint: "O que cada gêmeo sabe, com versões e fontes.", roles: PEOPLE },
   equipe: { href: "/equipe", label: "Pessoas", hint: "Quem é quem, onde está e quando volta.", roles: ALL },
   pessoa: { href: "/pessoas", label: "Ficha da pessoa", roles: ALL },
@@ -29,7 +30,7 @@ export type RouteId = keyof typeof ROUTES;
 
 /** Grupos do menu, na ordem em que aparecem. */
 export const NAV_GROUPS: readonly { label: string; routes: readonly RouteId[] }[] = [
-  { label: "Meu dia", routes: ["plano", "notaDoDia"] },
+  { label: "Meu dia", routes: ["plano", "notaDoDia", "resumo"] },
   { label: "Equipe", routes: ["equipe", "notas"] },
   { label: "Gestão", routes: ["redistribuicao", "relatorios", "ganhos", "execucoes", "configuracao"] },
   { label: "Demo", routes: ["simulador"] },
@@ -52,6 +53,27 @@ export function navFor(role: Role, opts: { demo: boolean }): NavGroup[] {
       return { href: def.href, label: def.label, ...(def.hint ? { hint: def.hint } : {}) };
     }),
   })).filter((g) => g.items.length > 0);
+}
+
+/**
+ * Equipes que a pessoa vê.
+ * - RH: as que escolheu acompanhar (sem escolha, todas). Pode trocar a qualquer momento.
+ * - Membro e liderança: só a própria. Sem equipe cadastrada (empresa sem equipes), vê todas,
+ *   para o painel não ficar vazio.
+ */
+export function visibleTeamIds(me: { role: Role; teamId?: string | undefined }, allTeamIds: readonly string[], followed?: readonly string[] | null): string[] {
+  if (me.role === "hr") {
+    const chosen = (followed ?? []).filter((id) => allTeamIds.includes(id));
+    return followed == null ? [...allTeamIds] : chosen;
+  }
+  if (!me.teamId) return [...allTeamIds];
+  return [me.teamId];
+}
+
+/** Quem aparece para a pessoa: ela mesma e quem é de uma equipe visível. O RH não aparece para os membros. */
+export function canSeePerson(me: { id: string }, target: { id: string; teamId?: string | undefined }, visible: readonly string[]): boolean {
+  if (target.id === me.id) return true;
+  return Boolean(target.teamId && visible.includes(target.teamId));
 }
 
 /** Perguntar ao gêmeo lê notas e tarefas: o RH não pode. */

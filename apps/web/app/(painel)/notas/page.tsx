@@ -5,6 +5,7 @@ import { panelDb } from "@/lib/db";
 import { MAX_BRAIN_NOTE } from "@/lib/notes";
 import { loadNotes } from "@/lib/notes-db";
 import { currentNotes } from "@/lib/notes-store";
+import { scopeDbIds, teamScope } from "@/lib/scope";
 import { panelPersona } from "@/lib/panel-person";
 import { requireAccess } from "@/lib/session";
 import { PixelAvatar } from "@/components/PixelAvatar";
@@ -41,10 +42,14 @@ function Brain({ id, persona, name, count, children }: { id: string; persona?: P
 
 export default async function NotasPage() {
   const me = await requireAccess("notas");
+  // Só as notas de quem é da equipe da pessoa (o RH nem chega a esta tela).
+  const scope = await teamScope(me);
   const db = panelDb();
 
   if (db) {
-    const groups = await loadNotes(db, me);
+    const ids = scopeDbIds(scope);
+    // As notas da empresa (sem dona) valem para todos.
+    const groups = (await loadNotes(db, me)).filter((g) => !g.ownerId || ids.has(g.ownerId));
     return (
       <>
         <h1 className="hero-title hero-title--page">Notas</h1>
@@ -70,7 +75,8 @@ export default async function NotasPage() {
     );
   }
 
-  const notes = await currentNotes();
+  const visible = new Set(scope.people.map((p) => p.id));
+  const notes = (await currentNotes()).filter((n) => visible.has(n.ownerId));
   const owners = [...new Set(notes.map((n) => n.ownerId))];
   return (
     <>

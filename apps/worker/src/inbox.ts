@@ -16,6 +16,7 @@ export async function registerInbox(db: Database, queue: JobQueue, runs: RunReco
       const result = await processInbox(db, job.data, opts);
       if (!result) return;
       const orgId = result.orgId;
+      if (result.brainsPush) await queue.send(QUEUES.brainMirror, { orgId }, { singletonKey: orgId });
       for (const message of result.messages) {
         // Chave única por mensagem: reprocessar o aviso não gera duas respostas.
         await queue.send<SlackMessageJob>(QUEUES.slackMessage, { orgId, message }, { singletonKey: `${message.channel}:${message.ts}` });

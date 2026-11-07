@@ -11,3 +11,4 @@ export * from "./redistribution.ts";
 export * from "./report.ts";
 export * from "./gains.ts";
 export * from "./away-digest.ts";
+export * from "./mirror.ts";

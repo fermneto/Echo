@@ -442,7 +442,7 @@ _IA e custos_
 | Relatório | Tempo real | Claude Sonnet 5.5 | Baixo |
 | Contradições entre notas | Uma vez por dia | Claude Haiku 5.5 | Baixo |
 | Cadastro por currículo | Durante o pedido | Claude | Baixo |
-| Resumo diário interativo | Tempo real curto, especificação de componentes | Claude Haiku 5.5 | Baixo |
+| Resumo do dia interativo | Depois do rascunho da nota, no worker (Ollama, CPU) | Qwen3 4B Instruct (modelo aberto) | — |
 | Roteiro e gravação do vídeo da entrega | Managed Agents com navegador | Claude Sonnet 5.5 | Médio |
 
 Plano da manhã e motivos da redistribuição saem por regra, sem modelo.
@@ -455,9 +455,17 @@ Plano da manhã e motivos da redistribuição saem por regra, sem modelo.
 
 Erro, tempo esgotado ou saída inválida: vale a regra.
 
+**Resumo do dia por modelo aberto.** Depois do rascunho da nota (e de novo quando a pessoa confirma pelo Slack), o worker monta os fatos do dia por regra, cada um com id: onde parou, o que travou, tarefas, PRs, contadores de atividade, liberado e reservado. O Qwen3 4B recebe os fatos com ids curtos (`f1`, `f2`...) e **sem números nem chaves no texto**, e devolve só a especificação: componentes da biblioteca fechada (`packages/artifacts`), ordem, títulos e frases curtas. O validador (`checkSpec`):
+- tira título ou frase com número, primeira pessoa, avaliação ou markup (o título vira o padrão do componente);
+- tira do bloco fato desconhecido, repetido ou no componente errado, e devolve o fato ao componente certo;
+- completa por regra todo fato que o modelo deixou de fora (um bloqueio nunca some);
+- com formato errado ou nenhum bloco aproveitável, usa o layout padrão.
+
+O painel mostra o resumo em `/resumos` (só a própria pessoa), com números, nomes e chaves vindos dos fatos. A mensagem do Slack da nota ganha o botão "Abrir resumo do dia". Cada resumo grava `daily_artifact` em `agent_runs` (custo zero por token). Medido em CPU local: ~25 a 75 s por resumo, ~500 a 700 tokens de entrada e ~150 a 450 de saída. Com o esquema JSON aninhado em `format`, o Ollama só gerava espaços: o resumo usa `format: "json"` com o formato no texto do pedido, e o validador garante o resto.
+
 Escolha do modelo (6 PRs de teste, CPU): Qwen3 4B Instruct acertou os 6, em ~14 s por PR. Qwen2.5-Coder 1.5B (2 GB de RAM) acertou os riscos, mas nunca marcou revisão leve, e sem as perguntas sim/não chegou a obedecer a um "responda trivial" no diff; a regra de texto dirigido a um modelo cobre esse caso.
 
-Cada triagem grava uma linha `night_triage` em `agent_runs` (custo zero por token). Sem `TRIAGE_OLLAMA_URL`, só a regra.
+Cada triagem grava uma linha `night_triage` em `agent_runs` (custo zero por token). Sem `SLM_OLLAMA_URL`, só a regra.
 
 ### Ferramentas do agente (somente leitura)
 
@@ -922,6 +930,8 @@ Notas em Git nos dois sentidos
 2. Mudança no banco vira commit. Push no repositório vira nova versão no banco.
 3. A edição humana vence. Conflito marca `mirror_conflict_at` e avisa quem decide, sem sobrescrever em silêncio.
 4. Nomes de arquivo só em minúsculas sem acento, números, hífen e sublinhado. Edição de conta não ligada é recusada com aviso.
+5. O repositório é um só e quem tem acesso lê tudo: vão para ele só as notas que toda a empresa (fora o RH) já lê — de equipe sem dona e, se a empresa é uma equipe só, as de equipe das pessoas. Pessoais e privadas nunca. Nota que deixa de poder estar lá sai do repositório. O RH não tem acesso ao repositório.
+6. Edição pelo Git só vale com todos os commits desde a última sincronização verificados (assinados) e feitos por quem pode editar a nota; o e-mail do autor não basta.
 
 - **Testes:** Conflito, arquivo desconhecido, conta não ligada, nome fora da regra.
 - **Pronto quando:** Uma edição no Obsidian aparece no painel.

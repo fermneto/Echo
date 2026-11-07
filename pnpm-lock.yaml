@@ -339,6 +339,9 @@ importers:
       '@echo/agents':
         specifier: workspace:*
         version: link:../../packages/agents
+      '@echo/artifacts':
+        specifier: workspace:*
+        version: link:../../packages/artifacts
       '@echo/brain':
         specifier: workspace:*
         version: link:../../packages/brain
@@ -502,6 +505,9 @@ importers:
       '@echo/actions':
         specifier: workspace:*
         version: link:../actions
+      '@echo/artifacts':
+        specifier: workspace:*
+        version: link:../artifacts
       '@echo/brain':
         specifier: workspace:*
         version: link:../brain

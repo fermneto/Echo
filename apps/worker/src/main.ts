@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { allOrgIds, createGithubGainsHistory, dueAwayDigests, dueEndOfDay, dueMorning, needsGainsBaseline, serverAwayDigest, serverEndOfDay, serverGains, serverMorningPlan, serverNightReview, serverRedistribution, serverWeeklyReport, dueWeeklyReports } from "@echo/agents/server";
+import { allOrgIds, createGithubGainsHistory, dueAwayDigests, dueEndOfDay, dueMorning, needsGainsBaseline, serverAwayDigest, serverDaySummary, serverEndOfDay, serverGains, serverMorningPlan, serverNightReview, serverRedistribution, serverWeeklyReport, dueWeeklyReports } from "@echo/agents/server";
 import { ensureProductNote } from "@echo/brain/pg";
 import { loadConfig } from "@echo/config";
 import { createDb, createPool } from "@echo/db";
@@ -13,6 +13,7 @@ import { createInteractionRouter } from "./slack-interactions.ts";
 import type { SlackMessageJob } from "./inbox.ts";
 import { registerActions } from "./actions.ts";
 import { registerInbox } from "./inbox.ts";
+import { registerMirror } from "./mirror.ts";
 import { scheduleReconcile } from "./reconcile.ts";
 import { githubForOrg, platformsFromEnv } from "@echo/connectors";
 import { registerEndOfDay } from "./end-of-day.ts";
@@ -54,6 +55,7 @@ if (platforms.chat && answer) {
   log.warn({ slack: Boolean(platforms.chat), answer: Boolean(answer) }, "resposta no Slack desligada: falta SLACK_BOT_TOKEN ou o fluxo answer() de @echo/agents");
 }
 
+await registerMirror({ db, platforms, runs, log, brainsRepository: cfg.BRAINS_REPOSITORY, queue });
 const stopReconcile = scheduleReconcile({ db, pool, platforms, runs, log, brainsRepository: cfg.BRAINS_REPOSITORY, queue }, cfg.RECONCILE_INTERVAL_MS);
 log.info({ demo: cfg.DEMO_MODE }, "worker no ar");
 // Nota do produto em toda empresa que ainda não a tem (etapa 5). Falha aqui não derruba o worker.
@@ -64,7 +66,14 @@ await ensureProductNote(db).then(
 
 // Fim do expediente (F3): nota do dia com confirmação da pessoa. Execuções gravadas em agent_runs.
 // O Confirmar da nota entra no roteador único da fila slack.interaction (não registra outro consumidor).
-const endOfDay = await registerEndOfDay(queue, { flow: serverEndOfDay(db, cfg.ANTHROPIC_API_KEY, cfg.WEB_URL), scan: (now) => dueEndOfDay(db, now), interactions });
+// Resumo do dia: com SLM_OLLAMA_URL, o modelo aberto monta o layout; sem ele, layout padrão por regra.
+const slm = cfg.SLM_OLLAMA_URL ? { url: cfg.SLM_OLLAMA_URL, model: cfg.SLM_MODEL } : undefined;
+const endOfDay = await registerEndOfDay(queue, {
+  flow: serverEndOfDay(db, cfg.ANTHROPIC_API_KEY, cfg.WEB_URL),
+  summary: serverDaySummary(db, slm ? { ...slm, timeoutMs: cfg.SUMMARY_TIMEOUT_MS } : undefined),
+  scan: (now) => dueEndOfDay(db, now),
+  interactions,
+});
 // Um só consumidor dos cliques, depois de todos os tratadores registrados (resolveu e nota do dia).
 await interactions.listen(queue);
 const runEndOfDay = () =>
@@ -76,9 +85,9 @@ void runEndOfDay();
 const endOfDayTimer = setInterval(() => void runEndOfDay(), cfg.END_OF_DAY_SCAN_MS);
 
 // Noite (F4) e manhã (F5). O diff dos PRs vem do GitHub pela frente de Integrações; até a porta existir,
-// nenhum PR tem diff e a revisão noturna não envia lote. Com TRIAGE_OLLAMA_URL, um modelo aberto pequeno faz a
+// nenhum PR tem diff e a revisão noturna não envia lote. Com SLM_OLLAMA_URL, um modelo aberto pequeno faz a
 // triagem de cada PR antes do lote.
-const triage = cfg.TRIAGE_OLLAMA_URL ? { url: cfg.TRIAGE_OLLAMA_URL, model: cfg.TRIAGE_MODEL, timeoutMs: cfg.TRIAGE_TIMEOUT_MS } : undefined;
+const triage = slm ? { ...slm, timeoutMs: cfg.TRIAGE_TIMEOUT_MS } : undefined;
 const night = await registerNight(queue, {
   night: serverNightReview(db, cfg.ANTHROPIC_API_KEY, () => ({ getDiff: async () => null }), triage),
   morning: serverMorningPlan(db, cfg.WEB_URL),

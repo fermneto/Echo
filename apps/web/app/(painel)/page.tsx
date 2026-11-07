@@ -2,6 +2,8 @@ import Link from "next/link";
 import { canAskTwin } from "@/lib/access";
 import { ECHO_SUGGESTIONS } from "@/lib/demo/echo";
 import { WAITING } from "@/lib/demo/feed";
+import { teamScope } from "@/lib/scope";
+import { scopeLabel, TeamPicker } from "@/components/TeamPicker";
 import type { Persona } from "@/lib/demo/types";
 import { currentDecisions } from "@/lib/decisions-store";
 import { pendingPlans } from "@/lib/redistribution-server";
@@ -78,7 +80,8 @@ function buildMap(team: readonly Persona[], now: Date) {
 export default async function InicioPage() {
   const me = await requireAccess("inicio");
   const now = new Date();
-  const team = await loadTeam(now);
+  const scope = await teamScope(me, await loadTeam(now));
+  const team = scope.people;
   const counts = countsOf(team);
   const seesWork = canAskTwin(me.role);
   // O RH nunca lê perguntas: a seção do que o agente fez não aparece para ele.
@@ -107,6 +110,8 @@ export default async function InicioPage() {
         Agora · {counts.on} no expediente · {counts.away} gêmeos cobrindo · {zones.length} fusos
       </p>
       <h1 className="hero-title">{counts.on > 0 ? "Quem está trabalhando agora" : "Ninguém no expediente agora"}</h1>
+      <p className="muted">Você vê {scopeLabel(scope)}.</p>
+      <TeamPicker scope={scope} back="/" />
 
       <ul className="crew-grid" role="list" aria-label="Equipe">
         {team.map((p) => (

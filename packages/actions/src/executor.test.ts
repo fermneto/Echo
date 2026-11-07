@@ -1,5 +1,5 @@
-import type { ChatPlatform, CodeWriter, IssueWriter } from "@echo/connectors";
-import { auditLog, createDb, createPool, identities, orgs, outboxActions, people, planItems, redistributionPlans, tasks } from "@echo/db";
+import { FileChangedError, type ChatPlatform, type CodeWriter, type IssueWriter } from "@echo/connectors";
+import { auditLog, brainNotes, createDb, createPool, identities, orgs, outboxActions, people, planItems, redistributionPlans, tasks } from "@echo/db";
 import { and, eq } from "drizzle-orm";
 import { appRoleUrl } from "@echo/db/testing";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
@@ -17,6 +17,7 @@ describe.skipIf(!url)("executor do outbox (Postgres real)", () => {
   let orgId = "";
   const ids: Record<string, string> = {};
   const calls: string[] = [];
+  const repoFiles = new Map<string, string>();
   let failNext = 0;
 
   const issues: IssueWriter = {
@@ -29,6 +30,20 @@ describe.skipIf(!url)("executor do outbox (Postgres real)", () => {
   const code: CodeWriter = {
     comment: async (repo, n, body) => (calls.push(`github.comment ${repo}#${n}: ${body}`), { id: "1" }),
     requestReviewers: async (repo, n, logins) => void calls.push(`github.reviewers ${repo}#${n}: ${logins.join(",")}`),
+    // Repositório brains simulado: recusa quando o sha esperado não é o atual, como o GitHub.
+    putFile: async (repo, path, content, _message, previousSha) => {
+      const current = repoFiles.get(path);
+      if (current !== previousSha) throw new FileChangedError(`${path} mudou`);
+      const sha = `sha-${content.length}-${repoFiles.size}`;
+      repoFiles.set(path, sha);
+      calls.push(`github.put ${repo}/${path}`);
+      return { sha };
+    },
+    deleteFile: async (repo, path, sha) => {
+      if (repoFiles.get(path) !== sha) throw new FileChangedError(`${path} mudou`);
+      repoFiles.delete(path);
+      calls.push(`github.delete ${repo}/${path}`);
+    },
   };
   const chat = {
     postAgentReply: async (i: { channel: string; text: string; agentName: string }) => (calls.push(`slack.post ${i.channel} [${i.agentName}]: ${i.text}`), { ts: "1" }),
@@ -126,6 +141,51 @@ describe.skipIf(!url)("executor do outbox (Postgres real)", () => {
       "github.reviewers org-teste/app#36: carla-dev",
       "slack.dm UCAR: A ECH-133 agora é sua. [1 blocos]",
     ]);
+  });
+
+  it("espelho: escreve no brains sem aprovação, guarda o sha e nunca sobrescreve um arquivo que mudou no Git", async () => {
+    calls.length = 0;
+    const [note] = await db.insert(brainNotes).values({ orgId, path: "equipe/acordos.md", kind: "equipe", content: "Revisão até 24 h.", visibility: "team" }).returning();
+    const payload = { repo: "org-teste/brains", noteId: note!.id, path: note!.path, content: "---\ntipo: equipe\n---\n\nRevisão até 24 h.\n" };
+    await enqueueAction(app, orgId, { type: "github.mirror_write", target: "github:org-teste/brains", idempotencyKey: "mirror:1", payload });
+    expect((await drainActions(deps(), orgId)).done).toBe(1);
+    expect(calls).toEqual(["github.put org-teste/brains/equipe/acordos.md"]);
+    const sha = repoFiles.get("equipe/acordos.md");
+    expect((await db.select().from(brainNotes).where(eq(brainNotes.id, note!.id)))[0]!.sha).toBe(sha);
+
+    // Alguém editou no Obsidian depois: o sha esperado não bate, e a escrita é recusada com motivo.
+    repoFiles.set("equipe/acordos.md", "sha-editado-no-git");
+    await enqueueAction(app, orgId, { type: "github.mirror_write", target: "github:org-teste/brains", idempotencyKey: "mirror:2", payload: { ...payload, content: "outra", previousSha: sha! } });
+    expect((await drainActions(deps(), orgId)).failed).toBe(1);
+    const [failed] = await db.select().from(outboxActions).where(and(eq(outboxActions.orgId, orgId), eq(outboxActions.idempotencyKey, "mirror:2")));
+    expect(failed!.error).toMatch(/mudou no Git/);
+    expect(repoFiles.get("equipe/acordos.md")).toBe("sha-editado-no-git");
+  });
+
+  it("espelho: nota que virou pessoal depois de entrar na fila não é escrita", async () => {
+    calls.length = 0;
+    const [note] = await db.insert(brainNotes).values({ orgId, path: "equipe/regras.md", kind: "equipe", content: "Regra.", visibility: "team" }).returning();
+    await enqueueAction(app, orgId, { type: "github.mirror_write", target: "github:org-teste/brains", idempotencyKey: "mirror:pessoal", payload: { repo: "org-teste/brains", noteId: note!.id, path: note!.path, content: "Regra.\n" } });
+    await db.update(brainNotes).set({ visibility: "person" }).where(eq(brainNotes.id, note!.id));
+    expect((await drainActions(deps(), orgId)).failed).toBe(1);
+    expect(calls).toEqual([]);
+    expect(repoFiles.has("equipe/regras.md")).toBe(false);
+  });
+
+  it("espelho: remove do brains a nota que não pode ficar lá, zera o sha e não apaga um arquivo que mudou", async () => {
+    calls.length = 0;
+    const [note] = await db.insert(brainNotes).values({ orgId, path: "agente-x/diario.md", kind: "diario", content: "Pessoal.", visibility: "person", sha: "sha-antigo" }).returning();
+    repoFiles.set("agente-x/diario.md", "sha-editado");
+    const payload = { repo: "org-teste/brains", noteId: note!.id, path: note!.path, sha: "sha-antigo" };
+    await enqueueAction(app, orgId, { type: "github.mirror_delete", target: "github:org-teste/brains", idempotencyKey: "mirror-del:1", payload });
+    expect((await drainActions(deps(), orgId)).failed).toBe(1);
+    expect(repoFiles.has("agente-x/diario.md")).toBe(true);
+
+    await enqueueAction(app, orgId, { type: "github.mirror_delete", target: "github:org-teste/brains", idempotencyKey: "mirror-del:2", payload: { ...payload, sha: "sha-editado" } });
+    expect((await drainActions(deps(), orgId)).done).toBe(1);
+    expect(calls).toEqual(["github.delete org-teste/brains/agente-x/diario.md"]);
+    expect(repoFiles.has("agente-x/diario.md")).toBe(false);
+    expect((await db.select().from(brainNotes).where(eq(brainNotes.id, note!.id)))[0]!.sha).toBeNull();
   });
 
   it("plataforma não ligada falha com motivo claro; ação presa em running volta para a fila", async () => {

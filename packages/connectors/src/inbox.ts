@@ -76,7 +76,7 @@ export interface ProcessOptions {
 }
 
 /** Processa um aviso gravado. Erro marca "failed" e relança, para a fila tentar de novo. */
-export async function processInbox(db: Database, job: InboxJob | string, opts: ProcessOptions = {}): Promise<IngestResult | null> {
+export async function processInbox(db: Database, job: InboxJob | string, opts: ProcessOptions = {}): Promise<(IngestResult & { brainsPush?: boolean }) | null> {
   const { inboxId, orgId: given } = typeof job === "string" ? { inboxId: job, orgId: undefined } : job;
   const orgId =
     given ??
@@ -109,7 +109,8 @@ export async function processInbox(db: Database, job: InboxJob | string, opts: P
         .set({ state: onlyIgnored ? "ignored" : "processed", processedAt: new Date(), attempts: row.attempts + 1, error: null, payload: kept })
         .where(eq(inboxEvents.id, inboxId)),
     );
-    return result;
+    // Push no repositório do espelho não é trabalho, mas pede uma sincronização das notas.
+    return isBrains && eventName === "push" ? { ...result, brainsPush: true } : result;
   } catch (err) {
     await withOrg(db, orgId, (tx) =>
       tx
