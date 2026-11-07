@@ -1,19 +1,19 @@
 import { ImageResponse } from "next/og";
 
-/** Ícone para a tela inicial do iPhone: o mesmo ponto com ondas do favicon, em PNG. */
+/** Ícone para a tela inicial do iPhone: o símbolo do eco (pessoa em verde, gêmeo em azul), em PNG. */
 export const size = { width: 180, height: 180 };
 export const contentType = "image/png";
 
 export default function AppleIcon() {
   return new ImageResponse(
     (
-      <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", background: "#0a0a0a" }}>
+      <div style={{ width: "100%", height: "100%", display: "flex", alignItems: "center", justifyContent: "center", background: "#161616" }}>
         <svg width="180" height="180" viewBox="0 0 512 512">
-          <g fill="none" stroke="#98ff38" strokeLinecap="round">
-            <path d="M124.5 407.5A186 186 0 1 1 387.5 407.5" strokeWidth="22" opacity="0.5" />
-            <path d="M169.7 362.3A122 122 0 1 1 342.3 362.3" strokeWidth="30" />
-          </g>
-          <circle cx="256" cy="276" r="54" fill="#98ff38" />
+          <path d="M86 341A170 170 0 0 1 256 171L256 213A128 128 0 0 0 128 341Z" fill="#98ff38" />
+          <path d="M256 171A170 170 0 0 1 426 341L384 341A128 128 0 0 0 256 213Z" fill="#4d8dff" />
+          <path d="M148 341A108 108 0 0 1 256 233L256 275A66 66 0 0 0 190 341Z" fill="#98ff38" />
+          <path d="M256 233A108 108 0 0 1 364 341L322 341A66 66 0 0 0 256 275Z" fill="#4d8dff" />
+          <path d="M210 341A46 46 0 0 1 302 341A46 30 0 0 0 210 341Z" fill="#98ff38" />
         </svg>
       </div>
     ),
