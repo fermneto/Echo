@@ -26,8 +26,15 @@
     {
       "idx": 3,
       "version": "7",
-      "when": 1794060301484,
-      "tag": "0003_outbox_inicio",
+      "when": 1794061490027,
+      "tag": "0003_isolamento",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1794062317088,
+      "tag": "0004_outbox_inicio",
       "breakpoints": true
     }
   ]
