@@ -193,4 +193,5 @@ As cinco cenas, em 3 minutos: a pergunta que esperaria um dia, a manhã de Ferna
 | Ganhos e resumo da ausência | 13 | Funções e Web |
 | Painel com os dados reais (hoje usa as personas simuladas) e "Pergunte ao gêmeo" chamando `answer()` | 16 | Web |
 | Telas de custo e execuções, a partir de `agent_runs` | 16 | Web |
+| Revisão visual do card "Seu agente" (`/pessoas/[id]`, na própria ficha): campos de estilo e delegação, quadro "Nunca", lista "Decisões do seu agente" e o motivo nas correções de Meu plano. Hoje usa os tokens e componentes que já existiam, sem revisão de design. Arquivos: `apps/web/components/AgentProfileForm.tsx` e o bloco "Seu agente" em `apps/web/app/painel.css` | — | Web (Frente 3, design) |
 | `defaultScope: "none"` como padrão em `createPool`, quando todas as frentes usarem `withOrg` | 2 | Funções (Integrações já usa, no #14) |

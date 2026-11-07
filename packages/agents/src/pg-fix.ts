@@ -171,6 +171,7 @@ export function createPgFixStore(db: Database, orgId: string): FixStore & { fixe
         draftPrNumber: f.draftPrNumber ?? 0,
         readyAt: f.createdAt,
         tests: f.testsReported && TESTS.has(f.testsReported as FixTestResult) ? (f.testsReported as FixTestResult) : "nao_rodou",
+        ...(f.delegationNote ? { delegationNote: f.delegationNote } : {}),
       }));
     },
   };

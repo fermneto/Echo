@@ -111,7 +111,7 @@ Faz sozinho
 
 Precisa de aprovação
 
-- Aplicar correção de código
+- Aplicar correção de código (ou a delegação escrita da pessoa, ver abaixo)
 - Mudar o responsável por uma tarefa
 - Usar a observação da pessoa no relatório, marcada como "informado pela pessoa"
 
@@ -123,6 +123,33 @@ Nunca faz
 - Ler mensagens privadas
 - Chamar quem está de férias
 - Registrar horário de trabalho ou tempo online
+
+### Seu agente, nas suas palavras
+
+Na própria ficha (`/pessoas/[id]`, card "Seu agente"), a pessoa escreve dois textos livres, sem caixas de marcação. Só ela grava o dela.
+
+**Como seu agente responde.** O jeito de falar e de atuar da pessoa: tom, nível de detalhe, como costuma explicar e encaminhar. O gêmeo responde parecido com ela, mas sempre como "Agente de Fernando", na terceira pessoa. O texto muda o tom, nunca as regras: fontes, liberação, números e recusas continuam iguais. O Echo da equipe não usa o estilo de ninguém.
+
+**Até onde ele decide por você.** O que o agente pode decidir sozinho no lugar da pessoa, e em que condições. O que não estiver claro no texto continua esperando a pessoa. A responsabilidade continua dela: a decisão é registrada como aprovação dela, feita antes, por escrito.
+
+Por enquanto a delegação vale para uma decisão: unir no PR da própria pessoa a correção da revisão noturna. A correção só é unida pela delegação quando:
+
+1. passa nas travas fixas: testes passando, até 5 arquivos, fora de autenticação, pagamentos, migrações e infraestrutura;
+2. um modelo aberto pequeno, rodando na nossa infraestrutura, confirma que a correção cabe no texto da delegação; na dúvida, fica com a pessoa;
+3. o rascunho não mudou desde que ficou pronto (a mesma conferência de quando a pessoa aprova no painel).
+
+Unida, a pessoa recebe no Slack o aviso com o motivo e como desfazer. Não cabendo, a correção espera a pessoa, com a nota do porquê, que aparece no item da correção em Meu plano e no plano da manhã.
+
+No mesmo card, "Decisões do seu agente" lista as últimas correções em que a delegação contou: as que o agente uniu ("Decidiu por você", com como desfazer) e as que deixou com a pessoa ("Ficou com você", com o motivo). Na demonstração sem banco, o texto fica só no navegador de quem visita e as decisões são de exemplo.
+
+_Nunca delegável, diga o texto o que disser_
+
+- Aprovar ou fazer merge de PR na branch principal
+- Publicar em produção
+- Mudar responsável de tarefa ou aceitar redistribuição
+- Aceitar ou recusar proposta de colega
+- Enviar ou aprovar relatório ao RH
+- Alterar números, metas ou prazos
 
 ### A nota do dia como contexto
 
@@ -716,7 +743,7 @@ _Gravado por um agente Claude — Painel · Relatórios · semana de 2/11 (Paine
 | Meu plano | /plano | Plano do dia, correções a aprovar, achados e perguntas pendentes | A própria pessoa |
 | Nota do dia | /nota-do-dia | Conferir, editar e confirmar a nota, com liberado e reservado | A própria pessoa |
 | Notas | /notas · /notas/[id] · /notas/nova | Cérebros, histórico de versões, avisos do espelho e contradições | Equipe e liderança, nunca o RH |
-| Ficha da pessoa | /pessoas/[id] | Disponibilidade, contexto e Pergunte ao gêmeo | Todos, conforme permissão |
+| Ficha da pessoa | /pessoas/[id] | Disponibilidade, contexto e Pergunte ao gêmeo; na própria ficha, "Seu agente" (estilo e delegação) | Todos, conforme permissão; "Seu agente" só a própria pessoa |
 | Editar contexto | /pessoas/[id]/editar | Função, skills, áreas, idiomas, expediente e o que fazer na ausência | A pessoa e o RH |
 | Equipe | /equipe | Lista de pessoas | Todos |
 | Redistribuição | /redistribuicao · /redistribuicao/[id] | Registrar ausência, gerar e aprovar planos, nova demanda e itens parados | Liderança |

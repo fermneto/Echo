@@ -2,6 +2,7 @@
 
 import { canAskTwin } from "@/lib/access";
 import { askAgent, panelRequest, personIdFor, recordIn } from "@/lib/agent";
+import { saveDemoProfile } from "@/lib/agent-profile-store";
 import { gainsOrgId } from "@/lib/gains";
 import { panelDb } from "@/lib/db";
 import { findMember } from "@/lib/demo/team";
@@ -37,8 +38,13 @@ export async function salvarPerfilDoAgente(_prev: ProfileState, formData: FormDa
   const me = await currentPersona();
   if (!me || String(formData.get("pessoa") ?? "") !== me.id) return { error: "Só a própria pessoa muda o jeito do agente dela." };
   const db = panelDb();
-  if (!db) return { error: "Sem banco neste ambiente: o texto não foi gravado." };
+  const input = { style: String(formData.get("estilo") ?? ""), delegation: String(formData.get("delegacao") ?? "") };
+  if (!db) {
+    // Demonstração sem banco: fica só neste navegador.
+    await saveDemoProfile(input, new Date());
+    return { saved: new Date().toISOString() };
+  }
   const { saveAgentProfile } = await import("@echo/agents/perfil");
-  const ok = await saveAgentProfile(db, gainsOrgId(me.orgId), personIdFor(me.id), { style: String(formData.get("estilo") ?? ""), delegation: String(formData.get("delegacao") ?? "") }, new Date());
+  const ok = await saveAgentProfile(db, gainsOrgId(me.orgId), personIdFor(me.id), input, new Date());
   return ok ? { saved: new Date().toISOString() } : { error: "Pessoa não encontrada nesta empresa." };
 }

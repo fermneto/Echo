@@ -48,6 +48,7 @@ const EXTRA_FLOWS: Record<string, string> = {
   fix_applied: "Correção",
   fix_decision: "Correção",
   fix_ready: "Correção",
+  fix_delegation: "Delegação da correção (modelo aberto)",
   night_review: "Revisão de PR",
   night_review_batch: "Revisão de PR",
   night_triage: "Triagem de PR (modelo aberto)",

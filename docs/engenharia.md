@@ -436,6 +436,7 @@ _IA e custos_
 | Resposta a colega e quem sabe | Tempo real com ferramentas | Claude Sonnet 5.5 | Baixo |
 | Nota do dia | Tempo real curto | Claude Haiku 5.5 | Baixo |
 | Triagem da revisão noturna | Antes do lote, na nossa infraestrutura (Ollama, CPU) | Qwen3 4B Instruct (modelo aberto, Apache 2.0) | — |
+| Juiz da delegação da correção | Quando a correção fica pronta, mesmo Ollama da triagem | Qwen3 4B Instruct | — |
 | Revisão de PR | Lote | Claude Sonnet 5.5 | Médio |
 | PR sensível ou grande | Lote | Claude Opus 5.5 | Alto |
 | Correção | Managed Agents | Claude Sonnet 5.5 | Médio |
@@ -458,6 +459,15 @@ Erro, tempo esgotado ou saída inválida: vale a regra.
 Escolha do modelo (6 PRs de teste, CPU): Qwen3 4B Instruct acertou os 6, em ~14 s por PR. Qwen2.5-Coder 1.5B (2 GB de RAM) acertou os riscos, mas nunca marcou revisão leve, e sem as perguntas sim/não chegou a obedecer a um "responda trivial" no diff; a regra de texto dirigido a um modelo cobre esse caso.
 
 Cada triagem grava uma linha `night_triage` em `agent_runs` (custo zero por token). Sem `TRIAGE_OLLAMA_URL`, só a regra.
+
+**Estilo da pessoa no gêmeo.** `people.agent_style` é o texto da própria pessoa sobre como o agente dela responde, limpo por `cleanAgentText` (`packages/domain/src/agent-profile.ts`: sem caracteres de controle, sem `<` e `>`, até 1.200 caracteres). Entra na mensagem do gêmeo num bloco `<estilo_da_pessoa>`, depois de `</dados>`, porque quem escreveu é a dona do agente, não um terceiro. As instruções fixas (`ANSWER_SYSTEM`, com cache) têm a seção "Estilo da pessoa": o texto muda tom e jeito de explicar, nunca as regras nem o formato. O validador de primeira pessoa continua valendo. O Echo da equipe (sem dono) não recebe estilo.
+
+**Delegação da correção (juiz pequeno).** `people.delegation` é o texto livre da pessoa sobre até onde o agente decide por ela, com a data da versão em `delegation_updated_at` (só muda quando o texto muda). Hoje cobre uma decisão: unir no PR do autor a correção pronta (`DelegableDecision = "aplicar_correcao"`). Em `fix.sync`, quando a correção passa a `ready`:
+1. `delegatedFixGate` (`packages/domain`): delegação escrita, testes `passou`, até 5 arquivos, nenhum caminho sensível da revisão noturna. Falhou: fica com o autor, sem chamar modelo.
+2. `runDelegation` (`packages/agents/src/delegation.ts`): o juiz recebe só o texto da delegação e fatos estruturados (repositório, PR, arquivos, testes), nunca o diff, o título ou os achados; responde `{cabe, motivo}` presos ao esquema. As instruções listam `NEVER_DELEGATED` e mandam responder `false` na dúvida. Erro, tempo esgotado ou saída inválida: fica com o autor.
+3. Cabendo, a união segue pelo mesmo `decide` do painel (`fixMergeCheck`: rascunho e PR sem mudança), com `approvedBy` = autor e `fix_runs.decided_via = 'delegacao'` e o motivo em `delegation_note`. O autor recebe `slack.dm` com o motivo e como desfazer.
+
+Não cabendo, `delegation_note` guarda o porquê. Cada tentativa grava `fix_delegation` em `agent_runs` (custo zero por token). Sem `TRIAGE_OLLAMA_URL` no reviewer, não há delegação: toda correção espera o autor. A tela fica em `/pessoas/[id]` ("Seu agente"), só para a própria pessoa (`salvarPerfilDoAgente`, `packages/agents/src/pg-profile.ts`), com a lista "Decisões do seu agente" (`readAgentDecisions`). O motivo de não cobrir vai em `PlanFix.delegationNote`, no motivo do item da correção do plano da manhã e em Meu plano (`readPlanFixes`). Em Custo e execuções, `fix_delegation` aparece como "Delegação da correção (modelo aberto)". Sem banco, o painel guarda o texto num cookie (`echo_seu_agente`) e mostra decisões de exemplo.
 
 ### Ferramentas do agente (somente leitura)
 
@@ -854,8 +864,11 @@ Correção em ambiente isolado e PR em rascunho
 5. Cria `echo/fix-pr-<n>`, abre PR em rascunho, e o autor aprova ou recusa em Meu plano.
 6. Limites: US$ 2 por correção e US$ 10 por pessoa no mês. Para em 80% do limite da empresa.
 
-- **Testes:** Conferência de arquivos permitidos e união só se o rascunho não mudou.
+7. Delegação (opcional): com o texto da delegação do autor e o juiz no Ollama, a correção pronta que passa nas travas fixas e cabe no texto é unida pela delegação, registrada como aprovação do autor (ver "Delegação da correção" em IA e custos).
+
+- **Testes:** Conferência de arquivos permitidos e união só se o rascunho não mudou. Delegação: travas antes do juiz, juiz que não cabe ou falha deixa com o autor, rascunho alterado recusa.
 - **Pronto quando:** Um erro plantado gera uma correção aprovável, unida pela aprovação do autor.
+- **Pendente para valer em produção:** o reviewer ainda roda com a porta do GitHub desligada (`codeHost: () => null`) e não está no Blueprint da Render; até isso, nem a correção nem a delegação agem.
 
 ### Etapa 11 · Redistribuição
 
