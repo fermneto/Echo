@@ -46,9 +46,11 @@ const db = createDb(pool);
 const orgName = env.DEMO_ORG_NAME ?? "Empresa de teste (integrações)";
 
 // Achar ou criar a empresa é rotina de sistema (ainda não há empresa na transação).
+// Não é empresa de demonstração: `pnpm db:seed` apaga todas as is_demo, e levaria junto as contas ligadas aqui.
 const org = await asSystem(db, async (tx) => {
   const [found] = await tx.select().from(orgs).where(eq(orgs.name, orgName));
-  return found ?? (await tx.insert(orgs).values({ name: orgName, isDemo: true }).returning())[0]!;
+  if (found?.isDemo) await tx.update(orgs).set({ isDemo: false }).where(eq(orgs.id, found.id));
+  return found ?? (await tx.insert(orgs).values({ name: orgName, isDemo: false }).returning())[0]!;
 });
 const orgId = org.id;
 console.log(`Empresa: ${orgName} · ${orgId}`);
