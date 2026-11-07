@@ -1,6 +1,7 @@
 import type { EndOfDay } from "@echo/agents";
 import { QUEUES, type JobQueue } from "@echo/jobs";
 import { HOUR, NOTE_RULES } from "@echo/domain";
+import type { InteractionHandler } from "./slack-interactions.ts";
 
 /** Pessoa e data local: a chave única do rascunho. */
 export interface DailyNoteJob {
@@ -9,16 +10,12 @@ export interface DailyNoteJob {
   date: string;
 }
 
-/** Clique de botão do Slack, já verificado pela API. */
-export interface SlackInteractionJob {
-  orgId: string;
-  payload: unknown;
-}
-
 export interface EndOfDayWiring {
   flow: Pick<EndOfDay, "draft" | "expire" | "confirmFromSlack">;
   /** Quem está no fim do expediente agora (dueEndOfDay em @echo/agents/server). */
   scan: (now: Date) => Promise<DailyNoteJob[]>;
+  /** Roteador único da fila slack.interaction (apps/worker/src/slack-interactions.ts). */
+  interactions: { add(name: string, run: InteractionHandler): void };
   now?: () => Date;
 }
 
@@ -42,10 +39,8 @@ export async function registerEndOfDay(queue: JobQueue, w: EndOfDayWiring): Prom
     await w.flow.expire(job.data.orgId, job.data.personId, job.data.date);
   });
 
-  // Outros botões (Resolveu / Não resolveu) chegam aqui também; o fluxo da nota só trata o Confirmar dela.
-  await queue.work<SlackInteractionJob>(QUEUES.slackInteraction, async (job) => {
-    await w.flow.confirmFromSlack(job.data.orgId, job.data.payload);
-  });
+  // Cada clique vai a todos os tratadores do roteador; o fluxo da nota só trata o Confirmar dela (o resto: null).
+  w.interactions.add("nota_do_dia", async (job) => (await w.flow.confirmFromSlack(job.orgId, job.payload)) ?? "ignored");
 
   return {
     async tick() {
