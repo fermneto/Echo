@@ -106,14 +106,16 @@ export const workerSchema = baseSchema.extend({
   DEMO_ALWAYS_AWAY: bool.default(false),
   NIGHT_REVIEW_UTC_HOUR: z.coerce.number().int().min(0).max(23).default(5),
   /**
-   * Triagem da revisão noturna por modelo aberto (Ollama). Endereço do serviço: URL ou host:porta (a Render
-   * entrega host:porta). Sem ele, vale só a regra.
+   * Modelo aberto pequeno (Ollama) da triagem da revisão noturna e do resumo do dia. Endereço do serviço: URL ou
+   * host:porta (a Render entrega host:porta). Sem ele, os dois fluxos usam só a regra.
    */
-  TRIAGE_OLLAMA_URL: optionalString.pipe(z.string().regex(/^(https?:\/\/)?[\w.-]+(:\d+)?\/?$/, "use http://host:porta ou host:porta").optional()),
+  SLM_OLLAMA_URL: optionalString.pipe(z.string().regex(/^(https?:\/\/)?[\w.-]+(:\d+)?\/?$/, "use http://host:porta ou host:porta").optional()),
   /** Tag do modelo no Ollama (Apache 2.0). */
-  TRIAGE_MODEL: z.string().min(1).default("qwen3:4b-instruct"),
+  SLM_MODEL: z.string().min(1).default("qwen3:4b-instruct"),
   /** Tempo máximo da triagem de um PR (CPU, ~15 a 30 s; o primeiro PR da noite também carrega o modelo). */
   TRIAGE_TIMEOUT_MS: z.coerce.number().int().min(1000).max(300_000).default(120_000),
+  /** Tempo máximo do resumo do dia (a saída é maior que a da triagem). */
+  SUMMARY_TIMEOUT_MS: z.coerce.number().int().min(1000).max(900_000).default(300_000),
 });
 
 export const reviewerSchema = baseSchema.extend({

@@ -14,7 +14,7 @@ services:
       interval: 2s
       timeout: 3s
       retries: 30
-  # Triagem da revisão noturna por modelo aberto (pnpm triage:up). TRIAGE_OLLAMA_URL=http://localhost:11435
+  # Triagem da revisão noturna por modelo aberto (pnpm triage:up). SLM_OLLAMA_URL=http://localhost:11435
   triage:
     build:
       context: infra

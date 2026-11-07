@@ -20,6 +20,8 @@ export const QUEUES = {
   dailyNoteDraft: "daily_note.draft",
   /** Prazo de 2 h do rascunho: sem resposta, vira auto_unreviewed. */
   dailyNoteTimeout: "daily_note.timeout",
+  /** Resumo do dia (etapa 26), montado pelo modelo aberto depois do rascunho e da confirmação. */
+  daySummary: "daily_note.summary",
   /** Revisão noturna de uma empresa: filtro, lote e envio (F4). Até 3 tentativas, 30 min entre elas. */
   nightReview: "review.night",
   /** Busca os lotes terminados e publica as análises pelo outbox. */

@@ -228,7 +228,8 @@ export function draftMessage(note: DailyNote, names: Map<string, string>, webUrl
   ];
   const text = lines.join("\n");
   const value = JSON.stringify({ personId: note.personId, date: note.date });
-  const url = `${webUrl.replace(/\/$/, "")}/nota-do-dia?data=${note.date}`;
+  const base = webUrl.replace(/\/$/, "");
+  const url = `${base}/nota-do-dia?data=${note.date}`;
   return {
     text,
     blocks: [
@@ -238,6 +239,7 @@ export function draftMessage(note: DailyNote, names: Map<string, string>, webUrl
         elements: [
           { type: "button", action_id: CONFIRM_ACTION_ID, style: "primary", text: { type: "plain_text", text: "Confirmar" }, value },
           { type: "button", action_id: "editar_nota", text: { type: "plain_text", text: "Editar no painel" }, url },
+          { type: "button", action_id: "abrir_resumo", text: { type: "plain_text", text: "Abrir resumo do dia" }, url: `${base}/resumos?data=${note.date}` },
         ],
       },
     ],
