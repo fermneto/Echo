@@ -2228,8 +2228,8 @@ select.field option {
 
 /* Campo de pergunta com halo */
 .halo {
-  --halo-speed: 1;
-  --halo-glow: 0.7;
+  --halo-speed: 2.2;
+  --halo-glow: 0.42;
   --orb-spin: 9s;
   --orb-pulse: 5.2s;
   position: relative;
@@ -2237,15 +2237,15 @@ select.field option {
   border-radius: var(--rounded-pill);
 }
 .halo:focus-within {
-  --halo-glow: 1;
+  --halo-glow: 0.6;
 }
 .halo.is-typing {
   --orb-spin: 3.2s;
   --orb-pulse: 2.6s;
 }
 .halo.is-busy {
-  --halo-speed: 0.55;
-  --halo-glow: 1;
+  --halo-speed: 1.2;
+  --halo-glow: 0.75;
   --orb-spin: 1.6s;
   --orb-pulse: 1.6s;
 }
@@ -2263,8 +2263,8 @@ select.field option {
   position: absolute;
   inset: 40% 4% -10px;
   pointer-events: none;
-  opacity: calc(var(--halo-glow) * 0.55);
-  filter: blur(18px);
+  opacity: calc(var(--halo-glow) * 0.4);
+  filter: blur(20px) saturate(0.6);
   transition: opacity 250ms ease-out;
 }
 .halo__bloom .halo__blob {
@@ -2274,7 +2274,7 @@ select.field option {
   position: absolute;
   bottom: -18px;
   border-radius: 50%;
-  filter: blur(14px);
+  filter: blur(14px) saturate(0.6);
   animation: halo-drift calc(6s * var(--halo-speed)) ease-in-out infinite;
 }
 .halo__blob--a {
