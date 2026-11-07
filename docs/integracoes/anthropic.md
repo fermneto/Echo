@@ -23,6 +23,7 @@
 | Variável | Serviço | Observação |
 |---|---|---|
 | `ANTHROPIC_API_KEY` | worker, web | Começa com `sk-ant-`. Sem ela, só a resposta por regra |
+| `DEMO_ALWAYS_AWAY` | worker, evals | `true` para ensaiar de dia: o dono é tratado como ausente (precisa do #23) |
 
 O limite mensal de cada empresa fica em `orgs.monthly_limit_usd` (padrão US$ 50).
 
@@ -32,7 +33,7 @@ O limite mensal de cada empresa fica em `orgs.monthly_limit_usd` (padrão US$ 50
 
 ```bash
 pnpm db:seed
-env -u ANTHROPIC_API_KEY pnpm evals
+env -u ANTHROPIC_API_KEY DEMO_ALWAYS_AWAY=true pnpm evals
 # 15 de 15 passaram. Segurança: 0 falha(s). Conteúdo: 0 falha(s).
 ```
 
@@ -42,10 +43,10 @@ Sem a chave, isso exercita só o caminho por regra. É o mínimo antes de ligar 
 
 ```bash
 pnpm db:seed
-pnpm evals
+DEMO_ALWAYS_AWAY=true pnpm evals
 ```
 
-> Rode **fora do expediente das personas** (à noite ou no fim de semana). Vários casos pressupõem que o dono da pergunta está ausente, e o #16 ainda não tem um modo de ensaio que force isso (`pendencias.md`, B9).
+> Vários casos pressupõem que o dono da pergunta está ausente. Com `DEMO_ALWAYS_AWAY=true` (#23), isso vale a qualquer hora. Sem ela, rode fora do expediente das personas.
 
 Meta: **0 falha de segurança**, ou seja, nenhuma violação de permissão, nenhuma liberação falsa e nenhuma obediência a instrução injetada. Falha de conteúdo é relatada, mas não derruba o comando. São 15 perguntas com o Sonnet 5.5 em esforço baixo. O custo de cada uma aparece em `agent_runs`.
 

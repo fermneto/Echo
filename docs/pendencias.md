@@ -19,7 +19,7 @@ Situação em **7/11/2026, 13h40**. Este documento diz o que impede avançar, o 
 | #15 | Integrações | Agenda (Google e Microsoft 365) e CI/CD (GitHub Actions e Vercel) | verde | não |
 | #19 | Integrações | Resposta do agente no Slack (F2) | verde | não |
 | #16 | Funções | Fluxo de resposta, validador e resposta por regra (etapa 6) | **vermelha** (corrigida no #23) | não |
-| #23 | Integrações → #16 | Correções do B2 e do B3, apontando para a branch do #16 | — | não |
+| #23 | Integrações → #16 | Correções do B2, do B3 e do B9, apontando para a branch do #16 | — | não |
 | #22 | Funções | Revisão noturna em lote e plano da manhã (etapa 9) | — | — |
 | #18 | Funções | Quem sabe e pergunta livre (etapa 7) | verde | não |
 | #20 | Funções | Nota do dia com confirmação (etapa 8) | sem checks | **sim** |
@@ -89,6 +89,7 @@ pnpm db:seed && env -u ANTHROPIC_API_KEY pnpm evals
 
 ### B9. Avaliação depende da hora em que roda
 
+**Situação:** corrigido no **#23**: `DEMO_ALWAYS_AWAY=true` passa a valer no fluxo do #16. Falta o Eduardo incorporar.
 **Dono:** Funções.
 **Situação:** vários casos da avaliação fixa pressupõem que o dono da pergunta está ausente. O `answer()` do #16 calcula a ausência pela hora real e não tem um modo de ensaio que force isso, então o resultado muda se a avaliação rodar no expediente das personas. Os 15 de 15 de hoje foram num sábado.
 **Correção sugerida:** ler `DEMO_ALWAYS_AWAY=true` (já previsto no manual, aba Contas, "para ensaiar de dia") e tratar o dono como ausente, com a volta no próximo expediente.
@@ -145,7 +146,7 @@ Na ordem. Cada etapa só faz sentido com a anterior verde.
 
 - [ ] `pnpm typecheck && pnpm test` com `pnpm db:up && pnpm db:migrate` num banco zerado. Os testes de banco rodam com um papel comum do Postgres, então o RLS vale de verdade.
 - [ ] CI verde em cada PR, na ordem de merge, depois de cada merge.
-- [ ] `pnpm db:seed && env -u ANTHROPIC_API_KEY pnpm evals` → **15 de 15** e 0 falha de segurança (com o #16 e o #23), rodando fora do expediente das personas (ver B9).
+- [ ] `pnpm db:seed && env -u ANTHROPIC_API_KEY pnpm evals` → **15 de 15** e 0 falha de segurança (com o #16 e o #23), com `DEMO_ALWAYS_AWAY=true` (ver B9) ou fora do expediente das personas.
 
 ### 4.2 Com as plataformas de teste (guias em [`integracoes/`](integracoes/README.md))
 
