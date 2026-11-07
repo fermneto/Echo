@@ -26,11 +26,30 @@ export async function ensureProductNote(db: Database): Promise<number> {
     const has = new Set((await tx.select({ orgId: brainNotes.orgId }).from(brainNotes).where(eq(brainNotes.path, PRODUCT_NOTE_PATH))).map((r) => r.orgId));
     return all.map((o) => o.id).filter((id) => !has.has(id));
   });
-  for (const orgId of missing) {
+  let created = 0;
+  for (const orgId of missing) if (await createProductNote(db, orgId)) created++;
+  return created;
+}
+
+/**
+ * Cria a nota do produto de uma empresa. Devolve false se a empresa sumiu entre a listagem e a
+ * gravação (desligada, ou apagada por outro processo) ou se outro worker criou a nota ao mesmo tempo.
+ */
+export async function createProductNote(db: Database, orgId: string): Promise<boolean> {
+  try {
     await createPgBrainStore(db, orgId).write(
       { kind: "agent" },
       { orgId, path: PRODUCT_NOTE_PATH, kind: "processo", content: PRODUCT_NOTE, visibility: "team", managedByRule: false },
     );
+    return true;
+  } catch (err) {
+    if (isGone(err)) return false;
+    throw err;
   }
-  return missing.length;
+}
+
+/** 23503: a empresa não existe mais (chave estrangeira). 23505: a nota já foi criada por outro processo. */
+function isGone(err: unknown): boolean {
+  const codes = [err, (err as { cause?: unknown })?.cause].map((e) => (e as { code?: string } | undefined)?.code);
+  return codes.includes("23503") || codes.includes("23505");
 }
