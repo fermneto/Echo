@@ -2,7 +2,7 @@
 // O status do Slack é lido só na menção e nunca gravado; a pergunta é reservada para não sair duas vezes.
 import type { AnswerRequest, AnswerResult } from "@echo/agents";
 import { answerBlocks, respondToInteraction, SLACK_ACTIONS, type ChatMessage, type ChatPlatform } from "@echo/connectors";
-import { absences, identities, people, questions, withOrg, type Database } from "@echo/db";
+import { absences, asSystem, identities, people, questions, withOrg, type Database } from "@echo/db";
 import { isAway } from "@echo/domain";
 import type { Logger } from "@echo/observability";
 import { and, eq, gte, inArray, isNull, lt, or, sql } from "drizzle-orm";
@@ -75,7 +75,11 @@ export async function handleSlackMessage(d: SlackAnswerDeps, job: { orgId: strin
       .onConflictDoUpdate({
         target: [questions.orgId, questions.sourceRef],
         set: { state: "processing", claimedBy: d.workerId },
-        where: or(eq(questions.state, "failed"), and(eq(questions.state, "processing"), lt(questions.createdAt, new Date(now.getTime() - 5 * 60_000)))),
+        // Pergunta já dada como perdida (com aviso a quem perguntou) não volta a ser respondida.
+        where: and(
+          sql`${questions.digestKind} is distinct from 'falha_avisada'`,
+          or(eq(questions.state, "failed"), and(eq(questions.state, "processing"), lt(questions.createdAt, new Date(now.getTime() - 5 * 60_000)))),
+        ),
       })
       .returning({ id: questions.id }),
   );
@@ -112,6 +116,46 @@ export async function handleSlackMessage(d: SlackAnswerDeps, job: { orgId: strin
     await withOrg(d.db, orgId, (tx) => tx.update(questions).set({ state: "failed" }).where(eq(questions.id, claimed.id))).catch(() => {});
     throw err;
   }
+}
+
+/** Depois deste prazo sem resposta, a pergunta vira falha e quem perguntou é avisado. */
+export const GIVE_UP_MS = 60 * 60_000;
+
+/**
+ * Perguntas do Slack sem resposta há mais de 1 hora (worker caiu, API fora, tentativas esgotadas):
+ * viram falha e quem perguntou recebe um aviso só para si no canal. As tentativas antes disso ficam
+ * com a fila (o job que falha volta) e com a reserva, que aceita retomar uma pergunta parada.
+ */
+export async function giveUpStaleQuestions(d: { db: Database; chat: ChatPlatform; log: Logger; now?: () => Date }): Promise<number> {
+  const now = d.now?.() ?? new Date();
+  // Rotina de sistema: percorre as empresas.
+  const stale = await asSystem(d.db, (tx) =>
+    tx
+      .update(questions)
+      .set({ state: "failed", answeredAt: null })
+      .where(and(sql`${questions.channel} like 'slack:%'`, inArray(questions.state, ["pending", "processing", "failed"]), lt(questions.createdAt, new Date(now.getTime() - GIVE_UP_MS)), isNull(questions.answer), sql`${questions.digestKind} is distinct from 'falha_avisada'`))
+      .returning({ id: questions.id, orgId: questions.orgId, askerId: questions.askerId, ownerId: questions.ownerId, sourceRef: questions.sourceRef }),
+  );
+  for (const q of stale) {
+    const [, channel] = (q.sourceRef ?? "").split(":");
+    const names = await withOrg(d.db, q.orgId, (tx) =>
+      tx
+        .select({ person: people.id, name: people.name, slack: identities.externalId })
+        .from(people)
+        .leftJoin(identities, and(eq(identities.personId, people.id), eq(identities.platform, "slack")))
+        .where(and(eq(people.orgId, q.orgId), inArray(people.id, [q.askerId, q.ownerId].filter((x): x is string => Boolean(x))))),
+    );
+    const asker = names.find((n) => n.person === q.askerId);
+    const owner = names.find((n) => n.person === q.ownerId);
+    if (asker?.slack && channel) {
+      const text = `O Echo não conseguiu responder a sua pergunta a tempo. ${owner ? `Fale direto com ${owner.name.split(" ")[0]}.` : "Tente de novo daqui a pouco."}`;
+      await d.chat.postEphemeral(channel, asker.slack, text).catch((err) => d.log.warn({ err: String(err) }, "falha ao avisar quem perguntou"));
+    }
+    // Marca o aviso para não repetir na próxima rodada.
+    await withOrg(d.db, q.orgId, (tx) => tx.update(questions).set({ digestKind: "falha_avisada" }).where(eq(questions.id, q.id)));
+  }
+  if (stale.length) d.log.warn({ perguntas: stale.length }, "perguntas do Slack sem resposta há mais de 1 hora");
+  return stale.length;
 }
 
 /** Botões Resolveu / Não resolveu: só quem perguntou avalia. O retorno vai pelo response_url. */

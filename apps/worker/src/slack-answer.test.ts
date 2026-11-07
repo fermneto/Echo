@@ -116,3 +116,57 @@ describe.skipIf(!url)("F2 no Slack (Postgres real, papel comum)", () => {
     expect(after!.resolved).toBe(true);
   });
 });
+
+describe("roteador de cliques", () => {
+  it("entrega cada clique a todos os tratadores; a falha de um não impede os outros e sobe para a fila", async () => {
+    const { createInteractionRouter } = await import("./slack-interactions.ts");
+    const r = createInteractionRouter(log);
+    const got: string[] = [];
+    r.add("resolveu", async () => void got.push("resolveu"));
+    r.add("quebrado", async () => Promise.reject(new Error("boom")));
+    r.add("nota", async () => void got.push("nota"));
+    await expect(r.dispatch({ orgId: "o", payload: {} })).rejects.toThrow("boom");
+    expect(got).toEqual(["resolveu", "nota"]);
+  });
+});
+
+describe.skipIf(!url)("perguntas paradas há mais de 1 hora", () => {
+  const pool = createPool(url!, 2);
+  const db = createDb(pool);
+  let orgId = "";
+  let edu = "";
+  afterAll(async () => {
+    if (orgId) await db.delete(orgs).where(eq(orgs.id, orgId));
+    await pool.end();
+  });
+
+  it("viram falha, quem perguntou é avisado uma vez, e a pergunta não volta a ser respondida", async () => {
+    const [org] = await db.insert(orgs).values({ name: `Teste paradas ${Math.random().toString(36).slice(2, 7)}` }).returning();
+    orgId = org!.id;
+    const wh = { days: [1, 2, 3, 4, 5], start: "09:00", end: "18:00" };
+    const [e] = await db.insert(people).values({ orgId, name: "Eduardo", timezone: "Africa/Johannesburg", workHours: wh }).returning();
+    const [f] = await db.insert(people).values({ orgId, name: "Fernando", timezone: "America/Fortaleza", workHours: wh }).returning();
+    edu = e!.id;
+    await db.insert(identities).values([
+      { orgId, personId: edu, platform: "slack", externalId: "UEDU2" },
+      { orgId, personId: f!.id, platform: "slack", externalId: "UFER2" },
+    ]);
+    const old = new Date(Date.now() - 2 * 3_600_000);
+    await db.insert(questions).values([
+      { orgId, askerId: edu, ownerId: f!.id, kind: "gemeo", channel: "slack:C9", sourceRef: "slack:C9:1.1", state: "processing", createdAt: old },
+      { orgId, askerId: edu, kind: "livre", channel: "slack:C9", sourceRef: "slack:C9:1.2", state: "processing" }, // recente: ainda não
+    ]);
+    const { chat, ephemeral } = fakeChat("away");
+    const { giveUpStaleQuestions } = await import("./slack-answer.ts");
+    expect(await giveUpStaleQuestions({ db, chat, log })).toBe(1);
+    expect(ephemeral).toEqual(["O Echo não conseguiu responder a sua pergunta a tempo. Fale direto com Fernando."]);
+    expect(await giveUpStaleQuestions({ db, chat, log })).toBe(0); // não repete o aviso
+    const [q] = await db.select().from(questions).where(eq(questions.sourceRef, "slack:C9:1.1"));
+    expect(q).toMatchObject({ state: "failed", digestKind: "falha_avisada" });
+
+    // Uma nova tentativa da fila para a mesma mensagem não responde mais.
+    const answer = async () => answered;
+    const msg: ChatMessage = { channel: "C9", ts: "1.1", userExternalId: "UEDU2", text: "<@UFER2> oi?", mentions: ["UFER2"], mentionsBot: false, isDm: false };
+    expect(await handleSlackMessage({ db, chat, answer, log, workerId: "w" }, { orgId, message: msg })).toBe("duplicate");
+  });
+});

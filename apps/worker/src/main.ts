@@ -7,7 +7,8 @@ import { createLogger, initTracing, LogRunRecorder } from "@echo/observability";
 import { writersFromEnv } from "@echo/actions";
 import * as agents from "@echo/agents";
 import type { AnswerRequest, AnswerResult } from "@echo/agents";
-import { handleSlackInteraction, handleSlackMessage } from "./slack-answer.ts";
+import { giveUpStaleQuestions, handleSlackInteraction, handleSlackMessage } from "./slack-answer.ts";
+import { createInteractionRouter } from "./slack-interactions.ts";
 import type { SlackMessageJob } from "./inbox.ts";
 import { registerActions } from "./actions.ts";
 import { registerInbox } from "./inbox.ts";
@@ -28,6 +29,8 @@ const runs = new LogRunRecorder(log);
 await registerInbox(db, queue, runs, { brainsRepository: cfg.BRAINS_REPOSITORY });
 const stopActions = await registerActions({ db, writers: writersFromEnv(db, cfg) }, queue, runs, log);
 // F2: resposta no Slack com o fluxo da frente Funções (answer de @echo/agents).
+const interactions = createInteractionRouter(log);
+let giveUp: ReturnType<typeof setInterval> | undefined;
 const platforms = platformsFromEnv(cfg);
 const answer = (agents as { answer?: (req: AnswerRequest) => Promise<AnswerResult> }).answer;
 if (platforms.chat && answer) {
@@ -37,13 +40,15 @@ if (platforms.chat && answer) {
     const outcome = await handleSlackMessage({ db, chat, answer, log, workerId }, job.data);
     log.info({ orgId: job.data.orgId, outcome }, "mensagem do Slack");
   });
-  await queue.work<{ orgId: string; payload: unknown }>(QUEUES.slackInteraction, async (job) => {
-    const outcome = await handleSlackInteraction({ db, log }, job.data);
-    log.info({ orgId: job.data.orgId, outcome }, "clique no Slack");
-  });
+  // Um só consumidor dos cliques; outros fluxos (ex.: Confirmar a nota do dia) entram com interactions.add.
+  interactions.add("resolveu", (job) => handleSlackInteraction({ db, log }, job));
+  // A cada 10 minutos: pergunta sem resposta há 1 hora vira falha e quem perguntou é avisado.
+  giveUp = setInterval(() => void giveUpStaleQuestions({ db, chat, log }).catch((err) => log.error({ err: String(err) }, "falha na rodada das perguntas paradas")), 10 * 60_000);
 } else {
   log.warn({ slack: Boolean(platforms.chat), answer: Boolean(answer) }, "resposta no Slack desligada: falta SLACK_BOT_TOKEN ou o fluxo answer() de @echo/agents");
 }
+
+await interactions.listen(queue);
 
 const stopReconcile = scheduleReconcile({ db, pool, platforms, runs, log, brainsRepository: cfg.BRAINS_REPOSITORY, queue }, cfg.RECONCILE_INTERVAL_MS);
 log.info({ demo: cfg.DEMO_MODE }, "worker no ar");
@@ -64,6 +69,7 @@ async function shutdown(signal: string) {
   clearInterval(heartbeat);
   stopActions();
   stopReconcile();
+  if (giveUp) clearInterval(giveUp);
   await Promise.allSettled([queue.stop(), pool.end(), flush()]);
   process.exit(0);
 }
