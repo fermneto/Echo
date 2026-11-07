@@ -4,8 +4,25 @@ import * as schema from "./schema.ts";
 
 export type Database = ReturnType<typeof drizzle<typeof schema>>;
 
-export function createPool(url: string, max = 10): pg.Pool {
-  return new pg.Pool({ connectionString: url, max, connectionTimeoutMillis: 5_000 });
+export interface PoolOptions {
+  /**
+   * Escopo de uma consulta feita fora de withOrg/asSystem.
+   * - "system" (padrão por enquanto): passa pelo RLS, como antes da migração 0003. Mantém funcionando
+   *   o código que ainda não usa withOrg. Vira "none" quando todas as frentes tiverem migrado.
+   * - "none": fora de withOrg/asSystem, as tabelas de negócio não devolvem nada.
+   */
+  defaultScope?: "system" | "none";
+}
+
+export function createPool(url: string, max = 10, opts: PoolOptions = {}): pg.Pool {
+  const pool = new pg.Pool({ connectionString: url, max, connectionTimeoutMillis: 5_000 });
+  if ((opts.defaultScope ?? "system") === "system") {
+    // Valor da sessão: withOrg e asSystem trocam só dentro da própria transação (set_config local).
+    pool.on("connect", (client) => {
+      client.query("select set_config('app.bypass_rls', 'on', false)").catch(() => {});
+    });
+  }
+  return pool;
 }
 
 export function createDb(pool: pg.Pool): Database {
