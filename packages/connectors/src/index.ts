@@ -12,6 +12,46 @@ export interface CodeHost {
   listOpenPullRequests(repo: string): Promise<ExternalPullRequest[]>;
 }
 
+/** Leitura do repositório do espelho das notas (etapa 14). */
+export interface RepoFiles {
+  /** Arquivos da branch padrão: caminho → sha do blob. Repositório vazio = mapa vazio. */
+  listFiles(repo: string): Promise<{ files: Map<string, string>; truncated: boolean }>;
+  readBlob(repo: string, sha: string): Promise<string>;
+  /**
+   * Quem mudou o caminho desde a última sincronização (`syncedSha`, o blob que o Echo conhece; null = nunca).
+   * Só vale commit verificado (assinado pela conta do GitHub): o e-mail do autor qualquer um define.
+   */
+  editsSince(repo: string, path: string, syncedSha: string | null): Promise<PathEdits>;
+}
+
+/**
+ * Commits que mexeram num arquivo desde a última sincronização, do mais novo ao mais antigo.
+ * - ok: todos verificados; `logins` de quem fez cada um.
+ * - nao_verificado: algum commit sem assinatura verificada (ou sem conta); a edição não é aceita.
+ * - historico_longo: mais commits do que se confere de uma vez; a edição não é aceita.
+ */
+export type PathEdits = { kind: "ok"; logins: string[] } | { kind: "nao_verificado" } | { kind: "historico_longo" };
+
+/** Commit como o GitHub devolve em /commits, só o que importa para saber quem o fez. */
+export interface CommitIdentity {
+  author: { login?: string } | null;
+  committer: { login?: string } | null;
+  commit: { verification?: { verified?: boolean } | null };
+}
+
+/**
+ * Conta que responde por um commit, ou null se não dá para confiar.
+ * Commit verificado: a assinatura é de uma conta e o e-mail de quem fez o commit é dela (committer).
+ * Edição pelo site do GitHub: quem assina é o próprio GitHub (web-flow) e o autor é a pessoa logada.
+ */
+export function trustedLogin(c: CommitIdentity): string | null {
+  if (c.commit.verification?.verified !== true) return null;
+  const committer = c.committer?.login;
+  if (!committer) return null;
+  if (committer === "web-flow") return c.author?.login ?? null;
+  return committer;
+}
+
 export interface IssueTracker {
   getTask(key: string): Promise<ExternalTask | null>;
   /** Até 10 páginas de 50; `truncated` avisa que havia mais. */
@@ -25,6 +65,18 @@ export interface IssueTracker {
 export interface CodeWriter {
   comment(repo: string, number: number, body: string): Promise<{ id: string }>;
   requestReviewers(repo: string, number: number, logins: string[]): Promise<void>;
+  /**
+   * Cria ou atualiza um arquivo (espelho das notas). `previousSha` é o blob que se espera encontrar:
+   * se o arquivo mudou no meio, o GitHub recusa (FileChangedError) e nada é sobrescrito.
+   */
+  putFile(repo: string, path: string, content: string, message: string, previousSha?: string): Promise<{ sha: string }>;
+  /** Apaga um arquivo do espelho. Se o arquivo mudou (sha diferente), FileChangedError; se já não existe, nada. */
+  deleteFile(repo: string, path: string, sha: string, message: string): Promise<void>;
+}
+
+/** O arquivo mudou no repositório desde a última leitura: a escrita foi recusada, sem sobrescrever. */
+export class FileChangedError extends Error {
+  override name = "FileChangedError";
 }
 export interface IssueWriter {
   assignIssue(linearIssueId: string, assigneeLinearUserId: string | null): Promise<void>;

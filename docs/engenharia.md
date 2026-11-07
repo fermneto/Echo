@@ -930,6 +930,8 @@ Notas em Git nos dois sentidos
 2. Mudança no banco vira commit. Push no repositório vira nova versão no banco.
 3. A edição humana vence. Conflito marca `mirror_conflict_at` e avisa quem decide, sem sobrescrever em silêncio.
 4. Nomes de arquivo só em minúsculas sem acento, números, hífen e sublinhado. Edição de conta não ligada é recusada com aviso.
+5. O repositório é um só e quem tem acesso lê tudo: vão para ele só as notas que toda a empresa (fora o RH) já lê — de equipe sem dona e, se a empresa é uma equipe só, as de equipe das pessoas. Pessoais e privadas nunca. Nota que deixa de poder estar lá sai do repositório. O RH não tem acesso ao repositório.
+6. Edição pelo Git só vale com todos os commits desde a última sincronização verificados (assinados) e feitos por quem pode editar a nota; o e-mail do autor não basta.
 
 - **Testes:** Conflito, arquivo desconhecido, conta não ligada, nome fora da regra.
 - **Pronto quando:** Uma edição no Obsidian aparece no painel.

@@ -1,8 +1,9 @@
 // Executor do outbox: a ÚNICA peça que altera GitHub, Linear ou Slack.
 // Cada ação tem chave única (não roda duas vezes), é reservada por atualização condicional
 // (dois workers não executam a mesma) e só roda aprovada — exceto as listadas em REQUIRES_APPROVAL como false.
-import type { ChatPlatform, CodeWriter, IssueWriter } from "@echo/connectors";
-import { asSystem, auditLog, identities, outboxActions, planItems, tasks, withOrg, type Database, type Tx } from "@echo/db";
+import { FileChangedError, type ChatPlatform, type CodeWriter, type IssueWriter } from "@echo/connectors";
+import { asSystem, auditLog, brainNotes, identities, outboxActions, people, planItems, tasks, withOrg, type Database, type Tx } from "@echo/db";
+import { isMirrorExportable, soleTeam } from "@echo/domain";
 import { and, asc, eq, inArray, lt, sql } from "drizzle-orm";
 import { REQUIRES_APPROVAL, type ActionType, type OutboxAction } from "./index.ts";
 
@@ -17,6 +18,8 @@ export interface ActionPayloads {
   "github.set_reviewers": { repo: string; number: number; personIds: string[]; planItemId?: string };
   "github.draft_pr": Record<string, unknown>;
   "github.merge_fix": Record<string, unknown>;
+  "github.mirror_write": { repo: string; noteId: string; path: string; content: string; previousSha?: string };
+  "github.mirror_delete": { repo: string; noteId: string; path: string; sha: string };
   "slack.post": { channel: string; text: string; threadTs?: string; agentName?: string };
   "slack.dm": { personId: string; text: string; blocks?: unknown[] };
 }
@@ -137,6 +140,32 @@ async function run(deps: ExecutorDeps, row: Row): Promise<void> {
       await need("code", "GitHub").requestReviewers(p.repo, p.number, logins);
       return;
     }
+    case "github.mirror_write": {
+      const p = row.payload as ActionPayloads["github.mirror_write"];
+      // A nota pode ter ficado pessoal ou privada (ou a empresa ganhado outra equipe) depois de a ação entrar na fila.
+      if (!(await stillExportable(db, orgId, p.noteId))) throw new PermanentActionError("a nota não pode mais ir para o espelho; a próxima sincronização a tira do repositório");
+      let sha: string;
+      try {
+        ({ sha } = await need("code", "GitHub").putFile(p.repo, p.path, p.content, `Echo: atualiza ${p.path}`, p.previousSha));
+      } catch (err) {
+        if (err instanceof FileChangedError) throw new PermanentActionError("o arquivo mudou no Git; a próxima sincronização importa a edição");
+        throw err;
+      }
+      // Ponto de sincronização: o blob que está no Git agora é o que o Echo escreveu.
+      await withOrg(db, orgId, (tx) => tx.update(brainNotes).set({ sha }).where(and(eq(brainNotes.orgId, orgId), eq(brainNotes.id, p.noteId))));
+      return;
+    }
+    case "github.mirror_delete": {
+      const p = row.payload as ActionPayloads["github.mirror_delete"];
+      try {
+        await need("code", "GitHub").deleteFile(p.repo, p.path, p.sha, `Echo: remove ${p.path}, que não pode ficar no espelho`);
+      } catch (err) {
+        if (err instanceof FileChangedError) throw new PermanentActionError("o arquivo mudou no Git; a próxima sincronização tenta remover de novo");
+        throw err;
+      }
+      await withOrg(db, orgId, (tx) => tx.update(brainNotes).set({ sha: null }).where(and(eq(brainNotes.orgId, orgId), eq(brainNotes.id, p.noteId))));
+      return;
+    }
     case "slack.post": {
       const p = row.payload as ActionPayloads["slack.post"];
       await need("chat", "Slack").postAgentReply({ channel: p.channel, text: p.text, agentName: p.agentName ?? "Echo", ...(p.threadTs ? { threadTs: p.threadTs } : {}) });
@@ -231,3 +260,14 @@ export async function releaseStuckActions(db: Database, olderThanMs = 10 * 60_00
   return rows.length;
 }
 
+
+/** Confere de novo, na hora de escrever, se a nota ainda pode ir para o repositório (regra de packages/domain). */
+async function stillExportable(db: Database, orgId: string, noteId: string): Promise<boolean> {
+  return withOrg(db, orgId, async (tx) => {
+    const [note] = await tx.select({ visibility: brainNotes.visibility, personId: brainNotes.personId }).from(brainNotes).where(and(eq(brainNotes.orgId, orgId), eq(brainNotes.id, noteId)));
+    if (!note) return false;
+    const staff = await tx.select({ id: people.id, role: people.role, teamId: people.teamId, active: people.active }).from(people).where(eq(people.orgId, orgId));
+    const ownerTeamId = note.personId ? (staff.find((p) => p.id === note.personId)?.teamId ?? null) : null;
+    return isMirrorExportable({ ...note, ownerTeamId }, soleTeam(staff));
+  });
+}
