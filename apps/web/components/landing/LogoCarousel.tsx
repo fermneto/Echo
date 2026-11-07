@@ -4,8 +4,8 @@ import { useEffect, useState } from "react";
 
 /**
  * Carrossel de logos em colunas: cada coluna troca de logo a cada 2 s, com o novo entrando
- * de baixo e saindo do desfoque, e o anterior saindo para cima. As colunas trocam em
- * momentos levemente diferentes. Com movimento reduzido, mostra todos os logos parados.
+ * de baixo e saindo do desfoque, e o anterior saindo para cima. Todas as colunas trocam
+ * juntas, no mesmo relógio. Com movimento reduzido, mostra todos os logos parados.
  */
 
 export type CarouselLogo = { name: string; status: "hoje" | "em breve"; path?: string };
@@ -44,40 +44,18 @@ function Logo({ logo }: { logo: CarouselLogo }) {
   );
 }
 
-function Column({ logos, index }: { logos: CarouselLogo[]; index: number }) {
-  const [current, setCurrent] = useState(0);
-  const [leaving, setLeaving] = useState<number | null>(null);
-
-  useEffect(() => {
-    let interval = 0;
-    const start = window.setTimeout(() => {
-      interval = window.setInterval(() => {
-        setCurrent((c) => {
-          setLeaving(c);
-          return (c + 1) % logos.length;
-        });
-      }, CYCLE_MS);
-    }, index * 200);
-    return () => {
-      window.clearTimeout(start);
-      window.clearInterval(interval);
-    };
-  }, [logos.length, index]);
-
-  useEffect(() => {
-    if (leaving === null) return;
-    const t = window.setTimeout(() => setLeaving(null), EXIT_MS);
-    return () => window.clearTimeout(t);
-  }, [leaving]);
-
+/** Uma coluna mostra o logo do passo atual; durante a troca, o anterior sai por cima. */
+function Column({ logos, step, swapping, index }: { logos: CarouselLogo[]; step: number; swapping: boolean; index: number }) {
+  const current = step % logos.length;
+  const previous = (step - 1 + logos.length) % logos.length;
   return (
     <div className="logo-slot" style={{ animationDelay: `${index * 0.1}s` }}>
-      {leaving !== null && (
-        <div key={`out-${leaving}`} className="logo-slot__item is-leaving">
-          <Logo logo={logos[leaving]!} />
+      {swapping && step > 0 && (
+        <div key={`out-${step}`} className="logo-slot__item is-leaving">
+          <Logo logo={logos[previous]!} />
         </div>
       )}
-      <div key={`in-${current}`} className="logo-slot__item is-entering">
+      <div key={`in-${step}`} className="logo-slot__item is-entering">
         <Logo logo={logos[current]!} />
       </div>
     </div>
@@ -86,9 +64,28 @@ function Column({ logos, index }: { logos: CarouselLogo[]; index: number }) {
 
 export function LogoCarousel({ logos, columns = 4 }: { logos: readonly CarouselLogo[]; columns?: number }) {
   const [still, setStill] = useState(false);
+  // Um relógio só para todas as colunas: trocam juntas.
+  const [step, setStep] = useState(0);
+  const [swapping, setSwapping] = useState(false);
+
   useEffect(() => {
     setStill(window.matchMedia("(prefers-reduced-motion: reduce)").matches);
   }, []);
+
+  useEffect(() => {
+    if (still) return;
+    let end = 0;
+    const interval = window.setInterval(() => {
+      setStep((s) => s + 1);
+      setSwapping(true);
+      window.clearTimeout(end);
+      end = window.setTimeout(() => setSwapping(false), EXIT_MS);
+    }, CYCLE_MS);
+    return () => {
+      window.clearInterval(interval);
+      window.clearTimeout(end);
+    };
+  }, [still]);
 
   if (still) {
     return (
@@ -105,7 +102,7 @@ export function LogoCarousel({ logos, columns = 4 }: { logos: readonly CarouselL
   return (
     <div className="logo-carousel" aria-hidden="true">
       {distribute(logos, columns).map((col, i) => (
-        <Column key={i} logos={col} index={i} />
+        <Column key={i} logos={col} step={step} swapping={swapping} index={i} />
       ))}
     </div>
   );
