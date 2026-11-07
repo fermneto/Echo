@@ -1,8 +1,8 @@
 // Executor do outbox: a ÚNICA peça que altera GitHub, Linear ou Slack.
 // Cada ação tem chave única (não roda duas vezes), é reservada por atualização condicional
 // (dois workers não executam a mesma) e só roda aprovada — exceto as listadas em REQUIRES_APPROVAL como false.
-import type { ChatPlatform, CodeWriter, IssueWriter } from "@echo/connectors";
-import { asSystem, auditLog, identities, outboxActions, planItems, tasks, withOrg, type Database, type Tx } from "@echo/db";
+import { FileChangedError, type ChatPlatform, type CodeWriter, type IssueWriter } from "@echo/connectors";
+import { asSystem, auditLog, brainNotes, identities, outboxActions, planItems, tasks, withOrg, type Database, type Tx } from "@echo/db";
 import { and, asc, eq, inArray, lt, sql } from "drizzle-orm";
 import { REQUIRES_APPROVAL, type ActionType, type OutboxAction } from "./index.ts";
 
@@ -17,6 +17,7 @@ export interface ActionPayloads {
   "github.set_reviewers": { repo: string; number: number; personIds: string[]; planItemId?: string };
   "github.draft_pr": Record<string, unknown>;
   "github.merge_fix": Record<string, unknown>;
+  "github.mirror_write": { repo: string; noteId: string; path: string; content: string; previousSha?: string };
   "slack.post": { channel: string; text: string; threadTs?: string; agentName?: string };
   "slack.dm": { personId: string; text: string };
 }
@@ -135,6 +136,19 @@ async function run(deps: ExecutorDeps, row: Row): Promise<void> {
       const logins = rows.flatMap((r) => (r.login ? [r.login] : []));
       if (logins.length < p.personIds.length) throw new PermanentActionError("revisor sem conta no GitHub");
       await need("code", "GitHub").requestReviewers(p.repo, p.number, logins);
+      return;
+    }
+    case "github.mirror_write": {
+      const p = row.payload as ActionPayloads["github.mirror_write"];
+      let sha: string;
+      try {
+        ({ sha } = await need("code", "GitHub").putFile(p.repo, p.path, p.content, `Echo: atualiza ${p.path}`, p.previousSha));
+      } catch (err) {
+        if (err instanceof FileChangedError) throw new PermanentActionError("o arquivo mudou no Git; a próxima sincronização importa a edição");
+        throw err;
+      }
+      // Ponto de sincronização: o blob que está no Git agora é o que o Echo escreveu.
+      await withOrg(db, orgId, (tx) => tx.update(brainNotes).set({ sha }).where(and(eq(brainNotes.orgId, orgId), eq(brainNotes.id, p.noteId))));
       return;
     }
     case "slack.post": {

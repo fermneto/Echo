@@ -125,6 +125,13 @@ if (api) {
       if (chosen) {
         const repos = await app.forInstallation(chosen).listRepositories();
         add("GitHub", "repositórios visíveis pela instalação", repos.length ? "ok" : "falta", repos.join(", ") || "instale o app no repositório de teste", "github.md");
+        const brains = env.BRAINS_REPOSITORY;
+        if (brains) {
+          const seen = repos.some((r) => r.toLowerCase() === brains.toLowerCase());
+          add("GitHub", `espelho das notas em ${brains}`, seen ? "ok" : "falta", seen ? undefined : "adicione o repositório brains à instalação do app", "github.md");
+        } else {
+          add("GitHub", "BRAINS_REPOSITORY (espelho das notas)", "aviso", "opcional: sem ele, as notas não vão para o Obsidian", "github.md");
+        }
       }
     } catch (err) {
       add("GitHub", "GitHub App", "erro", msg(err), "github.md");

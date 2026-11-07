@@ -1,5 +1,6 @@
 // Única saída que altera GitHub, Linear ou Slack — sempre via outbox_actions e só depois de aprovação.
-// Exceção registrada: comentário da análise noturna no PR (nunca aprovação).
+// Exceções registradas (sem aprovação): comentário da análise noturna no PR (nunca aprovação) e o espelho das
+// notas no repositório brains, que só copia notas que já valem no Echo e nunca sobrescreve uma edição do Git.
 
 export type ActionType =
   | "linear.assign"
@@ -8,6 +9,7 @@ export type ActionType =
   | "github.set_reviewers"
   | "github.draft_pr"
   | "github.merge_fix"
+  | "github.mirror_write"
   | "slack.post"
   | "slack.dm";
 
@@ -33,6 +35,7 @@ export const REQUIRES_APPROVAL: Record<ActionType, boolean> = {
   "github.set_reviewers": true,
   "github.draft_pr": false,
   "github.merge_fix": true,
+  "github.mirror_write": false,
   "slack.post": false,
   "slack.dm": false,
 };

@@ -12,6 +12,7 @@ import { createInteractionRouter } from "./slack-interactions.ts";
 import type { SlackMessageJob } from "./inbox.ts";
 import { registerActions } from "./actions.ts";
 import { registerInbox } from "./inbox.ts";
+import { registerMirror } from "./mirror.ts";
 import { scheduleReconcile } from "./reconcile.ts";
 import { platformsFromEnv } from "@echo/connectors";
 
@@ -50,6 +51,7 @@ if (platforms.chat && answer) {
 
 await interactions.listen(queue);
 
+await registerMirror({ db, platforms, runs, log, brainsRepository: cfg.BRAINS_REPOSITORY, queue });
 const stopReconcile = scheduleReconcile({ db, pool, platforms, runs, log, brainsRepository: cfg.BRAINS_REPOSITORY, queue }, cfg.RECONCILE_INTERVAL_MS);
 log.info({ demo: cfg.DEMO_MODE }, "worker no ar");
 // Nota do produto em toda empresa que ainda não a tem (etapa 5). Falha aqui não derruba o worker.

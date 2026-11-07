@@ -2,6 +2,7 @@ import { calendarsForOrg, connectedOrgs, githubForOrg, reconcileGithub, reconcil
 import { QUEUES, type JobQueue } from "@echo/jobs";
 import type { createPool, Database } from "@echo/db";
 import { withRun, type Logger, type RunRecorder } from "@echo/observability";
+import { mirrorOrg } from "./mirror.ts";
 
 /** Chave da trava no Postgres: só um worker reconcilia por vez. */
 const LOCK_KEY = 41_2026_11;
@@ -41,6 +42,7 @@ export async function reconcileOnce(d: ReconcileDeps): Promise<{ skipped: boolea
               const r = await reconcileGithub(d.db, orgId, gh, now, { brainsRepository: d.brainsRepository });
               d.log.info({ orgId, ...r }, "reconciliação do GitHub");
             }, { orgId }).catch((err) => d.log.error({ orgId, err: String(err) }, "falha na reconciliação do GitHub"));
+            await mirrorOrg(d, orgId).catch((err) => d.log.error({ orgId, err: String(err) }, "falha no espelho das notas"));
           }
         }
         for (const cal of await calendarsForOrg(d.db, d.platforms, orgId)) {

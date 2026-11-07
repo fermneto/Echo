@@ -16,6 +16,8 @@ export const QUEUES = {
   absenceRegistered: "absence.registered",
   /** Férias detectadas na agenda: a liderança confirma antes de qualquer plano. */
   absenceSuggested: "absence.suggested",
+  /** Push no repositório brains: sincronizar o espelho das notas da empresa (etapa 14). */
+  brainMirror: "brain.mirror",
 } as const;
 export type QueueName = (typeof QUEUES)[keyof typeof QUEUES];
 

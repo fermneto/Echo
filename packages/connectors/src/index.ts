@@ -12,6 +12,15 @@ export interface CodeHost {
   listOpenPullRequests(repo: string): Promise<ExternalPullRequest[]>;
 }
 
+/** Leitura do repositório do espelho das notas (etapa 14). */
+export interface RepoFiles {
+  /** Arquivos da branch padrão: caminho → sha do blob. Repositório vazio = mapa vazio. */
+  listFiles(repo: string): Promise<{ files: Map<string, string>; truncated: boolean }>;
+  readBlob(repo: string, sha: string): Promise<string>;
+  /** Login do autor do último commit que mexeu no caminho (null se o commit não está ligado a uma conta). */
+  lastAuthorLogin(repo: string, path: string): Promise<string | null>;
+}
+
 export interface IssueTracker {
   getTask(key: string): Promise<ExternalTask | null>;
   /** Até 10 páginas de 50; `truncated` avisa que havia mais. */
@@ -25,6 +34,16 @@ export interface IssueTracker {
 export interface CodeWriter {
   comment(repo: string, number: number, body: string): Promise<{ id: string }>;
   requestReviewers(repo: string, number: number, logins: string[]): Promise<void>;
+  /**
+   * Cria ou atualiza um arquivo (espelho das notas). `previousSha` é o blob que se espera encontrar:
+   * se o arquivo mudou no meio, o GitHub recusa (FileChangedError) e nada é sobrescrito.
+   */
+  putFile(repo: string, path: string, content: string, message: string, previousSha?: string): Promise<{ sha: string }>;
+}
+
+/** O arquivo mudou no repositório desde a última leitura: a escrita foi recusada, sem sobrescrever. */
+export class FileChangedError extends Error {
+  override name = "FileChangedError";
 }
 export interface IssueWriter {
   assignIssue(linearIssueId: string, assigneeLinearUserId: string | null): Promise<void>;
