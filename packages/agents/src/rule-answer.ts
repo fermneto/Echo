@@ -23,6 +23,22 @@ const BRANCH = /(?<![\w-])([a-z][a-z0-9]*-\d+-[a-z0-9][a-z0-9-]*)(?![\w-])/gi;
 const TASK_KEY = /(?<![\w-])([A-Za-z][A-Za-z0-9]*-\d+)(?![\w-])/g;
 const PR_NUMBER = /(?<!\p{L})PR\s*(?:#|n[ºo°]?\s*)?(\d+)/giu;
 
+// Pedidos que nunca chegam ao modelo (regra 7): aprovar, fazer merge, publicar em produção, avaliar pessoas.
+// Mais estritos que os de cima: "o PR 44 foi aprovado?" é pergunta de fato e segue para o fluxo normal.
+const APPROVE_REQUEST = /(?<!\p{L})(aprovar|aprove|aprova\s+(?:meu|o|esse|este|a|minha)|fazer\s+o\s+merge|faz\s+o\s+merge|fa[çc]a\s+o\s+merge|mergear|mergeia|publicar\s+em\s+produ[çc][ãa]o|publique\s+em\s+produ[çc][ãa]o|deploy\s+em\s+produ[çc][ãa]o)(?!\p{L})/iu;
+// "Quem precisa aprovar o PR 44?" é pergunta de fato.
+const WHO_APPROVES = /(?<!\p{L})quem\s+(?:pode|precisa|deve|vai|consegue|costuma)\s+aprovar/iu;
+const EVALUATE_REQUEST = /(?<!\p{L})((?:bom|boa|[óo]tim[oa]|ruim|melhor|pior)\s+(?:funcion[áa]ri[oa]|profissional|colega)|merece\s+(?:uma\s+|um\s+)?(?:promo[çc][ãa]o|aumento|demiss[ãa]o|b[ôo]nus)|promo[çc][ãa]o|promover|demitir|demiss[ãa]o|sal[áa]rio|ranking|quem\s+(?:trabalha|entrega|produz)\s+(?:mais|menos))(?!\p{L})/iu;
+
+/** Recusa fixa, em código, para o que o agente nunca faz. Devolve null quando o pedido é legítimo. */
+export function forbiddenRequest(question: string, ownerName: string | undefined): AnswerOutput | null {
+  const who = ownerName ? `O agente de ${ownerName}` : "O Echo";
+  const refuse = (texto: string): AnswerOutput => ({ status: "recusado", texto, fontes: [], liberacao: null, precisa_do_dono: false });
+  if (EVALUATE_REQUEST.test(question)) return refuse(`${who} não avalia pessoas, não dá notas nem compara colegas.`);
+  if (APPROVE_REQUEST.test(question) && !WHO_APPROVES.test(question)) return refuse(`${who} não aprova PRs, não faz merge e não publica em produção: essa decisão é sempre de uma pessoa, com aprovação registrada.`);
+  return null;
+}
+
 /** Resposta do teto de custo para a pergunta livre ao Echo (pausada a 100% do limite). */
 export const ECHO_PAUSED: AnswerOutput = {
   status: "recusado",

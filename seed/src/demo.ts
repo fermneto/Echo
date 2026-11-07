@@ -321,6 +321,8 @@ export function buildDemo(now: Date): DemoData {
       sourceRef: ref,
       externalLogin: `${personKey}-echo-demo`,
       attributedAt: when,
+      // Gravado na hora do evento: o relatório conta pelo registro (registro atrasado vai para o seguinte).
+      createdAt: when,
       ...extra,
     });
   };
@@ -348,7 +350,7 @@ export function buildDemo(now: Date): DemoData {
   event("review", "bruno", ago(23 * DAY), "review:31:bruno", { prNumber: 31 });
   workEvents.push({
     orgId: org, type: "task_updated", personId: P.fernando, taskKey: "ECH-131", occurredAt: ago(4 * DAY),
-    source: "linear", sourceRef: "linear:ECH-131:in_review", attributedAt: ago(4 * DAY), data: { state: "in_review" },
+    source: "linear", sourceRef: "linear:ECH-131:in_review", attributedAt: ago(4 * DAY), createdAt: ago(4 * DAY), data: { state: "in_review" },
   });
 
   // Carla: 5 ajudas na semana (o "trabalho invisível" da cena 4). Só a referência, nunca o texto.
@@ -365,11 +367,11 @@ export function buildDemo(now: Date): DemoData {
     ...(deliveryRef ? { deliveryRef } : {}),
   });
   const contributions: DemoData["contributions"] = [
-    help("bruno", "reaction", "medio", "slack:C_DEMO_PRODUTO:1730900000.000100", 1, "linear:ECH-133"),
+    help("bruno", "reaction", "forte", "slack:C_DEMO_PRODUTO:1730900000.000100", 1, "linear:ECH-133"),
     help("fernando", "review_change", "forte", "github:pr/41#review-1", 5, "github:pr/41"),
     help("yan", "review_change", "forte", "github:pr/36#review-1", 1.25, "github:pr/36"),
     help("fernando", "review_change", "forte", "github:pr/44#review-1", 0.8, "github:pr/44"),
-    help("eduardo", "panel_confirm", "medio", "panel:help:eduardo-api-v2", 2, "linear:ECH-142"),
+    help("eduardo", "panel_confirm", "forte", "panel:help:eduardo-api-v2", 2, "linear:ECH-142"),
   ];
 
   // Histórico para Ganhos: perguntas já respondidas nas semanas anteriores.

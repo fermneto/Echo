@@ -33,6 +33,12 @@ describe("validateAnswer", () => {
     expect(codes({ status: "recusado", texto: "O agente não aprova PRs nem publica em produção.", fontes: [] })).toEqual([]);
   });
 
+  it("o agente não diz que mudou tarefa; sugerir com aprovação passa", () => {
+    expect(codes({ texto: "Atribuí a ECH-133 para Carla." })).toContain("assunto_proibido");
+    expect(codes({ texto: "Já repassei a ECH-139 para Fernando." })).toContain("assunto_proibido");
+    expect(codes({ texto: "Sugestão: atribuir a ECH-133 a Carla, com aprovação da liderança no painel." })).toEqual([]);
+  });
+
   it("caixa e acento não enganam a checagem de liberação", () => {
     expect(codes({ texto: "A ECH-131-API-V2 ESTÁ LIBERADA.", liberacao: { alvo: "ECH-131-api-v2", tipo: "branch" } })).toEqual([]);
   });

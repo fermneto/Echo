@@ -57,6 +57,20 @@
       "when": 1794065841047,
       "tag": "0007_agenda_cicd",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1794067142377,
+      "tag": "0008_revisao_arquivos",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1794068157798,
+      "tag": "0009_correcao",
+      "breakpoints": true
     }
   ]
 }

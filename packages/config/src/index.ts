@@ -97,9 +97,26 @@ export const workerSchema = baseSchema.extend({
   RECONCILE_INTERVAL_MS: z.coerce.number().int().min(60_000).default(10 * 60_000),
   /** Repositório do espelho das notas (<org>/brains): push nele não é trabalho. */
   BRAINS_REPOSITORY: optionalString,
+  // Endereço do painel, para o botão "Editar no painel" da nota do dia.
+  WEB_URL: z.url().default("http://localhost:3000"),
+  // Intervalo da agenda do fim do expediente (nota do dia).
+  END_OF_DAY_SCAN_MS: z.coerce.number().int().min(10_000).default(300_000),
+  // Hora UTC em que o lote da revisão noturna é criado, uma vez por noite por empresa.
+  NIGHT_REVIEW_UTC_HOUR: z.coerce.number().int().min(0).max(23).default(5),
 });
 
-export const reviewerSchema = baseSchema.extend({ ...database, ...anthropic });
+export const reviewerSchema = baseSchema.extend({
+  ...database,
+  ...anthropic,
+  // Agente e ambiente da correção no Managed Agents, criados uma vez com `pnpm --filter @echo/reviewer provision`.
+  // Sem eles, não há correção.
+  FIX_AGENT_ID: optionalString.pipe(z.string().startsWith("agent_", "precisa começar com agent_").optional()),
+  FIX_ENVIRONMENT_ID: optionalString.pipe(z.string().startsWith("env_", "precisa começar com env_").optional()),
+  // Intervalo da busca por revisões a corrigir e por rascunhos prontos.
+  FIX_SCAN_MS: z.coerce.number().int().min(10_000).default(300_000),
+  // Tempo máximo de uma correção no ambiente isolado.
+  FIX_TIMEOUT_MS: z.coerce.number().int().min(60_000).max(3_600_000).default(1_200_000),
+});
 
 export const schemas = { api: apiSchema, web: webSchema, worker: workerSchema, reviewer: reviewerSchema } as const;
 export type ServiceName = keyof typeof schemas;

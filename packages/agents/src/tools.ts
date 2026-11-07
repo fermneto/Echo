@@ -21,6 +21,7 @@ import {
 } from "@echo/domain";
 import type { AgentData, OrgSettings } from "./data.ts";
 import type { ToolName } from "./index.ts";
+import { topicCandidates } from "./topic.ts";
 
 export interface RunState {
   /** Fontes consultadas nesta execução, por id (ref). */
@@ -297,33 +298,15 @@ async function capacityCards(ctx: ToolContext) {
 async function findPeopleByTopic(ctx: ToolContext, input: Input) {
   const topic = str(input.tema);
   if (!topic) return { erro: "Informe o tema." };
-  const t = fold(topic);
-  const has = (s: string | undefined) => !!s && fold(s).includes(t);
-  const evidence: TopicEvidence[] = [];
-  for (const p of ctx.people) {
-    if ([...p.skills, ...p.areas].some(has)) evidence.push({ personId: p.id, kind: "profile", at: ctx.now, source: { label: `perfil de ${firstName(p)}`, ref: `perfil:${p.id}` } });
-  }
-  for (const pr of await ctx.data.pullRequests({})) {
-    if (pr.state !== "merged" || !pr.authorId || !canSeePr(ctx, pr)) continue;
-    if (has(pr.title) || has(pr.branch) || pr.files.some(has)) evidence.push({ personId: pr.authorId, kind: "pr_merged", at: pr.mergedAt ?? ctx.now, source: prSource(pr) });
-  }
-  for (const task of await ctx.data.tasks({})) {
-    if (task.state === "done" && task.assigneeId && (has(task.title) || has(task.area) || task.labels.some(has))) {
-      evidence.push({ personId: task.assigneeId, kind: "task_done", at: ctx.now, source: taskSource(task) });
-    }
-  }
-  const cards = await capacityCards(ctx);
-  const status: Record<string, TopicCandidate["status"]> = {};
-  for (const p of ctx.people) status[p.id] = awayView(ctx, p).de_ferias ? "vacation" : cards.find((c) => c.person.id === p.id)?.card.overLimit ? "over_limit" : "available";
-  const found = peopleForTopic({ evidence, people: ctx.people, status, excluded: ctx.people.filter((p) => p.role === "hr").map((p) => p.id), now: ctx.now });
+  const { candidates } = await topicCandidates(ctx, [topic]);
   return {
     tema: topic,
-    pessoas: found.map((c) => ({
-      nome: nameOf(ctx, c.personId),
+    pessoas: candidates.map((c) => ({
+      nome: firstName(c.person),
       situacao: c.status === "vacation" ? "de férias: não chamar" : c.status === "over_limit" ? "acima do limite de carga" : "disponível",
       fontes: c.evidence.map((s) => addSource(ctx, s)),
     })),
-    observacao: found.length === 0 ? "Ninguém tem evidência registrada sobre esse tema." : "Ordem por evidência; vale só para esta pergunta.",
+    observacao: candidates.length === 0 ? "Ninguém tem evidência registrada sobre esse tema." : "Ordem por evidência; vale só para esta pergunta.",
   };
 }
 

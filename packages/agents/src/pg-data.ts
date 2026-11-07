@@ -6,6 +6,7 @@ import {
   contributions,
   dailyNotes,
   type Database,
+  expertiseOverrides,
   orgs,
   people,
   pullRequests,
@@ -38,7 +39,7 @@ function toTask(r: typeof tasks.$inferSelect): Task {
   };
 }
 
-function toPr(r: typeof pullRequests.$inferSelect): PullRequest {
+export function toPr(r: typeof pullRequests.$inferSelect): PullRequest {
   return {
     id: r.id,
     repository: r.repository,
@@ -52,14 +53,17 @@ function toPr(r: typeof pullRequests.$inferSelect): PullRequest {
     reviewerIds: r.reviewerIds,
     openedAt: opt(r.openedAt),
     mergedAt: opt(r.mergedAt),
+    checksState: r.checksState === "success" || r.checksState === "failure" || r.checksState === "pending" ? r.checksState : undefined,
+    headSha: opt(r.headSha),
   };
 }
 
-const mark = (m: { branch: string; to?: string; reason?: string; until?: string }) => ({
+export const mark = (m: { branch: string; to?: string; reason?: string; until?: string; confirmedAt?: string }) => ({
   branch: m.branch,
   ...(m.to ? { to: m.to } : {}),
   ...(m.reason ? { reason: m.reason } : {}),
   ...(m.until ? { until: m.until } : {}),
+  ...(m.confirmedAt ? { confirmedAt: m.confirmedAt } : {}),
 });
 
 export function createPgAgentData(db: Database, orgId: string): AgentData {
@@ -194,6 +198,7 @@ export function createPgAgentData(db: Database, orgId: string): AgentData {
           occurredAt: r.occurredAt,
           source: r.source as WorkEvent["source"],
           sourceRef: r.sourceRef,
+          recordedAt: r.createdAt,
           ...(r.data ? { data: r.data as Record<string, unknown> } : {}),
         }),
       );
@@ -211,6 +216,11 @@ export function createPgAgentData(db: Database, orgId: string): AgentData {
           ...(r.deliveryRef ? { deliveryRef: r.deliveryRef } : {}),
         }),
       );
+    },
+
+    async expertiseOverrides() {
+      const rows = await run((tx) => tx.select().from(expertiseOverrides).where(eq(expertiseOverrides.orgId, orgId)));
+      return rows.map((r) => ({ personId: r.personId, topic: r.topic, include: r.include, ...(r.validUntil ? { validUntil: r.validUntil } : {}) }));
     },
   };
 }

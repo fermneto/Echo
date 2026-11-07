@@ -293,9 +293,15 @@ importers:
 
   apps/reviewer:
     dependencies:
+      '@echo/agents':
+        specifier: workspace:*
+        version: link:../../packages/agents
       '@echo/config':
         specifier: workspace:*
         version: link:../../packages/config
+      '@echo/db':
+        specifier: workspace:*
+        version: link:../../packages/db
       '@echo/jobs':
         specifier: workspace:*
         version: link:../../packages/jobs
@@ -463,6 +469,9 @@ importers:
       '@anthropic-ai/sdk':
         specifier: 'catalog:'
         version: 1.6.0(zod@4.6.7)
+      '@echo/actions':
+        specifier: workspace:*
+        version: link:../actions
       '@echo/brain':
         specifier: workspace:*
         version: link:../brain

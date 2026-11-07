@@ -112,6 +112,9 @@ services:
         fromDatabase:
           name: echo-db
           property: connectionString
+      # Endereço público do painel (botão "Editar no painel" da nota do dia). Definir no painel da Render.
+      - key: WEB_URL
+        sync: false
       - fromGroup: echo-shared
 
   - type: worker
@@ -129,3 +132,8 @@ services:
           name: echo-db
           property: connectionString
       - fromGroup: echo-shared
+      # Correção (etapa 10): IDs de `pnpm --filter @echo/reviewer provision`.
+      - key: FIX_AGENT_ID
+        sync: false
+      - key: FIX_ENVIRONMENT_ID
+        sync: false

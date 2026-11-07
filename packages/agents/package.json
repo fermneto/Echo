@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "catalog:",
+    "@echo/actions": "workspace:*",
     "@echo/brain": "workspace:*",
     "@echo/connectors": "workspace:*",
     "@echo/db": "workspace:*",

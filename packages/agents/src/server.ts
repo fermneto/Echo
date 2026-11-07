@@ -1,13 +1,33 @@
 // Dependências padrão do fluxo de resposta, só no servidor: Postgres, BrainStore e a chave da empresa.
 import Anthropic from "@anthropic-ai/sdk";
 import { createPgBrainStore } from "@echo/brain/pg";
-import { agentRuns, createDb, createPool, type Database, withOrg } from "@echo/db";
+import { createPgOutbox } from "@echo/actions/pg";
+import { agentRuns, asSystem, createDb, createPool, type Database, orgs, withOrg } from "@echo/db";
+import { endOfDayDue, morningDue, reportsDue } from "@echo/domain";
 import type { AgentRun, RunRecorder } from "@echo/observability";
 import { type AnswerDeps, createAnswer, type ModelCall } from "./answer.ts";
 import type { AnswerRequest, AnswerResult } from "./index.ts";
+import { createEndOfDay, type EndOfDay } from "./daily-note.ts";
 import { createPgAgentData } from "./pg-data.ts";
+import { createPgDailyNoteStore } from "./pg-notes.ts";
+import { createMorningPlan, type MorningPlan } from "./morning-plan.ts";
+import { type BatchApi, createNightReview, type NightReview, type ReviewSource } from "./night-review.ts";
+import { createPgPlanStore, createPgReviewStore } from "./pg-night.ts";
+import { createFix, type Fix, type FixCodeHost } from "./fix.ts";
+import { createManagedFixSandbox, fixAgentParams, fixEnvironmentParams } from "./managed-fix.ts";
+import { createPgFixStore } from "./pg-fix.ts";
+import { createRedistribution, type Redistribution } from "./redistribution.ts";
+import { createPgRedistributionStore } from "./pg-redistribution.ts";
+import { createWeeklyReport, type WeeklyReport } from "./report.ts";
+import { createPgReportStore } from "./pg-report.ts";
 
 export { createPgAgentData } from "./pg-data.ts";
+export { createPgDailyNoteStore } from "./pg-notes.ts";
+export { createPgPlanStore, createPgReviewStore } from "./pg-night.ts";
+export { createPgFixStore } from "./pg-fix.ts";
+export { createPgRedistributionStore } from "./pg-redistribution.ts";
+export { createPgReportStore } from "./pg-report.ts";
+export { createManagedFixSandbox, fixAgentParams, fixEnvironmentParams, fixPrompt, readFixOutputs, driveSession, sessionCost, REPO_PATH, OUTPUTS } from "./managed-fix.ts";
 
 /** Grava cada execução em agent_runs, dentro da empresa (RLS). */
 export function createDbRunRecorder(db: Database): RunRecorder {
@@ -45,6 +65,168 @@ export function serverAnswerDeps(db: Database, apiKey: string | undefined): Answ
     // Só para ensaiar a demonstração de dia: o dono da pergunta é tratado como ausente.
     alwaysAway: process.env.DEMO_ALWAYS_AWAY === "true",
   };
+}
+
+/** Fluxo do fim do expediente com Postgres, outbox e a chave da empresa (sem chave, "onde parou" por regra). */
+export function serverEndOfDay(db: Database, apiKey: string | undefined, webUrl: string): EndOfDay {
+  return createEndOfDay({
+    data: (orgId) => createPgAgentData(db, orgId),
+    notes: (orgId) => createPgDailyNoteStore(db, orgId),
+    outbox: (orgId) => createPgOutbox(db, orgId),
+    model: apiKey ? anthropicModelCall(apiKey) : null,
+    recorder: createDbRunRecorder(db),
+    webUrl,
+  });
+}
+
+/** API de lotes da Anthropic com a chave da empresa. */
+export function anthropicBatchApi(apiKey: string): BatchApi {
+  const client = new Anthropic({ apiKey, maxRetries: 2 });
+  return {
+    async create(requests) {
+      const b = await client.messages.batches.create({ requests });
+      return { id: b.id };
+    },
+    async status(id) {
+      return (await client.messages.batches.retrieve(id)).processing_status;
+    },
+    async *results(id) {
+      for await (const item of await client.messages.batches.results(id)) yield item as never;
+    },
+  };
+}
+
+/**
+ * Revisão noturna com Postgres, outbox e a API de lotes. O diff vem do GitHub (`diffs`, frente de Integrações);
+ * sem chave da API, não há revisão.
+ */
+export function serverNightReview(db: Database, apiKey: string | undefined, diffs: (orgId: string) => ReviewSource): NightReview {
+  return createNightReview({
+    data: (orgId) => createPgAgentData(db, orgId),
+    brain: (orgId) => createPgBrainStore(db, orgId),
+    reviews: (orgId) => createPgReviewStore(db, orgId),
+    diffs,
+    outbox: (orgId) => createPgOutbox(db, orgId),
+    batches: apiKey ? anthropicBatchApi(apiKey) : null,
+    recorder: createDbRunRecorder(db),
+  });
+}
+
+export function serverMorningPlan(db: Database, webUrl: string): MorningPlan {
+  return createMorningPlan({
+    data: (orgId) => createPgAgentData(db, orgId),
+    plans: (orgId) => createPgPlanStore(db, orgId),
+    outbox: (orgId) => createPgOutbox(db, orgId),
+    recorder: createDbRunRecorder(db),
+    webUrl,
+  });
+}
+
+/**
+ * Correção (etapa 10) com Postgres, outbox e o Managed Agents provisionado. Sem chave, sem FIX_AGENT_ID ou
+ * FIX_ENVIRONMENT_ID, não há ambiente; sem a porta do GitHub (Integrações), não há correção. `decide` (Meu plano)
+ * só precisa da porta do GitHub.
+ */
+export function serverFix(db: Database, opts: { apiKey?: string | undefined; agentId?: string | undefined; environmentId?: string | undefined; timeoutMs?: number; codeHost: (orgId: string) => FixCodeHost | null }): Fix {
+  const sandbox =
+    opts.apiKey && opts.agentId && opts.environmentId
+      ? createManagedFixSandbox(new Anthropic({ apiKey: opts.apiKey, maxRetries: 2 }), { agentId: opts.agentId, environmentId: opts.environmentId, ...(opts.timeoutMs ? { timeoutMs: opts.timeoutMs } : {}) })
+      : null;
+  return createFix({
+    data: (orgId) => createPgAgentData(db, orgId),
+    fixes: (orgId) => createPgFixStore(db, orgId),
+    codeHost: opts.codeHost,
+    sandbox,
+    outbox: (orgId) => createPgOutbox(db, orgId),
+    recorder: createDbRunRecorder(db),
+  });
+}
+
+/** Redistribuição (etapa 11) com Postgres e outbox. Sem modelo: plano, motivos e mensagens saem das regras. */
+export function serverRedistribution(db: Database, webUrl: string): Redistribution {
+  return createRedistribution({
+    data: (orgId) => createPgAgentData(db, orgId),
+    store: (orgId) => createPgRedistributionStore(db, orgId),
+    outbox: (orgId) => createPgOutbox(db, orgId),
+    recorder: createDbRunRecorder(db),
+    webUrl,
+  });
+}
+
+/** Relatório semanal (etapa 12) com Postgres, outbox e a chave da empresa. Sem chave, o texto sai por regra. */
+export function serverWeeklyReport(db: Database, apiKey: string | undefined, webUrl: string): WeeklyReport {
+  return createWeeklyReport({
+    data: (orgId) => createPgAgentData(db, orgId),
+    reports: (orgId) => createPgReportStore(db, orgId),
+    outbox: (orgId) => createPgOutbox(db, orgId),
+    model: apiKey ? anthropicModelCall(apiKey) : null,
+    recorder: createDbRunRecorder(db),
+    webUrl,
+  });
+}
+
+/** Relatórios que já passaram do corte e ainda não existem, em todas as empresas. */
+export async function dueWeeklyReports(db: Database, now: Date): Promise<{ orgId: string; personId: string; week: string; cutoff: string }[]> {
+  const due: { orgId: string; personId: string; week: string; cutoff: string }[] = [];
+  for (const orgId of await allOrgIds(db)) {
+    const people = await createPgAgentData(db, orgId).people();
+    const store = createPgReportStore(db, orgId);
+    for (const person of people) {
+      for (const d of reportsDue(person, now)) if (!(await store.get(person.id, d.week))) due.push({ orgId, personId: person.id, week: d.week, cutoff: d.cutoff.toISOString() });
+    }
+  }
+  return due;
+}
+
+/**
+ * Cria, uma vez, o ambiente e o agente da correção no Managed Agents. O que já existe é mantido (o agente é
+ * atualizado no lugar, ganhando nova versão, em vez de criar outro).
+ */
+export async function provisionFix(apiKey: string, existing: { agentId?: string | undefined; environmentId?: string | undefined }): Promise<{ agentId: string; agentVersion: number; environmentId: string; created: string[] }> {
+  const client = new Anthropic({ apiKey, maxRetries: 2 });
+  const created: string[] = [];
+  const environmentId = existing.environmentId ?? (created.push("ambiente"), (await client.beta.environments.create(fixEnvironmentParams())).id);
+  if (existing.agentId) {
+    const current = await client.beta.agents.retrieve(existing.agentId);
+    const updated = await client.beta.agents.update(existing.agentId, { ...fixAgentParams(), version: current.version });
+    return { agentId: updated.id, agentVersion: updated.version, environmentId, created };
+  }
+  const agent = await client.beta.agents.create(fixAgentParams());
+  created.push("agente");
+  return { agentId: agent.id, agentVersion: agent.version, environmentId, created };
+}
+
+export async function allOrgIds(db: Database): Promise<string[]> {
+  return (await asSystem(db, (tx) => tx.select({ id: orgs.id }).from(orgs))).map((o) => o.id);
+}
+
+/** Quem está perto do início do expediente agora, em todas as empresas (plano da manhã). */
+export async function dueMorning(db: Database, now: Date): Promise<{ orgId: string; personId: string; date: string }[]> {
+  const due: { orgId: string; personId: string; date: string }[] = [];
+  for (const orgId of await allOrgIds(db)) {
+    const data = createPgAgentData(db, orgId);
+    const [people, absences] = await Promise.all([data.people(), data.absences()]);
+    for (const person of people) {
+      const d = morningDue(person, absences, now);
+      if (d) due.push({ orgId, personId: person.id, date: d.date });
+    }
+  }
+  return due;
+}
+
+/** Quem está no fim do expediente agora, em todas as empresas. A chave pessoa + data deixa repetir sem efeito. */
+export async function dueEndOfDay(db: Database, now: Date): Promise<{ orgId: string; personId: string; date: string }[]> {
+  const orgIds = await asSystem(db, (tx) => tx.select({ id: orgs.id }).from(orgs));
+  const due: { orgId: string; personId: string; date: string }[] = [];
+  for (const { id: orgId } of orgIds) {
+    const data = createPgAgentData(db, orgId);
+    const [people, absences] = await Promise.all([data.people(), data.absences()]);
+    for (const person of people) {
+      const d = endOfDayDue(person, absences, now);
+      if (d) due.push({ orgId, personId: person.id, date: d.date });
+    }
+  }
+  return due;
 }
 
 let cached: ((req: AnswerRequest) => Promise<AnswerResult>) | undefined;
