@@ -5,6 +5,8 @@ import { suggestedQuestions } from "@/lib/demo/twin";
 import { requireAccess } from "@/lib/session";
 import { localTime } from "@/lib/time";
 import { HolderPanel, StatusChip } from "@/components/Status";
+import { PixelAvatar } from "@/components/PixelAvatar";
+import { RailTrack } from "@/components/TimeRail";
 import { AskTwin } from "./AskTwin";
 
 export default async function PessoaPage({ params }: { params: Promise<{ id: string }> }) {
@@ -15,16 +17,30 @@ export default async function PessoaPage({ params }: { params: Promise<{ id: str
   return (
     <div className="split">
       <div className="split__text">
-        <p className="mono muted">
-          {persona.cityCode} {localTime(DEMO_NOW, persona.timezone)}
-        </p>
-        <h1 className="app-title">{persona.name}</h1>
+        <div className="profile-head">
+          <PixelAvatar persona={persona} size={72} />
+          <div>
+            <p className="mono muted">
+              {persona.cityCode} {localTime(DEMO_NOW, persona.timezone)}
+            </p>
+            <h1 className="app-title">{persona.name}</h1>
+          </div>
+        </div>
         <p className="lead">
           {persona.title} em {persona.city}
         </p>
         <StatusChip persona={persona} />
 
         <HolderPanel persona={persona} />
+
+        <div className="profile-rail">
+          <p className="mono muted profile-rail__label">
+            <span>−12H</span>
+            <span>AGORA</span>
+            <span>+12H</span>
+          </p>
+          <RailTrack persona={persona} now={DEMO_NOW} />
+        </div>
 
         <dl className="module facts">
           <div>

@@ -21,5 +21,7 @@ export async function perguntar(prev: AskState, formData: FormData): Promise<Ask
   if (!target) return { ...prev, error: "Pessoa não encontrada." };
   if (!question) return { ...prev, error: "Escreva uma pergunta." };
 
+  // A simulação responde na hora; a pausa imita o tempo de consulta do fluxo real (nota, GitHub, Linear).
+  await new Promise((r) => setTimeout(r, 900));
   return { turns: [...prev.turns, { question, reply: askTwinDemo(target, question) }] };
 }
