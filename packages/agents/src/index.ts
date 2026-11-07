@@ -68,5 +68,29 @@ export interface ValidationIssue {
   detail: string;
 }
 
+/** O que o validador sabe da execução. */
+export interface ValidatorContext {
+  ownerName?: string;
+  /** Ids das fontes que as ferramentas devolveram NESTA execução. */
+  sourcesThisRun: string[];
+  /** Branches, tarefas ou PRs com liberação real e válida para quem pergunta. */
+  releasedTargets: string[];
+  /** Números que vieram das regras de `packages/domain` nesta execução; qualquer outra quantidade é recusada. */
+  allowedNumbers?: string[];
+}
+
 /** Validador em código (etapa 6). Recusa a resposta se houver qualquer issue. */
-export type AnswerValidator = (out: AnswerOutput, ctx: { ownerName?: string; sourcesThisRun: string[]; releasedTargets: string[] }) => ValidationIssue[];
+export type AnswerValidator = (out: AnswerOutput, ctx: ValidatorContext) => ValidationIssue[];
+
+export { validateAnswer } from "./validator.ts";
+export { createAnswer, type AnswerDeps, type ModelCall } from "./answer.ts";
+export type { AgentData, OrgSettings } from "./data.ts";
+
+/**
+ * Fluxo de resposta (F2) com as dependências padrão: Postgres (DATABASE_URL) e a chave da empresa
+ * (ANTHROPIC_API_KEY). Sem chave, responde por regra. O import é tardio para o pacote seguir leve no navegador.
+ */
+export async function answer(req: AnswerRequest): Promise<AnswerResult> {
+  const { defaultAnswer } = await import("./server.ts");
+  return (await defaultAnswer())(req);
+}
