@@ -1209,8 +1209,15 @@
 .stack__card.is-active:active {
   cursor: grabbing;
 }
-.stack.is-still .stack__card {
+.stack.is-still .stack__card,
+.stack.is-dragging .stack__card {
   transition: none;
+}
+.stack.is-dragging .stack__stage {
+  cursor: grabbing;
+}
+.stack__stage {
+  cursor: grab;
 }
 .stack__nav {
   display: flex;

@@ -307,7 +307,7 @@ export default function LandingPage() {
               <li>
                 <span className="lp-dot lp-dot--wait" aria-hidden="true" /> {COUNTS.wait} de férias
               </li>
-              <li className="lp-legend__hint">Clique num ponto para ver a conversa</li>
+              <li className="lp-legend__hint">Passe o mouse num ponto para ver a conversa</li>
             </ul>
           </div>
         </section>

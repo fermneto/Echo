@@ -9,7 +9,8 @@ import { WORLD_MAP_PNG } from "./worldMap";
  * Em volta de cada cidade, os próprios pontos do globo mudam de cor, verde onde há gente no
  * expediente e azul onde o gêmeo está no comando, com uma onda que pulsa saindo da cidade.
  * Arcos entre as pessoas com um brilho que corre; etiquetas acompanham cada ponto.
- * Clicar num ponto (ou na etiqueta) abre o cartão daquele lugar; fecha com Esc, clique fora ou ×.
+ * Passar o mouse num ponto (ou na etiqueta) abre o cartão daquele lugar, que fecha ao sair.
+ * Sem hover (toque, teclado), abre com toque ou foco; fecha com Esc, toque fora ou ×.
  * Arrasta com inércia, gira sozinho, pausa fora da tela e respeita prefers-reduced-motion.
  */
 
@@ -78,6 +79,21 @@ export function EchoGlobe({ points, arcs, focusLongitude = -5, theta = 0.32 }: {
   const [open, setOpen] = useState<number | null>(null);
   const openRef = useRef<number | null>(null);
   openRef.current = open;
+  // Fechar com um pequeno atraso dá tempo de levar o ponteiro do ponto até o cartão.
+  const closeTimer = useRef(0);
+  const show = (i: number) => {
+    window.clearTimeout(closeTimer.current);
+    setOpen(i);
+  };
+  const hideSoon = () => {
+    window.clearTimeout(closeTimer.current);
+    closeTimer.current = window.setTimeout(() => setOpen(null), 180);
+  };
+  const showRef = useRef(show);
+  showRef.current = show;
+  const hideRef = useRef(hideSoon);
+  hideRef.current = hideSoon;
+
   /** Redesenha um quadro já (o globo parado, com movimento reduzido, não redesenha sozinho). */
   const redraw = useRef<() => void>(() => {});
 
@@ -343,17 +359,29 @@ export function EchoGlobe({ points, arcs, focusLongitude = -5, theta = 0.32 }: {
       return best;
     };
     const onHover = (e: PointerEvent) => {
-      if (drag) return;
+      if (drag || e.pointerType === "touch") return;
+      const was = hovered;
       hovered = hit(e);
       canvas.style.cursor = hovered >= 0 ? "pointer" : "grab";
+      if (hovered !== was) {
+        if (hovered >= 0) showRef.current(hovered);
+        else hideRef.current();
+      }
       if (reduce) draw(performance.now());
     };
-    const onLeave = () => {
+    const onLeave = (e: PointerEvent) => {
+      // Indo para o cartão ou para uma etiqueta: eles cuidam do próprio hover. O React avisa a
+      // entrada neles antes deste "saiu do canvas", então fechar aqui desfaria a entrada.
+      const to = e.relatedTarget as Node | null;
+      const intoOverlay = to !== null && wrap.contains(to) && to !== canvas;
+      if (hovered >= 0 && !intoOverlay) hideRef.current();
       hovered = -1;
       if (reduce) draw(performance.now());
     };
+    /** Toque: abre e fecha o cartão, já que não há hover. */
     const onClick = (e: PointerEvent) => {
-      if (!downAt || Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y) > 5) return;
+      if (e.pointerType !== "touch") return;
+      if (!downAt || Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y) > 8) return;
       const i = hit(e);
       setOpen((cur) => (i < 0 ? null : cur === i ? null : i));
     };
@@ -417,13 +445,24 @@ export function EchoGlobe({ points, arcs, focusLongitude = -5, theta = 0.32 }: {
           className={`globe__label globe__label--${p.tone}${p.side === "left" ? " globe__label--left" : ""}`}
           aria-label={`Ver o que acontece em ${p.place}`}
           aria-expanded={open === i}
+          onPointerEnter={(e) => e.pointerType !== "touch" && show(i)}
+          onPointerLeave={(e) => e.pointerType !== "touch" && hideSoon()}
+          onFocus={() => show(i)}
+          onBlur={hideSoon}
           onClick={() => setOpen((cur) => (cur === i ? null : i))}
         >
           {p.label}
         </button>
       ))}
       {open !== null && points[open]?.detail && (
-        <div ref={popupRef} className="globe__popup" role="dialog" aria-label={`Conversa em ${points[open]!.place}`}>
+        <div
+          ref={popupRef}
+          className="globe__popup"
+          role="dialog"
+          aria-label={`Conversa em ${points[open]!.place}`}
+          onPointerEnter={() => window.clearTimeout(closeTimer.current)}
+          onPointerLeave={(e) => e.pointerType !== "touch" && hideSoon()}
+        >
           <div className="globe__popup-card">
             <button type="button" className="globe__close" onClick={() => setOpen(null)} aria-label="Fechar">
               <svg viewBox="0 0 16 16" aria-hidden="true">
