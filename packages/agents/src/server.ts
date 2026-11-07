@@ -13,6 +13,7 @@ import { createPgDailyNoteStore } from "./pg-notes.ts";
 import { createMorningPlan, type MorningPlan } from "./morning-plan.ts";
 import { type BatchApi, createNightReview, type NightReview, type ReviewSource } from "./night-review.ts";
 import { createPgPlanStore, createPgReviewStore } from "./pg-night.ts";
+import { ollamaTriage } from "./triage-ollama.ts";
 import { createFix, type Fix, type FixCodeHost } from "./fix.ts";
 import { createManagedFixSandbox, fixAgentParams, fixEnvironmentParams } from "./managed-fix.ts";
 import { createPgFixStore } from "./pg-fix.ts";
@@ -28,6 +29,7 @@ import { createPgDigestStore } from "./pg-away-digest.ts";
 export { createPgAgentData } from "./pg-data.ts";
 export { createPgDailyNoteStore } from "./pg-notes.ts";
 export { createPgPlanStore, createPgReviewStore } from "./pg-night.ts";
+export { ollamaBaseUrl, ollamaTriage } from "./triage-ollama.ts";
 export { createPgFixStore } from "./pg-fix.ts";
 export { createPgRedistributionStore } from "./pg-redistribution.ts";
 export { createPgReportStore } from "./pg-report.ts";
@@ -104,9 +106,9 @@ export function anthropicBatchApi(apiKey: string): BatchApi {
 
 /**
  * Revisão noturna com Postgres, outbox e a API de lotes. O diff vem do GitHub (`diffs`, frente de Integrações);
- * sem chave da API, não há revisão.
+ * sem chave da API, não há revisão. Com `triage` (Ollama), um modelo aberto pequeno faz a triagem antes do lote.
  */
-export function serverNightReview(db: Database, apiKey: string | undefined, diffs: (orgId: string) => ReviewSource): NightReview {
+export function serverNightReview(db: Database, apiKey: string | undefined, diffs: (orgId: string) => ReviewSource, triage?: { url: string; model: string; timeoutMs: number }): NightReview {
   return createNightReview({
     data: (orgId) => createPgAgentData(db, orgId),
     brain: (orgId) => createPgBrainStore(db, orgId),
@@ -115,6 +117,7 @@ export function serverNightReview(db: Database, apiKey: string | undefined, diff
     outbox: (orgId) => createPgOutbox(db, orgId),
     batches: apiKey ? anthropicBatchApi(apiKey) : null,
     recorder: createDbRunRecorder(db),
+    triage: triage ? { model: ollamaTriage({ baseUrl: triage.url, model: triage.model }), timeoutMs: triage.timeoutMs } : null,
   });
 }
 

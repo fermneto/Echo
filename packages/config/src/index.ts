@@ -105,6 +105,15 @@ export const workerSchema = baseSchema.extend({
   // Ensaio de dia: quem é citado é tratado como ausente, sem olhar o status do Slack (só para a demo).
   DEMO_ALWAYS_AWAY: bool.default(false),
   NIGHT_REVIEW_UTC_HOUR: z.coerce.number().int().min(0).max(23).default(5),
+  /**
+   * Triagem da revisão noturna por modelo aberto (Ollama). Endereço do serviço: URL ou host:porta (a Render
+   * entrega host:porta). Sem ele, vale só a regra.
+   */
+  TRIAGE_OLLAMA_URL: optionalString.pipe(z.string().regex(/^(https?:\/\/)?[\w.-]+(:\d+)?\/?$/, "use http://host:porta ou host:porta").optional()),
+  /** Tag do modelo no Ollama (Apache 2.0). */
+  TRIAGE_MODEL: z.string().min(1).default("qwen3:4b-instruct"),
+  /** Tempo máximo da triagem de um PR (CPU, ~15 a 30 s; o primeiro PR da noite também carrega o modelo). */
+  TRIAGE_TIMEOUT_MS: z.coerce.number().int().min(1000).max(300_000).default(120_000),
 });
 
 export const reviewerSchema = baseSchema.extend({
