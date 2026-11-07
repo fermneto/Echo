@@ -55,7 +55,9 @@ export function WorldMap({ crews, zones, arcs, nowIso }: { crews: MapCrew[]; zon
   const wrap = useRef<HTMLElement>(null);
   const canvas = useRef<HTMLCanvasElement>(null);
   const [view, setView] = useState<View>({ z: 1, tx: 0, ty: 0 });
-  const [selected, setSelected] = useState<{ crew: string; person: string } | null>(null);
+  /** Cartão aberto: de uma pessoa ou da cidade inteira (person null). Fixo quando veio de clique. */
+  const [selected, setSelected] = useState<{ crew: string; person: string | null; pinned: boolean } | null>(null);
+  const closeTimer = useRef<number | null>(null);
   const [hint, setHint] = useState(false);
   const [dragging, setDragging] = useState(false);
   const viewRef = useRef(view);
@@ -254,7 +256,7 @@ export function WorldMap({ crews, zones, arcs, nowIso }: { crews: MapCrew[]; zon
   const at = (key: string) => crews.find((c) => c.key === key);
   const { w, h } = size();
   const crew = selected ? at(selected.crew) : undefined;
-  const person = crew?.people.find((p) => p.id === selected?.person);
+  const person = selected?.person ? crew?.people.find((p) => p.id === selected.person) : crew?.people.length === 1 ? crew.people[0] : undefined;
   // O cartão fica ao lado do bonequinho, centrado na altura dele e sempre dentro do mapa.
   const crewX = crew ? view.tx + x(crew.location[1]) * w * view.z : 0;
   const crewY = crew ? view.ty + y(crew.location[0]) * h * view.z - 20 : 0;
@@ -266,6 +268,23 @@ export function WorldMap({ crews, zones, arcs, nowIso }: { crews: MapCrew[]; zon
   useLayoutEffect(() => {
     if (card.current) setCardH(card.current.offsetHeight);
   }, [selected]);
+
+  // Hover (só mouse): abre uma prévia; sair dela fecha com um atraso curto para dar tempo de chegar ao cartão.
+  const cancelClose = () => {
+    if (closeTimer.current) clearTimeout(closeTimer.current);
+    closeTimer.current = null;
+  };
+  const hoverOpen = (e: ReactPointerEvent, crewKey: string, personId: string | null) => {
+    if (e.pointerType !== "mouse" || dragging) return;
+    cancelClose();
+    setSelected((s) => (s?.pinned ? s : { crew: crewKey, person: personId, pinned: false }));
+  };
+  const hoverClose = (e: ReactPointerEvent) => {
+    if (e.pointerType !== "mouse") return;
+    cancelClose();
+    closeTimer.current = window.setTimeout(() => setSelected((s) => (s?.pinned ? s : null)), 220);
+  };
+  useEffect(() => cancelClose, []);
 
   return (
     <figure
@@ -282,7 +301,7 @@ export function WorldMap({ crews, zones, arcs, nowIso }: { crews: MapCrew[]; zon
         zoomAt(1.8, e.clientX - r.left, e.clientY - r.top);
       }}
       onClick={(e) => {
-        if (!wasDrag() && !(e.target as HTMLElement).closest(".wmap__person, .wmap__card")) setSelected(null);
+        if (!wasDrag() && !(e.target as HTMLElement).closest(".wmap__person, .wmap__dot, .wmap__card")) setSelected(null);
       }}
     >
       <div className="wmap__stage" style={{ transform: `translate(${view.tx}px, ${view.ty}px) scale(${view.z})`, "--z": view.z } as CSSProperties}>
@@ -323,20 +342,76 @@ export function WorldMap({ crews, zones, arcs, nowIso }: { crews: MapCrew[]; zon
                   className={`wmap__person${selected?.person === p.id ? " is-selected" : ""}`}
                   aria-label={`${p.name}: ${p.status}`}
                   aria-expanded={selected?.person === p.id}
+                  onPointerEnter={(e) => hoverOpen(e, c.key, p.id)}
+                  onPointerLeave={hoverClose}
                   onClick={() => {
                     if (wasDrag()) return;
-                    setSelected((s) => (s?.person === p.id ? null : { crew: c.key, person: p.id }));
+                    cancelClose();
+                    setSelected((s) => (s?.person === p.id && s.pinned ? null : { crew: c.key, person: p.id, pinned: true }));
                   }}
                 >
                   <PixelSprite look={{ hair: p.hair }} mode={p.mode} size={22} />
                 </button>
               ))}
             </span>
-            <span className="wmap__dot" aria-hidden="true" />
+            <button
+              type="button"
+              className="wmap__dot"
+              aria-label={`${c.people.map((p) => p.name).join(", ")}: ver quem está aqui`}
+              onPointerEnter={(e) => hoverOpen(e, c.key, null)}
+              onPointerLeave={hoverClose}
+              onClick={() => {
+                if (wasDrag()) return;
+                cancelClose();
+                setSelected((s) => (s?.crew === c.key && s.person === null && s.pinned ? null : { crew: c.key, person: null, pinned: true }));
+              }}
+            />
             <span className="wmap__label mono">{c.label}</span>
           </div>
         ))}
       </div>
+
+      {crew && !person && (
+        <div
+          ref={card}
+          className="wmap__card"
+          style={{ left: cardLeft, top: cardTop, width: CARD_W }}
+          role="dialog"
+          aria-label={`Quem está em ${crew.people[0]?.city ?? crew.key}`}
+          onPointerEnter={cancelClose}
+          onPointerLeave={hoverClose}
+        >
+          <div className="wmap__card-head">
+            <div>
+              <p className="wmap__card-name">{crew.people[0]?.city}</p>
+              <p className="mono muted wmap__card-meta">
+                {crew.people.length} pessoas · {crew.people[0]?.time}
+              </p>
+            </div>
+            <button type="button" className="wmap__card-close" aria-label="Fechar" onClick={() => setSelected(null)}>
+              <svg viewBox="0 0 24 24" aria-hidden="true">
+                <path d="M18 6 6 18M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          <ul className="wmap__card-list" role="list">
+            {crew.people.map((p) => (
+              <li key={p.id}>
+                <PixelSprite look={{ hair: p.hair }} mode={p.mode} size={22} />
+                <span className="wmap__card-row">
+                  <span className="wmap__card-row-name">{p.name}</span>
+                  <span className="mono muted wmap__card-row-status">
+                    <span className={`dot dot--${p.tone}`} aria-hidden="true" /> {p.status}
+                  </span>
+                </span>
+                <Link href={`/pessoas/${p.id}`} className="wmap__card-link mono" aria-label={`Ver a ficha de ${p.name}`}>
+                  FICHA →
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {crew && person && (
         <div
@@ -345,6 +420,8 @@ export function WorldMap({ crews, zones, arcs, nowIso }: { crews: MapCrew[]; zon
           style={{ left: cardLeft, top: cardTop, width: CARD_W }}
           role="dialog"
           aria-label={`Estado de ${person.name}`}
+          onPointerEnter={cancelClose}
+          onPointerLeave={hoverClose}
         >
           <div className="wmap__card-head">
             <PixelSprite look={{ hair: person.hair }} mode={person.mode} size={30} />
