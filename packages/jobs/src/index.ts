@@ -28,6 +28,10 @@ export const QUEUES = {
   absenceRegistered: "absence.registered",
   /** Passada da redistribuição numa empresa: plano complementar, volta da ausência e planos concluídos. */
   redistributionScan: "redistribution.scan",
+  /** Relatório semanal de uma pessoa, depois do corte (etapa 12). Chave única: pessoa + semana. */
+  weeklyReportBuild: "weekly_report.build",
+  /** Agenda dos relatórios de uma empresa: aviso entregue, envio ao RH em 3 dias, sem aviso em 7. */
+  weeklyReportSync: "weekly_report.sync",
 } as const;
 export type QueueName = (typeof QUEUES)[keyof typeof QUEUES];
 

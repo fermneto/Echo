@@ -156,6 +156,20 @@ export {
   type StoredPlanItem,
   type StoredRedistribution,
 } from "./redistribution.ts";
+export {
+  createWeeklyReport,
+  noticeText,
+  reportDocument,
+  reportTextIssues,
+  ruleReportText,
+  type BuildOutcome,
+  type NewReport,
+  type ReportDocument,
+  type ReportStore,
+  type StoredReport,
+  type WeeklyReport,
+  type WeeklyReportDeps,
+} from "./report.ts";
 
 /**
  * Fluxo de resposta (F2) com as dependências padrão: Postgres (DATABASE_URL) e a chave da empresa

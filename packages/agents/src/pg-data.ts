@@ -198,6 +198,7 @@ export function createPgAgentData(db: Database, orgId: string): AgentData {
           occurredAt: r.occurredAt,
           source: r.source as WorkEvent["source"],
           sourceRef: r.sourceRef,
+          recordedAt: r.createdAt,
           ...(r.data ? { data: r.data as Record<string, unknown> } : {}),
         }),
       );

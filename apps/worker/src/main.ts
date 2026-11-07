@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { allOrgIds, dueEndOfDay, dueMorning, serverEndOfDay, serverMorningPlan, serverNightReview, serverRedistribution } from "@echo/agents/server";
+import { allOrgIds, dueEndOfDay, dueMorning, serverEndOfDay, serverMorningPlan, serverNightReview, serverRedistribution, serverWeeklyReport, dueWeeklyReports } from "@echo/agents/server";
 import { ensureProductNote } from "@echo/brain/pg";
 import { loadConfig } from "@echo/config";
 import { createDb, createPool } from "@echo/db";
@@ -9,6 +9,7 @@ import { registerEndOfDay } from "./end-of-day.ts";
 import { registerInbox } from "./inbox.ts";
 import { registerNight } from "./night.ts";
 import { registerRedistribution } from "./redistribution.ts";
+import { registerWeeklyReport } from "./weekly-report.ts";
 
 const cfg = loadConfig("worker");
 const log = createLogger("worker", cfg.LOG_LEVEL);
@@ -61,6 +62,16 @@ const runRedistribution = () => redistribution.tick().catch((err) => log.error({
 void runRedistribution();
 const redistributionTimer = setInterval(() => void runRedistribution(), cfg.END_OF_DAY_SCAN_MS);
 
+// Relatório semanal (etapa 12): no corte de cada pessoa; aviso, observação e envio ao RH em 3 dias.
+const weeklyReport = await registerWeeklyReport(queue, { flow: serverWeeklyReport(db, cfg.ANTHROPIC_API_KEY, cfg.WEB_URL), orgIds: () => allOrgIds(db), due: (now) => dueWeeklyReports(db, now) });
+const runWeeklyReport = () =>
+  weeklyReport.tick().then(
+    (r) => r.built > 0 && log.info(r, "relatórios semanais na fila"),
+    (err) => log.error({ err }, "falha na agenda do relatório semanal"),
+  );
+void runWeeklyReport();
+const weeklyReportTimer = setInterval(() => void runWeeklyReport(), cfg.END_OF_DAY_SCAN_MS);
+
 // Confirma, a cada início, que a fila chega ao reviewer.
 await queue.work<PingMessage>(QUEUES.reviewerPong, async (job) => log.info({ nonce: job.data.nonce }, "reviewer respondeu ao ping"));
 await queue.send<PingMessage>(QUEUES.reviewerPing, { from: "worker", sentAt: new Date().toISOString(), nonce: randomUUID() });
@@ -73,6 +84,7 @@ async function shutdown(signal: string) {
   clearInterval(endOfDayTimer);
   clearInterval(nightTimer);
   clearInterval(redistributionTimer);
+  clearInterval(weeklyReportTimer);
   await Promise.allSettled([queue.stop(), pool.end(), flush()]);
   process.exit(0);
 }

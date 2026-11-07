@@ -98,6 +98,8 @@ export interface WorkEvent {
   occurredAt: Date;
   source: "github" | "linear" | "slack" | "panel";
   sourceRef: string;
+  /** Quando o Echo gravou o evento (registro atrasado entra no relatório seguinte). */
+  recordedAt?: Date | undefined;
   data?: Record<string, unknown>;
 }
 

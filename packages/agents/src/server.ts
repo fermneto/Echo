@@ -3,7 +3,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { createPgBrainStore } from "@echo/brain/pg";
 import { createPgOutbox } from "@echo/actions/pg";
 import { agentRuns, asSystem, createDb, createPool, type Database, orgs, withOrg } from "@echo/db";
-import { endOfDayDue, morningDue } from "@echo/domain";
+import { endOfDayDue, morningDue, reportsDue } from "@echo/domain";
 import type { AgentRun, RunRecorder } from "@echo/observability";
 import { type AnswerDeps, createAnswer, type ModelCall } from "./answer.ts";
 import type { AnswerRequest, AnswerResult } from "./index.ts";
@@ -18,12 +18,15 @@ import { createManagedFixSandbox, fixAgentParams, fixEnvironmentParams } from ".
 import { createPgFixStore } from "./pg-fix.ts";
 import { createRedistribution, type Redistribution } from "./redistribution.ts";
 import { createPgRedistributionStore } from "./pg-redistribution.ts";
+import { createWeeklyReport, type WeeklyReport } from "./report.ts";
+import { createPgReportStore } from "./pg-report.ts";
 
 export { createPgAgentData } from "./pg-data.ts";
 export { createPgDailyNoteStore } from "./pg-notes.ts";
 export { createPgPlanStore, createPgReviewStore } from "./pg-night.ts";
 export { createPgFixStore } from "./pg-fix.ts";
 export { createPgRedistributionStore } from "./pg-redistribution.ts";
+export { createPgReportStore } from "./pg-report.ts";
 export { createManagedFixSandbox, fixAgentParams, fixEnvironmentParams, fixPrompt, readFixOutputs, driveSession, sessionCost, REPO_PATH, OUTPUTS } from "./managed-fix.ts";
 
 /** Grava cada execução em agent_runs, dentro da empresa (RLS). */
@@ -146,6 +149,31 @@ export function serverRedistribution(db: Database, webUrl: string): Redistributi
     recorder: createDbRunRecorder(db),
     webUrl,
   });
+}
+
+/** Relatório semanal (etapa 12) com Postgres, outbox e a chave da empresa. Sem chave, o texto sai por regra. */
+export function serverWeeklyReport(db: Database, apiKey: string | undefined, webUrl: string): WeeklyReport {
+  return createWeeklyReport({
+    data: (orgId) => createPgAgentData(db, orgId),
+    reports: (orgId) => createPgReportStore(db, orgId),
+    outbox: (orgId) => createPgOutbox(db, orgId),
+    model: apiKey ? anthropicModelCall(apiKey) : null,
+    recorder: createDbRunRecorder(db),
+    webUrl,
+  });
+}
+
+/** Relatórios que já passaram do corte e ainda não existem, em todas as empresas. */
+export async function dueWeeklyReports(db: Database, now: Date): Promise<{ orgId: string; personId: string; week: string; cutoff: string }[]> {
+  const due: { orgId: string; personId: string; week: string; cutoff: string }[] = [];
+  for (const orgId of await allOrgIds(db)) {
+    const people = await createPgAgentData(db, orgId).people();
+    const store = createPgReportStore(db, orgId);
+    for (const person of people) {
+      for (const d of reportsDue(person, now)) if (!(await store.get(person.id, d.week))) due.push({ orgId, personId: person.id, week: d.week, cutoff: d.cutoff.toISOString() });
+    }
+  }
+  return due;
 }
 
 /**
