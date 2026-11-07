@@ -22,6 +22,12 @@ export const QUEUES = {
   morningPlan: "morning_plan.build",
   /** Correção de uma revisão em ambiente isolado (etapa 10), no reviewer. Chave única: a revisão. */
   fixRun: "fix.run",
+  /** Pede ao worker para executar as ações aprovadas de uma empresa agora (mesmo nome da frente Integrações). */
+  actionsDrain: "actions.drain",
+  /** Ausência registrada (painel, RH ou agenda): monta o plano de redistribuição (etapa 11). Chave única: a ausência. */
+  absenceRegistered: "absence.registered",
+  /** Passada da redistribuição numa empresa: plano complementar, volta da ausência e planos concluídos. */
+  redistributionScan: "redistribution.scan",
 } as const;
 export type QueueName = (typeof QUEUES)[keyof typeof QUEUES];
 

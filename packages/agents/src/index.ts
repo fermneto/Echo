@@ -138,6 +138,24 @@ export {
   type FixStore,
   type StoredFix,
 } from "./fix.ts";
+export {
+  absenceTitle,
+  createRedistribution,
+  planText,
+  type DecisionOutcome,
+  type ItemState,
+  type NewPlanItem,
+  type PlanChoice,
+  type PlanState,
+  type PlanTrigger,
+  type ProposeOutcome,
+  type Redistribution,
+  type RedistributionDeps,
+  type RedistributionStore,
+  type StoredAbsence,
+  type StoredPlanItem,
+  type StoredRedistribution,
+} from "./redistribution.ts";
 
 /**
  * Fluxo de resposta (F2) com as dependências padrão: Postgres (DATABASE_URL) e a chave da empresa

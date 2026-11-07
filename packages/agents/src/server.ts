@@ -16,11 +16,14 @@ import { createPgPlanStore, createPgReviewStore } from "./pg-night.ts";
 import { createFix, type Fix, type FixCodeHost } from "./fix.ts";
 import { createManagedFixSandbox, fixAgentParams, fixEnvironmentParams } from "./managed-fix.ts";
 import { createPgFixStore } from "./pg-fix.ts";
+import { createRedistribution, type Redistribution } from "./redistribution.ts";
+import { createPgRedistributionStore } from "./pg-redistribution.ts";
 
 export { createPgAgentData } from "./pg-data.ts";
 export { createPgDailyNoteStore } from "./pg-notes.ts";
 export { createPgPlanStore, createPgReviewStore } from "./pg-night.ts";
 export { createPgFixStore } from "./pg-fix.ts";
+export { createPgRedistributionStore } from "./pg-redistribution.ts";
 export { createManagedFixSandbox, fixAgentParams, fixEnvironmentParams, fixPrompt, readFixOutputs, driveSession, sessionCost, REPO_PATH, OUTPUTS } from "./managed-fix.ts";
 
 /** Grava cada execução em agent_runs, dentro da empresa (RLS). */
@@ -131,6 +134,17 @@ export function serverFix(db: Database, opts: { apiKey?: string | undefined; age
     sandbox,
     outbox: (orgId) => createPgOutbox(db, orgId),
     recorder: createDbRunRecorder(db),
+  });
+}
+
+/** Redistribuição (etapa 11) com Postgres e outbox. Sem modelo: plano, motivos e mensagens saem das regras. */
+export function serverRedistribution(db: Database, webUrl: string): Redistribution {
+  return createRedistribution({
+    data: (orgId) => createPgAgentData(db, orgId),
+    store: (orgId) => createPgRedistributionStore(db, orgId),
+    outbox: (orgId) => createPgOutbox(db, orgId),
+    recorder: createDbRunRecorder(db),
+    webUrl,
   });
 }
 

@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { allOrgIds, dueEndOfDay, dueMorning, serverEndOfDay, serverMorningPlan, serverNightReview } from "@echo/agents/server";
+import { allOrgIds, dueEndOfDay, dueMorning, serverEndOfDay, serverMorningPlan, serverNightReview, serverRedistribution } from "@echo/agents/server";
 import { ensureProductNote } from "@echo/brain/pg";
 import { loadConfig } from "@echo/config";
 import { createDb, createPool } from "@echo/db";
@@ -8,6 +8,7 @@ import { createLogger, initTracing, LogRunRecorder } from "@echo/observability";
 import { registerEndOfDay } from "./end-of-day.ts";
 import { registerInbox } from "./inbox.ts";
 import { registerNight } from "./night.ts";
+import { registerRedistribution } from "./redistribution.ts";
 
 const cfg = loadConfig("worker");
 const log = createLogger("worker", cfg.LOG_LEVEL);
@@ -54,6 +55,12 @@ const runNight = () =>
 void runNight();
 const nightTimer = setInterval(() => void runNight(), cfg.END_OF_DAY_SCAN_MS);
 
+// Redistribuição (etapa 11): plano por regra na ausência; nada muda antes da aprovação da liderança.
+const redistribution = await registerRedistribution(queue, { flow: serverRedistribution(db, cfg.WEB_URL), orgIds: () => allOrgIds(db) });
+const runRedistribution = () => redistribution.tick().catch((err) => log.error({ err }, "falha na agenda da redistribuição"));
+void runRedistribution();
+const redistributionTimer = setInterval(() => void runRedistribution(), cfg.END_OF_DAY_SCAN_MS);
+
 // Confirma, a cada início, que a fila chega ao reviewer.
 await queue.work<PingMessage>(QUEUES.reviewerPong, async (job) => log.info({ nonce: job.data.nonce }, "reviewer respondeu ao ping"));
 await queue.send<PingMessage>(QUEUES.reviewerPing, { from: "worker", sentAt: new Date().toISOString(), nonce: randomUUID() });
@@ -65,6 +72,7 @@ async function shutdown(signal: string) {
   clearInterval(heartbeat);
   clearInterval(endOfDayTimer);
   clearInterval(nightTimer);
+  clearInterval(redistributionTimer);
   await Promise.allSettled([queue.stop(), pool.end(), flush()]);
   process.exit(0);
 }
