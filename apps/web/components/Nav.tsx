@@ -5,11 +5,11 @@ import { usePathname } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import type { NavGroup } from "@/lib/access";
 
-/** Navegação do painel: grupos em rótulo maiúsculo que abrem um menu flutuante de 320px. */
+/** Abas do painel: Início e grupos que abrem um menu com uma linha sobre cada tela. */
 export function Nav({ groups }: { groups: NavGroup[] }) {
   const pathname = usePathname();
   const [open, setOpen] = useState<string | null>(null);
-  const ref = useRef<HTMLDivElement>(null);
+  const ref = useRef<HTMLElement>(null);
 
   useEffect(() => setOpen(null), [pathname]);
 
@@ -28,27 +28,31 @@ export function Nav({ groups }: { groups: NavGroup[] }) {
   const isActive = (href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
 
   return (
-    <div className="nav" ref={ref}>
+    <nav className="tabs" ref={ref} aria-label="Painel">
+      <Link href="/" className={`tabs__tab label-caps${isActive("/") ? " is-active" : ""}`} aria-current={isActive("/") ? "page" : undefined}>
+        Início
+      </Link>
       {groups.map((g) => {
         const active = g.items.some((i) => isActive(i.href));
         const expanded = open === g.label;
         return (
-          <div key={g.label} className="nav__group">
-            <button
-              type="button"
-              className={`label-caps nav__trigger${active ? " is-active" : ""}`}
-              aria-expanded={expanded}
-              onClick={() => setOpen(expanded ? null : g.label)}
-            >
+          <div key={g.label} className="tabs__group">
+            <button type="button" className={`tabs__tab label-caps${active ? " is-active" : ""}`} aria-expanded={expanded} onClick={() => setOpen(expanded ? null : g.label)}>
               {g.label}
+              <svg className="tabs__chevron" viewBox="0 0 10 10" aria-hidden="true">
+                <path d="m2.5 4 2.5 2.5L7.5 4" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
+              </svg>
             </button>
             {expanded && (
-              <ul className="nav__menu" role="list">
+              <ul className="tabs__menu" role="list">
                 {g.items.map((i) => (
                   <li key={i.href}>
-                    <Link href={i.href} className="nav__item" aria-current={isActive(i.href) ? "page" : undefined}>
-                      {isActive(i.href) && <span className="dot dot--on" aria-hidden="true" />}
-                      {i.label}
+                    <Link href={i.href} className="tabs__item" aria-current={isActive(i.href) ? "page" : undefined}>
+                      <span className="tabs__item-label">
+                        {isActive(i.href) && <span className="dot dot--on" aria-hidden="true" />}
+                        {i.label}
+                      </span>
+                      {i.hint && <span className="tabs__item-hint">{i.hint}</span>}
                     </Link>
                   </li>
                 ))}
@@ -57,6 +61,6 @@ export function Nav({ groups }: { groups: NavGroup[] }) {
           </div>
         );
       })}
-    </div>
+    </nav>
   );
 }

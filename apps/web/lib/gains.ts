@@ -40,6 +40,17 @@ export function gainsRows(r: GainsResult): GainsRow[] {
   return rows;
 }
 
+export type GainsCompare = { label: string; unit: string; before: number; after: number };
+
+/** Antes e depois para as barras, só quando os dois lados existem. */
+export function gainsCompare(r: GainsResult): GainsCompare[] {
+  if (r.status !== "ok") return [];
+  const out: GainsCompare[] = [];
+  if (r.firstReview.hours !== null && r.firstReview.before !== null) out.push({ label: "Primeira revisão humana", unit: "h", before: r.firstReview.before, after: r.firstReview.hours });
+  if (r.reviewRounds.perPr !== null && r.reviewRounds.before !== null) out.push({ label: "Idas e voltas por PR", unit: "", before: r.reviewRounds.before, after: r.reviewRounds.perPr });
+  return out;
+}
+
 /** De onde vem o "antes". */
 export function baselineNote(r: GainsResult): string {
   if (r.status !== "ok") return "";

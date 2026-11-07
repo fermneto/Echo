@@ -74,7 +74,7 @@ Prestadores de serviço e reuniões ficam fora da primeira versão.
 | **Conexões** | Time, produto | Ferramentas de startups que ampliam o agente: agenda, CI/CD, incidentes, conhecimento, outros trackers e chats, RH e a API do Echo |
 | **Contas e variáveis** | Time | Contas a criar, configuração de cada plataforma e variáveis por serviço |
 | **Produção** | Time, liderança | Infraestrutura, segurança, operação e checklist para clientes reais |
-| **Produto** | Todos | Ciclo do dia, autonomia, agentes, cérebro, escritório, ganhos, riscos e validação |
+| **Produto** | Todos | Ciclo do dia, autonomia, agentes, cérebro, ganhos, riscos e validação |
 | **Interações** | Todos | Cada conversa possível com o Echo, com o que acontece por trás |
 | **Fluxos** | Engenharia | F1 a F10, passo a passo |
 | **Painel** | Todos | Telas, endereços e quem vê cada uma |
@@ -198,27 +198,6 @@ _O que reduz alucinação_
 4. **A correção humana vence:** o agente não sobrescreve `correcoes/`, e o espelho nunca apaga uma edição em silêncio.
 5. **Permissão fora das notas:** o serviço decide o que chega ao modelo.
 6. **Medição:** perguntas fixas comparam a resposta com a verdade conhecida.
-
-### O escritório virtual
-
-O painel abre num escritório em pixel art, com um avatar por pessoa no seu fuso. Cada ferramenta é um móvel e também uma aba lateral.
-
-| Lugar | Ferramenta |
-|---|---|
-| Própria mesa | Meu plano e Nota do dia |
-| Estante | Notas |
-| Arquivos, na sala do RH | Relatórios |
-| Quadro | Redistribuição |
-| Mural | Seletor de pessoas e lista da equipe |
-| Terminal | Simulador (só na demonstração) |
-| Servidores | Custo e execuções (só a liderança) |
-| Só a aba lateral | Ganhos e Configuração (RH e liderança) |
-
-- Fora do expediente ou em ausência, o gêmeo conduz o avatar, identificado como "Gêmeo de Fernando", com losango e anel.
-- Um "!" no móvel indica correção pronta, rascunho da nota, relatório a conferir, plano a decidir ou contradição entre notas.
-- Quando a liderança aprova um plano, as tarefas voam de uma mesa para outra. Propostas não aparecem.
-- No expediente, o avatar fica sentado por causa da agenda, não de atividade. A posição de quem anda não é enviada nem registrada.
-- Tudo funciona por teclado, e no celular o mapa dá lugar às listas.
 
 ### Como reconhecer a ajuda
 
@@ -733,7 +712,6 @@ _Gravado por um agente Claude — Painel · Relatórios · semana de 2/11 (Paine
 
 | Tela | Endereço | O que tem | Quem vê |
 |---|---|---|---|
-| Escritório | /escritorio | Mapa com cada pessoa no seu fuso, móveis que abrem as ferramentas | Todos |
 | Início | / | Retratos da equipe, Pergunte ao Echo e atalhos | Todos |
 | Meu plano | /plano | Plano do dia, correções a aprovar, achados e perguntas pendentes | A própria pessoa |
 | Nota do dia | /nota-do-dia | Conferir, editar e confirmar a nota, com liberado e reservado | A própria pessoa |

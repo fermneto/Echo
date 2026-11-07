@@ -1,6 +1,6 @@
 import type { GainsResult, GainsTotals } from "@echo/domain";
 import { describe, expect, it } from "vitest";
-import { baselineNote, gainsOrgId, gainsRows } from "./gains";
+import { baselineNote, gainsCompare, gainsOrgId, gainsRows } from "./gains";
 
 const totals: GainsTotals = {
   status: "ok",
@@ -39,6 +39,12 @@ describe("tela Ganhos", () => {
     expect(gainsRows({ ...totals, cost: null }).map((r) => r.label)).not.toContain("Custo");
     expect(gainsRows({ ...totals, cost: { usd: 0.04, perAvoidedHourUsd: 0.0044 } }).at(-1)!.value).toBe("US$ 0,04 · menos de US$ 0,01 por hora de espera evitada");
     expect(baselineNote({ ...totals, baseline: null })).toMatch(/ainda não medida/);
+  });
+
+  it("barras de antes e depois só com os dois lados medidos", () => {
+    expect(gainsCompare(totals)).toEqual([{ label: "Primeira revisão humana", unit: "h", before: 26, after: 7 }]);
+    expect(gainsCompare({ ...totals, reviewRounds: { perPr: 1.5, before: 2.5, prs: 2 } })).toHaveLength(2);
+    expect(gainsCompare({ status: "too_small", scope: { kind: "org" }, people: 2, min: 3 })).toEqual([]);
   });
 
   it("personas da demonstração leem a empresa do seed", () => {

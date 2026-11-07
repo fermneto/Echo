@@ -3,6 +3,7 @@ import { DEMO_NOW, PERSONAS } from "@/lib/demo/personas";
 import { requireAccess } from "@/lib/session";
 import { localTime } from "@/lib/time";
 import { StatusChip } from "@/components/Status";
+import { PixelAvatar } from "@/components/PixelAvatar";
 
 export const metadata = { title: "Equipe · Echo" };
 
@@ -27,11 +28,14 @@ export default async function EquipePage() {
             {PERSONAS.map((p) => (
               <tr key={p.id}>
                 <td>
-                  <Link href={`/pessoas/${p.id}`}>{p.name}</Link>
+                  <Link href={`/pessoas/${p.id}`} className="table__person">
+                    <PixelAvatar persona={p} size={28} />
+                    {p.name}
+                  </Link>
                 </td>
                 <td className="muted">{p.title}</td>
                 <td className="muted">{p.city}</td>
-                <td className="mono">{localTime(DEMO_NOW, p.timezone)}</td>
+                <td className="mono num">{localTime(DEMO_NOW, p.timezone)}</td>
                 <td>
                   <StatusChip persona={p} />
                 </td>

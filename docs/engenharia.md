@@ -232,7 +232,7 @@ _Arquitetura_
 
 ### Monorepo
 
-| `apps/web` | Next.js: painel, aprovações, notas, relatório e escritório |
+| `apps/web` | Next.js: painel, aprovações, notas e relatório |
 |---|---|
 | `apps/api` | Hono: webhooks, OAuth e API do painel |
 | `apps/worker` | Fila, agenda e fluxos |
@@ -943,7 +943,7 @@ Simulador, simular a noite, custo na tela e roteiro
 1. Login por persona com `DEMO_MODE=true`, só para a empresa de demonstração (`rehearsalAllowed`).
 2. Simulador de conversa e "Pergunte ao gêmeo" pelo mesmo fluxo do Slack.
 3. Simular a noite, recriar a demonstração e simular o envio automático do relatório.
-4. Custo e execuções a partir de `agent_runs`. Escritório com cada pessoa no seu fuso.
+4. Custo e execuções a partir de `agent_runs`.
 5. Teste ponta a ponta com Playwright (`pnpm e2e`), sem modelo, na CI.
 6. Ensaiar o roteiro da aba Demo várias vezes, com cronômetro.
 
