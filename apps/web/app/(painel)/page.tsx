@@ -4,6 +4,7 @@ import { ECHO_SUGGESTIONS } from "@/lib/demo/echo";
 import { WAITING } from "@/lib/demo/feed";
 import type { Persona } from "@/lib/demo/types";
 import { currentDecisions } from "@/lib/decisions-store";
+import { pendingPlans } from "@/lib/redistribution-server";
 import { holderLine, statusLine, toneOf } from "@/lib/people";
 import { requireAccess } from "@/lib/session";
 import { AWAY_MAX } from "@/lib/away-log";
@@ -83,8 +84,12 @@ export default async function InicioPage() {
   const seesAway = me.role !== "hr";
   // Expediente e fuso do banco, quando houver: a janela começa no fim do último expediente registrado.
   const meLive = team.find((p) => p.id === me.id) ?? me;
-  const [decisions, away] = await Promise.all([currentDecisions(), seesAway ? loadAwayRows(meLive, now) : null]);
-  const waiting = WAITING.filter((w) => w.ownerId === me.id && !(w.decisionId && w.decisionId in decisions));
+  // Com banco, o plano de ausência vem dos planos esperando esta liderança, não da demonstração.
+  const [decisions, away, plans] = await Promise.all([currentDecisions(), seesAway ? loadAwayRows(meLive, now) : null, seesWork ? pendingPlans(me, now) : null]);
+  const waiting = [
+    ...(plans ?? []).map((p) => ({ id: "Plano", key: p.id, text: p.title, since: p.since })),
+    ...WAITING.filter((w) => w.ownerId === me.id && !(w.decisionId && w.decisionId in decisions) && !(plans && w.decisionId === "ferias-bruno")).map((w) => ({ ...w, key: w.id })),
+  ];
   const { crews, zones, arcs } = buildMap(team, now);
 
   return (
@@ -116,7 +121,7 @@ export default async function InicioPage() {
           {waiting.length > 0 ? (
             <ul className="waiting-strip__list" role="list">
               {waiting.map((w) => (
-                <li key={w.id} className="waiting-chip">
+                <li key={w.key} className="waiting-chip">
                   <span className="waiting-chip__title">{w.text}</span>
                   <span className="waiting-chip__meta mono">
                     {w.id} · {w.since}

@@ -114,7 +114,10 @@ export function Redistribution({
                       <p className="assign__title">
                         {a.title} <span className="assign__arrow" aria-hidden="true">→</span> <b>{a.to}</b>
                       </p>
-                      <p className="assign__why">{a.reason}</p>
+                      <p className="assign__why">
+                        {a.reason}
+                        <span className="assign__load mono"> · {a.load}</span>
+                      </p>
                     </div>
                     <span className={`chip mono assign__state is-${phase === "aprovado" ? "done" : "wait"}`}>
                       <span className={`dot dot--${phase === "aprovado" ? "off" : "wait"}`} aria-hidden="true" />
