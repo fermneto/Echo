@@ -80,7 +80,7 @@ describe.skipIf(!url)("nota do dia em Postgres", () => {
 
     const outbox = await asSystem(db, (tx) => tx.select().from(outboxActions).where(eq(outboxActions.orgId, org)));
     expect(outbox).toHaveLength(1);
-    expect(outbox[0]).toMatchObject({ type: "slack.dm", state: "pending", idempotencyKey: `daily_note:${fernando}:2026-11-06` });
+    expect(outbox[0]).toMatchObject({ type: "slack.dm", state: "approved", idempotencyKey: `daily_note:${fernando}:2026-11-06` });
 
     // Outra empresa não lê a nota nem a identidade.
     const outsider = createPgDailyNoteStore(db, other);

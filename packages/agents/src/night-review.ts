@@ -236,7 +236,7 @@ export function createNightReview(deps: NightReviewDeps) {
       if (decision?.action === "too_large") {
         const created = await store.create({ prId: pr.id, headSha: diff.headSha, state: "too_large", files: [] });
         if (created) {
-          await outbox.enqueue({ type: "github.comment", target: `github:${pr.repository}#${pr.number}`, payload: { repository: pr.repository, number: pr.number, body: TOO_LARGE_COMMENT(decision.reason) }, idempotencyKey: `review_too_large:${pr.repository}#${pr.number}:${diff.headSha}` });
+          await outbox.enqueue({ type: "github.comment", target: `github:${pr.repository}#${pr.number}`, payload: { repo: pr.repository, number: pr.number, body: TOO_LARGE_COMMENT(decision.reason) }, idempotencyKey: `review_too_large:${pr.repository}#${pr.number}:${diff.headSha}` });
           summary.tooLarge++;
         }
         continue;
@@ -335,7 +335,7 @@ export function createNightReview(deps: NightReviewDeps) {
           await outbox.enqueue({
             type: "github.comment",
             target: `github:${review.pr.repository}#${review.pr.number}`,
-            payload: { repository: review.pr.repository, number: review.pr.number, body: reviewComment(findings, review.headSha), headSha: review.headSha },
+            payload: { repo: review.pr.repository, number: review.pr.number, body: reviewComment(findings, review.headSha), headSha: review.headSha },
             idempotencyKey: `review_comment:${review.id}`,
           });
           out.reviewed++;
