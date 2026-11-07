@@ -80,10 +80,10 @@ const YAN: [number, number] = [43.06, 141.35];
 
 /** Halo verde onde há gente no expediente; azul onde o gêmeo está no comando. */
 const POINTS: GlobePoint[] = [
-  { id: "fernando", location: CITY.FOR!, tone: "twin", halo: 11, label: <GlobeCrew ids={["fernando"]} twin caption="Gêmeo de Fernando" code="FOR" tz="America/Fortaleza" /> },
-  { id: "jnb", location: CITY.JNB!, tone: "on", halo: 11, label: <GlobeCrew ids={["eduardo", "rita"]} caption="Eduardo, Rita" code="JNB" tz="Africa/Johannesburg" /> },
-  { id: "tyo", location: CITY.TYO!, tone: "on", halo: 10, label: <GlobeCrew ids={["marina", "bruno", "carla"]} caption="Marina, Bruno, Carla" code="TYO" tz="Asia/Tokyo" /> },
-  { id: "yan", location: YAN, tone: "wait", halo: 5, side: "left", label: <GlobeCrew ids={["yan"]} twin caption="Gêmeo de Yan · férias" code="TYO" tz="Asia/Tokyo" /> },
+  { id: "fernando", location: CITY.FOR!, tone: "twin", halo: 15, label: <GlobeCrew ids={["fernando"]} twin caption="Gêmeo de Fernando" code="FOR" tz="America/Fortaleza" /> },
+  { id: "jnb", location: CITY.JNB!, tone: "on", halo: 14, label: <GlobeCrew ids={["eduardo", "rita"]} caption="Eduardo, Rita" code="JNB" tz="Africa/Johannesburg" /> },
+  { id: "tyo", location: CITY.TYO!, tone: "on", halo: 12, label: <GlobeCrew ids={["marina", "bruno", "carla"]} caption="Marina, Bruno, Carla" code="TYO" tz="Asia/Tokyo" /> },
+  { id: "yan", location: YAN, tone: "wait", halo: 6, side: "left", label: <GlobeCrew ids={["yan"]} twin caption="Gêmeo de Yan · férias" code="TYO" tz="Asia/Tokyo" /> },
 ];
 
 /** Branco: a pergunta da vez. Azul: um agente respondendo. Verde: quem está trabalhando agora. */
@@ -146,7 +146,7 @@ export default function LandingPage() {
           </div>
 
           <div className="lp-hero__globe">
-            <EchoGlobe points={POINTS} arcs={ARCS} focusLongitude={-22} theta={0.18} />
+            <EchoGlobe points={POINTS} arcs={ARCS} focusLongitude={-12} theta={0.3} />
             <ul className="lp-legend" aria-label="Equipe da demonstração agora">
               <li>
                 <span className="lp-dot" aria-hidden="true" /> {COUNTS.on} trabalhando

@@ -3,29 +3,24 @@
 import { useEffect, useRef } from "react";
 
 /**
- * Campo de pontos atrás do herói. A maioria fica quase apagada; alguns acendem e apagam
- * em verde (alguém trabalhando), azul (um agente) ou cinza, cada um no seu ritmo.
- * Pausa fora da tela; com movimento reduzido, desenha uma vez e para.
+ * Pontilhado atrás do herói: uma onda que sai do globo e se espalha pela página.
+ * Os anéis acendem os pontos da grade ao passar; perto do globo a onda é verde e azul,
+ * e vai ficando cinza e fraca com a distância. Pausa fora da tela; com movimento
+ * reduzido, desenha um anel parado.
  */
 
-const GAP = 24;
-const COLORS = {
-  on: [152, 255, 56],
-  twin: [77, 141, 255],
-  gray: [161, 161, 161],
-} as const;
+const GAP = 22;
+const ON = [152, 255, 56];
+const TWIN = [77, 141, 255];
+const GRAY = [200, 200, 200];
 
-type Live = { x: number; y: number; rgb: readonly number[]; period: number; phase: number; peak: number };
-
-/** Gerador determinístico: o campo sai igual a cada carga. */
-function rng(seed: number) {
-  return () => {
-    seed = (seed * 1664525 + 1013904223) % 4294967296;
-    return seed / 4294967296;
-  };
+/** Mistura determinística por posição: cada ponto tem sempre a mesma cor. */
+function hash(x: number, y: number) {
+  const s = Math.sin(x * 12.9898 + y * 78.233) * 43758.5453;
+  return s - Math.floor(s);
 }
 
-export function DotField() {
+export function DotField({ origin = ".globe" }: { origin?: string }) {
   const ref = useRef<HTMLCanvasElement>(null);
 
   useEffect(() => {
@@ -36,10 +31,13 @@ export function DotField() {
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     let w = 0;
     let h = 0;
-    let live: Live[] = [];
+    let ox = 0;
+    let oy = 0;
+    let r0 = 0;
     let raf = 0;
     let visible = true;
     let last = 0;
+    let grid: { x: number; y: number; d: number; tint: number[] | null }[] = [];
 
     const layout = () => {
       w = canvas.offsetWidth;
@@ -47,37 +45,45 @@ export function DotField() {
       canvas.width = w * dpr;
       canvas.height = h * dpr;
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
-      const rand = rng(7);
-      live = [];
+      // Centro do globo, em coordenadas deste canvas.
+      const g = document.querySelector(origin)?.getBoundingClientRect();
+      const me = canvas.getBoundingClientRect();
+      ox = g ? g.left + g.width / 2 - me.left : w * 0.72;
+      oy = g ? g.top + g.height / 2 - me.top : h * 0.45;
+      r0 = g ? g.width * 0.42 : 240;
+      grid = [];
       for (let y = GAP / 2; y < h; y += GAP) {
         for (let x = GAP / 2; x < w; x += GAP) {
-          const r = rand();
-          // Mais vida à direita, onde fica o globo.
-          const chance = 0.04 + 0.1 * (x / w);
-          if (r < chance) {
-            const k = rand();
-            live.push({ x, y, rgb: k < 0.45 ? COLORS.on : k < 0.85 ? COLORS.twin : COLORS.gray, period: 2.2 + rand() * 3.5, phase: rand() * Math.PI * 2, peak: 0.45 + rand() * 0.55 });
-          }
+          const d = Math.hypot(x - ox, y - oy);
+          if (d < r0 + 6) continue; // o globo cobre esta área
+          const k = hash(x, y);
+          grid.push({ x, y, d, tint: k < 0.16 ? ON : k < 0.32 ? TWIN : null });
         }
       }
     };
 
     const draw = (t: number) => {
       ctx.clearRect(0, 0, w, h);
-      ctx.fillStyle = "rgba(255,255,255,0.075)";
-      for (let y = GAP / 2; y < h; y += GAP) for (let x = GAP / 2; x < w; x += GAP) ctx.fillRect(x - 0.75, y - 0.75, 1.5, 1.5);
-      for (const d of live) {
-        const a = reduce ? d.peak * 0.6 : d.peak * Math.max(0, Math.sin((t / 1000) * ((2 * Math.PI) / d.period) + d.phase)) ** 2;
-        if (a < 0.02) continue;
-        ctx.fillStyle = `rgba(${d.rgb[0]},${d.rgb[1]},${d.rgb[2]},${a.toFixed(3)})`;
-        ctx.beginPath();
-        ctx.arc(d.x, d.y, 1.4, 0, Math.PI * 2);
-        ctx.fill();
+      const sec = t / 1000;
+      const speed = 90; // px por segundo
+      const wavelength = 170;
+      for (const p of grid) {
+        const out = p.d - r0;
+        // Anel: pico estreito que viaja para fora.
+        const phase = reduce ? out / wavelength : (out - sec * speed) / wavelength;
+        const ring = Math.pow(0.5 + 0.5 * Math.cos(phase * Math.PI * 2), 5);
+        const reach = Math.exp(-out / 760);
+        const a = 0.06 + ring * reach * 0.85;
+        // A cor da onda some com a distância; longe, só cinza.
+        const tinted = p.tint && ring * reach > 0.12;
+        const rgb = tinted ? p.tint! : GRAY;
+        ctx.fillStyle = `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${(tinted ? a : a * 0.55).toFixed(3)})`;
+        const s = 1.3 + ring * reach * 1.1;
+        ctx.fillRect(p.x - s / 2, p.y - s / 2, s, s);
       }
     };
 
     const tick = (t: number) => {
-      // ~30 quadros por segundo bastam para um pulso lento.
       if (t - last > 33) {
         draw(t);
         last = t;
@@ -85,9 +91,12 @@ export function DotField() {
       if (visible) raf = requestAnimationFrame(tick);
     };
 
-    layout();
-    if (reduce) draw(0);
-    else raf = requestAnimationFrame(tick);
+    // Espera o layout do herói assentar antes de medir o globo.
+    const start = window.setTimeout(() => {
+      layout();
+      if (reduce) draw(0);
+      else raf = requestAnimationFrame(tick);
+    }, 50);
 
     const ro = new ResizeObserver(() => {
       layout();
@@ -103,11 +112,12 @@ export function DotField() {
     io.observe(canvas);
 
     return () => {
+      window.clearTimeout(start);
       cancelAnimationFrame(raf);
       ro.disconnect();
       io.disconnect();
     };
-  }, []);
+  }, [origin]);
 
   return <canvas ref={ref} className="lp-field" aria-hidden="true" />;
 }

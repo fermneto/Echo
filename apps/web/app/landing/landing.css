@@ -711,6 +711,8 @@
   display: block;
   cursor: grab;
   touch-action: pan-y;
+  position: relative;
+  z-index: 0;
   opacity: 0;
   transform: scale(0.97);
   transition: opacity 1.2s var(--ease-enter), transform 1.2s var(--ease-enter);
@@ -721,22 +723,16 @@
 }
 .globe__label {
   position: absolute;
-  top: anchor(center);
-  left: anchor(center);
-  translate: 14px -50%;
+  left: 0;
+  top: 0;
+  opacity: 0;
+  translate: 16px -50%;
   white-space: nowrap;
   pointer-events: none;
-  transition: opacity 0.3s ease, filter 0.3s ease;
+  will-change: transform, opacity;
 }
 .globe__label--left {
-  left: auto;
-  right: anchor(center);
-  translate: -14px -50%;
-}
-@supports not (position-anchor: --a) {
-  .globe__label {
-    display: none;
-  }
+  translate: calc(-100% - 16px) -50%;
 }
 .globe__tag {
   display: flex;
@@ -788,8 +784,7 @@
   pointer-events: none;
   z-index: 0;
   /* Calmo atrás do texto, vivo em volta do globo, some antes da faixa de integrações */
-  mask-image: radial-gradient(ellipse 80% 90% at 72% 45%, #000 40%, rgb(0 0 0 / 35%) 75%, transparent 100%), linear-gradient(#000 72%, transparent);
-  mask-composite: intersect;
+  mask-image: linear-gradient(#000 70%, transparent);
 }
 .lp-hero {
   position: relative;

@@ -191,9 +191,6 @@ catalogs:
     '@types/react-dom':
       specifier: 19.3.0
       version: 19.3.0
-    cobe:
-      specifier: 2.0.1
-      version: 2.0.1
     drizzle-kit:
       specifier: 0.31.11
       version: 0.31.11
@@ -324,9 +321,6 @@ importers:
       '@echo/domain':
         specifier: workspace:*
         version: link:../../packages/domain
-      cobe:
-        specifier: 'catalog:'
-        version: 2.0.1
       next:
         specifier: 'catalog:'
         version: 16.4.5(@opentelemetry/api@1.9.1)(@types/node@24.19.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
@@ -1724,9 +1718,6 @@ packages:
   client-only@0.0.1:
     resolution: {integrity: sha512-IV3Ou0jSMzZrd3pZ48nLkT9DA7Ag1pnPzaiQhpW7c3RbcqqzvzzVu+L8gfqMp/8IM2MQtSiqaCxrrcfu8I8rMA==}
 
-  cobe@2.0.1:
-    resolution: {integrity: sha512-aaa6vcIlaC8C1SF50LDH0Anybo/EAXnrxqe+bwvr4+YUtZydqjeBjTTD7ziCCkbRrRGSns3I3F6cZsf3W+L+ag==}
-
   cron-parser@5.10.4:
     resolution: {integrity: sha512-TagNqYzoV/C7Ty7VAQjrQg+57WsEOuQEUh0tWT5Dc+l/GOuoAdWVIzFU0CqYdQswqdjUalrdmOvaMtQhErYZTA==}
     engines: {node: '>=18'}
@@ -2990,8 +2981,6 @@ snapshots:
   chai@6.3.0: {}
 
   client-only@0.0.1: {}
-
-  cobe@2.0.1: {}
 
   cron-parser@5.10.4:
     dependencies:

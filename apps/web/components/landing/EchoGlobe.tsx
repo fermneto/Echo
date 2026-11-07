@@ -1,24 +1,24 @@
 "use client";
 
-import createGlobe, { type Arc, type Marker } from "cobe";
-import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
+import { angleDeg, arcPoint, fibonacciLatLng, rotate, toVec, type Vec3 } from "./globeMath";
+import { WORLD_MAP_PNG } from "./worldMap";
 
 /**
- * Globo de pontos em WebGL (cobe) com a equipe da demo.
- * - Cada cidade tem um halo de pontos pulsantes: verde onde há gente no expediente,
- *   azul onde o gêmeo está no comando. O ponto da cidade pulsa maior.
- * - Arcos entre as pessoas e etiquetas presas a cada ponto por CSS anchor positioning.
+ * Globo de pontos desenhado em canvas 2D. Os pontos são só os da terra (máscara do mundo).
+ * Em volta de cada cidade, os próprios pontos do globo mudam de cor, verde onde há gente no
+ * expediente e azul onde o gêmeo está no comando, com uma onda que pulsa saindo da cidade.
+ * Arcos entre as pessoas com um brilho que corre; etiquetas acompanham cada ponto.
  * Arrasta com inércia, gira sozinho, pausa fora da tela e respeita prefers-reduced-motion.
  */
 
-type RGB = [number, number, number];
 type Tone = "on" | "twin" | "wait" | "ask";
 
 export type GlobePoint = {
   id: string;
   location: [number, number];
   tone: "on" | "twin" | "wait";
-  /** Raio do halo em graus; 0 desliga. */
+  /** Raio, em graus, da área do globo tingida em volta do ponto; 0 desliga. */
   halo?: number;
   /** Lado da etiqueta em relação ao ponto. */
   side?: "left" | "right";
@@ -27,208 +27,299 @@ export type GlobePoint = {
 
 export type GlobeArc = { id: string; from: [number, number]; to: [number, number]; tone: Tone };
 
-const TONE: Record<Tone, RGB> = {
-  on: [0.596, 1, 0.22],
-  twin: [0.302, 0.553, 1],
-  wait: [0.878, 0.702, 0.329],
-  ask: [0.98, 0.98, 0.98],
+const RGB: Record<Tone, [number, number, number]> = {
+  on: [152, 255, 56],
+  twin: [77, 141, 255],
+  wait: [224, 179, 84],
+  ask: [250, 250, 250],
 };
+/** Quem está de férias é coberto pelo gêmeo: a área fica azul. */
+const AREA: Record<GlobePoint["tone"], [number, number, number]> = { on: RGB.on, twin: RGB.twin, wait: RGB.twin };
 
-/** O halo de quem está de férias é do gêmeo: azul. */
-const HALO_TONE: Record<GlobePoint["tone"], RGB> = { on: TONE.on, twin: TONE.twin, wait: TONE.twin };
+const SAMPLES = 16_000;
+const RAD = Math.PI / 180;
 
-const phiFor = (longitude: number) => Math.PI - ((longitude * Math.PI) / 180 - Math.PI / 2);
+type Dot = { v: Vec3; area: number; dist: number };
 
-function rng(seed: number) {
-  return () => {
-    seed = (seed * 1664525 + 1013904223) % 4294967296;
-    return seed / 4294967296;
-  };
+function loadLand(): Promise<(lat: number, lng: number) => boolean> {
+  return new Promise((resolve) => {
+    const img = new Image();
+    img.onload = () => {
+      const c = document.createElement("canvas");
+      c.width = img.width;
+      c.height = img.height;
+      const g = c.getContext("2d");
+      if (!g) return resolve(() => false);
+      g.drawImage(img, 0, 0);
+      const data = g.getImageData(0, 0, c.width, c.height).data;
+      resolve((lat, lng) => {
+        const x = Math.min(c.width - 1, Math.floor(((lng + 180) / 360) * c.width));
+        const y = Math.min(c.height - 1, Math.floor(((90 - lat) / 180) * c.height));
+        return (data[(y * c.width + x) * 4] ?? 0) > 128;
+      });
+    };
+    img.src = WORLD_MAP_PNG;
+  });
 }
 
-type HaloDot = { location: [number, number]; base: number; phase: number; period: number; color: RGB };
-
-/** Pontos numa grade de 1,5° dentro do raio, mais densos e maiores perto do centro. */
-function haloFor(p: GlobePoint, seed: number): HaloDot[] {
-  const radius = p.halo ?? 0;
-  if (!radius) return [];
-  const rand = rng(seed);
-  const dots: HaloDot[] = [];
-  const [lat0, lng0] = p.location;
-  const step = 1.5;
-  for (let dLat = -radius; dLat <= radius; dLat += step) {
-    for (let dLng = -radius; dLng <= radius; dLng += step) {
-      const dist = Math.hypot(dLat, dLng) / radius;
-      if (dist > 1 || dist < 0.18) continue;
-      if (rand() < dist * dist * 0.7) continue; // rareia na borda
-      const lat = lat0 + dLat + (rand() - 0.5) * 0.25;
-      const lng = lng0 + dLng / Math.cos((lat0 * Math.PI) / 180) + (rand() - 0.5) * 0.25;
-      dots.push({ location: [lat, lng], base: 0.011 * (1 - dist * 0.4), phase: rand() * Math.PI * 2, period: 1.8 + rand() * 2.4, color: HALO_TONE[p.tone] });
-    }
-  }
-  return dots;
-}
-
-export function EchoGlobe({ points, arcs, focusLongitude = -5, theta = 0.22 }: { points: GlobePoint[]; arcs: GlobeArc[]; focusLongitude?: number; theta?: number }) {
+export function EchoGlobe({ points, arcs, focusLongitude = -5, theta = 0.32 }: { points: GlobePoint[]; arcs: GlobeArc[]; focusLongitude?: number; theta?: number }) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
+  const labelRefs = useRef<(HTMLDivElement | null)[]>([]);
   const [ready, setReady] = useState(false);
-
-  const phi = useRef(phiFor(focusLongitude));
-  const thetaOffset = useRef(0);
-  const drag = useRef<{ x: number; y: number } | null>(null);
-  const dragDelta = useRef({ phi: 0, theta: 0 });
-  const velocity = useRef({ phi: 0, theta: 0 });
-  const last = useRef<{ x: number; t: number; y: number } | null>(null);
 
   useEffect(() => {
     const canvas = canvasRef.current;
     const wrap = wrapRef.current;
-    if (!canvas || !wrap) return;
+    const ctx = canvas?.getContext("2d");
+    if (!canvas || !wrap || !ctx) return;
 
-    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
-    const dpr = Math.min(window.devicePixelRatio || 1, window.innerWidth < 640 ? 1.8 : 2);
-    let size = wrap.offsetWidth;
-    let visible = true;
+    let disposed = false;
     let raf = 0;
+    let visible = true;
+    const reduce = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    let size = 0;
+    let sphere: HTMLCanvasElement | null = null;
 
-    const halos = points.flatMap((p, i) => haloFor(p, 11 + i * 97));
-    const markersAt = (t: number): Marker[] => {
-      const s = t / 1000;
-      const halo = halos.map((d) => ({
-        location: d.location,
-        size: reduce ? d.base : d.base * (0.6 + 0.4 * Math.sin(s * ((2 * Math.PI) / d.period) + d.phase)),
-        color: d.color,
-      }));
-      const main = points.map((p) => ({
-        id: p.id,
-        location: p.location,
-        size: reduce ? 0.05 : 0.045 + 0.012 * Math.sin(s * 2.2 + p.location[1]),
-        color: TONE[p.tone],
-      }));
-      return [...halo, ...main];
+    let phi = focusLongitude * RAD;
+    let tilt = theta;
+    let drag: { x: number; y: number; phi: number; tilt: number } | null = null;
+    let vel = { phi: 0, tilt: 0 };
+    let lastMove: { x: number; y: number; t: number } | null = null;
+
+    const cities = points.map((p) => ({ ...p, v: toVec(p.location[0], p.location[1]) }));
+    const arcVecs = arcs.map((a) => ({ ...a, a: toVec(a.from[0], a.from[1]), b: toVec(a.to[0], a.to[1]) }));
+    let dots: Dot[] = [];
+
+    const layout = () => {
+      size = wrap.offsetWidth;
+      canvas.width = size * dpr;
+      canvas.height = size * dpr;
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      // Esfera e brilho da borda desenhados uma vez.
+      sphere = document.createElement("canvas");
+      sphere.width = size * dpr;
+      sphere.height = size * dpr;
+      const s = sphere.getContext("2d");
+      if (!s) return;
+      s.setTransform(dpr, 0, 0, dpr, 0, 0);
+      const c = size / 2;
+      const r = size * 0.42;
+      s.shadowColor = "rgba(255,255,255,0.08)";
+      s.shadowBlur = size * 0.06;
+      const g = s.createRadialGradient(c - r * 0.3, c - r * 0.35, r * 0.1, c, c, r);
+      g.addColorStop(0, "#161616");
+      g.addColorStop(1, "#070707");
+      s.fillStyle = g;
+      s.beginPath();
+      s.arc(c, c, r, 0, Math.PI * 2);
+      s.fill();
+      s.shadowBlur = 0;
+      s.strokeStyle = "rgba(255,255,255,0.07)";
+      s.lineWidth = 1;
+      s.stroke();
     };
-    const cobeArcs: Arc[] = arcs.map((a) => ({ id: a.id, from: a.from, to: a.to, color: TONE[a.tone] }));
 
-    const globe = createGlobe(canvas, {
-      devicePixelRatio: dpr,
-      width: size * dpr,
-      height: size * dpr,
-      phi: phi.current,
-      theta,
-      dark: 1,
-      diffuse: 1.15,
-      mapSamples: 22_000,
-      mapBrightness: 6.5,
-      mapBaseBrightness: 0.015,
-      baseColor: [0.12, 0.12, 0.12],
-      markerColor: TONE.twin,
-      glowColor: [0.1, 0.1, 0.11],
-      opacity: 0.92,
-      markers: markersAt(0),
-      arcs: cobeArcs,
-      arcColor: TONE.twin,
-      arcWidth: 0.6,
-      arcHeight: 0.3,
-      markerElevation: 0.01,
-    });
+    const draw = (t: number) => {
+      const c = size / 2;
+      const r = size * 0.42;
+      const sec = t / 1000;
+      ctx.clearRect(0, 0, size, size);
+      if (sphere) ctx.drawImage(sphere, 0, 0, size, size);
+
+      // Pontos da terra.
+      const dotSize = Math.max(1.1, size * 0.0034);
+      for (const d of dots) {
+        const [x, y, z] = rotate(d.v, phi, tilt);
+        if (z <= 0) continue;
+        const shade = 0.25 + 0.75 * z;
+        const sx = c + x * r;
+        const sy = c - y * r;
+        if (d.area >= 0) {
+          const city = cities[d.area]!;
+          const [cr, cg, cb] = AREA[city.tone];
+          // Onda saindo da cidade: anéis que avançam com o tempo.
+          const wave = reduce ? 0.9 : 0.62 + 0.38 * (0.5 + 0.5 * Math.cos(d.dist * 9 - sec * 3.2));
+          const fade = 1 - d.dist * 0.35;
+          ctx.fillStyle = `rgba(${cr},${cg},${cb},${(shade * wave * fade).toFixed(3)})`;
+          const k = dotSize * (1.1 + 0.3 * wave);
+          ctx.fillRect(sx - k / 2, sy - k / 2, k, k);
+        } else {
+          ctx.fillStyle = `rgba(190,190,190,${(shade * 0.7).toFixed(3)})`;
+          ctx.fillRect(sx - dotSize / 2, sy - dotSize / 2, dotSize, dotSize);
+        }
+      }
+
+      // Arcos: traço fino e um brilho que corre de uma ponta à outra.
+      ctx.lineCap = "round";
+      arcVecs.forEach((a, i) => {
+        const [ar, ag, ab] = RGB[a.tone];
+        const lift = 0.06 + angleDeg(a.a, a.b) / 1100;
+        const steps = 64;
+        const pts: { x: number; y: number; on: boolean }[] = [];
+        for (let k = 0; k <= steps; k++) {
+          const [x, y, z] = rotate(arcPoint(a.a, a.b, k / steps, lift), phi, tilt);
+          pts.push({ x: c + x * r, y: c - y * r, on: z > 0 || Math.hypot(x, y) > 1 });
+        }
+        ctx.lineWidth = 1.2;
+        ctx.strokeStyle = `rgba(${ar},${ag},${ab},0.75)`;
+        ctx.beginPath();
+        pts.forEach((p, k) => {
+          if (!p.on) return;
+          if (k === 0 || !pts[k - 1]!.on) ctx.moveTo(p.x, p.y);
+          else ctx.lineTo(p.x, p.y);
+        });
+        ctx.stroke();
+        if (!reduce) {
+          const head = Math.floor(((sec * 0.35 + i * 0.37) % 1) * steps);
+          const from = Math.max(0, head - 6);
+          ctx.lineWidth = 2.2;
+          ctx.strokeStyle = `rgba(${ar},${ag},${ab},1)`;
+          ctx.beginPath();
+          for (let k = from; k <= head; k++) {
+            const p = pts[k]!;
+            if (!p.on) continue;
+            if (k === from || !pts[k - 1]!.on) ctx.moveTo(p.x, p.y);
+            else ctx.lineTo(p.x, p.y);
+          }
+          ctx.stroke();
+        }
+      });
+
+      // Ponto de cada cidade com o anel que pulsa, e a etiqueta acompanhando.
+      cities.forEach((p, i) => {
+        const [x, y, z] = rotate(p.v, phi, tilt);
+        const sx = c + x * r;
+        const sy = c - y * r;
+        const label = labelRefs.current[i];
+        const alpha = Math.max(0, Math.min(1, (z - 0.08) / 0.25));
+        if (label) {
+          label.style.transform = `translate(${sx.toFixed(1)}px, ${sy.toFixed(1)}px)`;
+          label.style.opacity = String(alpha);
+        }
+        if (z <= 0) return;
+        const [pr, pg, pb] = RGB[p.tone];
+        if (!reduce) {
+          const f = (sec * 0.6 + i * 0.25) % 1;
+          ctx.strokeStyle = `rgba(${pr},${pg},${pb},${((1 - f) * 0.8 * alpha).toFixed(3)})`;
+          ctx.lineWidth = 1.2;
+          ctx.beginPath();
+          ctx.arc(sx, sy, 5 + f * 16, 0, Math.PI * 2);
+          ctx.stroke();
+        }
+        ctx.fillStyle = `rgba(${pr},${pg},${pb},${Math.max(0.3, alpha).toFixed(3)})`;
+        ctx.beginPath();
+        ctx.arc(sx, sy, 5, 0, Math.PI * 2);
+        ctx.fill();
+      });
+    };
 
     const tick = (t: number) => {
-      if (!drag.current) {
-        if (!reduce) phi.current += 0.0016;
-        if (Math.abs(velocity.current.phi) > 0.0001 || Math.abs(velocity.current.theta) > 0.0001) {
-          phi.current += velocity.current.phi;
-          thetaOffset.current += velocity.current.theta;
-          velocity.current.phi *= 0.95;
-          velocity.current.theta *= 0.95;
+      if (!drag) {
+        if (!reduce) phi += 0.0016;
+        if (Math.abs(vel.phi) > 0.0001 || Math.abs(vel.tilt) > 0.0001) {
+          phi += vel.phi;
+          tilt += vel.tilt;
+          vel = { phi: vel.phi * 0.95, tilt: vel.tilt * 0.95 };
         }
-        const th = thetaOffset.current;
-        if (th < -0.35) thetaOffset.current += (-0.35 - th) * 0.1;
-        if (th > 0.35) thetaOffset.current += (0.35 - th) * 0.1;
+        // Volta devagar para uma inclinação confortável.
+        if (tilt < theta - 0.4) tilt += (theta - 0.4 - tilt) * 0.1;
+        if (tilt > theta + 0.4) tilt += (theta + 0.4 - tilt) * 0.1;
       }
-      globe.update({
-        phi: phi.current + dragDelta.current.phi,
-        theta: theta + thetaOffset.current + dragDelta.current.theta,
-        width: size * dpr,
-        height: size * dpr,
-        ...(reduce ? {} : { markers: markersAt(t) }),
-      });
-      if (visible) raf = requestAnimationFrame(tick);
+      draw(t);
+      if (visible && !disposed) raf = requestAnimationFrame(tick);
     };
-    raf = requestAnimationFrame(tick);
-    const show = window.setTimeout(() => setReady(true), 60);
+
+    loadLand().then((isLand) => {
+      if (disposed) return;
+      dots = fibonacciLatLng(SAMPLES)
+        .filter(([lat, lng]) => isLand(lat, lng))
+        .map(([lat, lng]) => {
+          const v = toVec(lat, lng);
+          let area = -1;
+          let dist = 1;
+          cities.forEach((p, i) => {
+            if (!p.halo) return;
+            const d = angleDeg(v, p.v) / p.halo;
+            if (d <= 1 && d < dist) {
+              area = i;
+              dist = d;
+            }
+          });
+          return { v, area, dist };
+        });
+      layout();
+      setReady(true);
+      if (reduce) draw(0);
+      else raf = requestAnimationFrame(tick);
+    });
 
     const io = new IntersectionObserver(([entry]) => {
       const was = visible;
       visible = Boolean(entry?.isIntersecting);
-      if (visible && !was) raf = requestAnimationFrame(tick);
+      if (visible && !was && dots.length && !reduce) raf = requestAnimationFrame(tick);
       if (!visible) cancelAnimationFrame(raf);
     });
     io.observe(wrap);
     const ro = new ResizeObserver(() => {
-      size = wrap.offsetWidth;
+      if (!dots.length) return;
+      layout();
+      if (reduce) draw(0);
     });
     ro.observe(wrap);
 
+    const onDown = (e: PointerEvent) => {
+      drag = { x: e.clientX, y: e.clientY, phi, tilt };
+      vel = { phi: 0, tilt: 0 };
+      lastMove = null;
+      canvas.style.cursor = "grabbing";
+    };
     const onMove = (e: PointerEvent) => {
-      if (!drag.current) return;
-      dragDelta.current = { phi: (e.clientX - drag.current.x) / 300, theta: (e.clientY - drag.current.y) / 1000 };
+      if (!drag) return;
+      // O globo acompanha o ponteiro.
+      phi = drag.phi - ((e.clientX - drag.x) / size) * Math.PI;
+      tilt = drag.tilt + ((e.clientY - drag.y) / size) * 0.8;
       const now = performance.now();
-      if (last.current) {
-        const dt = Math.max(now - last.current.t, 1);
-        const cap = (v: number) => Math.max(-0.15, Math.min(0.15, v));
-        velocity.current = { phi: cap(((e.clientX - last.current.x) / dt) * 0.3), theta: cap(((e.clientY - last.current.y) / dt) * 0.08) };
+      if (lastMove) {
+        const dt = Math.max(now - lastMove.t, 1);
+        const cap = (v: number) => Math.max(-0.08, Math.min(0.08, v));
+        vel = { phi: cap((-(e.clientX - lastMove.x) / size) * Math.PI * (16 / dt)), tilt: cap(((e.clientY - lastMove.y) / size) * 0.8 * (16 / dt)) };
       }
-      last.current = { x: e.clientX, y: e.clientY, t: now };
+      lastMove = { x: e.clientX, y: e.clientY, t: now };
+      if (reduce) draw(0);
     };
     const onUp = () => {
-      if (!drag.current) return;
-      phi.current += dragDelta.current.phi;
-      thetaOffset.current += dragDelta.current.theta;
-      dragDelta.current = { phi: 0, theta: 0 };
-      drag.current = null;
-      last.current = null;
+      if (!drag) return;
+      drag = null;
       canvas.style.cursor = "grab";
     };
+    canvas.addEventListener("pointerdown", onDown);
     window.addEventListener("pointermove", onMove, { passive: true });
     window.addEventListener("pointerup", onUp, { passive: true });
 
     return () => {
+      disposed = true;
       cancelAnimationFrame(raf);
-      window.clearTimeout(show);
       io.disconnect();
       ro.disconnect();
+      canvas.removeEventListener("pointerdown", onDown);
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);
-      globe.destroy();
     };
-  }, [points, arcs, theta]);
+  }, [points, arcs, focusLongitude, theta]);
 
   return (
     <div className="globe" ref={wrapRef}>
-      <canvas
-        ref={canvasRef}
-        className={`globe__canvas${ready ? " is-ready" : ""}`}
-        aria-label="Globo com a equipe da demonstração em Fortaleza, Joanesburgo e Tóquio"
-        role="img"
-        onPointerDown={(e) => {
-          drag.current = { x: e.clientX, y: e.clientY };
-          velocity.current = { phi: 0, theta: 0 };
-          e.currentTarget.style.cursor = "grabbing";
-        }}
-      />
-      {points.map((p) => (
+      <canvas ref={canvasRef} className={`globe__canvas${ready ? " is-ready" : ""}`} aria-label="Globo com a equipe da demonstração em Fortaleza, Joanesburgo e Tóquio" role="img" />
+      {points.map((p, i) => (
         <div
           key={p.id}
+          ref={(el) => {
+            labelRefs.current[i] = el;
+          }}
           className={`globe__label globe__label--${p.tone}${p.side === "left" ? " globe__label--left" : ""}`}
           aria-hidden="true"
-          style={
-            {
-              positionAnchor: `--cobe-${p.id}`,
-              opacity: `var(--cobe-visible-${p.id}, 0)`,
-              filter: `blur(calc((1 - var(--cobe-visible-${p.id}, 0)) * 8px))`,
-            } as CSSProperties
-          }
         >
           {p.label}
         </div>
