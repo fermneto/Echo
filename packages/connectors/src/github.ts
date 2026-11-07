@@ -10,6 +10,32 @@ interface GhPr {
   requested_reviewers?: GhUser[];
 }
 
+/** Commit no formato do aviso de push (a reconciliação converte para o mesmo formato). */
+export interface GhCommit {
+  id: string;
+  message: string;
+  timestamp: string;
+  author?: { username?: string; name?: string };
+}
+
+/** Commit vira fato do trabalho. Autor só quando o GitHub ligou o commit a uma conta: nunca adivinhar pelo nome. */
+export function commitEvent(repository: string, branch: string | undefined, c: GhCommit): NormalizedEvent {
+  return {
+    kind: "work_event",
+    event: {
+      type: "commit",
+      actor: c.author?.username ? { platform: "github", login: c.author.username } : undefined,
+      repository,
+      branch,
+      taskKey: taskKeyFrom(branch, c.message),
+      occurredAt: new Date(c.timestamp),
+      source: "github",
+      sourceRef: `commit:${c.id}`,
+      data: { coauthors: parseCoauthors(c.message ?? "") },
+    },
+  };
+}
+
 const actor = (u?: GhUser | null): ExternalActor | undefined => (u ? { platform: "github", externalId: String(u.id), login: u.login } : undefined);
 
 /** "Co-authored-by: Nome <email>" → hash do e-mail (o e-mail em si não é guardado) e login quando é noreply. */
@@ -46,6 +72,26 @@ function toPr(repo: GhRepo, pr: GhPr): ExternalPullRequest {
   };
 }
 
+/** Conclusão de uma suíte (ou de um check) → estado resumido. */
+export function checksStateOf(conclusion: string | null | undefined): "success" | "failure" | "pending" | "neutral" {
+  switch (conclusion) {
+    case "success":
+      return "success";
+    case "failure":
+    case "timed_out":
+    case "cancelled":
+    case "action_required":
+    case "startup_failure":
+      return "failure";
+    case "neutral":
+    case "skipped":
+    case "stale":
+      return "neutral";
+    default:
+      return "pending";
+  }
+}
+
 /** Instalação do GitHub App que enviou o aviso: aponta para a empresa em installation_routes. */
 export const githubRouteKey = (body: any): string | undefined => (body?.installation?.id ? String(body.installation.id) : undefined);
 
@@ -58,21 +104,7 @@ export function normalizeGithub(event: string, body: any): NormalizedEvent[] {
     const ref: string = body.ref ?? "";
     if (!ref.startsWith("refs/heads/") || body.deleted) return [{ kind: "ignored", reason: "push que não é de branch" }];
     const branch = ref.slice("refs/heads/".length);
-    return (body.commits ?? []).map((c: any): NormalizedEvent => ({
-      kind: "work_event",
-      event: {
-        type: "commit",
-        // Autor só quando o GitHub ligou o commit a uma conta: nunca adivinhar pelo nome.
-        actor: c.author?.username ? { platform: "github", login: c.author.username } : undefined,
-        repository: repo.full_name,
-        branch,
-        taskKey: taskKeyFrom(branch, c.message),
-        occurredAt: new Date(c.timestamp),
-        source: "github",
-        sourceRef: `commit:${c.id}`,
-        data: { coauthors: parseCoauthors(c.message ?? "") },
-      },
-    }));
+    return (body.commits ?? []).map((c: GhCommit) => commitEvent(repo.full_name, branch, c));
   }
 
   if (event === "pull_request") {
@@ -115,6 +147,21 @@ export function normalizeGithub(event: string, body: any): NormalizedEvent[] {
         // Só a referência: o texto do comentário é dado e não é guardado aqui.
         data: { path: c.path, line: c.line ?? null, prAuthorLogin: pr.user.login },
       },
+    }];
+  }
+
+  if (event === "check_suite" && body.action === "completed") {
+    const cs = body.check_suite;
+    const prNumbers: number[] = (cs?.pull_requests ?? []).map((p: { number: number }) => p.number);
+    if (!cs?.head_sha || prNumbers.length === 0) return [{ kind: "ignored", reason: "check_suite sem PR" }];
+    return [{
+      kind: "checks",
+      repository: repo.full_name,
+      headSha: cs.head_sha,
+      prNumbers,
+      state: checksStateOf(cs.conclusion),
+      url: `https://github.com/${repo.full_name}/commit/${cs.head_sha}/checks`,
+      at: new Date(cs.updated_at ?? Date.now()),
     }];
   }
 

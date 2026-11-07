@@ -1,5 +1,6 @@
 import { PERSONAS } from "@/lib/demo/personas";
 import { demoMode } from "@/lib/session";
+import { LOGIN_ERRORS, slackLoginConfig } from "@/lib/slack-login";
 import { Logo } from "@/components/Logo";
 import { PixelAvatar } from "@/components/PixelAvatar";
 import { entrarComo } from "./actions";
@@ -10,18 +11,31 @@ export const metadata = { title: "Entrar · Echo" };
 const ROLE_LABEL = { member: "Equipe", leader: "Líder", hr: "RH" } as const;
 const REAL = new Set(["fernando", "eduardo", "yan"]);
 
-export default function EntrarPage() {
+export default async function EntrarPage({ searchParams }: { searchParams: Promise<{ erro?: string }> }) {
   const demo = demoMode();
+  const slack = slackLoginConfig() !== null;
+  const erro = (await searchParams).erro;
   return (
     <main className="entrar">
       <Logo />
       <h1 className="entrar__title">Entrar no Echo</h1>
+      {erro && LOGIN_ERRORS[erro] ? (
+        <p className="lead" role="alert">
+          {LOGIN_ERRORS[erro]}
+        </p>
+      ) : null}
       {demo ? (
         <>
           <p className="lead">Ambiente de demonstração. Escolha quem você quer ser e veja o que essa pessoa pode acessar.</p>
-          <button type="button" className="button-pill entrar__slack is-disabled" disabled title="O login com o Slack chega na etapa 15">
-            Entrar com o Slack · em breve
-          </button>
+          {slack ? (
+            <a className="button-pill entrar__slack" href="/api/sessao/slack">
+              Entrar com o Slack
+            </a>
+          ) : (
+            <button type="button" className="button-pill entrar__slack is-disabled" disabled title="O login com o Slack não está configurado neste ambiente">
+              Entrar com o Slack · em breve
+            </button>
+          )}
           <form action={entrarComo} className="entrar__form">
             <fieldset className="persona-list">
               <legend className="sr-only">Persona</legend>
@@ -48,8 +62,12 @@ export default function EntrarPage() {
           </form>
           <p className="mono muted entrar__note">Dados sintéticos. Só Fernando, Eduardo e Yan são pessoas reais.</p>
         </>
+      ) : slack ? (
+        <a className="button-pill entrar__slack" href="/api/sessao/slack">
+          Entrar com o Slack
+        </a>
       ) : (
-        <p className="lead">O login com o Slack ainda não está disponível neste ambiente.</p>
+        <p className="lead">O login com o Slack ainda não está configurado neste ambiente.</p>
       )}
     </main>
   );

@@ -25,4 +25,13 @@ export interface AgentData {
   lastCommitAt(repository: string, branch: string): Promise<Date | null>;
   events(filter: { personId?: string; since: Date; limit?: number }): Promise<WorkEvent[]>;
   contributions(since: Date): Promise<Contribution[]>;
+  /** Ajustes da própria pessoa no quem sabe (incluir ou excluir um tema, com validade). */
+  expertiseOverrides(): Promise<ExpertiseOverride[]>;
+}
+
+export interface ExpertiseOverride {
+  personId: string;
+  topic: string;
+  include: boolean;
+  validUntil?: Date;
 }

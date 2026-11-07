@@ -6,20 +6,26 @@
     "dev": "tsx watch --env-file-if-exists=../../.env src/main.ts",
     "start": "tsx src/main.ts",
     "typecheck": "tsc -p tsconfig.json",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run --passWithNoTests",
+    "reconciliar": "tsx --env-file-if-exists=../../.env src/reconcile-now.ts"
   },
   "dependencies": {
+    "@echo/agents": "workspace:*",
     "@echo/brain": "workspace:*",
     "@echo/config": "workspace:*",
     "@echo/observability": "workspace:*",
     "@echo/jobs": "workspace:*",
     "tsx": "catalog:",
     "@echo/connectors": "workspace:*",
-    "@echo/db": "workspace:*"
+    "@echo/db": "workspace:*",
+    "@echo/actions": "workspace:*",
+    "@echo/domain": "workspace:*",
+    "drizzle-orm": "catalog:"
   },
   "devDependencies": {
     "@types/node": "catalog:",
     "typescript": "catalog:",
-    "vitest": "catalog:"
+    "vitest": "catalog:",
+    "pino": "catalog:"
   }
 }

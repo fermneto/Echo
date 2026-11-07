@@ -62,6 +62,8 @@ export const people = pgTable("people", {
   areas: jsonb("areas").$type<string[]>().notNull().default([]),
   languages: jsonb("languages").$type<string[]>().notNull().default([]),
   awayInstructions: text("away_instructions"),
+  /** Expediente sugerido pela agenda; vale só depois que a pessoa confirma no painel. */
+  workHoursSuggested: jsonb("work_hours_suggested").$type<{ days: number[]; start: string; end: string; timezone: string; source: string }>(),
   active: boolean("active").notNull().default(true),
   offboardedAt: ts("offboarded_at"),
   createdAt: createdAt(),
@@ -87,10 +89,15 @@ export const absences = pgTable("absences", {
   kind: text("kind").notNull(), // vacation | leave | unexpected | ooo
   source: text("source").notNull(), // panel | hr | calendar
   hrEventId: text("hr_event_id"),
+  /** Evento de "fora do escritório" da agenda (google:<id> ou microsoft:<id>). Só id e horário, nunca título. */
+  calendarEventId: text("calendar_event_id"),
+  /** Ausência inferida da agenda. As longas (férias) são sugestão até a liderança confirmar. */
   inferred: boolean("inferred").notNull().default(false),
+  confirmedAt: ts("confirmed_at"),
+  confirmedBy: uuid("confirmed_by"),
   cancelledAt: ts("cancelled_at"),
   createdAt: createdAt(),
-});
+}, (t) => [uniqueIndex("absences_hr_event").on(t.orgId, t.hrEventId), uniqueIndex("absences_calendar_event").on(t.orgId, t.calendarEventId)]);
 
 /** Entrada idempotente de webhooks. */
 export const inboxEvents = pgTable("inbox_events", {
@@ -161,6 +168,9 @@ export const pullRequests = pgTable("pull_requests", {
   mergedAt: ts("merged_at"),
   firstHumanReviewAt: ts("first_human_review_at"),
   checksState: text("checks_state"),
+  /** Link dos checks do último commit (só estado, nome e link: nunca logs). */
+  checksUrl: text("checks_url"),
+  checksUpdatedAt: ts("checks_updated_at"),
   /** Hora da última mudança na origem: avisos fora de ordem não sobrescrevem dado mais novo. */
   externalUpdatedAt: ts("external_updated_at"),
   updatedAt: updatedAt(),
@@ -198,6 +208,8 @@ export interface BranchMarkRow {
   to?: string;
   reason?: string;
   until?: string;
+  /** Liberação trazida de nota anterior confirmada (ISO): a validade conta desta data. */
+  confirmedAt?: string;
 }
 
 /** Nota do dia: draft → confirmed | auto_unreviewed. */
@@ -246,11 +258,14 @@ export const reviews = pgTable("reviews", {
   batchId: text("batch_id"),
   model: text("model"),
   findings: jsonb("findings").notNull().default([]),
-  state: text("state").notNull().default("queued"), // queued | batched | reviewed | fix_queued | fix_ready | approved | applied | no_findings | failed
+  /** Arquivos do diff enviado ao lote: achado em arquivo fora desta lista é descartado. */
+  files: jsonb("files").$type<string[]>().notNull().default([]),
+  state: text("state").notNull().default("queued"), // queued | batched | reviewed | fix_queued | fix_ready | approved | applied | no_findings | too_large | failed
   costUsd: numeric("cost_usd", { precision: 10, scale: 4 }),
   createdAt: createdAt(),
 }, (t) => [uniqueIndex("reviews_pr_sha").on(t.orgId, t.prId, t.headSha)]);
 
+/** Uma correção por revisão. O diff conferido vai no outbox (github.draft_pr); aqui fica o estado e o custo. */
 export const fixRuns = pgTable("fix_runs", {
   id: id(),
   orgId: orgId(),
@@ -260,9 +275,20 @@ export const fixRuns = pgTable("fix_runs", {
   testsReported: text("tests_reported"),
   checksState: text("checks_state"),
   costUsd: numeric("cost_usd", { precision: 10, scale: 4 }),
-  state: text("state").notNull().default("queued"),
+  state: text("state").notNull().default("queued"), // running | draft_queued | ready | approved | applied | declined | rejected | failed | skipped
+  /** Sessão do Managed Agents (para conferir no Console). */
+  sessionId: text("session_id"),
+  /** Versão do PR sobre a qual a correção foi feita. */
+  baseSha: text("base_sha"),
+  /** Versão do rascunho criada pela plataforma: só une se continuar igual. */
+  draftHeadSha: text("draft_head_sha"),
+  files: jsonb("files").$type<string[]>().notNull().default([]),
+  findings: jsonb("findings").notNull().default([]),
+  error: text("error"),
+  decidedBy: uuid("decided_by").references(() => people.id),
+  decidedAt: ts("decided_at"),
   createdAt: createdAt(),
-});
+}, (t) => [uniqueIndex("fix_runs_review").on(t.orgId, t.reviewId)]);
 
 export const morningPlans = pgTable("morning_plans", {
   id: id(),
@@ -351,6 +377,22 @@ export const weeklyReports = pgTable("weekly_reports", {
   sentAt: ts("sent_at"),
 }, (t) => [uniqueIndex("weekly_reports_person_week").on(t.orgId, t.personId, t.week)]);
 
+/** Deploys por commit (Vercel e outros), ligados ao PR pelo commit ou pela branch. Sem logs. */
+export const deployments = pgTable("deployments", {
+  id: id(),
+  orgId: orgId(),
+  provider: text("provider").notNull(), // vercel
+  externalId: text("external_id").notNull(),
+  repository: text("repository"),
+  sha: text("sha"),
+  branch: text("branch"),
+  environment: text("environment").notNull(), // preview | production
+  state: text("state").notNull(), // building | ready | error | canceled
+  url: text("url"),
+  occurredAt: ts("occurred_at").notNull(),
+  updatedAt: updatedAt(),
+}, (t) => [uniqueIndex("deployments_ext").on(t.orgId, t.provider, t.externalId), index("deployments_sha").on(t.orgId, t.sha)]);
+
 /** Saída segura: só packages/actions executa, só com aprovação. */
 export const outboxActions = pgTable("outbox_actions", {
   id: id(),
@@ -363,6 +405,10 @@ export const outboxActions = pgTable("outbox_actions", {
   state: text("state").notNull().default("pending"), // pending | approved | running | done | failed
   attempts: integer("attempts").notNull().default(0),
   error: text("error"),
+  /** Início da última execução: ação presa em "running" volta para a fila depois de um tempo. */
+  startedAt: ts("started_at"),
+  /** O que a execução devolveu (ex.: número e versão do PR em rascunho), para o fluxo que pediu a ação. */
+  result: jsonb("result"),
   createdAt: createdAt(),
 }, (t) => [uniqueIndex("outbox_key").on(t.orgId, t.idempotencyKey)]);
 
@@ -402,7 +448,7 @@ export const agentRuns = pgTable("agent_runs", {
   costUsd: numeric("cost_usd", { precision: 10, scale: 6 }),
   durationMs: integer("duration_ms").notNull(),
   tools: jsonb("tools").$type<string[]>().notNull().default([]),
-  result: text("result").notNull(), // ok | fallback | refused | failed
+  result: text("result").notNull(), // ok | fallback | refused | failed | skipped
   error: text("error"),
   createdAt: createdAt(),
 }, (t) => [index("agent_runs_org_flow").on(t.orgId, t.flow, t.createdAt)]);

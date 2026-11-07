@@ -17,7 +17,15 @@
     "db:generate": "pnpm --filter @echo/db generate",
     "db:seed": "pnpm --filter @echo/seed seed",
     "evals": "pnpm --filter @echo/evals evals",
-    "e2e": "echo \"e2e: etapa 16 (frente Avaliador)\" && exit 1"
+    "e2e": "echo \"e2e: etapa 16 (frente Avaliador)\" && exit 1",
+    "integracoes:ligar": "pnpm --filter @echo/connectors integracoes:ligar",
+    "acao:testar": "pnpm --filter @echo/actions acao:testar",
+    "integracoes:conferir": "pnpm --filter @echo/connectors slack:check; pnpm --filter @echo/connectors github:check; pnpm --filter @echo/connectors linear:check",
+    "integracoes:reconciliar": "pnpm --filter @echo/worker reconciliar",
+    "integracoes:rh": "pnpm --filter @echo/connectors integracoes:rh",
+    "integracoes:agenda": "pnpm --filter @echo/connectors agenda:check",
+    "integracoes:diagnostico": "pnpm --filter @echo/connectors integracoes:diagnostico",
+    "integracoes:simular": "pnpm --filter @echo/connectors integracoes:simular"
   },
   "devDependencies": {
     "@types/node": "catalog:",

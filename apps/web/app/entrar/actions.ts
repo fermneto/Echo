@@ -3,6 +3,7 @@
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import { findPersona } from "@/lib/demo/personas";
+import { SESSION_COOKIE } from "@/lib/auth";
 import { demoMode, PERSONA_COOKIE } from "@/lib/session";
 
 export async function entrarComo(formData: FormData): Promise<void> {
@@ -13,6 +14,8 @@ export async function entrarComo(formData: FormData): Promise<void> {
 }
 
 export async function sair(): Promise<void> {
-  (await cookies()).delete(PERSONA_COOKIE);
+  const jar = await cookies();
+  jar.delete(PERSONA_COOKIE);
+  jar.delete(SESSION_COOKIE);
   redirect("/entrar");
 }

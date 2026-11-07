@@ -6,6 +6,8 @@ export const MODELS = {
   dailyNote: "claude-haiku-5-5",
   review: "claude-sonnet-5-5",
   reviewSensitive: "claude-opus-5-5",
+  /** Correção no Managed Agents, esforço médio. */
+  fix: "claude-sonnet-5-5",
   report: "claude-sonnet-5-5",
   artifact: "claude-haiku-5-5",
 } as const;
@@ -61,6 +63,11 @@ export interface AnswerResult {
   ownerReturnsAt?: Date;
   usedModel: boolean; // false = resposta por regra (teto de custo ou API fora)
   warnings: string[]; // ex.: "nota do dia não confirmada"
+  /**
+   * gemeo = agente de uma pessoa · livre = pergunta ao Echo · quem_sabe = indicação por evidência.
+   * Quem sabe sem fontes numa mensagem de canal que não chamou o @Echo: quem publica fica em silêncio.
+   */
+  kind?: "gemeo" | "livre" | "quem_sabe";
 }
 
 export interface ValidationIssue {
@@ -83,8 +90,86 @@ export interface ValidatorContext {
 export type AnswerValidator = (out: AnswerOutput, ctx: ValidatorContext) => ValidationIssue[];
 
 export { validateAnswer } from "./validator.ts";
+export { isWhoKnowsQuestion, topicPhrase } from "./who-knows.ts";
 export { createAnswer, type AnswerDeps, type ModelCall } from "./answer.ts";
-export type { AgentData, OrgSettings } from "./data.ts";
+export type { AgentData, ExpertiseOverride, OrgSettings } from "./data.ts";
+export {
+  CONFIRM_ACTION_ID,
+  createEndOfDay,
+  draftMessage,
+  noteConfirmAction,
+  type ConfirmOutcome,
+  type DailyNoteStore,
+  type DraftOutcome,
+  type EndOfDay,
+  type EndOfDayDeps,
+  type NoteOutbox,
+  type NotePatch,
+  type StoredDailyNote,
+} from "./daily-note.ts";
+export {
+  createNightReview,
+  reviewComment,
+  validFindings,
+  type BatchApi,
+  type Finding,
+  type NightReview,
+  type NightReviewDeps,
+  type PrDiff,
+  type ReviewSource,
+  type ReviewStore,
+} from "./night-review.ts";
+export { createMorningPlan, planMessage, type MorningPlan, type MorningPlanDeps, type PlanStore, type StoredPlan } from "./morning-plan.ts";
+export {
+  createFix,
+  draftBody,
+  validFixReport,
+  type Fix,
+  type FixCandidate,
+  type FixCodeHost,
+  type FixDecisionOutcome,
+  type FixDeps,
+  type FixOutcome,
+  type FixReport,
+  type FixSandbox,
+  type FixSandboxInput,
+  type FixSandboxResult,
+  type FixState,
+  type FixStore,
+  type StoredFix,
+} from "./fix.ts";
+export {
+  absenceTitle,
+  createRedistribution,
+  planText,
+  type DecisionOutcome,
+  type ItemState,
+  type NewPlanItem,
+  type PlanChoice,
+  type PlanState,
+  type PlanTrigger,
+  type ProposeOutcome,
+  type Redistribution,
+  type RedistributionDeps,
+  type RedistributionStore,
+  type StoredAbsence,
+  type StoredPlanItem,
+  type StoredRedistribution,
+} from "./redistribution.ts";
+export {
+  createWeeklyReport,
+  noticeText,
+  reportDocument,
+  reportTextIssues,
+  ruleReportText,
+  type BuildOutcome,
+  type NewReport,
+  type ReportDocument,
+  type ReportStore,
+  type StoredReport,
+  type WeeklyReport,
+  type WeeklyReportDeps,
+} from "./report.ts";
 
 /**
  * Fluxo de resposta (F2) com as dependências padrão: Postgres (DATABASE_URL) e a chave da empresa

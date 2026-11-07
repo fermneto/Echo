@@ -1,0 +1,57 @@
+import type { MorningPlan, NightReview } from "@echo/agents";
+import { QUEUES, type JobQueue } from "@echo/jobs";
+
+export interface OrgJob {
+  orgId: string;
+}
+export interface MorningJob {
+  orgId: string;
+  personId: string;
+  date: string;
+}
+
+export interface NightWiring {
+  night: Pick<NightReview, "prepareAndSubmit" | "collect">;
+  morning: Pick<MorningPlan, "build">;
+  orgIds: () => Promise<string[]>;
+  dueMorning: (now: Date) => Promise<MorningJob[]>;
+  /** Hora UTC em que o lote da noite é criado. */
+  nightHourUtc: number;
+  now?: () => Date;
+}
+
+/**
+ * F4 e F5 no worker. Uma vez por noite, por empresa: filtro e lote (até 3 tentativas, 30 min entre elas;
+ * lote criado nunca é reenviado). A cada passada: busca os lotes terminados. Perto do expediente: plano da manhã.
+ */
+export async function registerNight(queue: JobQueue, w: NightWiring): Promise<{ tick: () => Promise<{ night: number; morning: number }> }> {
+  const now = w.now ?? (() => new Date());
+
+  await queue.work<OrgJob>(QUEUES.nightReview, async (job) => {
+    await w.night.prepareAndSubmit(job.data.orgId);
+  });
+  await queue.work<OrgJob>(QUEUES.reviewCollect, async (job) => {
+    await w.night.collect(job.data.orgId);
+  });
+  await queue.work<MorningJob>(QUEUES.morningPlan, async (job) => {
+    await w.morning.build(job.data.orgId, job.data.personId, job.data.date);
+  });
+
+  return {
+    async tick() {
+      const at = now();
+      const orgIds = await w.orgIds();
+      let night = 0;
+      if (at.getUTCHours() === w.nightHourUtc) {
+        const day = at.toISOString().slice(0, 10);
+        for (const orgId of orgIds) {
+          if (await queue.send<OrgJob>(QUEUES.nightReview, { orgId }, { singletonKey: `${orgId}:${day}`, retryLimit: 2, retryDelaySeconds: 30 * 60 })) night++;
+        }
+      }
+      for (const orgId of orgIds) await queue.send<OrgJob>(QUEUES.reviewCollect, { orgId }, { singletonKey: orgId, retryLimit: 1 });
+      const due = await w.dueMorning(at);
+      for (const d of due) await queue.send<MorningJob>(QUEUES.morningPlan, d, { singletonKey: `${d.orgId}:${d.personId}:${d.date}` });
+      return { night, morning: due.length };
+    },
+  };
+}

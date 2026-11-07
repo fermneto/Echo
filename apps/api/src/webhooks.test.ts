@@ -1,4 +1,4 @@
-import { sign, type Delivery } from "@echo/connectors";
+import { sign, signVercel, type Delivery } from "@echo/connectors";
 import { describe, expect, it } from "vitest";
 import { createApp } from "./app.ts";
 import type { WebhookDeps } from "./webhooks.ts";
@@ -111,5 +111,54 @@ describe("webhook do Slack", () => {
     const res = await app.request("/webhooks/slack/interacoes", { method: "POST", body: raw, headers: { "content-type": "application/x-www-form-urlencoded", ...sign.slack(S.slack, raw, nowS) } });
     expect(res.status).toBe(200);
     expect(interactions).toMatchObject([{ type: "block_actions" }]);
+  });
+});
+
+describe("aviso de RH", () => {
+  const ORG_RH = "33333333-3333-3333-3333-333333333333";
+  const body = JSON.stringify({ id: "evento-1", employee_id: "123", starts_at: "2026-11-10T00:00:00-03:00", ends_at: "2026-11-21T23:59:59-03:00", kind: "vacation", motivo: "não guardar" });
+  function rh(over: Partial<WebhookDeps> = {}) {
+    const got: unknown[] = [];
+    const { app } = setup({
+      orgSecrets: { hr: async (o) => (o === ORG_RH ? "rh-sec" : null) },
+      hr: async (_o, ev) => (got.push(ev), { status: "registered", absenceId: "a1", personId: "p1" }),
+      ...over,
+    });
+    return { app, got };
+  }
+
+  it("aceita aviso assinado e entrega sem o motivo", async () => {
+    const { app, got } = rh();
+    const res = await post(app, `/webhooks/rh/o/${ORG_RH}`, body, sign.hr("rh-sec", body, nowS));
+    expect(res.status).toBe(200);
+    expect(await res.json()).toEqual({ ok: true, status: "registered" });
+    expect(JSON.stringify(got)).not.toContain("não guardar");
+  });
+
+  it("recusa assinatura velha (401), empresa sem segredo (503) e aviso inválido (400)", async () => {
+    const { app } = rh();
+    expect((await post(app, `/webhooks/rh/o/${ORG_RH}`, body, sign.hr("rh-sec", body, nowS - 400))).status).toBe(401);
+    expect((await post(app, `/webhooks/rh/o/${OTHER}`, body, sign.hr("rh-sec", body, nowS))).status).toBe(503);
+    const bad = JSON.stringify({ id: "x", employee_id: "1", starts_at: "2026-11-10", ends_at: "2026-11-11", kind: "vacation" });
+    expect((await post(app, `/webhooks/rh/o/${ORG_RH}`, bad, sign.hr("rh-sec", bad, nowS))).status).toBe(400);
+  });
+});
+
+describe("webhook da Vercel", () => {
+  const body = JSON.stringify({ id: "evt_1", type: "deployment.succeeded", createdAt: NOW, payload: { team: { id: "team_x" }, target: "production", deployment: { id: "dpl_1", url: "app.vercel.app", meta: {} } } });
+
+  it("grava o deploy com a rota do time; recusa assinatura errada e falta de segredo", async () => {
+    const { app, received } = setup({ secrets: { ...S, vercel: "vc-sec" } });
+    expect((await post(app, "/webhooks/vercel", body, signVercel("vc-sec", body))).status).toBe(200);
+    expect(received).toMatchObject([{ source: "vercel", deliveryId: "evt_1", routeKey: "team_x" }]);
+    expect((await post(app, "/webhooks/vercel", body, signVercel("outro", body))).status).toBe(401);
+    expect((await post(setup().app, "/webhooks/vercel", body, signVercel("vc-sec", body))).status).toBe(503);
+  });
+
+  it("evento que não é de deploy responde 200 sem gravar", async () => {
+    const other = JSON.stringify({ id: "evt_2", type: "project.created", payload: {} });
+    const { app, received } = setup({ secrets: { ...S, vercel: "vc-sec" } });
+    expect((await post(app, "/webhooks/vercel", other, signVercel("vc-sec", other))).status).toBe(200);
+    expect(received).toHaveLength(0);
   });
 });

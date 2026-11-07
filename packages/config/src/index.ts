@@ -45,6 +45,10 @@ export const apiSchema = baseSchema.extend({
   GITHUB_WEBHOOK_SECRET: optionalString,
   SLACK_SIGNING_SECRET: optionalString,
   LINEAR_WEBHOOK_SECRET: optionalString,
+  /** Segredo do webhook de deploys da Vercel (etapa 19). */
+  VERCEL_WEBHOOK_SECRET: optionalString,
+  /** Chave das credenciais guardadas (openssl rand -hex 32), igual em web, api e worker. */
+  ENCRYPTION_KEY: optionalString.pipe(z.string().regex(/^[0-9a-f]{64}$/i, "precisa ter 64 caracteres hex (openssl rand -hex 32)").optional()),
   // A Render define PORT; localmente usamos API_PORT.
   PORT: port(3001).optional(),
   API_PORT: port(3001),
@@ -54,15 +58,65 @@ export const webSchema = baseSchema.extend({
   ...anthropic,
   PORT: port(3000).optional(),
   WEB_PORT: port(3000),
+  /** Banco: necessário para o login com o Slack (sem ele, só o login por persona da demo). */
+  DATABASE_URL: optionalString,
+  /** Assina o cookie de sessão. Gerado pelo Blueprint; local: openssl rand -hex 32. */
+  SESSION_SECRET: optionalString.pipe(z.string().min(32, "precisa ter pelo menos 32 caracteres").optional()),
+  /** App do Slack: login no painel ("Sign in with Slack"). */
+  SLACK_CLIENT_ID: optionalString,
+  SLACK_CLIENT_SECRET: optionalString,
+  /** Endereço público do painel (o retorno do login é PANEL_URL/api/sessao/slack/retorno). */
+  PANEL_URL: optionalString.pipe(z.url().optional()),
+  /** Espaço do Slack da empresa, para o login ir direto a ele (opcional). */
+  DEMO_SLACK_TEAM_ID: optionalString,
 });
 
 export const workerSchema = baseSchema.extend({
   ...database,
   ...anthropic,
+  /** Token do bot do Slack (xoxb-…). Sem ele, o worker não fala no Slack. */
+  SLACK_BOT_TOKEN: optionalString,
+  /** Só para desenvolvimento e testes: outro endereço para a Web API do Slack (ex.: um Slack falso local). */
+  SLACK_API_BASE_URL: optionalString.pipe(z.url().optional()),
+  /** GitHub App: id e chave privada (PEM; "\n" escapado é aceito). */
+  GITHUB_APP_ID: optionalString,
+  GITHUB_PRIVATE_KEY: optionalString,
+  /** App OAuth do Linear instalado como app (actor=app). */
+  LINEAR_CLIENT_ID: optionalString,
+  LINEAR_CLIENT_SECRET: optionalString,
+  /** Alternativa para testes: chave pessoal de API do Linear (lin_api_…). */
+  LINEAR_API_KEY: optionalString,
+  /** Google Agenda: conta de serviço com delegação no domínio (o admin do Workspace autoriza o escopo). */
+  GOOGLE_SERVICE_ACCOUNT_EMAIL: optionalString,
+  GOOGLE_SERVICE_ACCOUNT_KEY: optionalString,
+  /** Microsoft 365: app multi-tenant; o tenant de cada empresa vem de installation_routes. */
+  MICROSOFT_CLIENT_ID: optionalString,
+  MICROSOFT_CLIENT_SECRET: optionalString,
   HEARTBEAT_INTERVAL_MS: z.coerce.number().int().min(1000).default(30_000),
+  /** Intervalo da reconciliação com GitHub e Linear (padrão: 10 minutos). */
+  RECONCILE_INTERVAL_MS: z.coerce.number().int().min(60_000).default(10 * 60_000),
+  /** Repositório do espelho das notas (<org>/brains): push nele não é trabalho. */
+  BRAINS_REPOSITORY: optionalString,
+  // Endereço do painel, para o botão "Editar no painel" da nota do dia.
+  WEB_URL: z.url().default("http://localhost:3000"),
+  // Intervalo da agenda do fim do expediente (nota do dia).
+  END_OF_DAY_SCAN_MS: z.coerce.number().int().min(10_000).default(300_000),
+  // Hora UTC em que o lote da revisão noturna é criado, uma vez por noite por empresa.
+  NIGHT_REVIEW_UTC_HOUR: z.coerce.number().int().min(0).max(23).default(5),
 });
 
-export const reviewerSchema = baseSchema.extend({ ...database, ...anthropic });
+export const reviewerSchema = baseSchema.extend({
+  ...database,
+  ...anthropic,
+  // Agente e ambiente da correção no Managed Agents, criados uma vez com `pnpm --filter @echo/reviewer provision`.
+  // Sem eles, não há correção.
+  FIX_AGENT_ID: optionalString.pipe(z.string().startsWith("agent_", "precisa começar com agent_").optional()),
+  FIX_ENVIRONMENT_ID: optionalString.pipe(z.string().startsWith("env_", "precisa começar com env_").optional()),
+  // Intervalo da busca por revisões a corrigir e por rascunhos prontos.
+  FIX_SCAN_MS: z.coerce.number().int().min(10_000).default(300_000),
+  // Tempo máximo de uma correção no ambiente isolado.
+  FIX_TIMEOUT_MS: z.coerce.number().int().min(60_000).max(3_600_000).default(1_200_000),
+});
 
 export const schemas = { api: apiSchema, web: webSchema, worker: workerSchema, reviewer: reviewerSchema } as const;
 export type ServiceName = keyof typeof schemas;

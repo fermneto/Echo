@@ -99,9 +99,13 @@ const noteSource = (note: DailyNote): SourceRef => ({
 const prSource = (pr: PullRequest): SourceRef => ({ label: `PR ${pr.number}`, ref: `github:pr/${pr.number}` });
 const taskSource = (task: Task): SourceRef => ({ label: task.key, ref: `linear:${task.key}` });
 
-/** Até quando a liberação vale: 7 dias depois da confirmação, ou até o fim do dia "until" (UTC), o que vier antes. */
-function releaseExpiry(note: DailyNote, mark: BranchMark): number {
-  const base = note.confirmedAt?.getTime() ?? Date.parse(`${note.date}T00:00:00Z`);
+/**
+ * Até quando a liberação vale: 7 dias depois da confirmação, ou até o fim do dia "until" (UTC), o que vier antes.
+ * Liberação trazida de nota anterior conta da confirmação original, para a nota nova não esticar o prazo.
+ */
+export function releaseExpiry(note: DailyNote, mark: BranchMark): number {
+  const carried = mark.confirmedAt ? Date.parse(mark.confirmedAt) : Number.NaN;
+  const base = !Number.isNaN(carried) ? carried : (note.confirmedAt?.getTime() ?? Date.parse(`${note.date}T00:00:00Z`));
   const byDays = base + RULES.releaseValidDays * DAY;
   if (!mark.until) return byDays;
   const until = Date.parse(`${addDays(mark.until, 1)}T00:00:00Z`);
@@ -109,7 +113,8 @@ function releaseExpiry(note: DailyNote, mark: BranchMark): number {
 }
 
 /**
- * Liberação vale 7 dias (ou até "until") e só de nota confirmada: auto_unreviewed mantém reservas e não libera.
+ * Liberação vale 7 dias (ou até "until") e só de nota confirmada: auto_unreviewed mantém reservas e não libera
+ * nada novo (só o que já vinha confirmado de antes).
  * Reserva vence liberação na mesma branch. Sem nota, o estado vem do PR, dos commits e da tarefa.
  */
 export function branchStatus(input: BranchStatusInput): BranchStatusResult {
@@ -119,7 +124,9 @@ export function branchStatus(input: BranchStatusInput): BranchStatusResult {
     const reserved = note.reserved.find((m) => m.branch === branch);
     if (reserved) return { status: "reserved", mark: reserved, sources: [noteSource(note), ...(pr ? [prSource(pr)] : [])] };
     const released = note.released.find((m) => m.branch === branch);
-    if (released && note.state === "confirmed" && now.getTime() < releaseExpiry(note, released)) {
+    // Nota automática não libera nada novo; só mantém o que a pessoa já tinha confirmado antes.
+    const confirmedByPerson = released && (note.state === "confirmed" || released.confirmedAt !== undefined);
+    if (released && confirmedByPerson && now.getTime() < releaseExpiry(note, released)) {
       return { status: "released", mark: released, sources: [noteSource(note)] };
     }
   }
@@ -304,52 +311,104 @@ export interface WeeklyMetrics {
   reviews: number;
   helps: number;
   delays: { taskKey: string; cause?: string }[];
+  /** Referências das entregas ("ECH-135" ou "repo#40"), para o texto. */
+  deliveryRefs: string[];
+  /** Quem recebeu ajuda confirmada, e quantas. Só ids. */
+  helped: { personId: string; count: number }[];
+}
+
+/** Registro atrasado: depois de 14 dias, é histórico importado (só para o quem sabe). */
+export const LATE_RECORD_DAYS = 14;
+const BLOCKED_LABELS = new Set(["bloqueado", "bloqueada", "blocked", "impedido", "impedida"]);
+
+/**
+ * Conta no período em que foi gravado: cada relatório vai de onde o anterior parou, e o evento anterior ao corte
+ * gravado depois dele entra no seguinte, uma vez só. Sem `recordedAt`, vale a hora do evento.
+ */
+export function inReportWindow(e: { occurredAt: Date; recordedAt?: Date | undefined }, from: Date, to: Date): boolean {
+  const recorded = (e.recordedAt ?? e.occurredAt).getTime();
+  const lag = recorded - e.occurredAt.getTime();
+  return recorded >= from.getTime() && recorded < to.getTime() && e.occurredAt.getTime() < to.getTime() && lag <= LATE_RECORD_DAYS * DAY;
 }
 
 /**
- * Período [from, to). PR ligado e conclusão da tarefa são uma entrega só. Ajuda conta só confirmada.
- * Atraso: tarefa da pessoa com prazo dentro do período, concluída depois do prazo ou ainda aberta.
- * O prazo vale até o fim do dia (UTC aqui: o fuso da pessoa não faz parte da entrada).
+ * Período [from, to), pelo momento do registro (`inReportWindow`). PR ligado e conclusão da tarefa são uma
+ * entrega só. Ajuda conta só confirmada (a confirmação é o registro). Atraso: tarefa da pessoa cujo prazo (fim do
+ * dia no fuso dela; UTC sem fuso) termina no período, concluída depois dele ou ainda aberta. A causa sai por regra:
+ * ausência perto do prazo, etiqueta de bloqueio ou PR da tarefa esperando revisão.
  */
-export function weeklyMetrics(input: { personId: string; events: WorkEvent[]; contributions: Contribution[]; tasks: Task[]; from: Date; to: Date }): WeeklyMetrics {
+export function weeklyMetrics(input: {
+  personId: string;
+  events: WorkEvent[];
+  contributions: Contribution[];
+  tasks: Task[];
+  from: Date;
+  to: Date;
+  timezone?: string;
+  absences?: Absence[];
+  pullRequests?: PullRequest[];
+}): WeeklyMetrics {
   const { personId, from, to } = input;
-  const inWindow = (d: Date) => d.getTime() >= from.getTime() && d.getTime() < to.getTime();
-  const mine = input.events.filter((e) => e.personId === personId && inWindow(e.occurredAt));
+  const mine = input.events.filter((e) => e.personId === personId && inReportWindow(e, from, to));
 
-  const delivered = new Set<string>();
+  const delivered = new Map<string, string>();
   for (const e of mine) {
-    if (e.type === "task_done" && e.taskKey) delivered.add(`task:${e.taskKey}`);
-    if (e.type === "pr_merged") delivered.add(e.taskKey ? `task:${e.taskKey}` : `pr:${e.repository ?? ""}#${e.prNumber ?? e.sourceRef}`);
+    if (e.type === "task_done" && e.taskKey) delivered.set(`task:${e.taskKey}`, e.taskKey);
+    if (e.type === "pr_merged") {
+      if (e.taskKey) delivered.set(`task:${e.taskKey}`, e.taskKey);
+      else delivered.set(`pr:${e.repository ?? ""}#${e.prNumber ?? e.sourceRef}`, `${e.repository ?? ""}#${e.prNumber ?? "?"}`);
+    }
   }
 
   const doneAt = new Map<string, Date>();
   for (const e of input.events) {
     if (e.type === "task_done" && e.taskKey && (!doneAt.has(e.taskKey) || e.occurredAt < doneAt.get(e.taskKey)!)) doneAt.set(e.taskKey, e.occurredAt);
   }
-  const fromDate = from.toISOString().slice(0, 10);
-  const toDate = to.toISOString().slice(0, 10);
+  const tz = input.timezone ?? "UTC";
+  const causeOf = (t: Task, deadline: Date): string | undefined => {
+    const near = deadline.getTime() - RULES.dueSoonDays * DAY;
+    if ((input.absences ?? []).some((a) => a.personId === personId && a.startsAt.getTime() < deadline.getTime() && a.endsAt.getTime() > near)) return "ausência perto do prazo";
+    if (t.labels.some((l) => BLOCKED_LABELS.has(l.toLocaleLowerCase("pt-BR")))) return "marcada como bloqueada no Linear";
+    const waiting = (input.pullRequests ?? []).some(
+      (pr) =>
+        pr.taskKey === t.key &&
+        pr.authorId === personId &&
+        (pr.openedAt === undefined || pr.openedAt.getTime() < deadline.getTime()) &&
+        !input.events.some((e) => e.type === "review" && e.prNumber === pr.number && e.personId !== personId && e.occurredAt.getTime() < deadline.getTime()),
+    );
+    return waiting ? "PR aguardando revisão" : undefined;
+  };
   const delays = input.tasks
-    .filter((t) => t.assigneeId === personId && t.dueDate !== undefined && t.dueDate >= fromDate && t.dueDate < toDate && t.state !== "canceled")
-    .filter((t) => {
-      const deadline = Date.parse(`${addDays(t.dueDate!, 1)}T00:00:00Z`);
+    .filter((t) => t.assigneeId === personId && t.dueDate !== undefined && t.state !== "canceled")
+    .flatMap((t) => {
+      const deadline = endOfLocalDay(t.dueDate!, tz);
+      if (deadline.getTime() <= from.getTime() || deadline.getTime() > to.getTime()) return [];
       const done = doneAt.get(t.key);
-      return done ? done.getTime() >= deadline : t.state !== "done" && deadline <= to.getTime();
+      const late = done ? done.getTime() >= deadline.getTime() : t.state !== "done";
+      if (!late) return [];
+      const cause = causeOf(t, deadline);
+      return [{ taskKey: t.key, ...(cause ? { cause } : {}) }];
     })
-    .sort((a, b) => byText(a.key, b.key))
-    .map((t) => ({ taskKey: t.key }));
+    .sort((a, b) => byText(a.taskKey, b.taskKey));
+
+  const helps = input.contributions.filter((c) => c.helperId === personId && c.helpedId !== personId && c.confirmed && inReportWindow(c, from, to));
+  const helped = new Map<string, number>();
+  for (const c of helps) helped.set(c.helpedId, (helped.get(c.helpedId) ?? 0) + 1);
 
   return {
     deliveries: delivered.size,
     commits: mine.filter((e) => e.type === "commit").length,
     reviews: mine.filter((e) => e.type === "review").length,
-    helps: input.contributions.filter((c) => c.helperId === personId && c.confirmed && inWindow(c.occurredAt)).length,
+    helps: helps.length,
     delays,
+    deliveryRefs: [...delivered.values()].sort(byText),
+    helped: [...helped].map(([pid, count]) => ({ personId: pid, count })).sort((a, b) => b.count - a.count || byText(a.personId, b.personId)),
   };
 }
 
-/** Coautoria, mudança pedida em revisão e destravamento valem crédito forte; confirmação e reação, médio. */
+/** Pesos da aba Produto: coautoria, mudança pedida em revisão, confirmação no painel e reação são fortes; destravar é médio. */
 export function contributionScore(c: Contribution): { weight: "forte" | "medio" } {
-  return { weight: c.kind === "coauthor" || c.kind === "review_change" || c.kind === "unblock" ? "forte" : "medio" };
+  return { weight: c.kind === "unblock" ? "medio" : "forte" };
 }
 
 // ---------- Quem sabe

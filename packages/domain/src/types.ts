@@ -61,6 +61,9 @@ export interface PullRequest {
   reviewerIds: string[];
   openedAt?: Date | undefined;
   mergedAt?: Date | undefined;
+  /** Estado das checagens (CI) na última versão. */
+  checksState?: "success" | "failure" | "pending" | undefined;
+  headSha?: string | undefined;
 }
 
 export interface BranchMark {
@@ -68,6 +71,8 @@ export interface BranchMark {
   to?: string;
   reason?: string;
   until?: string;
+  /** Liberação trazida de uma nota anterior já confirmada: a validade conta desta data (ISO), não da nota nova. */
+  confirmedAt?: string;
 }
 
 export type DailyNoteState = "draft" | "confirmed" | "auto_unreviewed";
@@ -93,6 +98,8 @@ export interface WorkEvent {
   occurredAt: Date;
   source: "github" | "linear" | "slack" | "panel";
   sourceRef: string;
+  /** Quando o Echo gravou o evento (registro atrasado entra no relatório seguinte). */
+  recordedAt?: Date | undefined;
   data?: Record<string, unknown>;
 }
 

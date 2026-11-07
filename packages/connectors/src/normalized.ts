@@ -36,6 +36,7 @@ export interface ExternalTask {
   size?: number | undefined;
   labels: string[];
   updatedAt: Date;
+  completedAt?: Date | undefined;
 }
 
 export interface ExternalPullRequest {
@@ -53,6 +54,12 @@ export interface ExternalPullRequest {
   updatedAt: Date;
 }
 
+/** PR consultado ao vivo: inclui arquivos e se dá para unir (null = o GitHub ainda está calculando). */
+export interface LivePullRequest extends ExternalPullRequest {
+  files: string[];
+  mergeable: boolean | null;
+}
+
 export interface ChatMessage {
   channel: string;
   ts: string;
@@ -64,6 +71,8 @@ export interface ChatMessage {
   isDm: boolean;
   /** Autor da mensagem-mãe do tópico (para saber se é um tópico do Echo). */
   parentUserId?: string | undefined;
+  /** A mensagem continua um tópico aberto pelo Echo (responde sem nova marcação). */
+  inEchoThread?: boolean | undefined;
 }
 
 export type NormalizedEvent =
@@ -72,7 +81,24 @@ export type NormalizedEvent =
   | { kind: "pr_upsert"; pr: ExternalPullRequest }
   | { kind: "chat_message"; message: ChatMessage }
   | { kind: "reaction"; channel: string; ts: string; reaction: string; reactorExternalId: string; authorExternalId: string; at: Date }
+  | { kind: "checks"; repository: string; headSha: string; prNumbers: number[]; state: ChecksState; url: string; at: Date }
+  | { kind: "deployment"; deployment: ExternalDeployment }
   | { kind: "ignored"; reason: string };
+
+/** Estado dos checks de um commit: só o resumo, nunca logs. */
+export type ChecksState = "success" | "failure" | "pending" | "neutral";
+
+export interface ExternalDeployment {
+  provider: "vercel";
+  externalId: string;
+  repository?: string | undefined;
+  sha?: string | undefined;
+  branch?: string | undefined;
+  environment: "preview" | "production";
+  state: "building" | "ready" | "error" | "canceled";
+  url?: string | undefined;
+  at: Date;
+}
 
 /** Identificador de tarefa no nome da branch ou no título: "ech-128-tempo-limite" → "ECH-128". */
 export function taskKeyFrom(...texts: (string | undefined | null)[]): string | undefined {

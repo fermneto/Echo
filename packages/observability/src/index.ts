@@ -25,7 +25,8 @@ export interface AgentRun {
   costUsd?: number;
   durationMs: number;
   tools?: string[];
-  result: "ok" | "fallback" | "refused" | "failed";
+  /** skipped: o fluxo rodou e decidiu não agir (ex.: sem evento nas últimas 24 h), com o motivo em `error`. */
+  result: "ok" | "fallback" | "refused" | "failed" | "skipped";
   error?: string;
 }
 
