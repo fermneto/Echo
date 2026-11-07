@@ -16,6 +16,7 @@ import {
   siSentry,
   siVercel,
 } from "simple-icons";
+import { LogoCarousel } from "./LogoCarousel";
 
 /**
  * Integrações: "hoje" é o que a primeira versão conecta (docs/produto.md); "em breve" são as
@@ -50,34 +51,20 @@ export const INTEGRATIONS: readonly Integration[] = [
   { name: "Okta", status: "em breve", path: siOkta.path },
 ];
 
-function Item({ i }: { i: Integration }) {
+/** Integrações em colunas que trocam de logo. A lista completa fica legível para leitores de tela. */
+export function IntegrationsCarousel() {
+  const logos = INTEGRATIONS.map(({ name, status, path }) => ({ name, status, ...(path ? { path } : {}) }));
   return (
-    <li className={`marquee__item${i.status === "hoje" ? " is-live" : ""}`}>
-      {i.path && (
-        <svg viewBox="0 0 24 24" width="20" height="20" aria-hidden="true" focusable="false">
-          <path d={i.path} fill="currentColor" />
-        </svg>
-      )}
-      <span className="marquee__name">{i.name}</span>
-      {i.status === "em breve" && <span className="marquee__soon">em breve</span>}
-    </li>
-  );
-}
-
-/** Faixa que rola sozinha com as integrações. A segunda cópia só fecha o laço e fica oculta para leitores de tela. */
-export function IntegrationsMarquee() {
-  return (
-    <div className="marquee">
-      <ul className="marquee__track" aria-label="Integrações do Echo">
+    <>
+      <ul className="sr-only" aria-label="Integrações do Echo">
         {INTEGRATIONS.map((i) => (
-          <Item key={i.name} i={i} />
+          <li key={i.name}>
+            {i.name}
+            {i.status === "em breve" ? " (em breve)" : ""}
+          </li>
         ))}
       </ul>
-      <ul className="marquee__track" aria-hidden="true">
-        {INTEGRATIONS.map((i) => (
-          <Item key={i.name} i={i} />
-        ))}
-      </ul>
-    </div>
+      <LogoCarousel logos={logos} columns={4} />
+    </>
   );
 }

@@ -858,78 +858,170 @@
   color: var(--color-signal-twin-text);
 }
 
-/* Integrações: faixa rolante */
+/* Integrações: colunas que trocam de logo */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
 .lp-integrations {
   margin-top: var(--space-3xl);
-  padding: var(--space-xl) 0;
   border-top: 1px solid var(--color-line);
   border-bottom: 1px solid var(--color-line);
 }
-.lp-integrations__title {
+.lp-integrations__inner {
   width: min(var(--lp-width), calc(100% - 2 * var(--space-gutter)));
-  margin: 0 auto var(--space-lg);
-  font-size: 13px;
-  font-weight: 400;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  color: var(--color-ash);
+  margin: 0 auto;
+  padding: var(--space-2xl) 0;
+  display: grid;
+  grid-template-columns: minmax(0, 0.8fr) auto;
+  align-items: center;
+  gap: var(--space-2xl);
 }
-.marquee {
+.lp-integrations__copy {
   display: flex;
-  overflow: hidden;
-  mask-image: linear-gradient(to right, transparent, #000 8%, #000 92%, transparent);
+  flex-direction: column;
+  gap: var(--space-sm);
 }
-.marquee__track {
-  display: flex;
-  flex: none;
-  gap: var(--space-3xl);
+.lp-integrations__title {
   margin: 0;
-  padding: 0 var(--space-3xl) 0 0;
-  list-style: none;
-  animation: lp-marquee 60s linear infinite;
+  font-family: var(--font-display);
+  font-size: 20px;
+  font-weight: 500;
+  line-height: 1.3;
 }
-.marquee:hover .marquee__track {
-  animation-play-state: paused;
+.lp-integrations__lead {
+  margin: 0;
+  color: var(--color-fog);
+  font-size: 15px;
+  max-width: 44ch;
 }
-@keyframes lp-marquee {
-  to {
-    transform: translateX(-100%);
+.logo-carousel {
+  display: flex;
+  gap: var(--space-lg);
+}
+.logo-slot {
+  position: relative;
+  width: 168px;
+  height: 104px;
+  overflow: hidden;
+  animation: logo-slot-in 0.5s var(--ease-enter) both;
+}
+@keyframes logo-slot-in {
+  from {
+    opacity: 0;
+    transform: translateY(24px);
   }
 }
-.marquee__item {
+.logo-slot__item {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+}
+.logo-slot__item.is-entering {
+  animation: logo-in 0.5s cubic-bezier(0.34, 1.4, 0.64, 1) both;
+}
+.logo-slot__item.is-leaving {
+  animation: logo-out 0.3s ease-in both;
+}
+@keyframes logo-in {
+  from {
+    opacity: 0;
+    transform: translateY(10%);
+    filter: blur(8px);
+  }
+}
+@keyframes logo-out {
+  to {
+    opacity: 0;
+    transform: translateY(-20%);
+    filter: blur(6px);
+  }
+}
+.logo-slot__logo {
   display: flex;
+  flex-direction: column;
   align-items: center;
   gap: 10px;
-  white-space: nowrap;
   color: var(--color-ash);
-  font-size: 17px;
-  font-weight: 500;
 }
-.marquee__item.is-live {
+.logo-slot__logo.is-live {
   color: var(--color-cloud);
 }
-.marquee__soon {
+.logo-slot__logo svg {
+  width: 40px;
+  height: 40px;
+}
+.logo-slot__word {
+  height: 40px;
+  display: grid;
+  place-items: center;
+  font-family: var(--font-display);
+  font-size: 18px;
+  font-weight: 500;
+  letter-spacing: -0.02em;
+}
+.logo-slot__name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+.logo-slot__soon {
   font-family: var(--font-mono);
-  font-size: 11px;
+  font-size: 10px;
   font-weight: 400;
   letter-spacing: -0.02em;
   color: var(--color-ash);
   border: 1px solid var(--color-edge);
   border-radius: var(--rounded-sm);
-  padding: 1px 6px;
+  padding: 0 5px;
 }
-@media (prefers-reduced-motion: reduce) {
-  .marquee {
-    mask-image: none;
+.logo-grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-xl) var(--space-2xl);
+}
+@media (max-width: 1000px) {
+  .lp-integrations__inner {
+    grid-template-columns: 1fr;
   }
-  .marquee__track {
-    flex-wrap: wrap;
-    flex: 1;
-    gap: var(--space-lg) var(--space-2xl);
-    padding: 0 var(--space-gutter);
+  .logo-carousel {
+    justify-content: space-between;
   }
-  .marquee__track[aria-hidden="true"] {
-    display: none;
+}
+@media (max-width: 640px) {
+  .logo-carousel {
+    gap: var(--space-xs);
+  }
+  .logo-slot {
+    width: 25%;
+    height: 88px;
+  }
+  .logo-slot__logo svg,
+  .logo-slot__word {
+    width: 30px;
+    height: 30px;
+  }
+  .logo-slot__word {
+    width: auto;
+    font-size: 13px;
+  }
+  .logo-slot__name {
+    font-size: 11px;
+    flex-direction: column;
+    gap: 2px;
   }
 }
 

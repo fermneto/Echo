@@ -2,7 +2,7 @@ import type { CSSProperties } from "react";
 import Link from "next/link";
 import { EchoGlobe, type GlobeArc, type GlobePoint } from "@/components/landing/EchoGlobe";
 import { DotField } from "@/components/landing/DotField";
-import { IntegrationsMarquee } from "@/components/landing/integrations";
+import { IntegrationsCarousel } from "@/components/landing/integrations";
 import { PixelSprite } from "@/components/PixelSprite";
 import { lookFor } from "@/lib/demo/looks";
 import { DEMO_NOW, PERSONAS } from "@/lib/demo/personas";
@@ -175,10 +175,17 @@ export default function LandingPage() {
         </section>
 
         <section className="lp-integrations" aria-labelledby="integracoes">
-          <h2 id="integracoes" className="lp-integrations__title">
-            Conecta onde a equipe já trabalha
-          </h2>
-          <IntegrationsMarquee />
+          <div className="lp-integrations__inner">
+            <div className="lp-integrations__copy">
+              <h2 id="integracoes" className="lp-integrations__title">
+                Conecta onde a equipe já trabalha.
+              </h2>
+              <p className="lp-integrations__lead">
+                GitHub, Slack, Linear e Claude hoje. Agenda, CI, incidentes, outros trackers e chats a seguir.
+              </p>
+            </div>
+            <IntegrationsCarousel />
+          </div>
         </section>
 
         <section className="lp-section" aria-labelledby="noite-titulo">
