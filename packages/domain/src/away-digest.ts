@@ -37,6 +37,10 @@ export function digestKind(text: string): DigestKind {
 export function digestLine(text: string, max: number = AWAY_DIGEST_RULES.lineChars): string {
   const one = text
     .replace(/<@[^>]+>/g, "")
+    .replace(/<![^>]*>/g, "") // <!here>, <!channel>, <!subteam^…>: não reavisa ninguém
+    .replace(/<#[^|>]+\|([^>]*)>/g, "#$1")
+    .replace(/<[^|>]+\|([^>]*)>/g, "$1") // <url|texto> → texto
+    .replace(/<([^>]*)>/g, "$1")
     .replace(/[*_~`>]/g, "")
     .replace(/\s+/g, " ")
     .trim();

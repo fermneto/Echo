@@ -13,6 +13,8 @@ export interface DigestStore {
   pending(personId: string, since: Date): Promise<DigestItem[]>;
   /** Marca como entregues e apaga as linhas. Devolve quantas mudaram. */
   markDelivered(ids: string[], at: Date): Promise<number>;
+  /** Itens que foram na mensagem já enfileirada com esta chave (payload.itemIds do outbox). */
+  sentItems(idempotencyKey: string): Promise<string[]>;
   /** Apaga as linhas antigas (antes de `before`) e as de quem foi desligado ou está inativo. */
   purge(before: Date): Promise<number>;
 }
@@ -77,8 +79,13 @@ export function createAwayDigest(deps: AwayDigestDeps) {
       if (items.length === 0) return done({ status: "skipped", reason: "nada chegou enquanto a pessoa estava fora" });
       const { sections } = awayDigest(items);
       const msg = digestMessage(sections, people, deps.webUrl);
-      const r = await deps.outbox(orgId).enqueue({ type: "slack.dm", target: `person:${personId}`, payload: { personId, text: msg.text, blocks: msg.blocks }, idempotencyKey: `away_digest:${personId}:${due.date}:${due.slot}` });
-      if (r.duplicate) return done({ status: "skipped", reason: "resumo deste momento já enviado" });
+      const key = `away_digest:${personId}:${due.date}:${due.slot}`;
+      const r = await deps.outbox(orgId).enqueue({ type: "slack.dm", target: `person:${personId}`, payload: { personId, text: msg.text, blocks: msg.blocks, itemIds: items.map((i) => i.id) }, idempotencyKey: key });
+      if (r.duplicate) {
+        // Já enviado (talvez a marcação tenha falhado depois do outbox): marca só o que foi naquela mensagem.
+        await store.markDelivered(await store.sentItems(key), now);
+        return done({ status: "skipped", reason: "resumo deste momento já enviado" });
+      }
       // Entregue: as linhas somem e fica só a data, que conta as 3 horas até o próximo.
       await store.markDelivered(items.map((i) => i.id), now);
       return done({ status: "sent", items: items.length, sections: Object.fromEntries(sections.map((s) => [s.key, s.total])) });

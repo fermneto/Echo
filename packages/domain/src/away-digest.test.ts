@@ -18,6 +18,7 @@ describe("tipo e linhas", () => {
 
   it("uma linha, sem menção nem formatação, cortada no limite", () => {
     expect(digestLine("<@U123> posso   seguir\ncom a *branch* `ech-131`?")).toBe("posso seguir com a branch ech-131?");
+    expect(digestLine("<!here> veja <https://x.co/a|o plano> em <#C1|geral> e <https://y.co>")).toBe("veja o plano em #geral e https://y.co");
     const long = digestLine("a".repeat(300));
     expect(long).toHaveLength(140);
     expect(long.endsWith("…")).toBe(true);

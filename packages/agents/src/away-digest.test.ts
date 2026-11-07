@@ -26,6 +26,16 @@ function setup(items: DigestItem[]) {
       return ids.length;
     },
     purge: async () => 0,
+    sentItems: async (key) => ((outbox.find((x) => x.idempotencyKey === key)?.payload as { itemIds?: string[] } | undefined)?.itemIds ?? []),
+  };
+  let failMark = false;
+  const realMark = store.markDelivered;
+  store.markDelivered = async (ids, at) => {
+    if (failMark) {
+      failMark = false;
+      throw new Error("banco caiu");
+    }
+    return realMark(ids, at);
   };
   const flow = createAwayDigest({
     data: () => ({ people: async () => people }) as unknown as AgentData,
@@ -41,7 +51,7 @@ function setup(items: DigestItem[]) {
     clock: new FixedClock(NOW),
     webUrl: "https://echo.test/",
   });
-  return { flow, outbox, delivered, pending, runs: recorder.runs };
+  return { flow, outbox, delivered, pending, runs: recorder.runs, failNextMark: () => (failMark = true) };
 }
 
 const cena: DigestItem[] = [
@@ -99,6 +109,18 @@ describe("resumo da ausência", () => {
     expect(await flow.send("org", "fernando", { date: "2026-11-09", slot: "inicio" })).toEqual({ status: "skipped", reason: "resumo deste momento já enviado" });
     expect(outbox).toHaveLength(1);
     expect(delivered).not.toContain("q9"); // fica para o próximo resumo
+  });
+
+  it("marcação falhou depois do outbox: a nova tentativa marca só o que foi na mensagem, sem reenviar", async () => {
+    const { flow, outbox, pending, delivered, runs, failNextMark } = setup(cena);
+    failNextMark();
+    await expect(flow.send("org", "fernando", { date: "2026-11-09", slot: "inicio" })).rejects.toThrow("banco caiu");
+    expect(runs.at(-1)).toMatchObject({ result: "failed" });
+    pending.set("q9", { ...cena[0]!, id: "q9" });
+    expect(await flow.send("org", "fernando", { date: "2026-11-09", slot: "inicio" })).toMatchObject({ status: "skipped" });
+    expect(outbox).toHaveLength(1);
+    expect(delivered).toEqual(["q1", "q2", "q3"]);
+    expect([...pending.keys()]).toEqual(["q9"]);
   });
 
   it("RH e quem foi desligado não recebem", async () => {

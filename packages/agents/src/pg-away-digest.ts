@@ -1,6 +1,6 @@
 // Resumo da ausência em Postgres. Toda consulta em withOrg com filtro explícito de org_id. Entrega e limpeza só
 // mexem nas linhas do resumo: a pergunta continua para os Ganhos, sem texto.
-import { type Database, people, questions, withOrg } from "@echo/db";
+import { type Database, outboxActions, people, questions, withOrg } from "@echo/db";
 import type { DigestKind } from "@echo/domain";
 import { and, asc, eq, gte, inArray, isNotNull, isNull, lt, max, or } from "drizzle-orm";
 import type { DigestStore } from "./away-digest.ts";
@@ -43,6 +43,11 @@ export function createPgDigestStore(db: Database, orgId: string): DigestStore {
           .returning({ id: questions.id }),
       );
       return rows.length;
+    },
+    async sentItems(idempotencyKey) {
+      const [r] = await run((tx) => tx.select({ payload: outboxActions.payload }).from(outboxActions).where(and(eq(outboxActions.orgId, orgId), eq(outboxActions.idempotencyKey, idempotencyKey))));
+      const ids = (r?.payload as { itemIds?: unknown } | undefined)?.itemIds;
+      return Array.isArray(ids) ? ids.filter((x): x is string => typeof x === "string") : [];
     },
     async purge(before) {
       const rows = await run((tx) =>
