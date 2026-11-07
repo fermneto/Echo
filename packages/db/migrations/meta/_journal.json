@@ -43,6 +43,13 @@
       "when": 1794062349290,
       "tag": "0005_ausencia_rh",
       "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1794062961322,
+      "tag": "0006_agenda_cicd",
+      "breakpoints": true
     }
   ]
 }

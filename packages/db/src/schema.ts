@@ -62,6 +62,8 @@ export const people = pgTable("people", {
   areas: jsonb("areas").$type<string[]>().notNull().default([]),
   languages: jsonb("languages").$type<string[]>().notNull().default([]),
   awayInstructions: text("away_instructions"),
+  /** Expediente sugerido pela agenda; vale só depois que a pessoa confirma no painel. */
+  workHoursSuggested: jsonb("work_hours_suggested").$type<{ days: number[]; start: string; end: string; timezone: string; source: string }>(),
   active: boolean("active").notNull().default(true),
   offboardedAt: ts("offboarded_at"),
   createdAt: createdAt(),
@@ -87,10 +89,15 @@ export const absences = pgTable("absences", {
   kind: text("kind").notNull(), // vacation | leave | unexpected | ooo
   source: text("source").notNull(), // panel | hr | calendar
   hrEventId: text("hr_event_id"),
+  /** Evento de "fora do escritório" da agenda (google:<id> ou microsoft:<id>). Só id e horário, nunca título. */
+  calendarEventId: text("calendar_event_id"),
+  /** Ausência inferida da agenda. As longas (férias) são sugestão até a liderança confirmar. */
   inferred: boolean("inferred").notNull().default(false),
+  confirmedAt: ts("confirmed_at"),
+  confirmedBy: uuid("confirmed_by"),
   cancelledAt: ts("cancelled_at"),
   createdAt: createdAt(),
-}, (t) => [uniqueIndex("absences_hr_event").on(t.orgId, t.hrEventId)]);
+}, (t) => [uniqueIndex("absences_hr_event").on(t.orgId, t.hrEventId), uniqueIndex("absences_calendar_event").on(t.orgId, t.calendarEventId)]);
 
 /** Entrada idempotente de webhooks. */
 export const inboxEvents = pgTable("inbox_events", {
@@ -161,6 +168,9 @@ export const pullRequests = pgTable("pull_requests", {
   mergedAt: ts("merged_at"),
   firstHumanReviewAt: ts("first_human_review_at"),
   checksState: text("checks_state"),
+  /** Link dos checks do último commit (só estado, nome e link: nunca logs). */
+  checksUrl: text("checks_url"),
+  checksUpdatedAt: ts("checks_updated_at"),
   /** Hora da última mudança na origem: avisos fora de ordem não sobrescrevem dado mais novo. */
   externalUpdatedAt: ts("external_updated_at"),
   updatedAt: updatedAt(),
@@ -350,6 +360,22 @@ export const weeklyReports = pgTable("weekly_reports", {
   noticeAt: ts("notice_at"),
   sentAt: ts("sent_at"),
 }, (t) => [uniqueIndex("weekly_reports_person_week").on(t.orgId, t.personId, t.week)]);
+
+/** Deploys por commit (Vercel e outros), ligados ao PR pelo commit ou pela branch. Sem logs. */
+export const deployments = pgTable("deployments", {
+  id: id(),
+  orgId: orgId(),
+  provider: text("provider").notNull(), // vercel
+  externalId: text("external_id").notNull(),
+  repository: text("repository"),
+  sha: text("sha"),
+  branch: text("branch"),
+  environment: text("environment").notNull(), // preview | production
+  state: text("state").notNull(), // building | ready | error | canceled
+  url: text("url"),
+  occurredAt: ts("occurred_at").notNull(),
+  updatedAt: updatedAt(),
+}, (t) => [uniqueIndex("deployments_ext").on(t.orgId, t.provider, t.externalId), index("deployments_sha").on(t.orgId, t.sha)]);
 
 /** Saída segura: só packages/actions executa, só com aprovação. */
 export const outboxActions = pgTable("outbox_actions", {

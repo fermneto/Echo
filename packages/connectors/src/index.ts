@@ -79,3 +79,5 @@ export { connectedOrgs, githubForOrg, orgRoute, platformsFromEnv, type PlatformE
 export { applyHrEvent, hrSecret, parseHrEvent, rotateHrSecret, type HrEvent, type HrResult } from "./hr.ts";
 export { exchangeSlackCode, SlackLoginError, slackAuthorizeUrl, type SlackIdentity, type SlackOidcConfig } from "./slack-oidc.ts";
 export { loadPanelPerson, resolvePanelPerson, type PanelLogin, type PanelPerson } from "./panel-login.ts";
+export { CalendarApiError, GoogleCalendar, MicrosoftCalendar, type CalendarSource, type GoogleCalendarOptions, type MicrosoftCalendarOptions, type OutOfOffice, type WorkingHours } from "./calendar.ts";
+export { acceptSuggestedWorkHours, confirmCalendarAbsence, currentAbsences, LONG_ABSENCE_MS, syncCalendar, type CalendarSyncResult } from "./calendar-sync.ts";
