@@ -3117,3 +3117,63 @@ select.field option {
   padding: var(--space-md) 0 0;
   font-size: 13px;
 }
+
+/* Busca nas listas (Pessoas, Notas) */
+[data-search][hidden],
+[data-search-group][hidden] {
+  display: none !important;
+}
+.search-filter {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  margin-top: var(--space-xl);
+  max-width: 560px;
+}
+.search-filter__icon {
+  position: absolute;
+  left: 14px;
+  width: 16px;
+  height: 16px;
+  fill: none;
+  stroke: var(--color-ash);
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  pointer-events: none;
+}
+.search-filter__input {
+  flex: 1;
+  min-width: 0;
+  height: 44px;
+  padding: 0 14px 0 40px;
+  border: 1px solid var(--color-edge);
+  border-radius: var(--rounded-lg);
+  background: var(--color-black);
+  color: var(--color-cloud);
+  font: inherit;
+  font-size: 15px;
+  transition: border-color 150ms ease-out;
+}
+.search-filter__input::placeholder {
+  color: var(--color-ash);
+}
+.search-filter__input:hover {
+  border-color: var(--color-iron);
+}
+.search-filter__input:focus {
+  outline: none;
+  border-color: var(--color-fog);
+}
+.search-filter__input::-webkit-search-cancel-button {
+  filter: invert(0.7);
+  cursor: pointer;
+}
+.search-filter__count {
+  flex: none;
+  font-size: 11px;
+}
+.search-filter__empty {
+  margin: var(--space-xl) 0 0;
+  font-size: 14px;
+}
