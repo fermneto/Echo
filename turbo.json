@@ -1,0 +1,11 @@
+{
+  "$schema": "https://turborepo.com/schema.json",
+  "globalEnv": ["NODE_ENV"],
+  "globalPassThroughEnv": ["DATABASE_URL", "LOG_LEVEL", "DEMO_MODE", "LANGFUSE_*", "ANTHROPIC_API_KEY"],
+  "tasks": {
+    "build": { "dependsOn": ["^build"], "outputs": [".next/**", "!.next/cache/**", "dist/**"] },
+    "typecheck": { "dependsOn": [] },
+    "test": { "dependsOn": [], "outputs": [] },
+    "dev": { "cache": false, "persistent": true }
+  }
+}

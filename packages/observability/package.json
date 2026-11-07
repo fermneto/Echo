@@ -1,0 +1,12 @@
+{
+  "name": "@echo/observability",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./src/index.ts" },
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": { "@langfuse/otel": "catalog:", "@langfuse/tracing": "catalog:", "@opentelemetry/api": "catalog:", "@opentelemetry/sdk-trace-node": "catalog:", "pino": "catalog:" },
+  "devDependencies": { "@types/node": "catalog:", "typescript": "catalog:", "vitest": "catalog:" }
+}

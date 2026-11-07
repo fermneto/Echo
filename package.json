@@ -1,0 +1,22 @@
+{
+  "name": "echo",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@12.16.1",
+  "engines": { "node": ">=24" },
+  "scripts": {
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "db:up": "docker compose up -d --wait db",
+    "db:down": "docker compose down",
+    "db:migrate": "pnpm --filter @echo/db migrate",
+    "db:generate": "pnpm --filter @echo/db generate"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "turbo": "catalog:",
+    "typescript": "catalog:"
+  }
+}
