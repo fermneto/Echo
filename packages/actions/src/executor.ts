@@ -2,7 +2,7 @@
 // Cada ação tem chave única (não roda duas vezes), é reservada por atualização condicional
 // (dois workers não executam a mesma) e só roda aprovada — exceto as listadas em REQUIRES_APPROVAL como false.
 import type { ChatPlatform, CodeWriter, IssueWriter } from "@echo/connectors";
-import { auditLog, identities, outboxActions, planItems, tasks, type Database } from "@echo/db";
+import { asSystem, auditLog, identities, outboxActions, planItems, tasks, withOrg, type Database, type Tx } from "@echo/db";
 import { and, asc, eq, inArray, lt, sql } from "drizzle-orm";
 import { REQUIRES_APPROVAL, type ActionType, type OutboxAction } from "./index.ts";
 
@@ -34,12 +34,12 @@ export interface ExecutorDeps {
 }
 
 type Row = typeof outboxActions.$inferSelect;
-type Tx = Parameters<Parameters<Database["transaction"]>[0]>[0];
 
 /** Coloca uma ação no outbox. A mesma chave não cria uma segunda ação. */
 export async function enqueueAction<T extends ActionType>(db: Database, orgId: string, action: OutboxAction<ActionPayloads[T]> & { type: T }): Promise<{ id: string; duplicate: boolean }> {
   // Sem aprovação, a ação que exige aprovação fica "pending" até approveAction.
-  const [row] = await db
+  return withOrg(db, orgId, async (tx) => {
+  const [row] = await tx
     .insert(outboxActions)
     .values({
       orgId,
@@ -53,16 +53,17 @@ export async function enqueueAction<T extends ActionType>(db: Database, orgId: s
     .onConflictDoNothing()
     .returning({ id: outboxActions.id });
   if (row) return { id: row.id, duplicate: false };
-  const [existing] = await db
+  const [existing] = await tx
     .select({ id: outboxActions.id })
     .from(outboxActions)
     .where(and(eq(outboxActions.orgId, orgId), eq(outboxActions.idempotencyKey, action.idempotencyKey)));
   return { id: existing!.id, duplicate: true };
+  });
 }
 
 /** Aprovação registrada: quem aprovou fica na ação e na auditoria. */
 export async function approveAction(db: Database, orgId: string, actionId: string, approverId: string): Promise<boolean> {
-  return db.transaction(async (tx) => {
+  return withOrg(db, orgId, async (tx) => {
     const [row] = await tx
       .update(outboxActions)
       .set({ state: "approved", approvedBy: approverId })
@@ -74,7 +75,7 @@ export async function approveAction(db: Database, orgId: string, actionId: strin
   });
 }
 
-async function linearIdentity(tx: Database | Tx, orgId: string, personId: string): Promise<string> {
+async function linearIdentity(tx: Tx, orgId: string, personId: string): Promise<string> {
   const [id] = await tx
     .select({ externalId: identities.externalId })
     .from(identities)
@@ -84,8 +85,8 @@ async function linearIdentity(tx: Database | Tx, orgId: string, personId: string
   return id.externalId;
 }
 
-async function taskLinearId(db: Database, orgId: string, taskKey: string): Promise<{ id: string; linearId: string }> {
-  const [t] = await db.select({ id: tasks.id, linearId: tasks.linearId }).from(tasks).where(and(eq(tasks.orgId, orgId), eq(tasks.key, taskKey)));
+async function taskLinearId(tx: Tx, orgId: string, taskKey: string): Promise<{ id: string; linearId: string }> {
+  const [t] = await tx.select({ id: tasks.id, linearId: tasks.linearId }).from(tasks).where(and(eq(tasks.orgId, orgId), eq(tasks.key, taskKey)));
   if (!t?.linearId) throw new PermanentActionError(`tarefa ${taskKey} sem id no Linear`);
   return { id: t.id, linearId: t.linearId };
 }
@@ -101,16 +102,18 @@ async function run(deps: ExecutorDeps, row: Row): Promise<void> {
   switch (row.type as ActionType) {
     case "linear.assign": {
       const p = row.payload as ActionPayloads["linear.assign"];
-      const task = await taskLinearId(db, orgId, p.taskKey);
-      const assignee = p.toPersonId ? await linearIdentity(db, orgId, p.toPersonId) : null;
+      const { task, assignee } = await withOrg(db, orgId, async (tx) => ({
+        task: await taskLinearId(tx, orgId, p.taskKey),
+        assignee: p.toPersonId ? await linearIdentity(tx, orgId, p.toPersonId) : null,
+      }));
       await need("issues", "Linear").assignIssue(task.linearId, assignee);
       // Espelho local já reflete a mudança; o aviso do Linear confirma depois.
-      await db.update(tasks).set({ assigneeId: p.toPersonId, updatedAt: new Date() }).where(eq(tasks.id, task.id));
+      await withOrg(db, orgId, (tx) => tx.update(tasks).set({ assigneeId: p.toPersonId, updatedAt: new Date() }).where(eq(tasks.id, task.id)));
       return;
     }
     case "linear.comment": {
       const p = row.payload as ActionPayloads["linear.comment"];
-      const task = await taskLinearId(db, orgId, p.taskKey);
+      const task = await withOrg(db, orgId, (tx) => taskLinearId(tx, orgId, p.taskKey));
       await need("issues", "Linear").comment(task.linearId, p.body);
       return;
     }
@@ -122,10 +125,12 @@ async function run(deps: ExecutorDeps, row: Row): Promise<void> {
     case "github.set_reviewers": {
       const p = row.payload as ActionPayloads["github.set_reviewers"];
       const rows = p.personIds.length
-        ? await db
-            .select({ login: identities.login, personId: identities.personId })
-            .from(identities)
-            .where(and(eq(identities.orgId, orgId), eq(identities.platform, "github"), inArray(identities.personId, p.personIds)))
+        ? await withOrg(db, orgId, (tx) =>
+            tx
+              .select({ login: identities.login, personId: identities.personId })
+              .from(identities)
+              .where(and(eq(identities.orgId, orgId), eq(identities.platform, "github"), inArray(identities.personId, p.personIds))),
+          )
         : [];
       const logins = rows.flatMap((r) => (r.login ? [r.login] : []));
       if (logins.length < p.personIds.length) throw new PermanentActionError("revisor sem conta no GitHub");
@@ -139,10 +144,12 @@ async function run(deps: ExecutorDeps, row: Row): Promise<void> {
     }
     case "slack.dm": {
       const p = row.payload as ActionPayloads["slack.dm"];
-      const [id] = await db
-        .select({ externalId: identities.externalId })
-        .from(identities)
-        .where(and(eq(identities.orgId, orgId), eq(identities.personId, p.personId), eq(identities.platform, "slack")));
+      const [id] = await withOrg(db, orgId, (tx) =>
+        tx
+          .select({ externalId: identities.externalId })
+          .from(identities)
+          .where(and(eq(identities.orgId, orgId), eq(identities.personId, p.personId), eq(identities.platform, "slack"))),
+      );
       if (!id) throw new PermanentActionError("pessoa sem conta no Slack");
       await need("chat", "Slack").sendDm(id.externalId, { text: p.text });
       return;
@@ -159,25 +166,29 @@ async function run(deps: ExecutorDeps, row: Row): Promise<void> {
 export async function drainActions(deps: ExecutorDeps, orgId: string): Promise<{ done: number; failed: number; retried: number }> {
   const { db } = deps;
   const out = { done: 0, failed: 0, retried: 0 };
-  const candidates = await db
-    .select()
-    .from(outboxActions)
-    .where(and(eq(outboxActions.orgId, orgId), eq(outboxActions.state, "approved"), lt(outboxActions.attempts, MAX_ATTEMPTS)))
-    .orderBy(asc(outboxActions.createdAt))
-    .limit(MAX_PER_RUN);
+  const candidates = await withOrg(db, orgId, (tx) =>
+    tx
+      .select()
+      .from(outboxActions)
+      .where(and(eq(outboxActions.orgId, orgId), eq(outboxActions.state, "approved"), lt(outboxActions.attempts, MAX_ATTEMPTS)))
+      .orderBy(asc(outboxActions.createdAt))
+      .limit(MAX_PER_RUN),
+  );
 
   for (const c of candidates) {
     // Reserva: só um worker consegue passar de approved para running.
-    const [row] = await db
-      .update(outboxActions)
-      .set({ state: "running", attempts: sql`${outboxActions.attempts} + 1`, startedAt: new Date() })
-      .where(and(eq(outboxActions.id, c.id), eq(outboxActions.state, "approved")))
-      .returning();
+    const [row] = await withOrg(db, orgId, (tx) =>
+      tx
+        .update(outboxActions)
+        .set({ state: "running", attempts: sql`${outboxActions.attempts} + 1`, startedAt: new Date() })
+        .where(and(eq(outboxActions.id, c.id), eq(outboxActions.state, "approved")))
+        .returning(),
+    );
     if (!row) continue;
     const planItemId = (row.payload as { planItemId?: string }).planItemId;
     try {
       await run(deps, row);
-      await db.transaction(async (tx) => {
+      await withOrg(db, orgId, async (tx) => {
         await tx.update(outboxActions).set({ state: "done", error: null }).where(eq(outboxActions.id, row.id));
         if (planItemId) await tx.update(planItems).set({ state: "done" }).where(and(eq(planItems.orgId, orgId), eq(planItems.id, planItemId)));
         await tx.insert(auditLog).values({ orgId, actor: "echo:actions", action: `execute:${row.type}`, target: row.target });
@@ -187,7 +198,7 @@ export async function drainActions(deps: ExecutorDeps, orgId: string): Promise<{
       const permanent = err instanceof PermanentActionError;
       const exhausted = permanent || row.attempts >= MAX_ATTEMPTS;
       const message = err instanceof Error ? err.message.slice(0, 500) : "erro";
-      await db.transaction(async (tx) => {
+      await withOrg(db, orgId, async (tx) => {
         await tx.update(outboxActions).set({ state: exhausted ? "failed" : "approved", error: message }).where(eq(outboxActions.id, row.id));
         if (exhausted && planItemId) await tx.update(planItems).set({ state: "failed" }).where(and(eq(planItems.orgId, orgId), eq(planItems.id, planItemId)));
       });
@@ -200,20 +211,23 @@ export async function drainActions(deps: ExecutorDeps, orgId: string): Promise<{
 
 /** Empresas com ações a executar: o worker passa por elas a cada rodada. */
 export async function orgsWithApprovedActions(db: Database): Promise<string[]> {
-  const rows = await db
-    .selectDistinct({ orgId: outboxActions.orgId })
-    .from(outboxActions)
-    .where(and(eq(outboxActions.state, "approved"), lt(outboxActions.attempts, MAX_ATTEMPTS)));
+  // Rotina de sistema: percorre todas as empresas.
+  const rows = await asSystem(db, (tx) =>
+    tx.selectDistinct({ orgId: outboxActions.orgId }).from(outboxActions).where(and(eq(outboxActions.state, "approved"), lt(outboxActions.attempts, MAX_ATTEMPTS))),
+  );
   return rows.map((r) => r.orgId);
 }
 
 /** Ações presas em "running" por um worker que caiu voltam para a fila depois de 10 minutos. */
 export async function releaseStuckActions(db: Database, olderThanMs = 10 * 60_000): Promise<number> {
-  const rows = await db
-    .update(outboxActions)
-    .set({ state: "approved" })
-    .where(and(eq(outboxActions.state, "running"), lt(outboxActions.startedAt, new Date(Date.now() - olderThanMs)), lt(outboxActions.attempts, MAX_ATTEMPTS)))
-    .returning({ id: outboxActions.id });
+  // Rotina de sistema: percorre todas as empresas.
+  const rows = await asSystem(db, (tx) =>
+    tx
+      .update(outboxActions)
+      .set({ state: "approved" })
+      .where(and(eq(outboxActions.state, "running"), lt(outboxActions.startedAt, new Date(Date.now() - olderThanMs)), lt(outboxActions.attempts, MAX_ATTEMPTS)))
+      .returning({ id: outboxActions.id }),
+  );
   return rows.length;
 }
 

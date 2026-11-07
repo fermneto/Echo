@@ -2,7 +2,7 @@
 // Cria (ou atualiza) a empresa, as pessoas, as identidades e as rotas das instalações, e importa
 // as tarefas abertas do Linear e os PRs abertos do GitHub pelos adaptadores de leitura.
 // Uso: pnpm integracoes:ligar        (variáveis em .env; ver docs/teste-integracoes.md)
-import { createDb, createPool, identities, installationRoutes, orgs, people } from "@echo/db";
+import { asSystem, createDb, createPool, identities, installationRoutes, orgs, people, withOrg } from "@echo/db";
 import { and, eq } from "drizzle-orm";
 import { GithubApp } from "./github-client.ts";
 import { ingest } from "./ingest.ts";
@@ -41,14 +41,17 @@ const pool = createPool(env.DATABASE_URL!, 2);
 const db = createDb(pool);
 const orgName = env.DEMO_ORG_NAME ?? "Empresa de teste (integrações)";
 
-let [org] = await db.select().from(orgs).where(eq(orgs.name, orgName));
-if (!org) [org] = await db.insert(orgs).values({ name: orgName, isDemo: true }).returning();
-const orgId = org!.id;
+// Achar ou criar a empresa é rotina de sistema (ainda não há empresa na transação).
+const org = await asSystem(db, async (tx) => {
+  const [found] = await tx.select().from(orgs).where(eq(orgs.name, orgName));
+  return found ?? (await tx.insert(orgs).values({ name: orgName, isDemo: true }).returning())[0]!;
+});
+const orgId = org.id;
 console.log(`Empresa: ${orgName} · ${orgId}`);
 
 // Pessoas e identidades (só as contas informadas; nada é adivinhado).
 const wh = { days: [1, 2, 3, 4, 5], start: "09:00", end: "18:00" };
-for (const p of pessoas) {
+for (const p of pessoas) await withOrg(db, orgId, async (db) => {
   let [row] = await db.select().from(people).where(and(eq(people.orgId, orgId), eq(people.name, p.nome)));
   if (!row) [row] = await db.insert(people).values({ orgId, name: p.nome, timezone: p.fuso ?? "America/Sao_Paulo", role: p.papel ?? "member", workHours: wh }).returning();
   const accounts = [
@@ -64,7 +67,7 @@ for (const p of pessoas) {
       .onConflictDoUpdate({ target: [identities.orgId, identities.platform, identities.externalId], set: { personId: row!.id, login: a.login } });
   }
   console.log(`  ${p.nome}: ${accounts.map((a) => a.platform).join(", ") || "sem contas"}`);
-}
+});
 
 // Rotas das instalações: é por elas que um aviso encontra a empresa.
 const routes = [

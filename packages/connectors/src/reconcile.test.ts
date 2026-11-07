@@ -1,5 +1,6 @@
 import { createDb, createPool, identities, orgs, people, pullRequests, tasks, workEvents } from "@echo/db";
 import { and, eq } from "drizzle-orm";
+import { appRoleUrl } from "@echo/db/testing";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { GhCommit } from "./github.ts";
 import { normalizeLinear } from "./linear.ts";
@@ -48,10 +49,16 @@ function fakeGithub(state: { open: ExternalPullRequest[]; live: Record<number, L
 describe.skipIf(!url)("reconciliação (Postgres real)", () => {
   const pool = createPool(url!, 2);
   const db = createDb(pool);
+  // Código sob teste roda com um papel comum (sem BYPASSRLS) e sem o escopo de sistema:
+  // fora de withOrg, as tabelas de negócio não devolvem nada.
+  let appPool: ReturnType<typeof createPool>;
+  let app: ReturnType<typeof createDb>;
   let orgId = "";
   let fer = "";
 
   beforeAll(async () => {
+    appPool = createPool(await appRoleUrl(pool, url!), 2, { defaultScope: "none" });
+    app = createDb(appPool);
     const [org] = await db.insert(orgs).values({ name: `Teste reconciliação ${Math.random().toString(36).slice(2, 7)}` }).returning();
     orgId = org!.id;
     const [p] = await db.insert(people).values({ orgId, name: "Fernando", timezone: "America/Fortaleza", workHours: { days: [1, 2, 3, 4, 5], start: "09:00", end: "18:00" } }).returning();
@@ -63,14 +70,14 @@ describe.skipIf(!url)("reconciliação (Postgres real)", () => {
   });
   afterAll(async () => {
     await db.delete(orgs).where(eq(orgs.id, orgId));
-    await pool.end();
+    await Promise.all([pool.end(), appPool.end()]);
   });
 
   const commits: GhCommit[] = [{ id: "rc1", message: "ECH-41: ajuste", timestamp: "2026-11-06T12:00:00Z", author: { username: "Fernando-Dev" } }];
 
   it("importa commits e PRs abertos, com arquivos, ignorando o repositório do espelho", async () => {
     const { gh, calls } = fakeGithub({ open: [pr(41), pr(42)], live: { 41: pr(41), 42: pr(42) }, commits });
-    const r = await reconcileGithub(db, orgId, gh, NOW, { brainsRepository: "org-teste/brains" });
+    const r = await reconcileGithub(app, orgId, gh, NOW, { brainsRepository: "org-teste/brains" });
     expect(r).toMatchObject({ repositories: 1, commits: 1, openPrs: 2, detailed: 2, closedSinceLastRun: 0, errors: [] });
     expect(calls.live.sort()).toEqual([41, 42]);
     const [row] = await db.select().from(pullRequests).where(and(eq(pullRequests.orgId, orgId), eq(pullRequests.number, 41)));
@@ -81,7 +88,7 @@ describe.skipIf(!url)("reconciliação (Postgres real)", () => {
 
   it("rodar de novo sem mudanças não duplica nem consulta detalhes outra vez", async () => {
     const { gh, calls } = fakeGithub({ open: [pr(41), pr(42)], live: {}, commits });
-    const r = await reconcileGithub(db, orgId, gh, NOW);
+    const r = await reconcileGithub(app, orgId, gh, NOW);
     expect(r.detailed).toBe(0);
     expect(calls.live).toEqual([]);
     const all = await db.select().from(workEvents).where(and(eq(workEvents.orgId, orgId), eq(workEvents.sourceRef, "commit:rc1")));
@@ -91,16 +98,16 @@ describe.skipIf(!url)("reconciliação (Postgres real)", () => {
   it("PR que saiu da lista de abertos sem aviso é consultado e fechado; unido vira pr_merged", async () => {
     const merged = pr(42, { state: "merged", mergedAt: new Date("2026-11-07T09:00:00Z"), updatedAt: new Date("2026-11-07T09:00:00Z") });
     const { gh } = fakeGithub({ open: [pr(41)], live: { 42: merged }, commits: [] });
-    const r = await reconcileGithub(db, orgId, gh, NOW);
+    const r = await reconcileGithub(app, orgId, gh, NOW);
     expect(r.closedSinceLastRun).toBe(1);
-    expect(await openPullRequestNumbers(db, orgId, REPO)).toEqual([41]);
+    expect(await openPullRequestNumbers(app, orgId, REPO)).toEqual([41]);
     const [m] = await db.select().from(workEvents).where(and(eq(workEvents.orgId, orgId), eq(workEvents.type, "pr_merged")));
     expect(m).toMatchObject({ prNumber: 42, personId: fer, taskKey: "ECH-42" });
   });
 
   it("falha num repositório não impede os outros e volta no resultado", async () => {
     const { gh } = fakeGithub({ open: [pr(41)], live: {}, commits: [], failRepo: "org-teste/quebrado" });
-    const r = await reconcileGithub(db, orgId, gh, NOW, { brainsRepository: "org-teste/brains" });
+    const r = await reconcileGithub(app, orgId, gh, NOW, { brainsRepository: "org-teste/brains" });
     expect(r.errors).toEqual(["org-teste/quebrado: GitHub 500"]);
     expect(r.repositories).toBe(2);
   });
@@ -119,14 +126,14 @@ describe.skipIf(!url)("reconciliação (Postgres real)", () => {
   it("Linear: abertas e encerradas em 7 dias; conclusão não duplica com a que veio por aviso", async () => {
     // A conclusão de ECH-200 já chegou por aviso.
     const done = normalizeLinear({ ...linearIssue({ id: "lin-ECH-200", identifier: "ECH-200", state: { type: "completed", name: "Done" }, completedAt: "2026-11-07T07:00:00Z", updatedAt: "2026-11-07T07:00:00Z" }), updatedFrom: { stateId: "x" } });
-    await ingest(db, orgId, done);
+    await ingest(app, orgId, done);
     const linear: LinearReconciler = {
       listOpenTasks: async () => ({ tasks: [task("ECH-201"), task("ECH-202", { assignee: undefined })], truncated: false }),
       listClosedTasksSince: async () => ({ tasks: [task("ECH-200", { state: "done", completedAt: new Date("2026-11-07T07:00:00Z") })], truncated: false }),
       getTask: async () => null,
     };
-    expect(await reconcileLinear(db, orgId, linear, NOW)).toEqual({ open: 2, closed: 1, truncated: false });
-    expect(await reconcileLinear(db, orgId, linear, NOW)).toEqual({ open: 2, closed: 1, truncated: false });
+    expect(await reconcileLinear(app, orgId, linear, NOW)).toEqual({ open: 2, closed: 1, truncated: false });
+    expect(await reconcileLinear(app, orgId, linear, NOW)).toEqual({ open: 2, closed: 1, truncated: false });
     const rows = await db.select().from(tasks).where(eq(tasks.orgId, orgId));
     expect(Object.fromEntries(rows.map((t) => [t.key, t.assigneeId]))).toMatchObject({ "ECH-201": fer, "ECH-202": null });
     const doneEvents = await db.select().from(workEvents).where(and(eq(workEvents.orgId, orgId), eq(workEvents.type, "task_done")));

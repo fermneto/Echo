@@ -1,7 +1,7 @@
 // Teste real do executor: coloca ações no outbox, registra a aprovação e executa nas plataformas reais.
 // Uso: pnpm acao:testar --tarefa ECH-1 --para "Carla" --aprovador "Marina" [--canal C0123] [--pr org/repo#12]
 import { parseArgs } from "node:util";
-import { createDb, createPool, orgs, outboxActions, people, tasks } from "@echo/db";
+import { asSystem, createDb, createPool, orgs, outboxActions, people, tasks, withOrg } from "@echo/db";
 import { and, eq, inArray } from "drizzle-orm";
 import { approveAction, drainActions, enqueueAction } from "./executor.ts";
 import { writersFromEnv } from "./writers.ts";
@@ -27,11 +27,11 @@ if (!a.tarefa && !a.canal && !a.pr) fail('Diga o que testar: --tarefa ECH-1 --pa
 
 const pool = createPool(env.DATABASE_URL!, 2);
 const db = createDb(pool);
-const [org] = await db.select().from(orgs).where(eq(orgs.name, env.DEMO_ORG_NAME ?? "Empresa de teste (integrações)"));
+const [org] = await asSystem(db, (tx) => tx.select().from(orgs).where(eq(orgs.name, env.DEMO_ORG_NAME ?? "Empresa de teste (integrações)")));
 if (!org) fail("Empresa de teste não encontrada: rode antes pnpm integracoes:ligar.");
 const orgId = org!.id;
 const person = async (name: string) => {
-  const [p] = await db.select().from(people).where(and(eq(people.orgId, orgId), eq(people.name, name)));
+  const [p] = await withOrg(db, orgId, (tx) => tx.select().from(people).where(and(eq(people.orgId, orgId), eq(people.name, name))));
   return p ?? fail(`Pessoa "${name}" não está na empresa de teste (DEMO_IDENTITIES).`);
 };
 const stamp = new Date().toISOString();
@@ -39,7 +39,7 @@ const created: string[] = [];
 
 if (a.tarefa) {
   if (!a.para || !a.aprovador) fail("--tarefa precisa de --para e --aprovador (a mudança de responsável exige aprovação).");
-  const [task] = await db.select().from(tasks).where(and(eq(tasks.orgId, orgId), eq(tasks.key, a.tarefa!)));
+  const [task] = await withOrg(db, orgId, (tx) => tx.select().from(tasks).where(and(eq(tasks.orgId, orgId), eq(tasks.key, a.tarefa!))));
   if (!task) fail(`Tarefa ${a.tarefa} não importada. Rode pnpm integracoes:ligar com o Linear configurado.`);
   const to = await person(a.para!);
   const approver = await person(a.aprovador!);
@@ -70,7 +70,7 @@ if (a.pr) {
 
 const result = await drainActions({ db, writers: writersFromEnv(db, env) }, orgId);
 console.log(`4. Executadas: ${result.done} · falharam: ${result.failed} · para tentar de novo: ${result.retried}`);
-const rows = await db.select().from(outboxActions).where(inArray(outboxActions.id, created));
+const rows = await withOrg(db, orgId, (tx) => tx.select().from(outboxActions).where(inArray(outboxActions.id, created)));
 for (const r of rows) console.log(`   ${r.state.padEnd(8)} ${r.type.padEnd(16)} ${r.target}${r.error ? ` · ${r.error}` : ""}`);
 await pool.end();
 process.exit(result.failed ? 1 : 0);

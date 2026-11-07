@@ -1,5 +1,5 @@
 // Entrada idempotente (F1): gravar, enfileirar e responder rápido. Processar fica para o worker.
-import { inboxEvents, installationRoutes, type Database } from "@echo/db";
+import { asSystem, inboxEvents, installationRoutes, withOrg, type Database } from "@echo/db";
 import { QUEUES, type JobQueue } from "@echo/jobs";
 import { and, eq, inArray } from "drizzle-orm";
 import { normalizeGithub } from "./github.ts";
@@ -23,6 +23,8 @@ export interface Delivery {
 
 export interface InboxJob {
   inboxId: string;
+  /** Empresa do aviso. Jobs antigos sem ela são resolvidos por uma consulta de sistema. */
+  orgId?: string;
 }
 
 /** Acha a empresa pela instalação (GitHub), pelo espaço (Slack) ou pela organização (Linear). */
@@ -42,23 +44,23 @@ export async function receive(db: Database, queue: Pick<JobQueue, "send">, d: De
   const orgId = d.orgId ?? (d.routeKey ? await routeOrg(db, d.source, d.routeKey) : null);
   if (!orgId) return "unrouted";
   const payload = { eventName: d.eventName ?? null, body: d.payload };
-  const [inserted] = await db
-    .insert(inboxEvents)
-    .values({ orgId, source: d.source, deliveryId: d.deliveryId, payload })
-    .onConflictDoNothing()
-    .returning({ id: inboxEvents.id });
-  let inboxId = inserted?.id;
-  if (!inboxId) {
-    const [existing] = await db
+  const found = await withOrg(db, orgId, async (tx) => {
+    const [inserted] = await tx
+      .insert(inboxEvents)
+      .values({ orgId, source: d.source, deliveryId: d.deliveryId, payload })
+      .onConflictDoNothing()
+      .returning({ id: inboxEvents.id });
+    if (inserted) return { inboxId: inserted.id, fresh: true };
+    const [existing] = await tx
       .select({ id: inboxEvents.id })
       .from(inboxEvents)
       .where(and(eq(inboxEvents.source, d.source), eq(inboxEvents.deliveryId, d.deliveryId), inArray(inboxEvents.state, ["received", "failed"])));
-    if (!existing) return "duplicate";
-    inboxId = existing.id;
-  }
+    return existing ? { inboxId: existing.id, fresh: false } : null;
+  });
+  if (!found) return "duplicate";
   // singletonKey: duas entregas do mesmo aviso ao mesmo tempo viram um job só.
-  await queue.send<InboxJob>(QUEUES.inboxProcess, { inboxId }, { singletonKey: inboxId });
-  return inserted ? "queued" : "duplicate";
+  await queue.send<InboxJob>(QUEUES.inboxProcess, { inboxId: found.inboxId, orgId }, { singletonKey: found.inboxId });
+  return found.fresh ? "queued" : "duplicate";
 }
 
 /** O Slack informa, em cada evento, o user_id do bot que o recebeu. */
@@ -73,8 +75,15 @@ export interface ProcessOptions {
 }
 
 /** Processa um aviso gravado. Erro marca "failed" e relança, para a fila tentar de novo. */
-export async function processInbox(db: Database, inboxId: string, opts: ProcessOptions = {}): Promise<IngestResult | null> {
-  const [row] = await db.select().from(inboxEvents).where(and(eq(inboxEvents.id, inboxId), inArray(inboxEvents.state, ["received", "failed"])));
+export async function processInbox(db: Database, job: InboxJob | string, opts: ProcessOptions = {}): Promise<IngestResult | null> {
+  const { inboxId, orgId: given } = typeof job === "string" ? { inboxId: job, orgId: undefined } : job;
+  const orgId =
+    given ??
+    (await asSystem(db, async (tx) => (await tx.select({ orgId: inboxEvents.orgId }).from(inboxEvents).where(eq(inboxEvents.id, inboxId)))[0]?.orgId ?? null));
+  if (!orgId) return null;
+  const [row] = await withOrg(db, orgId, (tx) =>
+    tx.select().from(inboxEvents).where(and(eq(inboxEvents.id, inboxId), inArray(inboxEvents.state, ["received", "failed"]))),
+  );
   if (!row?.orgId) return null;
   const { eventName, body } = row.payload as { eventName: string | null; body: any };
   try {
@@ -91,16 +100,20 @@ export async function processInbox(db: Database, inboxId: string, opts: ProcessO
     const onlyIgnored = result.applied === 0 && result.messages.length === 0;
     // Texto do Slack não fica guardado depois de processado: a mensagem segue na fila do F2.
     const kept = row.source === "slack" && body?.event ? { eventName, body: { ...body, event: { ...body.event, text: null } } } : row.payload;
-    await db
-      .update(inboxEvents)
-      .set({ state: onlyIgnored ? "ignored" : "processed", processedAt: new Date(), attempts: row.attempts + 1, error: null, payload: kept })
-      .where(eq(inboxEvents.id, inboxId));
+    await withOrg(db, orgId, (tx) =>
+      tx
+        .update(inboxEvents)
+        .set({ state: onlyIgnored ? "ignored" : "processed", processedAt: new Date(), attempts: row.attempts + 1, error: null, payload: kept })
+        .where(eq(inboxEvents.id, inboxId)),
+    );
     return result;
   } catch (err) {
-    await db
-      .update(inboxEvents)
-      .set({ state: "failed", attempts: row.attempts + 1, error: err instanceof Error ? err.message.slice(0, 500) : "erro" })
-      .where(eq(inboxEvents.id, inboxId));
+    await withOrg(db, orgId, (tx) =>
+      tx
+        .update(inboxEvents)
+        .set({ state: "failed", attempts: row.attempts + 1, error: err instanceof Error ? err.message.slice(0, 500) : "erro" })
+        .where(eq(inboxEvents.id, inboxId)),
+    );
     throw err;
   }
 }

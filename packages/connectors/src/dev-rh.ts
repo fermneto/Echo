@@ -4,7 +4,7 @@
 // O envio assina com x-echo-timestamp e x-echo-signature, como um sistema de RH faria.
 import { randomUUID } from "node:crypto";
 import { parseArgs } from "node:util";
-import { createDb, createPool, orgs } from "@echo/db";
+import { asSystem, createDb, createPool, orgs } from "@echo/db";
 import { eq } from "drizzle-orm";
 import { TokenCipher } from "./crypto.ts";
 import { hrSecret, rotateHrSecret } from "./hr.ts";
@@ -24,7 +24,7 @@ if (!env.ENCRYPTION_KEY) fail("ENCRYPTION_KEY ausente no .env (openssl rand -hex
 const cipher = new TokenCipher(env.ENCRYPTION_KEY!);
 const pool = createPool(env.DATABASE_URL!, 2);
 const db = createDb(pool);
-const [org] = await db.select().from(orgs).where(eq(orgs.name, env.DEMO_ORG_NAME ?? "Empresa de teste (integrações)"));
+const [org] = await asSystem(db, (tx) => tx.select().from(orgs).where(eq(orgs.name, env.DEMO_ORG_NAME ?? "Empresa de teste (integrações)")));
 if (!org) fail("Empresa de teste não encontrada: rode antes pnpm integracoes:ligar.");
 const api = (a.api ?? env.API_PUBLIC_URL ?? `http://localhost:${env.API_PORT ?? 3001}`).replace(/\/$/, "");
 const url = `${api}/webhooks/rh/o/${org!.id}`;

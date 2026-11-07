@@ -1,6 +1,7 @@
 import { createDb, createPool, contributions, identities, inboxEvents, installationRoutes, orgs, people, pullRequests, tasks, workEvents } from "@echo/db";
 import { InMemoryQueue, QUEUES } from "@echo/jobs";
 import { and, eq } from "drizzle-orm";
+import { appRoleUrl } from "@echo/db/testing";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { ghPr, ghPush, ghReview, linearIssue, slackEnvelope } from "./fixtures.ts";
 import { processInbox, receive, type InboxJob } from "./inbox.ts";
@@ -10,11 +11,17 @@ const url = process.env.DATABASE_URL;
 describe.skipIf(!url)("ingest e caixa de entrada (Postgres real)", () => {
   const pool = createPool(url!, 2);
   const db = createDb(pool);
+  // Código sob teste roda com um papel comum (sem BYPASSRLS) e sem o escopo de sistema:
+  // fora de withOrg, as tabelas de negócio não devolvem nada.
+  let appPool: ReturnType<typeof createPool>;
+  let app: ReturnType<typeof createDb>;
   let orgId = "";
   const ids: Record<string, string> = {};
   const suffix = Math.random().toString(36).slice(2, 8);
 
   beforeAll(async () => {
+    appPool = createPool(await appRoleUrl(pool, url!), 2, { defaultScope: "none" });
+    app = createDb(appPool);
     const [org] = await db.insert(orgs).values({ name: `Teste ingest ${suffix}` }).returning();
     orgId = org!.id;
     const wh = { days: [1, 2, 3, 4, 5], start: "09:00", end: "18:00" };
@@ -36,10 +43,15 @@ describe.skipIf(!url)("ingest e caixa de entrada (Postgres real)", () => {
     await db.delete(installationRoutes).where(eq(installationRoutes.orgId, orgId));
     await db.delete(inboxEvents).where(eq(inboxEvents.orgId, orgId));
     await db.delete(orgs).where(eq(orgs.id, orgId));
-    await pool.end();
+    await Promise.all([pool.end(), appPool.end()]);
   });
 
-  const deliver = async (queue: InMemoryQueue, d: Parameters<typeof receive>[2]) => receive(db, queue, d);
+  it("fora de withOrg, a conexão do código não enxerga nenhuma empresa", async () => {
+    expect(await app.select().from(orgs)).toEqual([]);
+    expect(await app.select().from(people)).toEqual([]);
+  });
+
+  const deliver = async (queue: InMemoryQueue, d: Parameters<typeof receive>[2]) => receive(app, queue, d);
 
   it("acha a empresa pela instalação, grava uma vez e o reenvio não duplica", async () => {
     const queue = new InMemoryQueue();
@@ -51,7 +63,7 @@ describe.skipIf(!url)("ingest e caixa de entrada (Postgres real)", () => {
     expect(await deliver(queue, d)).toBe("duplicate");
     // Reenvio antes de processar volta para a fila, mas o singletonKey junta os dois num job só.
     expect(jobs).toHaveLength(1);
-    await processInbox(db, jobs[0]!);
+    await processInbox(app, jobs[0]!);
     const fresh = new InMemoryQueue();
     const after: string[] = [];
     await fresh.work<InboxJob>(QUEUES.inboxProcess, async (j) => void after.push(j.data.inboxId));
@@ -80,7 +92,7 @@ describe.skipIf(!url)("ingest e caixa de entrada (Postgres real)", () => {
     let inboxId = "";
     await queue.work<InboxJob>(QUEUES.inboxProcess, async (j) => void (inboxId = j.data.inboxId));
     await deliver(queue, { source, deliveryId: `${source}-${suffix}-${n}`, orgId, eventName, payload });
-    return processInbox(db, inboxId, { slackBotUserId: "UBOT" });
+    return processInbox(app, inboxId, { slackBotUserId: "UBOT" });
   };
 
   it("PR fora de ordem não sobrescreve dado mais novo", async () => {

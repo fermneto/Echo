@@ -1,11 +1,10 @@
 // F1: grava os eventos normalizados em work_events, tasks, pull_requests e contributions.
 // Quem é quem sai da tabela identities. Sem correspondência, o fato fica sem pessoa: nunca adivinhar.
-import { contributions, identities, pullRequests, tasks, workEvents, type Database } from "@echo/db";
+import { contributions, identities, pullRequests, tasks, withOrg, workEvents, type Database, type Tx } from "@echo/db";
 import { and, eq, inArray, or, sql } from "drizzle-orm";
 import { HELP_REACTIONS } from "./slack.ts";
 import type { ExternalActor, ExternalPullRequest, ExternalTask, ExternalWorkEvent, NormalizedEvent, Platform } from "./normalized.ts";
 
-type Tx = Parameters<Parameters<Database["transaction"]>[0]>[0];
 
 /** Resolve atores externos em pessoas da empresa. GitHub compara o login sem diferenciar maiúsculas. */
 async function resolvePeople(tx: Tx, orgId: string, actors: (ExternalActor | undefined)[]): Promise<(a?: ExternalActor) => string | null> {
@@ -188,7 +187,8 @@ export interface IngestResult {
 /** Aplica os eventos de um aviso numa transação. Em erro, nada é gravado e a fila tenta de novo. */
 export async function ingest(db: Database, orgId: string, events: NormalizedEvent[]): Promise<IngestResult> {
   const result: IngestResult = { orgId, applied: 0, ignored: [], messages: [] };
-  await db.transaction(async (tx) => {
+  // Tudo numa transação da empresa: o RLS garante que nada escapa para outra.
+  await withOrg(db, orgId, async (tx) => {
     for (const ev of events) {
       switch (ev.kind) {
         case "work_event": {

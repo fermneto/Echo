@@ -1,7 +1,7 @@
 import { serve } from "@hono/node-server";
 import { listenPort, loadConfig } from "@echo/config";
 import { applyHrEvent, hrSecret, receive, routeOrg, TokenCipher } from "@echo/connectors";
-import { createDb, createPool, identities, ping } from "@echo/db";
+import { createDb, createPool, identities, ping, withOrg } from "@echo/db";
 import { PgBossQueue, QUEUES } from "@echo/jobs";
 import { createLogger, initTracing } from "@echo/observability";
 import { and, eq } from "drizzle-orm";
@@ -26,10 +26,9 @@ const app = createApp({
     receive: (d) => receive(db, queue, d),
     routeOrg: (kind, externalId) => routeOrg(db, kind, externalId),
     slackContext: async (orgId) => {
-      const rows = await db
-        .select({ id: identities.externalId })
-        .from(identities)
-        .where(and(eq(identities.orgId, orgId), eq(identities.platform, "slack")));
+      const rows = await withOrg(db, orgId, (tx) =>
+        tx.select({ id: identities.externalId }).from(identities).where(and(eq(identities.orgId, orgId), eq(identities.platform, "slack"))),
+      );
       return { registeredUserIds: new Set(rows.map((r) => r.id)) };
     },
     orgSecrets: { hr: async (orgId) => (cipher ? hrSecret(db, cipher, orgId) : null) },

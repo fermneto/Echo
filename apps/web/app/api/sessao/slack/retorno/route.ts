@@ -1,5 +1,5 @@
 import { exchangeSlackCode, resolvePanelPerson, SlackLoginError } from "@echo/connectors";
-import { auditLog } from "@echo/db";
+import { auditLog, withOrg } from "@echo/db";
 import { cookies } from "next/headers";
 import { redirect } from "next/navigation";
 import type { NextRequest } from "next/server";
@@ -29,7 +29,7 @@ export async function GET(req: NextRequest): Promise<Response> {
     if (login.ok) {
       const { orgId, personId, role } = login.person;
       jar.set(SESSION_COOKIE, signSession(cfg.sessionSecret, { orgId, personId, role }), cookieOptions(SESSION_TTL_S));
-      await db.insert(auditLog).values({ orgId, actor: `person:${personId}`, action: "login:slack", target: `person:${personId}` });
+      await withOrg(db, orgId, (tx) => tx.insert(auditLog).values({ orgId, actor: `person:${personId}`, action: "login:slack", target: `person:${personId}` }));
     } else {
       reason = login.reason;
     }

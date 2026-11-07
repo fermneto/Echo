@@ -1,7 +1,7 @@
 // Reconciliação (F1): cobre o que os avisos perderam. O GitHub não reenvia sozinho e qualquer
 // plataforma pode falhar; aqui o Echo pergunta o estado atual e grava pelo mesmo ingest dos avisos.
 // Idempotente: rodar duas vezes não duplica nada (mesmas chaves únicas dos avisos).
-import { pullRequests, type Database } from "@echo/db";
+import { pullRequests, withOrg, type Database } from "@echo/db";
 import { and, eq, inArray } from "drizzle-orm";
 import { commitEvent, type GhCommit } from "./github.ts";
 import type { CodeHost, IssueTracker } from "./index.ts";
@@ -75,10 +75,12 @@ export async function reconcileGithub(
       res.openPrs += open.length;
 
       // O que já sabemos deste repositório, para decidir onde vale gastar consulta ao vivo.
-      const known = await db
-        .select({ number: pullRequests.number, state: pullRequests.state, files: pullRequests.files, externalUpdatedAt: pullRequests.externalUpdatedAt })
-        .from(pullRequests)
-        .where(and(eq(pullRequests.orgId, orgId), eq(pullRequests.repository, repo)));
+      const known = await withOrg(db, orgId, (tx) =>
+        tx
+          .select({ number: pullRequests.number, state: pullRequests.state, files: pullRequests.files, externalUpdatedAt: pullRequests.externalUpdatedAt })
+          .from(pullRequests)
+          .where(and(eq(pullRequests.orgId, orgId), eq(pullRequests.repository, repo))),
+      );
       const byNumber = new Map(known.map((k) => [k.number, k]));
       const openNumbers = new Set(open.map((p) => p.number));
 
@@ -126,9 +128,11 @@ export async function reconcileGithub(
 
 /** PRs abertos de uma empresa por repositório (para o painel e testes). */
 export async function openPullRequestNumbers(db: Database, orgId: string, repo: string): Promise<number[]> {
-  const rows = await db
-    .select({ number: pullRequests.number })
-    .from(pullRequests)
-    .where(and(eq(pullRequests.orgId, orgId), eq(pullRequests.repository, repo), inArray(pullRequests.state, ["open", "draft"])));
+  const rows = await withOrg(db, orgId, (tx) =>
+    tx
+      .select({ number: pullRequests.number })
+      .from(pullRequests)
+      .where(and(eq(pullRequests.orgId, orgId), eq(pullRequests.repository, repo), inArray(pullRequests.state, ["open", "draft"]))),
+  );
   return rows.map((r) => r.number).sort((a, b) => a - b);
 }

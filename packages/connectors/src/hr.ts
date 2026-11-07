@@ -1,7 +1,7 @@
 // Aviso de RH genérico (porta HrSource): POST assinado em /webhooks/rh/o/<empresa>.
 // O motivo da ausência é descartado na entrada; matrícula desconhecida vira só uma contagem.
 import { randomBytes } from "node:crypto";
-import { absences, auditLog, identities, installations, type Database } from "@echo/db";
+import { absences, auditLog, identities, installations, withOrg, type Database } from "@echo/db";
 import { and, eq, isNull } from "drizzle-orm";
 import type { TokenCipher } from "./crypto.ts";
 
@@ -40,7 +40,11 @@ export type HrResult =
   | { status: "unknown_employee" };
 
 /** Grava a ausência (ou o cancelamento). O mesmo id não duplica. */
-export async function applyHrEvent(db: Database, orgId: string, ev: HrEvent): Promise<HrResult> {
+export function applyHrEvent(db: Database, orgId: string, ev: HrEvent): Promise<HrResult> {
+  return withOrg(db, orgId, (tx) => applyHrEventTx(tx as unknown as Database, orgId, ev));
+}
+
+async function applyHrEventTx(db: Database, orgId: string, ev: HrEvent): Promise<HrResult> {
   if ("action" in ev) {
     const rows = await db
       .update(absences)
@@ -70,10 +74,12 @@ export async function applyHrEvent(db: Database, orgId: string, ev: HrEvent): Pr
 
 /** Segredo do aviso de RH da empresa, guardado cifrado em installations (kind "rh"). */
 export async function hrSecret(db: Database, cipher: TokenCipher, orgId: string): Promise<string | null> {
-  const [row] = await db
-    .select({ sealed: installations.tokensEncrypted })
-    .from(installations)
-    .where(and(eq(installations.orgId, orgId), eq(installations.kind, "rh")));
+  const [row] = await withOrg(db, orgId, (tx) =>
+    tx
+      .select({ sealed: installations.tokensEncrypted })
+      .from(installations)
+      .where(and(eq(installations.orgId, orgId), eq(installations.kind, "rh"))),
+  );
   return row?.sealed ? cipher.decrypt(row.sealed) : null;
 }
 
@@ -81,9 +87,11 @@ export async function hrSecret(db: Database, cipher: TokenCipher, orgId: string)
 export async function rotateHrSecret(db: Database, cipher: TokenCipher, orgId: string): Promise<string> {
   const secret = randomBytes(32).toString("hex");
   const sealed = cipher.encrypt(secret);
-  await db
-    .insert(installations)
-    .values({ orgId, kind: "rh", externalId: `rh:${orgId}`, tokensEncrypted: sealed })
-    .onConflictDoUpdate({ target: [installations.kind, installations.externalId], set: { tokensEncrypted: sealed } });
+  await withOrg(db, orgId, (tx) =>
+    tx
+      .insert(installations)
+      .values({ orgId, kind: "rh", externalId: `rh:${orgId}`, tokensEncrypted: sealed })
+      .onConflictDoUpdate({ target: [installations.kind, installations.externalId], set: { tokensEncrypted: sealed } }),
+  );
   return secret;
 }
