@@ -79,7 +79,7 @@ export function notesWith(edits: NoteEdits): Note[] {
   });
 }
 
-export const latest = (note: Note): NoteVersion => note.versions.at(-1)!;
+export const latest = (note: Pick<Note, "versions">): NoteVersion => note.versions.at(-1)!;
 
 export function findNote(notes: readonly Note[], id: string): Note | undefined {
   return notes.find((n) => n.id === id);

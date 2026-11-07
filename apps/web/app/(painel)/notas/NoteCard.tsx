@@ -5,7 +5,7 @@ import { latest, MAX_NOTE, type Note } from "@/lib/demo/notes";
 import { editarNota, type EditState } from "./actions";
 
 /** Uma nota: texto atual, histórico de versões e correção no lugar (só para quem é dona da nota). */
-export function NoteCard({ note, path, canEdit }: { note: Note; path: string; canEdit: boolean }) {
+export function NoteCard({ note, path, canEdit, maxLength = MAX_NOTE }: { note: Pick<Note, "id" | "title" | "tags" | "versions">; path: string; canEdit: boolean; maxLength?: number }) {
   const v = latest(note);
   const [editing, setEditing] = useState(false);
   const [history, setHistory] = useState(false);
@@ -28,7 +28,7 @@ export function NoteCard({ note, path, canEdit }: { note: Note; path: string; ca
           <label className="sr-only" htmlFor={`texto-${note.id}`}>
             Texto da nota
           </label>
-          <textarea id={`texto-${note.id}`} name="texto" className="field note__textarea" defaultValue={v.body} maxLength={MAX_NOTE} autoFocus />
+          <textarea id={`texto-${note.id}`} name="texto" className="field note__textarea" defaultValue={v.body} maxLength={maxLength} autoFocus />
           {state.error && (
             <p className="note__error" role="alert">
               {state.error}
