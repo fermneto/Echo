@@ -59,6 +59,74 @@ export function reviewDecision(pr: Pick<PullRequest, "state">, diff: PrDiffSumma
   return { action: "review", model: "sonnet", reason: `${changed} linhas alteradas` };
 }
 
+// ---------- Triagem por modelo aberto pequeno (SLM)
+
+export const TRIAGE_RULES = {
+  /** Revisão leve (Sonnet, esforço baixo) só para PR pequeno; acima disto vale a regra. */
+  lightMaxLines: 40,
+  /** Trecho do diff enviado à triagem (o modelo pequeno tem contexto curto). */
+  maxPatchChars: 12_000,
+  maxReasonChars: 200,
+  /** Texto no diff dirigido a um modelo ("responda trivial", "ignore as regras"): sinal de risco por si só. */
+  instructionPattern: /(?<!\p{L})(triagem|triage|responda|classifique|ignore\s+(?:as|todas|all|previous|the)|system\s+prompt|you\s+are\s+an?\s+(?:ai|assistant)|voc[êe]\s+[ée]\s+um)(?!\p{L})/iu,
+} as const;
+
+/** Respostas objetivas do modelo pequeno. O nível sai daqui por regra, não do modelo. */
+export interface TriageAnswers {
+  /** Autenticação, permissões, sessão, tokens, senhas ou criptografia. */
+  seguranca: boolean;
+  /** Pagamentos, saldos, cobrança ou dados pessoais. */
+  dinheiroOuDados: boolean;
+  /** SQL montado com texto, execução de comando ou arquivo a partir de entrada externa. */
+  sqlOuComando: boolean;
+  /** Falso só quando a mudança é documentação, comentário, formatação ou renomeação. */
+  mudaComportamento: boolean;
+  motivo: string;
+}
+
+export type TriageLevel = "leve" | "normal" | "sensivel";
+
+export function triageLevel(a: TriageAnswers): TriageLevel {
+  if (a.seguranca || a.dinheiroOuDados || a.sqlOuComando) return "sensivel";
+  return a.mudaComportamento ? "normal" : "leve";
+}
+
+/** Linhas adicionadas do diff que parecem falar com um modelo. */
+export function instructionInPatch(patch: string): boolean {
+  return patch.split("\n").some((l) => l.startsWith("+") && !l.startsWith("+++") && TRIAGE_RULES.instructionPattern.test(l));
+}
+
+export interface TriagedDecision {
+  action: "review";
+  model: "sonnet" | "opus";
+  /** Sonnet com esforço baixo (PR pequeno que só mexe em texto). */
+  light: boolean;
+  reason: string;
+  by: "regra" | "triagem";
+  level?: TriageLevel;
+}
+
+/**
+ * Junta a decisão da regra com as respostas da triagem. Todo PR continua sendo revisado: a triagem só pode
+ * subir para o Opus (sensível ou texto no diff dirigido a um modelo) ou deixar a revisão do Sonnet mais leve em
+ * PR pequeno, sem caminho sensível, que não muda comportamento. Nunca baixa o que a regra mandou para o Opus.
+ * Sem resposta (erro, tempo esgotado, saída inválida), vale a regra.
+ */
+export function applyTriage(decision: { action: "review"; model: "sonnet" | "opus"; reason: string }, answers: TriageAnswers | null, diff: PrDiffSummary & { patch?: string }): TriagedDecision {
+  const rule: TriagedDecision = { action: "review", model: decision.model, light: false, reason: decision.reason, by: "regra" };
+  if (decision.model === "opus") return rule;
+  if (diff.patch !== undefined && instructionInPatch(diff.patch)) return { action: "review", model: "opus", light: false, reason: "texto no diff dirigido a um modelo", by: "triagem", level: "sensivel" };
+  if (!answers) return rule;
+  const level = triageLevel(answers);
+  if (level === "sensivel") return { action: "review", model: "opus", light: false, reason: `triagem: ${answers.motivo}`, by: "triagem", level };
+  if (level === "leve") {
+    const changed = diff.files.reduce((s, f) => s + f.additions + f.deletions, 0);
+    const sensitive = diff.files.some((f) => NIGHT_RULES.sensitivePaths.some((r) => r.test(f.path)));
+    if (changed <= TRIAGE_RULES.lightMaxLines && !sensitive) return { action: "review", model: "sonnet", light: true, reason: `triagem: ${answers.motivo}`, by: "triagem", level };
+  }
+  return { ...rule, level };
+}
+
 export type FindingSeverity = "alta" | "media" | "baixa";
 const SEVERITY_ORDER: Record<FindingSeverity, number> = { alta: 0, media: 1, baixa: 2 };
 export const severityRank = (s: FindingSeverity) => SEVERITY_ORDER[s];
