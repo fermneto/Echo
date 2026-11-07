@@ -1,6 +1,6 @@
 {
-  "id": "2307f36b-bb04-40d3-9080-70bf472affaa",
-  "prevId": "fc267a36-f536-43ca-8418-c47fde306a88",
+  "id": "2c2ad1e4-5d9b-4187-9474-7c67c67a95fd",
+  "prevId": "9f9bf334-5af3-44e4-9b1b-8d07aca22d84",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -78,29 +78,7 @@
           "default": "now()"
         }
       },
-      "indexes": {
-        "absences_hr_event": {
-          "name": "absences_hr_event",
-          "columns": [
-            {
-              "expression": "org_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "hr_event_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
+      "indexes": {},
       "foreignKeys": {
         "absences_org_id_orgs_id_fk": {
           "name": "absences_org_id_orgs_id_fk",
