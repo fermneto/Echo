@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { reportFor, SENT_TO_HR, summaryLine } from "@/lib/demo/reports";
-import { findMember, TEAM } from "@/lib/demo/team";
+import { findMember } from "@/lib/demo/team";
+import { scopeDbIds, teamScope } from "@/lib/scope";
+import { scopeLabel, TeamPicker } from "@/components/TeamPicker";
 import type { Persona } from "@/lib/demo/types";
 import { panelDb } from "@/lib/db";
 import { panelPersona } from "@/lib/panel-person";
@@ -61,18 +63,23 @@ const noHelps = <p className="muted">Nenhuma ajuda a colegas registrada nesta se
 
 export default async function RelatoriosPage({ searchParams }: { searchParams: Promise<{ pessoa?: string }> }) {
   const me = await requireAccess("relatorios");
+  const scope = await teamScope(me);
+  const TEAM = scope.people;
   const pick = (await searchParams).pessoa;
   const db = panelDb();
 
   if (db) {
     const ctx = await reportContext(db, me);
+    const ids = scopeDbIds(scope);
     if (me.role === "hr") {
-      const { list, current } = await loadSentReports(db, ctx, pick);
+      // Só os relatórios das equipes que o RH acompanha.
+      const { list, current } = await loadSentReports(db, ctx, pick, (id) => ids.has(id));
       const persona = (id: string, name: string) => panelPersona(ctx.people.find((p) => p.id === id) ?? { id, name });
       return (
         <>
           <h1 className="hero-title hero-title--page">{HR_TITLE}</h1>
           <p className="lead">{HR_LEAD}</p>
+          <TeamPicker scope={scope} back="/relatorios" />
           {current ? (
             <HrReports
               items={list.map((x) => ({ id: x.personId, persona: persona(x.personId, x.name), week: x.week }))}
@@ -88,7 +95,7 @@ export default async function RelatoriosPage({ searchParams }: { searchParams: P
               }
             />
           ) : (
-            <p className="note muted">Nenhum relatório enviado até agora. Cada um chega aqui três dias depois do aviso à pessoa.</p>
+            <p className="note muted">Nenhum relatório enviado por {scopeLabel(scope)} até agora. Cada um chega aqui três dias depois do aviso à pessoa.</p>
           )}
         </>
       );
@@ -110,7 +117,7 @@ export default async function RelatoriosPage({ searchParams }: { searchParams: P
               <p className="muted">Seu relatório desta semana ainda não foi gerado. Ele sai no fim do seu último expediente da semana, e você recebe um aviso no Slack.</p>
             </section>
           )}
-          <LiveHelpForm people={helpers(ctx)} />
+          <LiveHelpForm people={helpers(ctx).filter((p) => ids.has(p.id))} />
         </div>
       </>
     );
@@ -118,15 +125,27 @@ export default async function RelatoriosPage({ searchParams }: { searchParams: P
 
   if (me.role === "hr") {
     // Uma pessoa por vez, abrindo pelas ajudas: nada de números lado a lado para comparar.
-    const id = SENT_TO_HR.find((x) => x === pick) ?? SENT_TO_HR[0];
+    // Só os relatórios das equipes que o RH acompanha.
+    const sent = SENT_TO_HR.filter((x) => TEAM.some((p) => p.id === x));
+    const id = sent.find((x) => x === pick) ?? sent[0];
+    if (!id) {
+      return (
+        <>
+          <h1 className="hero-title hero-title--page">{HR_TITLE}</h1>
+          <TeamPicker scope={scope} back="/relatorios" />
+          <p className="lead">Nenhum relatório enviado por {scopeLabel(scope)} nesta semana.</p>
+        </>
+      );
+    }
     const p = findMember(id)!;
     const r = reportFor(id);
     return (
       <>
         <h1 className="hero-title hero-title--page">{HR_TITLE}</h1>
         <p className="lead">{HR_LEAD}</p>
+        <TeamPicker scope={scope} back="/relatorios" />
         <HrReports
-          items={SENT_TO_HR.map((x) => ({ id: x, persona: findMember(x)!, week: reportFor(x).week }))}
+          items={sent.map((x) => ({ id: x, persona: findMember(x)!, week: reportFor(x).week }))}
           current={id}
           detail={<HrDetail persona={p} week={r.week} status="conferido e enviado" helps={r.helps.length > 0 ? <Helps r={r} /> : noHelps} prose={summaryLine(p.name, r)} />}
         />

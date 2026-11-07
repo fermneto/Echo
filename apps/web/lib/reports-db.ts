@@ -85,9 +85,9 @@ export async function loadMyReport(db: Database, ctx: Ctx, now = new Date()): Pr
 export type HrEntry = { personId: string; name: string; week: string };
 
 /** RH: o enviado mais recente de cada pessoa, e o escolhido aberto. Nada de números lado a lado. */
-export async function loadSentReports(db: Database, ctx: Ctx, pick?: string): Promise<{ list: HrEntry[]; current: { entry: HrEntry; live: LiveReport } | null }> {
+export async function loadSentReports(db: Database, ctx: Ctx, pick?: string, include: (personId: string) => boolean = () => true): Promise<{ list: HrEntry[]; current: { entry: HrEntry; live: LiveReport } | null }> {
   const { createPgReportStore } = await agents();
-  const sent = latestPerPerson(await createPgReportStore(db, ctx.orgId).sentReports());
+  const sent = latestPerPerson(await createPgReportStore(db, ctx.orgId).sentReports()).filter((r) => include(r.personId));
   const name = (id: string) => ctx.people.find((p) => p.id === id)?.name ?? "Pessoa";
   const owner = (id: string) => ctx.people.find((p) => p.id === id);
   const list = sent

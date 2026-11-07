@@ -3113,6 +3113,37 @@ select.field option {
 .home-more {
   margin: var(--space-xl) 0 0;
 }
+
+/* RH: equipes que acompanha */
+.team-picker {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-sm) var(--space-lg);
+  margin: 0 0 var(--space-lg);
+  padding: var(--space-sm) var(--space-md);
+  border: 1px solid var(--color-line);
+  border-radius: var(--rounded-sm);
+}
+.team-picker__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-sm) var(--space-md);
+}
+.team-picker__item {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--color-cloud);
+  font-size: 14px;
+  cursor: pointer;
+}
+.team-picker__item input {
+  accent-color: var(--color-cloud);
+}
 .gains__note {
   padding: var(--space-md) 0 0;
   font-size: 13px;

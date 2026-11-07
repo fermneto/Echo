@@ -24,6 +24,7 @@ export async function resetDemo(db: Database, now: Date = new Date(), data: Demo
     await tx.insert(schema.teams).values(data.teams);
     await tx.insert(schema.people).values(data.people);
     await tx.insert(schema.identities).values(data.identities);
+    if (data.absences.length) await tx.insert(schema.absences).values(data.absences);
     await tx.insert(schema.tasks).values(data.tasks);
     await tx.insert(schema.pullRequests).values(data.pullRequests);
     await tx.insert(schema.dailyNotes).values(data.dailyNotes);
@@ -54,6 +55,8 @@ export async function resetDemo(db: Database, now: Date = new Date(), data: Demo
         ajudas: data.contributions.length,
         perguntas: data.questions.length,
         execucoes: data.agentRuns.length,
+        equipes: data.teams.length,
+        ferias: data.absences.length,
       },
     };
   });

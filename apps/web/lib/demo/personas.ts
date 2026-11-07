@@ -1,8 +1,10 @@
 import { live } from "./availability";
+import { TEAM_OF, WORK_DAYS } from "./teams";
 import type { Persona } from "./types";
 
 const ORG_ID = "demo";
-const WEEKDAYS = [1, 2, 3, 4, 5];
+/** Folga só na terça (igual ao seed). */
+const WEEKDAYS = WORK_DAYS;
 
 /**
  * Personas da demonstração (docs/produto.md → "Personas da demonstração").
@@ -131,7 +133,7 @@ export const PERSONAS: readonly Persona[] = (
     availability: { kind: "working" },
   },
   ] as Persona[]
-).map(live);
+).map((p) => live({ ...p, teamId: TEAM_OF[p.id] }));
 
 export function findPersona(id: string): Persona | undefined {
   return PERSONAS.find((p) => p.id === id);

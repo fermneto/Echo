@@ -19,8 +19,11 @@ describe("railStateAt", () => {
     expect(railStateAt(fernando, new Date("2026-11-06T21:00:00Z"))).toBe("twin");
   });
 
-  it("fim de semana fica com o agente", () => {
-    expect(railStateAt(eduardo, new Date("2026-11-07T10:00:00Z"))).toBe("twin");
+  it("todos trabalham no fim de semana; a folga é na terça e fica com o agente", () => {
+    // Sábado, 12h em Joanesburgo: no expediente.
+    expect(railStateAt(eduardo, new Date("2026-11-07T10:00:00Z"))).toBe("on");
+    // Terça, 12h em Joanesburgo: folga.
+    expect(railStateAt(eduardo, new Date("2026-11-10T10:00:00Z"))).toBe("twin");
   });
 });
 
