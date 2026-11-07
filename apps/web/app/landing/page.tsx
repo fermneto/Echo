@@ -1,6 +1,7 @@
 import type { CSSProperties } from "react";
 import Link from "next/link";
 import { EchoGlobe, type GlobeArc, type GlobePoint } from "@/components/landing/EchoGlobe";
+import { DotField } from "@/components/landing/DotField";
 import { IntegrationsMarquee } from "@/components/landing/integrations";
 import { PixelSprite } from "@/components/PixelSprite";
 import { lookFor } from "@/lib/demo/looks";
@@ -56,37 +57,39 @@ const CITY: Record<string, [number, number]> = {
   TYO: [35.68, 139.65],
 };
 
-/** Etiqueta presa ao ponto: a hora local em cima e os bonequinhos de pé sobre o ponto. */
+/** Etiqueta ao lado do ponto: os bonequinhos, quem está ali e a hora local. */
 function GlobeCrew({ ids, twin, code, tz, caption }: { ids: string[]; twin?: boolean; code: string; tz: string; caption: string }) {
   return (
-    <>
-      <span className="globe__tag">
+    <span className="globe__tag">
+      <span className="globe__crew">
+        {ids.map((id) => (
+          <PixelSprite key={id} look={lookFor(id)} mode={twin ? "twin" : "person"} size={30} />
+        ))}
+      </span>
+      <span className="globe__text">
         <span className="globe__who">{caption}</span>
         <span className="lp-mono">
           {code} {localTime(DEMO_NOW, tz)}
         </span>
       </span>
-      <span className="globe__crew">
-        {ids.map((id) => (
-          <PixelSprite key={id} look={lookFor(id)} mode={twin ? "twin" : "person"} size={40} />
-        ))}
-      </span>
-    </>
+    </span>
   );
 }
 
-/** Pontos da demo: Fernando dorme em Fortaleza, Eduardo trabalha em Joanesburgo, Yan está de férias. */
+const YAN: [number, number] = [43.06, 141.35];
+
+/** Halo verde onde há gente no expediente; azul onde o gêmeo está no comando. */
 const POINTS: GlobePoint[] = [
-  { id: "fernando", location: CITY.FOR!, tone: "twin", label: <GlobeCrew ids={["fernando"]} twin caption="Gêmeo de Fernando" code="FOR" tz="America/Fortaleza" /> },
-  { id: "jnb", location: CITY.JNB!, tone: "on", label: <GlobeCrew ids={["eduardo", "rita"]} caption="Eduardo, Rita" code="JNB" tz="Africa/Johannesburg" /> },
-  { id: "tyo", location: CITY.TYO!, tone: "on", label: <GlobeCrew ids={["marina", "bruno", "carla"]} caption="Marina, Bruno, Carla" code="TYO" tz="Asia/Tokyo" /> },
-  { id: "yan", location: [37.4, 141.6], tone: "wait", label: <GlobeCrew ids={["yan"]} twin caption="Gêmeo de Yan · férias" code="TYO" tz="Asia/Tokyo" /> },
+  { id: "fernando", location: CITY.FOR!, tone: "twin", halo: 11, label: <GlobeCrew ids={["fernando"]} twin caption="Gêmeo de Fernando" code="FOR" tz="America/Fortaleza" /> },
+  { id: "jnb", location: CITY.JNB!, tone: "on", halo: 11, label: <GlobeCrew ids={["eduardo", "rita"]} caption="Eduardo, Rita" code="JNB" tz="Africa/Johannesburg" /> },
+  { id: "tyo", location: CITY.TYO!, tone: "on", halo: 10, label: <GlobeCrew ids={["marina", "bruno", "carla"]} caption="Marina, Bruno, Carla" code="TYO" tz="Asia/Tokyo" /> },
+  { id: "yan", location: YAN, tone: "wait", halo: 5, side: "left", label: <GlobeCrew ids={["yan"]} twin caption="Gêmeo de Yan · férias" code="TYO" tz="Asia/Tokyo" /> },
 ];
 
 /** Branco: a pergunta da vez. Azul: um agente respondendo. Verde: quem está trabalhando agora. */
 const ARCS: GlobeArc[] = [
   { id: "pergunta", from: CITY.JNB!, to: CITY.FOR!, tone: "ask" },
-  { id: "agente-yan", from: [37.4, 141.6], to: CITY.JNB!, tone: "twin" },
+  { id: "agente-yan", from: YAN, to: CITY.JNB!, tone: "twin" },
   { id: "expediente", from: CITY.JNB!, to: CITY.TYO!, tone: "on" },
 ];
 
@@ -122,7 +125,8 @@ export default function LandingPage() {
         </div>
       </header>
 
-      <main>
+      <main className="lp-main">
+        <DotField />
         <section className="lp-hero" aria-labelledby="tese">
           <div className="lp-hero__copy">
             <h1 id="tese" className="lp-display">

@@ -721,16 +721,17 @@
 }
 .globe__label {
   position: absolute;
-  bottom: anchor(center);
+  top: anchor(center);
   left: anchor(center);
-  translate: -50% 0;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 4px;
+  translate: 14px -50%;
   white-space: nowrap;
   pointer-events: none;
   transition: opacity 0.3s ease, filter 0.3s ease;
+}
+.globe__label--left {
+  left: auto;
+  right: anchor(center);
+  translate: -14px -50%;
 }
 @supports not (position-anchor: --a) {
   .globe__label {
@@ -739,28 +740,60 @@
 }
 .globe__tag {
   display: flex;
-  flex-direction: column;
   align-items: center;
-  padding: 4px 8px;
-  background: rgb(10 10 10 / 82%);
+  gap: 8px;
+  padding: 5px 10px 5px 6px;
+  background: rgb(10 10 10 / 86%);
   border: 1px solid var(--color-edge);
-  border-radius: var(--rounded-md);
+  border-radius: var(--rounded-lg);
+  box-shadow: var(--shadow-float);
 }
-.globe__who {
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--color-cloud);
+.globe__label--on .globe__tag {
+  border-color: color-mix(in srgb, var(--color-signal-on) 35%, var(--color-edge));
 }
-.globe__tag .lp-mono {
-  color: var(--color-fog);
-  font-size: 11px;
+.globe__label--twin .globe__tag,
+.globe__label--wait .globe__tag {
+  border-color: color-mix(in srgb, var(--color-signal-twin) 40%, var(--color-edge));
 }
-/* Os bonequinhos ficam de pé sobre o ponto, com uma sombra curta no chão. */
 .globe__crew {
   display: flex;
   align-items: flex-end;
   gap: 1px;
-  filter: drop-shadow(0 2px 2px rgb(0 0 0 / 60%));
+}
+.globe__text {
+  display: flex;
+  flex-direction: column;
+}
+.globe__who {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-cloud);
+}
+.globe__text .lp-mono {
+  color: var(--color-fog);
+  font-size: 11px;
+}
+
+/* Campo de pontos pulsantes atrás do herói */
+.lp-main {
+  position: relative;
+}
+.lp-field {
+  position: absolute;
+  top: -88px;
+  left: 0;
+  width: 100%;
+  height: calc(100dvh + 120px);
+  max-height: 1100px;
+  pointer-events: none;
+  z-index: 0;
+  /* Calmo atrás do texto, vivo em volta do globo, some antes da faixa de integrações */
+  mask-image: radial-gradient(ellipse 80% 90% at 72% 45%, #000 40%, rgb(0 0 0 / 35%) 75%, transparent 100%), linear-gradient(#000 72%, transparent);
+  mask-composite: intersect;
+}
+.lp-hero {
+  position: relative;
+  z-index: 1;
 }
 
 .lp-legend {

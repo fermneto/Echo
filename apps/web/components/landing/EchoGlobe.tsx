@@ -4,43 +4,76 @@ import createGlobe, { type Arc, type Marker } from "cobe";
 import { useEffect, useRef, useState, type CSSProperties, type ReactNode } from "react";
 
 /**
- * Globo de pontos em WebGL (cobe) com a equipe da demo: marcadores pela cor do estado,
- * arcos entre as pessoas e etiquetas presas a cada ponto por CSS anchor positioning.
+ * Globo de pontos em WebGL (cobe) com a equipe da demo.
+ * - Cada cidade tem um halo de pontos pulsantes: verde onde há gente no expediente,
+ *   azul onde o gêmeo está no comando. O ponto da cidade pulsa maior.
+ * - Arcos entre as pessoas e etiquetas presas a cada ponto por CSS anchor positioning.
  * Arrasta com inércia, gira sozinho, pausa fora da tela e respeita prefers-reduced-motion.
  */
 
 type RGB = [number, number, number];
+type Tone = "on" | "twin" | "wait" | "ask";
 
 export type GlobePoint = {
   id: string;
   location: [number, number];
   tone: "on" | "twin" | "wait";
+  /** Raio do halo em graus; 0 desliga. */
+  halo?: number;
+  /** Lado da etiqueta em relação ao ponto. */
+  side?: "left" | "right";
   label: ReactNode;
 };
 
-export type GlobeArc = {
-  id: string;
-  from: [number, number];
-  to: [number, number];
-  tone: "on" | "twin" | "ask";
-};
+export type GlobeArc = { id: string; from: [number, number]; to: [number, number]; tone: Tone };
 
-const TONE: Record<GlobePoint["tone"] | GlobeArc["tone"], RGB> = {
+const TONE: Record<Tone, RGB> = {
   on: [0.596, 1, 0.22],
   twin: [0.302, 0.553, 1],
   wait: [0.878, 0.702, 0.329],
   ask: [0.98, 0.98, 0.98],
 };
 
-/** Ângulos do cobe para deixar uma longitude de frente. */
+/** O halo de quem está de férias é do gêmeo: azul. */
+const HALO_TONE: Record<GlobePoint["tone"], RGB> = { on: TONE.on, twin: TONE.twin, wait: TONE.twin };
+
 const phiFor = (longitude: number) => Math.PI - ((longitude * Math.PI) / 180 - Math.PI / 2);
+
+function rng(seed: number) {
+  return () => {
+    seed = (seed * 1664525 + 1013904223) % 4294967296;
+    return seed / 4294967296;
+  };
+}
+
+type HaloDot = { location: [number, number]; base: number; phase: number; period: number; color: RGB };
+
+/** Pontos numa grade de 1,5° dentro do raio, mais densos e maiores perto do centro. */
+function haloFor(p: GlobePoint, seed: number): HaloDot[] {
+  const radius = p.halo ?? 0;
+  if (!radius) return [];
+  const rand = rng(seed);
+  const dots: HaloDot[] = [];
+  const [lat0, lng0] = p.location;
+  const step = 1.5;
+  for (let dLat = -radius; dLat <= radius; dLat += step) {
+    for (let dLng = -radius; dLng <= radius; dLng += step) {
+      const dist = Math.hypot(dLat, dLng) / radius;
+      if (dist > 1 || dist < 0.18) continue;
+      if (rand() < dist * dist * 0.7) continue; // rareia na borda
+      const lat = lat0 + dLat + (rand() - 0.5) * 0.25;
+      const lng = lng0 + dLng / Math.cos((lat0 * Math.PI) / 180) + (rand() - 0.5) * 0.25;
+      dots.push({ location: [lat, lng], base: 0.011 * (1 - dist * 0.4), phase: rand() * Math.PI * 2, period: 1.8 + rand() * 2.4, color: HALO_TONE[p.tone] });
+    }
+  }
+  return dots;
+}
 
 export function EchoGlobe({ points, arcs, focusLongitude = -5, theta = 0.22 }: { points: GlobePoint[]; arcs: GlobeArc[]; focusLongitude?: number; theta?: number }) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [ready, setReady] = useState(false);
 
-  // Estado de rotação fora do React: muda a cada quadro.
   const phi = useRef(phiFor(focusLongitude));
   const thetaOffset = useRef(0);
   const drag = useRef<{ x: number; y: number } | null>(null);
@@ -59,7 +92,22 @@ export function EchoGlobe({ points, arcs, focusLongitude = -5, theta = 0.22 }: {
     let visible = true;
     let raf = 0;
 
-    const markers: Marker[] = points.map((p) => ({ id: p.id, location: p.location, size: 0.045, color: TONE[p.tone] }));
+    const halos = points.flatMap((p, i) => haloFor(p, 11 + i * 97));
+    const markersAt = (t: number): Marker[] => {
+      const s = t / 1000;
+      const halo = halos.map((d) => ({
+        location: d.location,
+        size: reduce ? d.base : d.base * (0.6 + 0.4 * Math.sin(s * ((2 * Math.PI) / d.period) + d.phase)),
+        color: d.color,
+      }));
+      const main = points.map((p) => ({
+        id: p.id,
+        location: p.location,
+        size: reduce ? 0.05 : 0.045 + 0.012 * Math.sin(s * 2.2 + p.location[1]),
+        color: TONE[p.tone],
+      }));
+      return [...halo, ...main];
+    };
     const cobeArcs: Arc[] = arcs.map((a) => ({ id: a.id, from: a.from, to: a.to, color: TONE[a.tone] }));
 
     const globe = createGlobe(canvas, {
@@ -69,23 +117,23 @@ export function EchoGlobe({ points, arcs, focusLongitude = -5, theta = 0.22 }: {
       phi: phi.current,
       theta,
       dark: 1,
-      diffuse: 1.2,
-      mapSamples: 16_000,
-      mapBrightness: 7,
-      mapBaseBrightness: 0.02,
-      baseColor: [0.14, 0.14, 0.14],
+      diffuse: 1.15,
+      mapSamples: 22_000,
+      mapBrightness: 6.5,
+      mapBaseBrightness: 0.015,
+      baseColor: [0.12, 0.12, 0.12],
       markerColor: TONE.twin,
-      glowColor: [0.08, 0.08, 0.08],
-      opacity: 0.9,
-      markers,
+      glowColor: [0.1, 0.1, 0.11],
+      opacity: 0.92,
+      markers: markersAt(0),
       arcs: cobeArcs,
       arcColor: TONE.twin,
       arcWidth: 0.6,
-      arcHeight: 0.28,
-      markerElevation: 0.02,
+      arcHeight: 0.3,
+      markerElevation: 0.01,
     });
 
-    const tick = () => {
+    const tick = (t: number) => {
       if (!drag.current) {
         if (!reduce) phi.current += 0.0016;
         if (Math.abs(velocity.current.phi) > 0.0001 || Math.abs(velocity.current.theta) > 0.0001) {
@@ -94,16 +142,16 @@ export function EchoGlobe({ points, arcs, focusLongitude = -5, theta = 0.22 }: {
           velocity.current.phi *= 0.95;
           velocity.current.theta *= 0.95;
         }
-        // Volta devagar para a faixa de inclinação confortável.
-        const t = thetaOffset.current;
-        if (t < -0.35) thetaOffset.current += (-0.35 - t) * 0.1;
-        if (t > 0.35) thetaOffset.current += (0.35 - t) * 0.1;
+        const th = thetaOffset.current;
+        if (th < -0.35) thetaOffset.current += (-0.35 - th) * 0.1;
+        if (th > 0.35) thetaOffset.current += (0.35 - th) * 0.1;
       }
       globe.update({
         phi: phi.current + dragDelta.current.phi,
         theta: theta + thetaOffset.current + dragDelta.current.theta,
         width: size * dpr,
         height: size * dpr,
+        ...(reduce ? {} : { markers: markersAt(t) }),
       });
       if (visible) raf = requestAnimationFrame(tick);
     };
@@ -172,7 +220,7 @@ export function EchoGlobe({ points, arcs, focusLongitude = -5, theta = 0.22 }: {
       {points.map((p) => (
         <div
           key={p.id}
-          className="globe__label"
+          className={`globe__label globe__label--${p.tone}${p.side === "left" ? " globe__label--left" : ""}`}
           aria-hidden="true"
           style={
             {
