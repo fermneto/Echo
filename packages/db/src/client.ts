@@ -12,13 +12,15 @@ export interface PoolOptions {
    * - "none": fora de withOrg/asSystem, as tabelas de negócio não devolvem nada.
    */
   defaultScope?: "system" | "none";
+  /** Tempo para abrir uma conexão (padrão 5 s). Comandos rodados de fora da Render precisam de mais. */
+  connectTimeoutMs?: number;
 }
 
 export function createPool(url: string, max = 10, opts: PoolOptions = {}): pg.Pool {
   const system = (opts.defaultScope ?? "system") === "system";
   // Valor da sessão, definido na abertura da conexão (sem consulta extra): withOrg e asSystem trocam só
   // dentro da própria transação (set_config local).
-  return new pg.Pool({ connectionString: url, max, connectionTimeoutMillis: 5_000, ...(system ? { options: "-c app.bypass_rls=on" } : {}) });
+  return new pg.Pool({ connectionString: url, max, connectionTimeoutMillis: opts.connectTimeoutMs ?? 5_000, ...(system ? { options: "-c app.bypass_rls=on" } : {}) });
 }
 
 export function createDb(pool: pg.Pool): Database {

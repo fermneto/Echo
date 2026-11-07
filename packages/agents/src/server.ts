@@ -128,7 +128,7 @@ export function serverNightReview(db: Database, apiKey: string | undefined, diff
  * Resumo do dia (etapa 26): depois do rascunho da nota, o modelo aberto do Ollama monta a especificação do
  * resumo. Sem `ollama`, layout padrão por regra.
  */
-export function serverDaySummary(db: Database, ollama?: { url: string; model: string; timeoutMs: number }): DaySummary {
+export function serverDaySummary(db: Database, ollama?: { url: string; model: string; timeoutMs: number }, webUrl?: string): DaySummary {
   return createDaySummary({
     data: (orgId) => createPgAgentData(db, orgId),
     notes: (orgId) => createPgDailyNoteStore(db, orgId),
@@ -136,6 +136,8 @@ export function serverDaySummary(db: Database, ollama?: { url: string; model: st
     model: ollama ? ollamaJson({ baseUrl: ollama.url, model: ollama.model }) : null,
     recorder: createDbRunRecorder(db),
     timeoutMs: ollama?.timeoutMs,
+    outbox: (orgId) => createPgOutbox(db, orgId),
+    webUrl,
   });
 }
 

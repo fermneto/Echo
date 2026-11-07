@@ -70,7 +70,7 @@ await ensureProductNote(db).then(
 const slm = cfg.SLM_OLLAMA_URL ? { url: cfg.SLM_OLLAMA_URL, model: cfg.SLM_MODEL } : undefined;
 const endOfDay = await registerEndOfDay(queue, {
   flow: serverEndOfDay(db, cfg.ANTHROPIC_API_KEY, cfg.WEB_URL),
-  summary: serverDaySummary(db, slm ? { ...slm, timeoutMs: cfg.SUMMARY_TIMEOUT_MS } : undefined),
+  summary: serverDaySummary(db, slm ? { ...slm, timeoutMs: cfg.SUMMARY_TIMEOUT_MS } : undefined, cfg.WEB_URL),
   scan: (now) => dueEndOfDay(db, now),
   interactions,
 });
