@@ -7,13 +7,32 @@ const demo = buildDemo(now);
 const P = DEMO_IDS.people;
 
 describe("empresa de demonstração", () => {
-  it("tem as sete personas, todas na empresa de demonstração", () => {
-    expect(demo.people.map((p) => p.name).sort()).toEqual(["Bruno", "Carla", "Eduardo", "Fernando", "Marina", "Rita", "Yan"]);
+  it("tem as sete personas e as outras pessoas do mapa, todas na empresa de demonstração", () => {
+    const names = demo.people.map((p) => p.name);
+    for (const n of ["Bruno", "Carla", "Eduardo", "Fernando", "Marina", "Rita", "Yan"]) expect(names).toContain(n);
+    expect(names).toHaveLength(18);
     const rows = Object.values(demo).flat() as { orgId?: string | null; id?: string }[];
     for (const row of rows) {
       if ("orgId" in row) expect(row.orgId).toBe(DEMO_IDS.org);
     }
     expect(demo.orgs[0]?.isDemo).toBe(true);
+  });
+
+  it("três equipes, cada uma com líder; só o RH fica sem equipe", () => {
+    expect(demo.teams.map((t) => t.name)).toEqual(["Produto", "Dados e plataforma", "Aplicativo e qualidade"]);
+    for (const t of demo.teams) expect(demo.people.find((p) => p.id === t.leaderId)?.teamId).toBe(t.id);
+    const semEquipe = demo.people.filter((p) => !p.teamId).map((p) => p.name);
+    expect(semEquipe).toEqual(["Rita"]);
+  });
+
+  it("todos trabalham no fim de semana e folgam só na terça", () => {
+    for (const p of demo.people) expect(p.workHours?.days).toEqual([0, 1, 3, 4, 5, 6]);
+  });
+
+  it("férias do mapa: Yan e Noah", () => {
+    const names = demo.absences.map((a) => demo.people.find((p) => p.id === a.personId)?.name).sort();
+    expect(names).toEqual(["Noah", "Yan"]);
+    for (const a of demo.absences) expect(a.endsAt.getTime()).toBeGreaterThan(now.getTime());
   });
 
   it("dá um papel por persona: Marina lidera, Rita é do RH", () => {

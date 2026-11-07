@@ -1,10 +1,21 @@
-# Blueprint da Render para o evento: quatro serviços e o banco.
+# Blueprint da Render para o evento: banco, API, painel, worker e triagem (o reviewer está comentado no fim).
 # Variáveis com sync: false são pedidas só na criação; as novas entram pelo painel de cada serviço.
+#
+# Planos (B7): banco, API e painel no gratuito; worker e triagem são pagos (a Render não tem worker nem serviço
+# privado gratuito).
+# - O banco gratuito expira 30 dias depois de criado e não tem backup.
+# - API e painel gratuitos hibernam depois de ~15 min parados: abra o painel e chame /health antes da demo.
+#   Aviso do GitHub perdido na hibernação é recuperado pela reconciliação (RECONCILE_INTERVAL_MS).
+# - O plano gratuito não roda preDeployCommand. Rode a migração da sua máquina a cada deploy com mudança no esquema:
+#     DATABASE_URL='<External Database URL do echo-db>' pnpm db:migrate
+#
+# ENCRYPTION_KEY precisa ser a mesma na echo-api, no echo-worker e no .env de quem roda `pnpm integracoes:ligar`
+# contra este banco: as credenciais gravadas por ele são cifradas com ela.
 databases:
   - name: echo-db
     databaseName: echo
     user: echo
-    plan: basic-256mb
+    plan: free
     postgresMajorVersion: "17"
     region: oregon
 
@@ -27,12 +38,12 @@ services:
     name: echo-api
     runtime: docker
     region: oregon
-    plan: starter
+    plan: free
     dockerfilePath: ./infra/Dockerfile.node
     dockerContext: .
     healthCheckPath: /ready
-    # Sem shell e com caminho absoluto.
-    preDeployCommand: node /app/packages/db/src/migrate.ts
+    # No plano pago, a migração volta a rodar antes de cada deploy (sem shell e com caminho absoluto):
+    # preDeployCommand: node /app/packages/db/src/migrate.ts
     envVars:
       - key: APP
         value: api
@@ -56,7 +67,7 @@ services:
     name: echo-web
     runtime: docker
     region: oregon
-    plan: starter
+    plan: free
     dockerfilePath: ./infra/Dockerfile.web
     dockerContext: .
     healthCheckPath: /api/health
@@ -75,6 +86,9 @@ services:
       - key: PANEL_URL
         sync: false
       - key: DEMO_SLACK_TEAM_ID
+        sync: false
+      # "Pergunte ao gêmeo" no painel. Sem ela, o painel responde só por regra.
+      - key: ANTHROPIC_API_KEY
         sync: false
       - fromGroup: echo-shared
 
@@ -98,6 +112,15 @@ services:
         sync: false
       - key: LINEAR_CLIENT_SECRET
         sync: false
+      # Chave pessoal do Linear: alternativa ao app OAuth (LINEAR_CLIENT_ID e LINEAR_CLIENT_SECRET) para o teste.
+      - key: LINEAR_API_KEY
+        sync: false
+      # Respostas, nota do dia, revisão noturna e relatório. Sem ela, o agente responde só por regra.
+      - key: ANTHROPIC_API_KEY
+        sync: false
+      # Repositório do espelho das notas, no formato org/brains.
+      - key: BRAINS_REPOSITORY
+        sync: false
       - key: GOOGLE_SERVICE_ACCOUNT_EMAIL
         sync: false
       - key: GOOGLE_SERVICE_ACCOUNT_KEY
@@ -112,20 +135,54 @@ services:
         fromDatabase:
           name: echo-db
           property: connectionString
+      # Endereço público do painel (botão "Editar no painel" da nota do dia). Definir no painel da Render.
+      - key: WEB_URL
+        sync: false
+      # Modelo aberto do echo-triage (triagem e resumo do dia), host:porta na rede privada.
+      - key: SLM_OLLAMA_URL
+        fromService:
+          type: pserv
+          name: echo-triage
+          property: hostport
       - fromGroup: echo-shared
 
-  - type: worker
-    name: echo-reviewer
+  # Modelo aberto da triagem da revisão noturna e do resumo do dia: Ollama com Qwen3 4B Instruct (Apache 2.0)
+  # embutido na imagem.
+  # Serviço privado: sem endereço público; só o worker chega nele. Plano pago (não há serviço privado gratuito):
+  # pro = 2 CPU e 4 GB. Só reconstrói quando o Dockerfile dele muda (cada build baixa ~2,5 GB de modelo).
+  - type: pserv
+    name: echo-triage
     runtime: docker
     region: oregon
-    plan: starter
-    dockerfilePath: ./infra/Dockerfile.node
-    dockerContext: .
-    envVars:
-      - key: APP
-        value: reviewer
-      - key: DATABASE_URL
-        fromDatabase:
-          name: echo-db
-          property: connectionString
-      - fromGroup: echo-shared
+    plan: pro
+    dockerfilePath: ./infra/Dockerfile.ollama
+    dockerContext: ./infra
+    buildFilter:
+      paths:
+        - infra/Dockerfile.ollama
+
+  # Correção em ambiente isolado (etapa 10). Fora do plano gratuito: é outro worker pago (starter).
+  # Para ligar, descomente e preencha ANTHROPIC_API_KEY, FIX_AGENT_ID e FIX_ENVIRONMENT_ID
+  # (IDs de `pnpm --filter @echo/reviewer provision`).
+  # - type: worker
+  #   name: echo-reviewer
+  #   runtime: docker
+  #   region: oregon
+  #   plan: starter
+  #   dockerfilePath: ./infra/Dockerfile.node
+  #   dockerContext: .
+  #   envVars:
+  #     - key: APP
+  #       value: reviewer
+  #     - key: DATABASE_URL
+  #       fromDatabase:
+  #         name: echo-db
+  #         property: connectionString
+  #     - key: ANTHROPIC_API_KEY
+  #       sync: false
+  #     - fromGroup: echo-shared
+  #     # Correção (etapa 10): IDs de `pnpm --filter @echo/reviewer provision`.
+  #     - key: FIX_AGENT_ID
+  #       sync: false
+  #     - key: FIX_ENVIRONMENT_ID
+  #       sync: false

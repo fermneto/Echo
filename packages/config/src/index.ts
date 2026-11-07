@@ -97,9 +97,39 @@ export const workerSchema = baseSchema.extend({
   RECONCILE_INTERVAL_MS: z.coerce.number().int().min(60_000).default(10 * 60_000),
   /** Repositório do espelho das notas (<org>/brains): push nele não é trabalho. */
   BRAINS_REPOSITORY: optionalString,
+  // Endereço do painel, para o botão "Editar no painel" da nota do dia.
+  WEB_URL: z.url().default("http://localhost:3000"),
+  // Intervalo da agenda do fim do expediente (nota do dia).
+  END_OF_DAY_SCAN_MS: z.coerce.number().int().min(10_000).default(300_000),
+  // Hora UTC em que o lote da revisão noturna é criado, uma vez por noite por empresa.
+  // Ensaio de dia: quem é citado é tratado como ausente, sem olhar o status do Slack (só para a demo).
+  DEMO_ALWAYS_AWAY: bool.default(false),
+  NIGHT_REVIEW_UTC_HOUR: z.coerce.number().int().min(0).max(23).default(5),
+  /**
+   * Modelo aberto pequeno (Ollama) da triagem da revisão noturna e do resumo do dia. Endereço do serviço: URL ou
+   * host:porta (a Render entrega host:porta). Sem ele, os dois fluxos usam só a regra.
+   */
+  SLM_OLLAMA_URL: optionalString.pipe(z.string().regex(/^(https?:\/\/)?[\w.-]+(:\d+)?\/?$/, "use http://host:porta ou host:porta").optional()),
+  /** Tag do modelo no Ollama (Apache 2.0). */
+  SLM_MODEL: z.string().min(1).default("qwen3:4b-instruct"),
+  /** Tempo máximo da triagem de um PR (CPU, ~15 a 30 s; o primeiro PR da noite também carrega o modelo). */
+  TRIAGE_TIMEOUT_MS: z.coerce.number().int().min(1000).max(300_000).default(120_000),
+  /** Tempo máximo do resumo do dia (a saída é maior que a da triagem). */
+  SUMMARY_TIMEOUT_MS: z.coerce.number().int().min(1000).max(900_000).default(300_000),
 });
 
-export const reviewerSchema = baseSchema.extend({ ...database, ...anthropic });
+export const reviewerSchema = baseSchema.extend({
+  ...database,
+  ...anthropic,
+  // Agente e ambiente da correção no Managed Agents, criados uma vez com `pnpm --filter @echo/reviewer provision`.
+  // Sem eles, não há correção.
+  FIX_AGENT_ID: optionalString.pipe(z.string().startsWith("agent_", "precisa começar com agent_").optional()),
+  FIX_ENVIRONMENT_ID: optionalString.pipe(z.string().startsWith("env_", "precisa começar com env_").optional()),
+  // Intervalo da busca por revisões a corrigir e por rascunhos prontos.
+  FIX_SCAN_MS: z.coerce.number().int().min(10_000).default(300_000),
+  // Tempo máximo de uma correção no ambiente isolado.
+  FIX_TIMEOUT_MS: z.coerce.number().int().min(60_000).max(3_600_000).default(1_200_000),
+});
 
 export const schemas = { api: apiSchema, web: webSchema, worker: workerSchema, reviewer: reviewerSchema } as const;
 export type ServiceName = keyof typeof schemas;

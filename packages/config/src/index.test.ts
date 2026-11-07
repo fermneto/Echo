@@ -57,8 +57,23 @@ describe("loadConfig", () => {
     expect(() => loadConfig("reviewer", { DATABASE_URL: DB, ANTHROPIC_API_KEY: "minha-senha" })).toThrow(/ANTHROPIC_API_KEY.*sk-ant-/);
   });
 
+  it("reviewer: IDs da correção opcionais, no formato do Managed Agents, e prazos com padrão", () => {
+    const cfg = loadConfig("reviewer", { DATABASE_URL: DB, FIX_AGENT_ID: "", FIX_ENVIRONMENT_ID: "" });
+    expect(cfg).toMatchObject({ FIX_AGENT_ID: undefined, FIX_ENVIRONMENT_ID: undefined, FIX_SCAN_MS: 300_000, FIX_TIMEOUT_MS: 1_200_000 });
+    expect(loadConfig("reviewer", { DATABASE_URL: DB, FIX_AGENT_ID: "agent_01", FIX_ENVIRONMENT_ID: "env_01" })).toMatchObject({ FIX_AGENT_ID: "agent_01", FIX_ENVIRONMENT_ID: "env_01" });
+    expect(() => loadConfig("reviewer", { DATABASE_URL: DB, FIX_AGENT_ID: "abc" })).toThrow(/FIX_AGENT_ID.*agent_/);
+  });
+
   it("PORT da plataforma tem prioridade sobre a porta local", () => {
     expect(listenPort(loadConfig("api", { DATABASE_URL: DB, PORT: "10000" }))).toBe(10000);
     expect(listenPort(loadConfig("api", { DATABASE_URL: DB }))).toBe(3001);
+  });
+  it("triagem: URL ou host:porta da Render, modelo e tempo com padrão", () => {
+    const base = { DATABASE_URL: DB };
+    expect(loadConfig("worker", base)).toMatchObject({ SLM_MODEL: "qwen3:4b-instruct", TRIAGE_TIMEOUT_MS: 120_000 });
+    expect(loadConfig("worker", base).SLM_OLLAMA_URL).toBeUndefined();
+    expect(loadConfig("worker", { ...base, SLM_OLLAMA_URL: "echo-triage-ab12:11434" }).SLM_OLLAMA_URL).toBe("echo-triage-ab12:11434");
+    expect(loadConfig("worker", { ...base, SLM_OLLAMA_URL: "http://localhost:11434" }).SLM_OLLAMA_URL).toBe("http://localhost:11434");
+    expect(() => loadConfig("worker", { ...base, SLM_OLLAMA_URL: "ftp://x y" })).toThrow(/SLM_OLLAMA_URL/);
   });
 });

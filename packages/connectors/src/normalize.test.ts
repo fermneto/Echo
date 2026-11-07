@@ -88,6 +88,14 @@ describe("slackShouldKeep (descarte na entrada, sem gravar)", () => {
     expect(slackShouldKeep(msg("<@UBOT> oi"), ctx)).toEqual({ keep: false, reason: "coberta por app_mention" });
   });
 
+  it("proposta que cita uma pessoa só pelo nome passa; conversa comum com o nome, não", () => {
+    const named = { ...ctx, registeredPeople: [{ id: "UFER", name: "Fernando Neto" }, { id: "UEDU", name: "Eduardo" }] };
+    expect(slackShouldKeep(msg("que tal o Fernando revisar a API amanhã?"), named)).toEqual({ keep: true, reason: "proposta citada pelo nome" });
+    expect(slackShouldKeep(msg("o Fernando terminou a API"), named).keep).toBe(false);
+    expect(slackShouldKeep(msg("proponho que eu, Eduardo, revise"), named).keep).toBe(false); // o próprio autor
+    expect(slackShouldKeep(msg("que tal o Fernando revisar a API amanhã?"), ctx).keep).toBe(false); // sem os nomes
+  });
+
   it("quem sabe no sentido de talvez é ignorado", () => {
     expect(isWhoKnows("quem sabe amanhã a gente vê")).toBe(false);
     expect(isWhoKnows("Quem entende de Kubernetes?")).toBe(true);

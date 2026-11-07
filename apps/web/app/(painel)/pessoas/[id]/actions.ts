@@ -1,25 +1,31 @@
 "use server";
 
 import { canAskTwin } from "@/lib/access";
-import { findPersona } from "@/lib/demo/personas";
-import type { AnswerResult } from "@echo/agents";
+import { askAgent, panelRequest, recordIn } from "@/lib/agent";
+import { panelDb } from "@/lib/db";
+import { findMember } from "@/lib/demo/team";
 import { askTwinDemo } from "@/lib/demo/twin";
+import { teamScope } from "@/lib/scope";
 import { currentPersona } from "@/lib/session";
 
-export type AskTurn = { question: string; reply: AnswerResult };
-export type AskState = { turns: AskTurn[]; error?: string };
+import { MAX_QUESTION, type AskState } from "@/lib/ask";
 
-const MAX_QUESTION = 500;
-
-/** Pergunte ao gêmeo. Hoje usa a resposta simulada; vira chamada ao fluxo F2 quando ele existir. */
+/** Pergunte ao gêmeo: o mesmo fluxo F2 do Slack. Sem banco ligado ao painel, vale a resposta simulada da demo. */
 export async function perguntar(prev: AskState, formData: FormData): Promise<AskState> {
   const me = await currentPersona();
   if (!me || !canAskTwin(me.role)) return { ...prev, error: "Você não tem permissão para perguntar ao gêmeo." };
 
-  const target = findPersona(String(formData.get("pessoa") ?? ""));
+  const target = findMember(String(formData.get("pessoa") ?? ""));
   const question = String(formData.get("pergunta") ?? "").trim().slice(0, MAX_QUESTION);
-  if (!target) return { ...prev, error: "Pessoa não encontrada." };
+  if (!target || !(await teamScope(me)).people.some((p) => p.id === target.id)) return { ...prev, error: "Pessoa não encontrada." };
   if (!question) return { ...prev, error: "Escreva uma pergunta." };
 
-  return { turns: [...prev.turns, { question, reply: askTwinDemo(target, question) }] };
+  const db = panelDb();
+  if (!db) {
+    // A simulação responde na hora; a pausa imita o tempo de consulta do fluxo real (nota, GitHub, Linear).
+    await new Promise((r) => setTimeout(r, 900));
+    return { turns: [...prev.turns, { question, reply: askTwinDemo(target, question) }] };
+  }
+  const r = await askAgent(panelRequest({ orgId: me.orgId, askerId: me.id, ownerId: target.id, question }), { record: recordIn(db) });
+  return r.ok ? { turns: [...prev.turns, { question, reply: r.reply }] } : { ...prev, error: r.error };
 }

@@ -253,7 +253,7 @@ const inicio = `
     <tr><td><b>Conexões</b></td><td>Time, produto</td><td>Ferramentas de startups que ampliam o agente: agenda, CI/CD, incidentes, conhecimento, outros trackers e chats, RH e a API do Echo</td></tr>
     <tr><td><b>Contas e variáveis</b></td><td>Time</td><td>Contas a criar, configuração de cada plataforma e variáveis por serviço</td></tr>
     <tr><td><b>Produção</b></td><td>Time, liderança</td><td>Infraestrutura, segurança, operação e checklist para clientes reais</td></tr>
-    <tr><td><b>Produto</b></td><td>Todos</td><td>Ciclo do dia, autonomia, agentes, cérebro, escritório, ganhos, riscos e validação</td></tr>
+    <tr><td><b>Produto</b></td><td>Todos</td><td>Ciclo do dia, autonomia, agentes, cérebro, ganhos, riscos e validação</td></tr>
     <tr><td><b>Interações</b></td><td>Todos</td><td>Cada conversa possível com o Echo, com o que acontece por trás</td></tr>
     <tr><td><b>Fluxos</b></td><td>Engenharia</td><td>F1 a F10, passo a passo</td></tr>
     <tr><td><b>Painel</b></td><td>Todos</td><td>Telas, endereços e quem vê cada uma</td></tr>
@@ -375,28 +375,6 @@ equipe/
       </ol>
     </div>
   </div>
-</div>
-<div class="block">
-  <h2>O escritório virtual</h2>
-  <p>O painel abre num escritório em pixel art, com um avatar por pessoa no seu fuso. Cada ferramenta é um móvel e também uma aba lateral.</p>
-  <div class="scroll"><table>
-    <tr><th>Lugar</th><th>Ferramenta</th></tr>
-    <tr><td>Própria mesa</td><td>Meu plano e Nota do dia</td></tr>
-    <tr><td>Estante</td><td>Notas</td></tr>
-    <tr><td>Arquivos, na sala do RH</td><td>Relatórios</td></tr>
-    <tr><td>Quadro</td><td>Redistribuição</td></tr>
-    <tr><td>Mural</td><td>Seletor de pessoas e lista da equipe</td></tr>
-    <tr><td>Terminal</td><td>Simulador (só na demonstração)</td></tr>
-    <tr><td>Servidores</td><td>Custo e execuções (só a liderança)</td></tr>
-    <tr><td>Só a aba lateral</td><td>Ganhos e Configuração (RH e liderança)</td></tr>
-  </table></div>
-  <ul class="small">
-    <li>Fora do expediente ou em ausência, o gêmeo conduz o avatar, identificado como "Gêmeo de Fernando", com losango e anel.</li>
-    <li>Um "!" no móvel indica correção pronta, rascunho da nota, relatório a conferir, plano a decidir ou contradição entre notas.</li>
-    <li>Quando a liderança aprova um plano, as tarefas voam de uma mesa para outra. Propostas não aparecem.</li>
-    <li>No expediente, o avatar fica sentado por causa da agenda, não de atividade. A posição de quem anda não é enviada nem registrada.</li>
-    <li>Tudo funciona por teclado, e no celular o mapa dá lugar às listas.</li>
-  </ul>
 </div>
 <div class="block">
   <h2>Como reconhecer a ajuda</h2>
@@ -642,7 +620,6 @@ const fluxos = `
 
 /* ---------------- PAINEL ---------------- */
 const SCREENS = [
- ["Escritório","/escritorio","Mapa com cada pessoa no seu fuso, móveis que abrem as ferramentas","Todos"],
  ["Início","/","Retratos da equipe, Pergunte ao Echo e atalhos","Todos"],
  ["Meu plano","/plano","Plano do dia, correções a aprovar, achados e perguntas pendentes","A própria pessoa"],
  ["Nota do dia","/nota-do-dia","Conferir, editar e confirmar a nota, com liberado e reservado","A própria pessoa"],
@@ -692,7 +669,7 @@ const painel = `
 
 /* ---------------- ARQUITETURA ---------------- */
 const PKGS = [
- ["apps/web","Next.js: painel, aprovações, notas, relatório e escritório"],
+ ["apps/web","Next.js: painel, aprovações, notas e relatório"],
  ["apps/api","Hono: webhooks, OAuth e API do painel"],
  ["apps/worker","Fila, agenda e fluxos"],
  ["apps/reviewer","Correção de código e gravação dos vídeos com Managed Agents"],
@@ -1228,7 +1205,7 @@ const PHASES = [
   ["Login por persona com <code>DEMO_MODE=true</code>, só para a empresa de demonstração (<code>rehearsalAllowed</code>).",
    "Simulador de conversa e \"Pergunte ao gêmeo\" pelo mesmo fluxo do Slack.",
    "Simular a noite, recriar a demonstração e simular o envio automático do relatório.",
-   "Custo e execuções a partir de <code>agent_runs</code>. Escritório com cada pessoa no seu fuso.",
+   "Custo e execuções a partir de <code>agent_runs</code>.",
    "Teste ponta a ponta com Playwright (<code>pnpm e2e</code>), sem modelo, na CI.",
    "Ensaiar o roteiro da aba Demo várias vezes, com cronômetro."],
   "História da demo no navegador.","A história completa roda várias vezes sem ajuda manual, e um jurado testa só com o link."],

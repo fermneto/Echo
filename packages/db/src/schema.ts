@@ -208,6 +208,8 @@ export interface BranchMarkRow {
   to?: string;
   reason?: string;
   until?: string;
+  /** Liberação trazida de nota anterior confirmada (ISO): a validade conta desta data. */
+  confirmedAt?: string;
 }
 
 /** Nota do dia: draft → confirmed | auto_unreviewed. */
@@ -231,7 +233,7 @@ export const questions = pgTable("questions", {
   orgId: orgId(),
   askerId: uuid("asker_id").references(() => people.id),
   ownerId: uuid("owner_id").references(() => people.id),
-  kind: text("kind").notNull(), // gemeo | quem_sabe | livre | dm
+  kind: text("kind").notNull(), // gemeo | quem_sabe | livre | dm | citacao (proposta citada só pelo nome, F5b)
   channel: text("channel").notNull(), // slack:C123 | painel | mcp
   sourceRef: text("source_ref"),
   text: text("text"),
@@ -242,11 +244,16 @@ export const questions = pgTable("questions", {
   claimedBy: text("claimed_by"),
   needsOwner: boolean("needs_owner").notNull().default(false),
   digestKind: text("digest_kind"), // reuniao | proposta | decisao | nenhum
+  /** Resumo da ausência (F5b): uma linha de pedido e uma de resposta, apagadas na entrega ou em 30 dias. */
+  digestRequest: text("digest_request"),
+  digestReply: text("digest_reply"),
+  /** Quando entrou num resumo entregue ao dono. */
+  digestedAt: ts("digested_at"),
   resolved: boolean("resolved"),
   ownerReturnsAt: ts("owner_returns_at"),
   answeredAt: ts("answered_at"),
   createdAt: createdAt(),
-}, (t) => [uniqueIndex("questions_source_ref").on(t.orgId, t.sourceRef)]);
+}, (t) => [uniqueIndex("questions_source_ref").on(t.orgId, t.sourceRef), index("questions_owner_digest").on(t.orgId, t.ownerId, t.digestedAt)]);
 
 export const reviews = pgTable("reviews", {
   id: id(),
@@ -256,11 +263,14 @@ export const reviews = pgTable("reviews", {
   batchId: text("batch_id"),
   model: text("model"),
   findings: jsonb("findings").notNull().default([]),
-  state: text("state").notNull().default("queued"), // queued | batched | reviewed | fix_queued | fix_ready | approved | applied | no_findings | failed
+  /** Arquivos do diff enviado ao lote: achado em arquivo fora desta lista é descartado. */
+  files: jsonb("files").$type<string[]>().notNull().default([]),
+  state: text("state").notNull().default("queued"), // queued | batched | reviewed | fix_queued | fix_ready | approved | applied | no_findings | too_large | failed
   costUsd: numeric("cost_usd", { precision: 10, scale: 4 }),
   createdAt: createdAt(),
 }, (t) => [uniqueIndex("reviews_pr_sha").on(t.orgId, t.prId, t.headSha)]);
 
+/** Uma correção por revisão. O diff conferido vai no outbox (github.draft_pr); aqui fica o estado e o custo. */
 export const fixRuns = pgTable("fix_runs", {
   id: id(),
   orgId: orgId(),
@@ -270,9 +280,20 @@ export const fixRuns = pgTable("fix_runs", {
   testsReported: text("tests_reported"),
   checksState: text("checks_state"),
   costUsd: numeric("cost_usd", { precision: 10, scale: 4 }),
-  state: text("state").notNull().default("queued"),
+  state: text("state").notNull().default("queued"), // running | draft_queued | ready | approved | applied | declined | rejected | failed | skipped
+  /** Sessão do Managed Agents (para conferir no Console). */
+  sessionId: text("session_id"),
+  /** Versão do PR sobre a qual a correção foi feita. */
+  baseSha: text("base_sha"),
+  /** Versão do rascunho criada pela plataforma: só une se continuar igual. */
+  draftHeadSha: text("draft_head_sha"),
+  files: jsonb("files").$type<string[]>().notNull().default([]),
+  findings: jsonb("findings").notNull().default([]),
+  error: text("error"),
+  decidedBy: uuid("decided_by").references(() => people.id),
+  decidedAt: ts("decided_at"),
   createdAt: createdAt(),
-});
+}, (t) => [uniqueIndex("fix_runs_review").on(t.orgId, t.reviewId)]);
 
 export const morningPlans = pgTable("morning_plans", {
   id: id(),
@@ -391,6 +412,8 @@ export const outboxActions = pgTable("outbox_actions", {
   error: text("error"),
   /** Início da última execução: ação presa em "running" volta para a fila depois de um tempo. */
   startedAt: ts("started_at"),
+  /** O que a execução devolveu (ex.: número e versão do PR em rascunho), para o fluxo que pediu a ação. */
+  result: jsonb("result"),
   createdAt: createdAt(),
 }, (t) => [uniqueIndex("outbox_key").on(t.orgId, t.idempotencyKey)]);
 
@@ -401,9 +424,14 @@ export const dailyArtifacts = pgTable("daily_artifacts", {
   kind: text("kind").notNull(), // nota | plano | resumo
   date: text("date").notNull(),
   spec: jsonb("spec").notNull(),
+  /** Fatos calculados por regra no momento do resumo (o painel mostra números e nomes a partir deles). */
+  facts: jsonb("facts"),
+  /** Modelo que montou a especificação (null: layout padrão por regra). */
+  model: text("model"),
   version: integer("version").notNull().default(1),
   state: text("state").notNull().default("draft"), // draft | rendered | confirmed | fallback
-});
+  updatedAt: ts("updated_at"),
+}, (t) => [uniqueIndex("daily_artifacts_person_date_kind").on(t.orgId, t.personId, t.date, t.kind)]);
 
 export const featureVideos = pgTable("feature_videos", {
   id: id(),
@@ -430,7 +458,7 @@ export const agentRuns = pgTable("agent_runs", {
   costUsd: numeric("cost_usd", { precision: 10, scale: 6 }),
   durationMs: integer("duration_ms").notNull(),
   tools: jsonb("tools").$type<string[]>().notNull().default([]),
-  result: text("result").notNull(), // ok | fallback | refused | failed
+  result: text("result").notNull(), // ok | fallback | refused | failed | skipped
   error: text("error"),
   createdAt: createdAt(),
 }, (t) => [index("agent_runs_org_flow").on(t.orgId, t.flow, t.createdAt)]);

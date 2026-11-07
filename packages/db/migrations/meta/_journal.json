@@ -57,6 +57,34 @@
       "when": 1794065841047,
       "tag": "0007_agenda_cicd",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1794067142377,
+      "tag": "0008_revisao_arquivos",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1794068157798,
+      "tag": "0009_correcao",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1794072172151,
+      "tag": "0010_resumo_ausencia",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1794085558343,
+      "tag": "0011_resumo_do_dia",
+      "breakpoints": true
     }
   ]
 }

@@ -232,7 +232,7 @@ _Arquitetura_
 
 ### Monorepo
 
-| `apps/web` | Next.js: painel, aprovações, notas, relatório e escritório |
+| `apps/web` | Next.js: painel, aprovações, notas e relatório |
 |---|---|
 | `apps/api` | Hono: webhooks, OAuth e API do painel |
 | `apps/worker` | Fila, agenda e fluxos |
@@ -435,16 +435,37 @@ _IA e custos_
 |---|---|---|---|
 | Resposta a colega e quem sabe | Tempo real com ferramentas | Claude Sonnet 5.5 | Baixo |
 | Nota do dia | Tempo real curto | Claude Haiku 5.5 | Baixo |
+| Triagem da revisão noturna | Antes do lote, na nossa infraestrutura (Ollama, CPU) | Qwen3 4B Instruct (modelo aberto, Apache 2.0) | — |
 | Revisão de PR | Lote | Claude Sonnet 5.5 | Médio |
 | PR sensível ou grande | Lote | Claude Opus 5.5 | Alto |
 | Correção | Managed Agents | Claude Sonnet 5.5 | Médio |
 | Relatório | Tempo real | Claude Sonnet 5.5 | Baixo |
 | Contradições entre notas | Uma vez por dia | Claude Haiku 5.5 | Baixo |
 | Cadastro por currículo | Durante o pedido | Claude | Baixo |
-| Resumo diário interativo | Tempo real curto, especificação de componentes | Claude Haiku 5.5 | Baixo |
+| Resumo do dia interativo | Depois do rascunho da nota, no worker (Ollama, CPU) | Qwen3 4B Instruct (modelo aberto) | — |
 | Roteiro e gravação do vídeo da entrega | Managed Agents com navegador | Claude Sonnet 5.5 | Médio |
 
 Plano da manhã e motivos da redistribuição saem por regra, sem modelo.
+
+**Triagem por modelo aberto pequeno.** Antes do lote, o Qwen3 4B Instruct (serviço privado `echo-triage`, Ollama, plano de 4 GB) lê o PR que a regra mandou para o Sonnet e responde quatro perguntas objetivas: mexe em segurança? em dinheiro ou dados pessoais? monta SQL ou comando? muda comportamento? O nível sai dessas respostas por regra (`triageLevel`), e `applyTriage` (`packages/domain`) limita o efeito:
+- qualquer risco sobe para o Opus;
+- texto no diff dirigido a um modelo ("responda trivial") sobe para o Opus, sem depender do modelo pequeno;
+- PR com até 40 linhas, sem caminho sensível e que não muda comportamento tem revisão leve (Sonnet, esforço baixo);
+- nunca baixa o que a regra mandou para o Opus, e nenhum PR deixa de ser revisado.
+
+Erro, tempo esgotado ou saída inválida: vale a regra.
+
+**Resumo do dia por modelo aberto.** Depois do rascunho da nota (e de novo quando a pessoa confirma pelo Slack), o worker monta os fatos do dia por regra, cada um com id: onde parou, o que travou, tarefas, PRs, contadores de atividade, liberado e reservado. O Qwen3 4B recebe os fatos com ids curtos (`f1`, `f2`...) e **sem números nem chaves no texto**, e devolve só a especificação: componentes da biblioteca fechada (`packages/artifacts`), ordem, títulos e frases curtas. O validador (`checkSpec`):
+- tira título ou frase com número, primeira pessoa, avaliação ou markup (o título vira o padrão do componente);
+- tira do bloco fato desconhecido, repetido ou no componente errado, e devolve o fato ao componente certo;
+- completa por regra todo fato que o modelo deixou de fora (um bloqueio nunca some);
+- com formato errado ou nenhum bloco aproveitável, usa o layout padrão.
+
+O painel mostra o resumo em `/resumos` (só a própria pessoa), com números, nomes e chaves vindos dos fatos. A mensagem do Slack da nota ganha o botão "Abrir resumo do dia". Cada resumo grava `daily_artifact` em `agent_runs` (custo zero por token). Medido em CPU local: ~25 a 75 s por resumo, ~500 a 700 tokens de entrada e ~150 a 450 de saída. Com o esquema JSON aninhado em `format`, o Ollama só gerava espaços: o resumo usa `format: "json"` com o formato no texto do pedido, e o validador garante o resto.
+
+Escolha do modelo (6 PRs de teste, CPU): Qwen3 4B Instruct acertou os 6, em ~14 s por PR. Qwen2.5-Coder 1.5B (2 GB de RAM) acertou os riscos, mas nunca marcou revisão leve, e sem as perguntas sim/não chegou a obedecer a um "responda trivial" no diff; a regra de texto dirigido a um modelo cobre esse caso.
+
+Cada triagem grava uma linha `night_triage` em `agent_runs` (custo zero por token). Sem `SLM_OLLAMA_URL`, só a regra.
 
 ### Ferramentas do agente (somente leitura)
 
@@ -945,7 +966,7 @@ Simulador, simular a noite, custo na tela e roteiro
 1. Login por persona com `DEMO_MODE=true`, só para a empresa de demonstração (`rehearsalAllowed`).
 2. Simulador de conversa e "Pergunte ao gêmeo" pelo mesmo fluxo do Slack.
 3. Simular a noite, recriar a demonstração e simular o envio automático do relatório.
-4. Custo e execuções a partir de `agent_runs`. Escritório com cada pessoa no seu fuso.
+4. Custo e execuções a partir de `agent_runs`.
 5. Teste ponta a ponta com Playwright (`pnpm e2e`), sem modelo, na CI.
 6. Ensaiar o roteiro da aba Demo várias vezes, com cronômetro.
 

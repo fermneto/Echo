@@ -1,3 +1,4 @@
+import { proposalCitation } from "@echo/domain";
 import type { ChatMessage, NormalizedEvent } from "./normalized.ts";
 
 /** Reações que confirmam ajuda. */
@@ -14,6 +15,8 @@ export interface SlackEntryContext {
   botUserId?: string | undefined;
   /** Ids do Slack das pessoas cadastradas na empresa. */
   registeredUserIds: ReadonlySet<string>;
+  /** Nomes das pessoas cadastradas (id = conta do Slack), para a proposta citada só pelo nome (F5b). */
+  registeredPeople?: readonly { id: string; name: string }[];
 }
 
 /**
@@ -35,6 +38,8 @@ export function slackShouldKeep(event: any, ctx: SlackEntryContext): { keep: boo
   if (ctx.botUserId && mentions.includes(ctx.botUserId)) return { keep: false, reason: "coberta por app_mention" };
   if (mentions.some((m) => ctx.registeredUserIds.has(m))) return { keep: true, reason: "cita pessoa cadastrada" };
   if (isWhoKnows(text)) return { keep: true, reason: "quem sabe" };
+  // Proposta que cita uma pessoa só pelo nome: sem resposta no canal, mas vai para o resumo da ausência dela.
+  if (ctx.registeredPeople && proposalCitation(text, ctx.registeredPeople, event.user)) return { keep: true, reason: "proposta citada pelo nome" };
   return { keep: false, reason: "conversa entre pessoas" };
 }
 

@@ -47,7 +47,7 @@ describe.skipIf(!url)("executor do outbox (Postgres real)", () => {
   };
   const chat = {
     postAgentReply: async (i: { channel: string; text: string; agentName: string }) => (calls.push(`slack.post ${i.channel} [${i.agentName}]: ${i.text}`), { ts: "1" }),
-    sendDm: async (u: string, i: { text: string }) => void calls.push(`slack.dm ${u}: ${i.text}`),
+    sendDm: async (u: string, i: { text: string; blocks?: unknown[] }) => void calls.push(`slack.dm ${u}: ${i.text}${i.blocks ? ` [${i.blocks.length} blocos]` : ""}`),
   } as unknown as ChatPlatform;
   // Montado na hora do uso: a conexão `app` só existe depois do beforeAll.
   const deps = () => ({ db: app, writers: async () => ({ issues, code, chat }) });
@@ -133,13 +133,13 @@ describe.skipIf(!url)("executor do outbox (Postgres real)", () => {
     await enqueueAction(app, orgId, { type: "github.comment", target: "github:org-teste/app#42", idempotencyKey: "rev:42:abc", payload: { repo: "org-teste/app", number: 42, body: "Análise automática do Echo. Isto não é uma aprovação." } });
     await enqueueAction(app, orgId, { type: "slack.post", target: "slack:C1", idempotencyKey: "aviso1", payload: { channel: "C1", text: "Plano aprovado por Marina." } });
     await enqueueAction(app, orgId, { type: "github.set_reviewers", target: "github:org-teste/app#36", idempotencyKey: "rv36", payload: { repo: "org-teste/app", number: 36, personIds: [ids.car!] }, approvedBy: ids.mar! });
-    await enqueueAction(app, orgId, { type: "slack.dm", target: "slack:dm", idempotencyKey: "dm1", payload: { personId: ids.car!, text: "A ECH-133 agora é sua." } });
+    await enqueueAction(app, orgId, { type: "slack.dm", target: "slack:dm", idempotencyKey: "dm1", payload: { personId: ids.car!, text: "A ECH-133 agora é sua.", blocks: [{ type: "section" }] } });
     expect((await drainActions(deps(), orgId)).done).toBe(4);
     expect(calls).toEqual([
       "github.comment org-teste/app#42: Análise automática do Echo. Isto não é uma aprovação.",
       "slack.post C1 [Echo]: Plano aprovado por Marina.",
       "github.reviewers org-teste/app#36: carla-dev",
-      "slack.dm UCAR: A ECH-133 agora é sua.",
+      "slack.dm UCAR: A ECH-133 agora é sua. [1 blocos]",
     ]);
   });
 

@@ -4,7 +4,12 @@
   "type": "module",
   "exports": {
     ".": "./src/index.ts",
-    "./server": "./src/server.ts"
+    "./server": "./src/server.ts",
+    "./ganhos": "./src/pg-gains.ts",
+    "./perguntas": "./src/pg-questions.ts",
+    "./execucoes": "./src/pg-runs.ts",
+    "./enquanto-fora": "./src/pg-away-log.ts",
+    "./redistribuicao": "./src/pg-redistribution-view.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",
@@ -12,6 +17,8 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "catalog:",
+    "@echo/actions": "workspace:*",
+    "@echo/artifacts": "workspace:*",
     "@echo/brain": "workspace:*",
     "@echo/connectors": "workspace:*",
     "@echo/db": "workspace:*",

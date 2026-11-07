@@ -2,6 +2,7 @@ import type { ReactNode } from "react";
 import { Geist, Inter, JetBrains_Mono } from "next/font/google";
 import "./globals.css";
 import "./painel.css";
+import "./sprites.css";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
 const geist = Geist({ subsets: ["latin"], variable: "--font-geist", display: "swap" });

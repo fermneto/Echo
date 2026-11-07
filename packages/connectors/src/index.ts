@@ -88,8 +88,12 @@ export type Presence = "active" | "away" | "unknown";
 export interface ChatPlatform {
   /** Lido só na menção, com limite de 1,5 s. NUNCA gravar nem logar o resultado. */
   getPresence(userExternalId: string, timeoutMs?: number): Promise<Presence>;
-  /** Mensagem efêmera "consultando…" para quem chamou. */
+  /** Mensagem efêmera só para uma pessoa (ex.: aviso de pergunta perdida). O Slack não deixa o bot apagá-la. */
   postEphemeral(channel: string, userExternalId: string, text: string): Promise<void>;
+  /** Aviso temporário no tópico ("consultando…"), apagado com deleteMessage depois da resposta. */
+  postNotice?(input: { channel: string; threadTs?: string; agentName: string; text: string }): Promise<{ channel: string; ts: string } | null>;
+  /** Apaga uma mensagem do próprio bot. */
+  deleteMessage?(channel: string, ts: string): Promise<void>;
   /** Resposta do agente, identificada (ex.: "Agente de Fernando"). Blocos prontos em answerBlocks. */
   postAgentReply(input: { channel: string; threadTs?: string; agentName: string; blocks?: unknown[]; text: string; iconUrl?: string }): Promise<{ ts: string }>;
   sendDm(userExternalId: string, input: { text: string; blocks?: unknown[] }): Promise<void>;
@@ -124,7 +128,7 @@ export { ingest, type IngestResult } from "./ingest.ts";
 export { processInbox, receive, routeOrg, slackBotUserIdOf, type Delivery, type InboxJob, type InboxSource, type ProcessOptions } from "./inbox.ts";
 export { answerBlocks, dailyNoteDraftBlocks, fitText, respondToInteraction, SLACK_ACTIONS, SlackApiError, SlackChat, sourcesLine, type SlackClientOptions } from "./slack-client.ts";
 export { RefreshingToken } from "./tokens.ts";
-export { appJwt, GithubApiError, GithubApp, GithubCodeHost, normalizePem, selectDeliveriesToRetry, type GithubAppOptions, type WebhookDelivery } from "./github-client.ts";
+export { appJwt, GithubApiError, GithubApp, GithubCodeHost, normalizePem, selectDeliveriesToRetry, type GithubAppOptions, type PullRequestHistory, type WebhookDelivery } from "./github-client.ts";
 export { LinearApiError, LinearTracker, toTask, type LinearOptions } from "./linear-client.ts";
 export { BACKFILL_MS, MAX_DETAILS_PER_REPO, openPullRequestNumbers, reconcileGithub, reconcileLinear, type GithubReconciler, type GithubReconcileResult, type LinearReconciler } from "./reconcile.ts";
 export { calendarsForOrg, connectedOrgs, githubForOrg, orgRoute, platformsFromEnv, type PlatformEnv, type Platforms } from "./platforms.ts";

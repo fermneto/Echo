@@ -46,15 +46,18 @@ const db = createDb(pool);
 const orgName = env.DEMO_ORG_NAME ?? "Empresa de teste (integrações)";
 
 // Achar ou criar a empresa é rotina de sistema (ainda não há empresa na transação).
+// Não é empresa de demonstração: `pnpm db:seed` apaga todas as is_demo, e levaria junto as contas ligadas aqui.
 const org = await asSystem(db, async (tx) => {
   const [found] = await tx.select().from(orgs).where(eq(orgs.name, orgName));
-  return found ?? (await tx.insert(orgs).values({ name: orgName, isDemo: true }).returning())[0]!;
+  if (found?.isDemo) await tx.update(orgs).set({ isDemo: false }).where(eq(orgs.id, found.id));
+  return found ?? (await tx.insert(orgs).values({ name: orgName, isDemo: false }).returning())[0]!;
 });
 const orgId = org.id;
 console.log(`Empresa: ${orgName} · ${orgId}`);
 
 // Pessoas e identidades (só as contas informadas; nada é adivinhado).
-const wh = { days: [1, 2, 3, 4, 5], start: "09:00", end: "18:00" };
+// Todos trabalham no fim de semana e folgam só na terça (0 = domingo … 6 = sábado), como na demonstração.
+const wh = { days: [0, 1, 3, 4, 5, 6], start: "09:00", end: "18:00" };
 for (const p of pessoas) await withOrg(db, orgId, async (db) => {
   let [row] = await db.select().from(people).where(and(eq(people.orgId, orgId), eq(people.name, p.nome)));
   if (!row) [row] = await db.insert(people).values({ orgId, name: p.nome, timezone: p.fuso ?? "America/Sao_Paulo", role: p.papel ?? "member", workHours: wh }).returning();

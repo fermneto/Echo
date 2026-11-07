@@ -1,0 +1,73 @@
+name: Deploy na Render
+
+# No plano gratuito da Render não há comando antes do deploy, e o deploy automático publicava
+# código novo antes da migração (coluna inexistente no worker). Aqui a ordem é fixa:
+# CI verde na main → migração no banco da Render → deploy dos serviços pelos Deploy Hooks.
+# Desligue o Auto-Deploy dos três serviços na Render (Settings → Auto-Deploy: Off). Um deploy por hook
+# com ref também o desliga, segundo a documentação da Render (render.com/docs/deploy-a-commit).
+#
+# Segredos do repositório (Settings → Secrets and variables → Actions):
+#   RENDER_DATABASE_URL         External Database URL do echo-db
+#   RENDER_DEPLOY_HOOK_API      Settings → Deploy Hook do echo-api
+#   RENDER_DEPLOY_HOOK_WEB      Settings → Deploy Hook do echo-web
+#   RENDER_DEPLOY_HOOK_WORKER   Settings → Deploy Hook do echo-worker
+on:
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
+    branches: [main]
+  # Para publicar de novo a main sem um commit novo.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: deploy-render
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Migração e deploy
+    if: github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.event == 'push')
+    runs-on: ubuntu-latest
+    env:
+      SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ env.SHA }}
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      - name: Migração no banco da Render
+        env:
+          RENDER_DATABASE_URL: ${{ secrets.RENDER_DATABASE_URL }}
+        run: |
+          test -n "$RENDER_DATABASE_URL" || { echo "::error::Falta o segredo RENDER_DATABASE_URL"; exit 1; }
+          # A conexão externa da Render exige SSL.
+          case "$RENDER_DATABASE_URL" in
+            *sslmode=*) url="$RENDER_DATABASE_URL" ;;
+            *\?*) url="$RENDER_DATABASE_URL&sslmode=no-verify" ;;
+            *) url="$RENDER_DATABASE_URL?sslmode=no-verify" ;;
+          esac
+          echo "::add-mask::$url"
+          DATABASE_URL="$url" pnpm db:migrate
+
+      - name: Deploy dos serviços (mesmo commit da migração)
+        env:
+          HOOK_API: ${{ secrets.RENDER_DEPLOY_HOOK_API }}
+          HOOK_WEB: ${{ secrets.RENDER_DEPLOY_HOOK_WEB }}
+          HOOK_WORKER: ${{ secrets.RENDER_DEPLOY_HOOK_WORKER }}
+        run: |
+          for svc in API WEB WORKER; do
+            var="HOOK_$svc"; hook="${!var}"
+            test -n "$hook" || { echo "::error::Falta o segredo RENDER_DEPLOY_HOOK_$svc"; exit 1; }
+            echo "::add-mask::$hook"
+            curl -fsS -X POST "$hook&ref=$SHA" > /dev/null
+            echo "deploy pedido: $svc ($SHA)"
+          done

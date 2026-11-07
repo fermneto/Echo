@@ -51,6 +51,8 @@ const FORBIDDEN = re(
     "nota\\s+de\\s+desempenho|avalia[çc][ãa]o\\s+de\\s+desempenho|tempo\\s+online",
     // O agente nunca aprova nem publica.
     "aprovo|aprovei|vou\\s+aprovar|fiz\\s+o\\s+merge|publiquei|vou\\s+publicar",
+    // Nem muda tarefas: só sugere, e a troca passa por aprovação.
+    "(?:re)?atribu[íi]|transferi|mudei\\s+(?:o|a)\\s+respons[áa]vel|j[áa]\\s+(?:passei|repassei)",
   ].join("|"),
 );
 

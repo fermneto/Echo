@@ -227,12 +227,14 @@ describe("weeklyMetrics (Carla)", () => {
   it("conta poucos commits, nenhuma entrega e as 5 ajudas confirmadas", () => {
     const events = [ev("commit", "2026-11-03T12:00:00Z"), ev("commit", "2026-11-04T12:00:00Z"), ev("review", "2026-11-05T12:00:00Z"), ev("review_comment", "2026-11-05T13:00:00Z")];
     const contributions = [1, 2, 3, 4, 5].map((d) => help(`2026-11-0${d + 2}T12:00:00Z`)).concat([help("2026-11-04T12:00:00Z", false), help("2026-10-20T12:00:00Z")]);
-    expect(weeklyMetrics({ personId: "carla", events, contributions, tasks: [], from, to })).toEqual({ deliveries: 0, commits: 2, reviews: 1, helps: 5, delays: [] });
+    expect(weeklyMetrics({ personId: "carla", events, contributions, tasks: [], from, to })).toEqual({ deliveries: 0, commits: 2, reviews: 1, helps: 5, delays: [], deliveryRefs: [], helped: [{ personId: "bruno", count: 5 }] });
   });
 
   it("PR ligado e conclusão da tarefa são uma entrega só", () => {
     const events = [ev("pr_merged", "2026-11-04T12:00:00Z", { taskKey: "ECH-135", prNumber: 34 }), ev("task_done", "2026-11-04T12:05:00Z", { taskKey: "ECH-135" }), ev("pr_merged", "2026-11-05T12:00:00Z", { prNumber: 40 })];
-    expect(weeklyMetrics({ personId: "carla", events, contributions: [], tasks: [], from, to }).deliveries).toBe(2);
+    const m = weeklyMetrics({ personId: "carla", events, contributions: [], tasks: [], from, to });
+    expect(m.deliveries).toBe(2);
+    expect(m.deliveryRefs).toEqual(["#40", "ECH-135"]);
   });
 
   it("aponta atrasos: concluída depois do prazo ou ainda aberta com o prazo vencido", () => {
@@ -248,9 +250,9 @@ describe("weeklyMetrics (Carla)", () => {
 });
 
 describe("contributionScore", () => {
-  it("coautoria, mudança em revisão e destravamento são fortes; reação e confirmação, médias", () => {
+  it("como na aba Produto: coautoria, mudança em revisão, confirmação no painel e reação são fortes; destravar é médio", () => {
     const c = (kind: Contribution["kind"]) => contributionScore({ helperId: "a", helpedId: "b", kind, confirmed: true, occurredAt: scene }).weight;
-    expect(["coauthor", "review_change", "unblock", "reaction", "panel_confirm"].map((k) => c(k as Contribution["kind"]))).toEqual(["forte", "forte", "forte", "medio", "medio"]);
+    expect(["coauthor", "review_change", "panel_confirm", "reaction", "unblock"].map((k) => c(k as Contribution["kind"]))).toEqual(["forte", "forte", "forte", "forte", "medio"]);
   });
 });
 

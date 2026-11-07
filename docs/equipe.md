@@ -36,7 +36,7 @@ O resto das 28 etapas vira "próximos passos" no pitch.
 | Todos | Instalar Node 24, Docker e `corepack enable pnpm`. Ler `CLAUDE.md` (regras invioláveis) e a aba Demo do manual. |
 | Integrações | Criar as contas: org de teste no GitHub (`<org>-teste/app` público), **GitHub App**, espaço do **Slack** e app interno, espaço do **Linear** e app OAuth (ver `docs/engenharia.md` → Contas e variáveis). Gerar `ENCRYPTION_KEY` com `openssl rand -hex 32`. |
 | Funções | Criar a conta da **Anthropic** (organização, limite de gasto, `ANTHROPIC_API_KEY`). Ler a aba Regras. |
-| Web/Visual | Rascunhar o layout do painel e do escritório em pixel art. Ler a aba Painel (telas, endereços, quem vê). |
+| Web/Visual | Rascunhar o layout do painel. Ler a aba Painel (telas, endereços, quem vê). |
 | Avaliador | Criar a conta da **Render**. Conferir as regras e os critérios do hackathon e listar os entregáveis (repositório, vídeo, link, ferramentas declaradas). |
 
 ## 10:30: ponto de partida
@@ -84,7 +84,7 @@ O resto das 28 etapas vira "próximos passos" no pitch.
 | 5 | Telas de notas: lista, edição e histórico. |
 | 9 e 11 | Meu plano (reordenar, descartar, aprovar correção) e Redistribuição (registrar ausência, aprovar plano). |
 | 12 e 13 | Relatórios (observação marcada, simular envio, visão do RH) e Ganhos (só totais). |
-| 16 | Escritório em pixel art (cada pessoa no seu fuso, móveis que abrem as ferramentas) e Custo e execuções. |
+| 16 | Custo e execuções. |
 | 26 | Resumos interativos em `/resumos/[id]`, montados a partir da `ArtifactSpec`. |
 
 Enquanto o seed e as regras não ficam prontos, a frente trabalha com dados simulados com os tipos de `@echo/domain`.

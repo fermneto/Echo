@@ -18,6 +18,30 @@ export const QUEUES = {
   absenceSuggested: "absence.suggested",
   /** Push no repositório brains: sincronizar o espelho das notas da empresa (etapa 14). */
   brainMirror: "brain.mirror",
+  /** Rascunho da nota do dia de uma pessoa (F3). Chave única: pessoa + data. */
+  dailyNoteDraft: "daily_note.draft",
+  /** Prazo de 2 h do rascunho: sem resposta, vira auto_unreviewed. */
+  dailyNoteTimeout: "daily_note.timeout",
+  /** Resumo do dia (etapa 26), montado pelo modelo aberto depois do rascunho e da confirmação. */
+  daySummary: "daily_note.summary",
+  /** Revisão noturna de uma empresa: filtro, lote e envio (F4). Até 3 tentativas, 30 min entre elas. */
+  nightReview: "review.night",
+  /** Busca os lotes terminados e publica as análises pelo outbox. */
+  reviewCollect: "review.collect",
+  /** Plano da manhã de uma pessoa (F5). Chave única: pessoa + data. */
+  morningPlan: "morning_plan.build",
+  /** Correção de uma revisão em ambiente isolado (etapa 10), no reviewer. Chave única: a revisão. */
+  fixRun: "fix.run",
+  /** Passada da redistribuição numa empresa: plano complementar, volta da ausência e planos concluídos. */
+  redistributionScan: "redistribution.scan",
+  /** Relatório semanal de uma pessoa, depois do corte (etapa 12). Chave única: pessoa + semana. */
+  weeklyReportBuild: "weekly_report.build",
+  /** Agenda dos relatórios de uma empresa: aviso entregue, envio ao RH em 3 dias, sem aviso em 7. */
+  weeklyReportSync: "weekly_report.sync",
+  /** Resumo da ausência de uma pessoa (etapa 13, F5b). Chave única: pessoa + data + início ou fim do expediente. */
+  awayDigestSend: "away_digest.send",
+  /** Referência dos Ganhos: 90 dias de GitHub antes do Echo, medida uma vez por empresa (etapa 13). */
+  gainsBaseline: "gains.baseline",
 } as const;
 export type QueueName = (typeof QUEUES)[keyof typeof QUEUES];
 
@@ -31,7 +55,11 @@ export interface SendOptions {
   /** Chave única: o mesmo valor não gera dois jobs na mesma fila enquanto o primeiro existir. */
   singletonKey?: string;
   retryLimit?: number;
+  /** Espera fixa entre tentativas; sem ela, a espera cresce a cada tentativa. */
+  retryDelaySeconds?: number;
   startAfterSeconds?: number;
+  /** Tempo máximo do job rodando antes de a fila considerá-lo perdido (padrão do pg-boss: 15 min). */
+  expireInSeconds?: number;
 }
 
 export type JobHandler<T> = (job: QueuedJob<T>) => Promise<void>;
@@ -75,8 +103,9 @@ export class PgBossQueue implements JobQueue {
     return this.boss.send(name, data, {
       ...(opts.singletonKey ? { singletonKey: opts.singletonKey } : {}),
       retryLimit: opts.retryLimit ?? 3,
-      retryBackoff: true,
+      ...(opts.retryDelaySeconds ? { retryDelay: opts.retryDelaySeconds, retryBackoff: false } : { retryBackoff: true }),
       ...(opts.startAfterSeconds ? { startAfter: opts.startAfterSeconds } : {}),
+      ...(opts.expireInSeconds ? { expireInSeconds: opts.expireInSeconds } : {}),
     });
   }
 

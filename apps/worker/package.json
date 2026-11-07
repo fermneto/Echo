@@ -10,6 +10,7 @@
     "reconciliar": "tsx --env-file-if-exists=../../.env src/reconcile-now.ts"
   },
   "dependencies": {
+    "@echo/agents": "workspace:*",
     "@echo/brain": "workspace:*",
     "@echo/config": "workspace:*",
     "@echo/observability": "workspace:*",
@@ -18,7 +19,6 @@
     "@echo/connectors": "workspace:*",
     "@echo/db": "workspace:*",
     "@echo/actions": "workspace:*",
-    "@echo/agents": "workspace:*",
     "@echo/domain": "workspace:*",
     "drizzle-orm": "catalog:"
   },

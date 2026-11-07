@@ -1,6 +1,6 @@
 // Fluxo de resposta contra o Postgres real (DATABASE_URL), depois de `pnpm db:migrate`. Sem modelo: por regra.
 import { randomUUID } from "node:crypto";
-import { agentRuns, asSystem, createDb, createPool, dailyNotes, type Database, orgs, people, pullRequests, tasks, teams, workEvents } from "@echo/db";
+import { agentRuns, asSystem, createDb, createPool, dailyNotes, type Database, expertiseOverrides, orgs, people, pullRequests, tasks, teams, workEvents } from "@echo/db";
 import { FixedClock } from "@echo/domain";
 import { eq } from "drizzle-orm";
 import type pg from "pg";
@@ -44,6 +44,7 @@ describe.skipIf(!url)("answer em Postgres", () => {
       await tx.insert(tasks).values({ orgId: org, key: "ECH-128", title: "Tempo limite", assigneeId: fernando, state: "in_progress", linearId: "lin-1" });
       await tx.insert(pullRequests).values({ orgId: org, repository: "teste/app", number: 44, title: "Tempo limite", authorId: fernando, state: "open", branch: "ech-128-tempo-limite", taskKey: "ECH-128" });
       await tx.insert(workEvents).values({ orgId: org, type: "commit", personId: fernando, repository: "teste/app", branch: "ech-128-tempo-limite", occurredAt: new Date("2026-11-06T20:00:00Z"), source: "github", sourceRef: `commit:${randomUUID()}` });
+      await tx.insert(expertiseOverrides).values({ orgId: org, personId: eduardo, topic: "kubernetes", include: true });
       await tx.insert(agentRuns).values({ orgId: org, flow: "answer", durationMs: 1, result: "ok", costUsd: "1.250000", createdAt: new Date("2026-11-02T00:00:00Z") });
     });
   });
@@ -63,10 +64,13 @@ describe.skipIf(!url)("answer em Postgres", () => {
     expect(await data.lastCommitAt("teste/app", "ech-128-tempo-limite")).toEqual(new Date("2026-11-06T20:00:00Z"));
     expect(await data.spentUsdSince(new Date("2026-11-01T00:00:00Z"))).toBeCloseTo(1.25);
 
+    expect(await data.expertiseOverrides()).toEqual([{ personId: eduardo, topic: "kubernetes", include: true }]);
+
     const outsider = createPgAgentData(db, other);
     expect(await outsider.people()).toEqual([]);
     expect(await outsider.latestDailyNote(fernando)).toBeNull();
     expect(await outsider.pullRequests({})).toEqual([]);
+    expect(await outsider.expertiseOverrides()).toEqual([]);
   });
 
   it("responde por regra com fontes e grava agent_runs na empresa", async () => {
@@ -85,6 +89,15 @@ describe.skipIf(!url)("answer em Postgres", () => {
     expect(fallbacks).toHaveLength(2);
     expect(fallbacks[0]).toMatchObject({ flow: "answer", model: null, costUsd: null });
     expect(fallbacks.flatMap((x) => x.tools)).toEqual([]);
+  });
+
+  it("quem sabe por regra lê a evidência do banco e grava agent_runs como quem_sabe", async () => {
+    const answer = createAnswer({ ...serverAnswerDeps(db, undefined), clock: new FixedClock(NOW) });
+    const r = await answer({ orgId: org, askerId: fernando, text: "alguém sabe de kubernetes?", channel: "slack" });
+    expect(r.kind).toBe("quem_sabe");
+    expect(r.text).toBe(["Quem tem registro sobre kubernetes:", "- Eduardo: ajuste de Eduardo", "A ordem vale só para esta pergunta."].join("\n"));
+    const runs = await asSystem(db, (tx) => tx.select().from(agentRuns).where(eq(agentRuns.orgId, org)));
+    expect(runs.filter((x) => x.flow === "quem_sabe")).toHaveLength(1);
   });
 
   it("o gravador recusa execução sem empresa", async () => {

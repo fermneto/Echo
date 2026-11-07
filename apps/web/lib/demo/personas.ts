@@ -1,18 +1,25 @@
+import { live } from "./availability";
+import { TEAM_OF, WORK_DAYS } from "./teams";
 import type { Persona } from "./types";
 
 const ORG_ID = "demo";
-const WEEKDAYS = [1, 2, 3, 4, 5];
+/** Folga só na terça (igual ao seed). */
+const WEEKDAYS = WORK_DAYS;
 
 /**
  * Personas da demonstração (docs/produto.md → "Personas da demonstração").
  * Dados SINTÉTICOS e provisórios até o `pnpm db:seed` da Frente 2 (hoje ainda um esqueleto).
- * Cidades de Marina, Bruno, Carla e Rita são escolha provisória: confirmar com o seed.
+ * Cidades, fusos e expedientes seguem o seed (seed/src/demo.ts).
  */
 
-/** Instante fixo da cena 1: 03:12 em Fortaleza, 08:12 em Joanesburgo, 15:12 em Tóquio. */
+/**
+ * Instante fixo usado só nos testes (03:12 em Fortaleza, 08:12 em Joanesburgo, 15:12 em Tóquio).
+ * O painel usa o relógio real: a disponibilidade de cada persona sai do expediente (availability.ts).
+ */
 export const DEMO_NOW = new Date("2026-11-06T06:12:00Z");
 
-export const PERSONAS: readonly Persona[] = [
+export const PERSONAS: readonly Persona[] = (
+  [
   {
     id: "fernando",
     name: "Fernando",
@@ -67,12 +74,12 @@ export const PERSONAS: readonly Persona[] = [
     title: "Líder de engenharia",
     story: "Redistribui tarefas, vê custo e execuções",
     role: "leader",
-    city: "Tóquio",
-    cityCode: "TYO",
+    city: "São Paulo",
+    cityCode: "SAO",
     orgId: ORG_ID,
     active: true,
     skills: [],
-    timezone: "Asia/Tokyo",
+    timezone: "America/Sao_Paulo",
     workHours: { days: WEEKDAYS, start: "09:00", end: "18:00" },
     areas: ["gestão"],
     availability: { kind: "working" },
@@ -83,12 +90,12 @@ export const PERSONAS: readonly Persona[] = [
     title: "Desenvolvedor",
     story: "Entra de férias e tem as tarefas redistribuídas",
     role: "member",
-    city: "Tóquio",
-    cityCode: "TYO",
+    city: "São Paulo",
+    cityCode: "SAO",
     orgId: ORG_ID,
     active: true,
     skills: [],
-    timezone: "Asia/Tokyo",
+    timezone: "America/Sao_Paulo",
     workHours: { days: WEEKDAYS, start: "09:00", end: "18:00" },
     areas: ["pagamentos"],
     availability: { kind: "working" },
@@ -99,12 +106,12 @@ export const PERSONAS: readonly Persona[] = [
     title: "Desenvolvedora",
     story: "Poucos commits, 0 entregas e 5 ajudas a colegas",
     role: "member",
-    city: "Tóquio",
-    cityCode: "TYO",
+    city: "São Paulo",
+    cityCode: "SAO",
     orgId: ORG_ID,
     active: true,
     skills: [],
-    timezone: "Asia/Tokyo",
+    timezone: "America/Sao_Paulo",
     workHours: { days: WEEKDAYS, start: "09:00", end: "18:00" },
     areas: ["pagamentos"],
     availability: { kind: "working" },
@@ -115,17 +122,18 @@ export const PERSONAS: readonly Persona[] = [
     title: "RH",
     story: "Vê o relatório enviado, sem nota, ranking ou cérebros",
     role: "hr",
-    city: "Joanesburgo",
-    cityCode: "JNB",
+    city: "São Paulo",
+    cityCode: "SAO",
     orgId: ORG_ID,
     active: true,
     skills: [],
-    timezone: "Africa/Johannesburg",
-    workHours: { days: WEEKDAYS, start: "08:00", end: "17:00" },
+    timezone: "America/Sao_Paulo",
+    workHours: { days: WEEKDAYS, start: "09:00", end: "18:00" },
     areas: [],
     availability: { kind: "working" },
   },
-];
+  ] as Persona[]
+).map((p) => live({ ...p, teamId: TEAM_OF[p.id] }));
 
 export function findPersona(id: string): Persona | undefined {
   return PERSONAS.find((p) => p.id === id);

@@ -3,9 +3,9 @@ import type { SourceRef } from "@echo/domain";
 import type { Persona } from "./types";
 
 /**
- * Respostas SIMULADAS do gêmeo, no formato `AnswerResult` de `@echo/agents`, para o painel andar
- * antes do fluxo F2 (Frente 2, etapa 6). Reproduz os cenários de docs/produto.md → "Perguntas ao gêmeo"
- * e "Barreiras". Quando o F2 existir, a ação do painel chama o fluxo e este arquivo some.
+ * Respostas SIMULADAS do gêmeo, no formato `AnswerResult` de `@echo/agents`. Reproduz os cenários de
+ * docs/produto.md → "Perguntas ao gêmeo" e "Barreiras". Com banco ligado ao painel, a pergunta vai ao
+ * fluxo F2 real (lib/agent.ts); isto vale só para a demo sem banco.
  */
 
 const EVALUATION = /\b(bom|boa|ruim|melhor|pior)\s+(funcion[aá]ri[oa]|profissional|colega)|\bavali|\branking\b|\bsal[aá]rio|\bdemi(ss|t)|\bpromo[cç]/i;

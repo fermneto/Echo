@@ -9,6 +9,12 @@ type Row<T extends { $inferInsert: unknown }> = T["$inferInsert"];
 export const DEMO_IDS = {
   org: "00000000-0000-4000-8000-000000000001",
   team: "00000000-0000-4000-8000-000000000010",
+  /** As três equipes do mapa (a primeira é a `team` acima, mantida para quem já usa o id). */
+  teams: {
+    produto: "00000000-0000-4000-8000-000000000010",
+    dados: "00000000-0000-4000-8000-000000000011",
+    app: "00000000-0000-4000-8000-000000000012",
+  },
   people: {
     fernando: "00000000-0000-4000-8000-000000000101",
     eduardo: "00000000-0000-4000-8000-000000000102",
@@ -17,8 +23,23 @@ export const DEMO_IDS = {
     bruno: "00000000-0000-4000-8000-000000000105",
     carla: "00000000-0000-4000-8000-000000000106",
     rita: "00000000-0000-4000-8000-000000000107",
+    // Equipe fictícia do mapa (apps/web/lib/demo/world.ts).
+    noah: "00000000-0000-4000-8000-000000000108",
+    lucia: "00000000-0000-4000-8000-000000000109",
+    ana: "00000000-0000-4000-8000-000000000110",
+    ines: "00000000-0000-4000-8000-000000000111",
+    jonas: "00000000-0000-4000-8000-000000000112",
+    amara: "00000000-0000-4000-8000-000000000113",
+    omar: "00000000-0000-4000-8000-000000000114",
+    priya: "00000000-0000-4000-8000-000000000115",
+    wei: "00000000-0000-4000-8000-000000000116",
+    jiwoo: "00000000-0000-4000-8000-000000000117",
+    olivia: "00000000-0000-4000-8000-000000000118",
   },
 } as const;
+
+/** As 7 personas da história; as outras pessoas do mapa só têm conta no Slack. */
+const STORY = new Set(["fernando", "eduardo", "yan", "marina", "bruno", "carla", "rita"]);
 
 export type PersonaKey = keyof typeof DEMO_IDS.people;
 
@@ -38,6 +59,8 @@ export interface DemoData {
   contributions: Row<typeof schema.contributions>[];
   questions: Row<typeof schema.questions>[];
   agentRuns: Row<typeof schema.agentRuns>[];
+  /** Férias que o mapa mostra (Yan e Noah), para as respostas saberem quem está fora. */
+  absences: Row<typeof schema.absences>[];
 }
 
 const HOUR = 3_600_000;
@@ -62,7 +85,19 @@ function nextFriday(now: Date, timeZone: string): string {
   return localDate(now, timeZone);
 }
 
-const weekdays = { days: [1, 2, 3, 4, 5], start: "09:00", end: "18:00" };
+/** Início da próxima segunda em Tóquio (UTC+9, sem horário de verão): fim das férias do Yan. */
+function nextMonday(now: Date, timeZone: "Asia/Tokyo"): Date {
+  for (let i = 1; i <= 7; i++) {
+    const d = new Date(now.getTime() + i * DAY);
+    if (new Intl.DateTimeFormat("en-US", { timeZone, weekday: "short" }).format(d) === "Mon") return new Date(`${localDate(d, timeZone)}T00:00:00+09:00`);
+  }
+  return new Date(now.getTime() + 7 * DAY);
+}
+
+/** Todos trabalham no fim de semana e folgam só na terça (0 = domingo … 6 = sábado). */
+export const WORK_DAYS = [0, 1, 3, 4, 5, 6];
+const weekdays = { days: WORK_DAYS, start: "09:00", end: "18:00" };
+const hours = (start: string, end: string) => ({ days: WORK_DAYS, start, end });
 
 export function buildDemo(now: Date): DemoData {
   const P = DEMO_IDS.people;
@@ -84,12 +119,23 @@ export function buildDemo(now: Date): DemoData {
       monthlyLimitUsd: "50",
       hardLimitUsd: "100",
       repositoriesOpenToTeam: [DEMO_REPO],
-      // Referência para Ganhos (antes do Echo), em horas.
-      gainsBaseline: { questionWaitHours: 9, firstReviewHours: 26 },
+      // Referência para Ganhos (90 dias de GitHub antes do Echo, medida uma vez), no formato de gainsBaseline.
+      gainsBaseline: {
+        capturedAt: ago(30 * DAY).toISOString(),
+        from: ago(120 * DAY).toISOString(),
+        to: ago(30 * DAY).toISOString(),
+        org: { prs: 38, firstReviewHours: 26, reviewRoundsPerPr: 2.5 },
+        teams: { [DEMO_IDS.team]: { prs: 38, firstReviewHours: 26, reviewRoundsPerPr: 2.5 } },
+      },
     },
   ];
 
-  const teams: DemoData["teams"] = [{ id: DEMO_IDS.team, orgId: org, name: "Produto", leaderId: P.marina, loadLimit: 12 }];
+  const T = DEMO_IDS.teams;
+  const teams: DemoData["teams"] = [
+    { id: T.produto, orgId: org, name: "Produto", leaderId: P.marina, loadLimit: 12 },
+    { id: T.dados, orgId: org, name: "Dados e plataforma", leaderId: P.jonas, loadLimit: 12 },
+    { id: T.app, orgId: org, name: "Aplicativo e qualidade", leaderId: P.ines, loadLimit: 12 },
+  ];
 
   const person = (
     key: PersonaKey,
@@ -117,7 +163,7 @@ export function buildDemo(now: Date): DemoData {
     }),
     person("eduardo", "Eduardo", "Africa/Johannesburg", {
       // Começa às 8h: na cena 1 (08:12 em Joanesburgo) ele já está no expediente.
-      workHours: { days: [1, 2, 3, 4, 5], start: "08:00", end: "17:00" },
+      workHours: hours("08:00", "17:00"),
       jobTitle: "Desenvolvedor",
       skills: ["typescript", "react", "api"],
       areas: ["api", "web"],
@@ -129,37 +175,51 @@ export function buildDemo(now: Date): DemoData {
       areas: ["web"],
       languages: ["pt", "en"],
     }),
-    person("marina", "Marina", "America/Sao_Paulo", {
+    person("marina", "Marina", "Asia/Tokyo", {
       role: "leader",
       jobTitle: "Líder de engenharia",
       skills: ["gestao"],
       areas: ["gestao"],
       languages: ["pt", "en"],
     }),
-    person("bruno", "Bruno", "America/Sao_Paulo", {
+    person("bruno", "Bruno", "Asia/Tokyo", {
       jobTitle: "Desenvolvedor",
       skills: ["node", "infra"],
       areas: ["pagamentos", "infra"],
       languages: ["pt"],
     }),
-    person("carla", "Carla", "America/Sao_Paulo", {
+    person("carla", "Carla", "Asia/Tokyo", {
       jobTitle: "Desenvolvedora",
       skills: ["node", "pagamentos", "middlewares"],
       areas: ["pagamentos"],
       languages: ["pt", "en"],
     }),
-    person("rita", "Rita", "America/Sao_Paulo", {
+    person("rita", "Rita", "Africa/Johannesburg", {
       role: "hr",
       teamId: null,
+      workHours: hours("08:00", "17:00"),
       jobTitle: "Pessoas e cultura",
       languages: ["pt"],
     }),
+    // Equipe fictícia do mapa: mesmas cidades e horários de apps/web/lib/demo/world.ts.
+    person("noah", "Noah", "America/New_York", { teamId: T.app, jobTitle: "Engenheiro de front-end", skills: ["react", "typescript", "css"], areas: ["web"], languages: ["en"] }),
+    person("lucia", "Lucía", "America/Mexico_City", { teamId: T.app, jobTitle: "Engenheira de back-end", skills: ["node", "api"], areas: ["api"], languages: ["es", "en"] }),
+    person("ana", "Ana", "America/Sao_Paulo", { teamId: T.dados, jobTitle: "Engenheira de dados", skills: ["sql", "python", "dbt"], areas: ["dados"], languages: ["pt", "en"] }),
+    person("ines", "Inês", "Europe/Lisbon", { teamId: T.app, role: "leader", workHours: hours("11:00", "20:00"), jobTitle: "Engenheira de qualidade", skills: ["testes", "playwright"], areas: ["qualidade"], languages: ["pt", "en"] }),
+    person("jonas", "Jonas", "Europe/Berlin", { teamId: T.dados, role: "leader", workHours: hours("12:00", "21:00"), jobTitle: "Engenheiro de plataforma", skills: ["infra", "kubernetes", "postgres"], areas: ["infra", "plataforma"], languages: ["de", "en"] }),
+    person("amara", "Amara", "Africa/Lagos", { teamId: T.dados, jobTitle: "Engenheira de dados", skills: ["python", "sql"], areas: ["dados"], languages: ["en"] }),
+    person("omar", "Omar", "Asia/Dubai", { teamId: T.dados, jobTitle: "Engenheiro de segurança", skills: ["seguranca", "infra"], areas: ["seguranca"], languages: ["ar", "en"] }),
+    person("priya", "Priya", "Asia/Kolkata", { teamId: T.app, jobTitle: "Engenheira de back-end", skills: ["node", "postgres"], areas: ["api"], languages: ["en"] }),
+    person("wei", "Wei", "Asia/Singapore", { teamId: T.dados, jobTitle: "Engenheiro de dados", skills: ["python", "spark"], areas: ["dados"], languages: ["zh", "en"] }),
+    person("jiwoo", "Ji-woo", "Asia/Seoul", { teamId: T.app, jobTitle: "Engenheira do aplicativo", skills: ["react-native", "typescript"], areas: ["app"], languages: ["ko", "en"] }),
+    person("olivia", "Olivia", "Australia/Sydney", { teamId: T.app, jobTitle: "Engenheira do aplicativo", skills: ["react-native", "testes"], areas: ["app"], languages: ["en"] }),
   ];
 
   const identities: DemoData["identities"] = (Object.keys(P) as PersonaKey[]).flatMap((key) => {
     const rows: Row<typeof schema.identities>[] = [
       { orgId: org, personId: P[key], platform: "slack", externalId: `U_DEMO_${key.toUpperCase()}`, login: key },
     ];
+    if (!STORY.has(key)) return rows;
     if (key !== "rita" && key !== "marina") {
       rows.push({ orgId: org, personId: P[key], platform: "github", externalId: `demo-${key}`, login: `${key}-echo-demo` });
     }
@@ -321,6 +381,8 @@ export function buildDemo(now: Date): DemoData {
       sourceRef: ref,
       externalLogin: `${personKey}-echo-demo`,
       attributedAt: when,
+      // Gravado na hora do evento: o relatório conta pelo registro (registro atrasado vai para o seguinte).
+      createdAt: when,
       ...extra,
     });
   };
@@ -348,7 +410,7 @@ export function buildDemo(now: Date): DemoData {
   event("review", "bruno", ago(23 * DAY), "review:31:bruno", { prNumber: 31 });
   workEvents.push({
     orgId: org, type: "task_updated", personId: P.fernando, taskKey: "ECH-131", occurredAt: ago(4 * DAY),
-    source: "linear", sourceRef: "linear:ECH-131:in_review", attributedAt: ago(4 * DAY), data: { state: "in_review" },
+    source: "linear", sourceRef: "linear:ECH-131:in_review", attributedAt: ago(4 * DAY), createdAt: ago(4 * DAY), data: { state: "in_review" },
   });
 
   // Carla: 5 ajudas na semana (o "trabalho invisível" da cena 4). Só a referência, nunca o texto.
@@ -365,11 +427,11 @@ export function buildDemo(now: Date): DemoData {
     ...(deliveryRef ? { deliveryRef } : {}),
   });
   const contributions: DemoData["contributions"] = [
-    help("bruno", "reaction", "medio", "slack:C_DEMO_PRODUTO:1730900000.000100", 1, "linear:ECH-133"),
+    help("bruno", "reaction", "forte", "slack:C_DEMO_PRODUTO:1730900000.000100", 1, "linear:ECH-133"),
     help("fernando", "review_change", "forte", "github:pr/41#review-1", 5, "github:pr/41"),
     help("yan", "review_change", "forte", "github:pr/36#review-1", 1.25, "github:pr/36"),
     help("fernando", "review_change", "forte", "github:pr/44#review-1", 0.8, "github:pr/44"),
-    help("eduardo", "panel_confirm", "medio", "panel:help:eduardo-api-v2", 2, "linear:ECH-142"),
+    help("eduardo", "panel_confirm", "forte", "panel:help:eduardo-api-v2", 2, "linear:ECH-142"),
   ];
 
   // Histórico para Ganhos: perguntas já respondidas nas semanas anteriores.
@@ -378,13 +440,13 @@ export function buildDemo(now: Date): DemoData {
       orgId: org, askerId: P.eduardo, ownerId: P.fernando, kind: "gemeo", channel: "painel", sourceRef: "demo:q1",
       answer: "Agente de Fernando: a branch ech-131-api-v2 está liberada para Eduardo na nota do dia confirmada.",
       sources: [{ label: "nota do dia de Fernando (confirmada)", ref: "daily_note:fernando" }],
-      state: "answered", resolved: true, answeredAt: ago(3 * DAY), createdAt: ago(3 * DAY),
+      state: "answered", resolved: true, answeredAt: ago(3 * DAY), ownerReturnsAt: ago(3 * DAY - 6 * HOUR), createdAt: ago(3 * DAY),
     },
     {
       orgId: org, askerId: P.bruno, ownerId: P.carla, kind: "gemeo", channel: "painel", sourceRef: "demo:q2",
       answer: "Agente de Carla: o PR 34 continua aberto e espera revisão.",
       sources: [{ label: "PR 34", ref: "github:pr/34" }],
-      state: "answered", resolved: true, answeredAt: ago(2 * DAY), createdAt: ago(2 * DAY),
+      state: "answered", resolved: true, answeredAt: ago(2 * DAY), ownerReturnsAt: ago(2 * DAY - 3 * HOUR), createdAt: ago(2 * DAY),
     },
     {
       orgId: org, askerId: P.carla, kind: "quem_sabe", channel: "painel", sourceRef: "demo:q3",
@@ -407,8 +469,14 @@ export function buildDemo(now: Date): DemoData {
     run("morning_plan", null, null, 20),
   ];
 
+  // Férias que o mapa mostra: Yan até segunda e Noah até 14/11.
+  const vacation = (key: PersonaKey, endsAt: Date): Row<typeof schema.absences> => ({
+    orgId: org, personId: P[key], startsAt: ago(3 * DAY), endsAt, kind: "vacation", source: "hr", confirmedAt: ago(3 * DAY),
+  });
+  const absences: DemoData["absences"] = [vacation("yan", nextMonday(now, "Asia/Tokyo")), vacation("noah", new Date("2026-11-14T23:59:00-05:00"))];
+
   return {
     orgs, teams, people, identities, tasks, pullRequests, dailyNotes,
-    brainNotes, workEvents, contributions, questions, agentRuns,
+    brainNotes, workEvents, contributions, questions, agentRuns, absences,
   };
 }
