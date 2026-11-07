@@ -44,6 +44,23 @@ curl -s https://<API>/health   # {"ok":true,"service":"api",…}
 curl -s https://<API>/ready    # {"ok":true,"checks":{"db":true}}
 ```
 
+Coloque o endereço no `.env` como `API_PUBLIC_URL=https://<API>`. O diagnóstico usa esse endereço para conferir a API.
+
+## Simular as plataformas antes de ligá-las
+
+Com só os segredos de webhook no `.env` (podem ser valores de teste, como `openssl rand -hex 20`) e com a API e o worker no ar:
+
+```bash
+pnpm integracoes:simular
+# ✔ GitHub: push vira commit da pessoa certa
+# ✔ Linear: tarefa chega com o responsável certo
+# ✔ Slack: reação 🙏 vira ajuda confirmada, sem texto
+# ✔ Vercel: deploy de preview registrado
+pnpm integracoes:simular --limpar
+```
+
+Depois, use **o mesmo segredo** na configuração de cada plataforma.
+
 ## Assinatura errada é sempre recusada
 
 ```bash

@@ -21,9 +21,16 @@ Use **só espaços de teste e dados sintéticos**. A situação geral e os bloqu
 
 Sem os PRs da coluna "depende", os comandos citados no guia ainda não existem na `main`. Para testar antes do merge, use a branch do último PR da pilha de Integrações (`integracoes/slack-resposta`).
 
+## Por onde começar
+
+1. `pnpm integracoes:diagnostico` (#24): lista, por integração, o que já está configurado e o que falta, com o guia de cada item. Rode de novo depois de cada conta criada.
+2. `pnpm integracoes:simular` (#24): com a API e o worker no ar, manda avisos assinados como se viessem do GitHub, do Linear, do Slack e da Vercel, e confere que o Echo grava, processa e não duplica. Se a simulação passa e a plataforma real não, o problema está na configuração da plataforma (URL, segredo ou eventos), não no Echo. Depois, `pnpm integracoes:simular --limpar`.
+
 ## Comandos comuns
 
 ```bash
+pnpm integracoes:diagnostico  # o que falta configurar, item por item
+pnpm integracoes:simular      # avisos assinados de teste contra a API local, sem plataforma real
 pnpm integracoes:conferir     # confere Slack, GitHub e Linear e mostra os ids do .env
 pnpm integracoes:ligar        # cria ou atualiza a empresa de teste, as pessoas, as contas e as rotas, e importa tarefas e PRs
 pnpm integracoes:reconciliar  # roda uma rodada de reconciliação e de agenda na hora
