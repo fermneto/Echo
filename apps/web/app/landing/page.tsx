@@ -305,10 +305,62 @@ export default function LandingPage() {
       </main>
 
       <footer className="lp-footer">
-        <span className="lp-logo">
-          echo<span>.</span>
-        </span>
-        <span className="lp-mono">Converge Challenge · Canastra Ventures · Powered by Claude</span>
+        {/* A marca com eco: cópias vazadas sobem e somem; o ponto acende como um medidor. */}
+        <div className="lp-echo" aria-hidden="true">
+          <span className="lp-echo__stack">
+            {[6, 5, 4, 3, 2, 1].map((k) => (
+              <span key={k} className="lp-echo__ghost" style={{ "--k": k } as CSSProperties}>
+                echo
+              </span>
+            ))}
+            <span className="lp-echo__word">echo</span>
+          </span>
+          <span className="lp-echo__dot">
+            {[5, 4, 3, 2, 1].map((k) => (
+              <span key={k} className="lp-echo__cell" style={{ "--k": k } as CSSProperties} />
+            ))}
+            <span className="lp-echo__cell is-on" />
+          </span>
+        </div>
+
+        <div className="lp-footer__main">
+          <p className="lp-footer__tagline">Continuidade do trabalho para equipes distribuídas.</p>
+          <nav className="lp-footer__cols" aria-label="Rodapé">
+            <div>
+              <p className="lp-footer__head">Produto</p>
+              <ul role="list">
+                <li>
+                  <a href="#como-funciona">Como funciona</a>
+                </li>
+                <li>
+                  <a href="#em-acao">O Echo em ação</a>
+                </li>
+                <li>
+                  <a href="#nunca">O que nunca faz</a>
+                </li>
+                <li>
+                  <a href="#para-quem">Para quem</a>
+                </li>
+              </ul>
+            </div>
+            <div>
+              <p className="lp-footer__head">Demo</p>
+              <ul role="list">
+                <li>
+                  <Link href="/entrar">Testar a demo</Link>
+                </li>
+                <li>
+                  <Link href="/entrar">Entrar</Link>
+                </li>
+              </ul>
+            </div>
+          </nav>
+        </div>
+
+        <p className="lp-footer__legal">
+          Os nomes e as conversas desta página são exemplos, com dados sintéticos. GitHub, Linear, Slack e Claude são marcas de seus donos.
+          <span className="lp-mono">Converge Challenge · Canastra Ventures · Powered by Claude</span>
+        </p>
       </footer>
     </div>
   );
