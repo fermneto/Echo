@@ -32,10 +32,12 @@ Situação em **7/11/2026, 13h50**. Este documento diz o que impede avançar, o 
 | #22 | Funções | Revisão noturna em lote e plano da manhã (etapa 9) | `0005_revisao_arquivos` (ver B5) |
 | #25 | Funções | Correção em ambiente isolado e PR em rascunho (etapa 10) | `0005` e `0006_correcao` (ver B5) |
 | #26 | Funções | Redistribuição por regra com aprovação (etapa 11) | `0005` e `0006` (ver B5) |
+| #28 | Funções | Relatório semanal com crédito por ajuda (etapa 12) | `0005` e `0006` (ver B5 e B10) |
+| #29 | Integrações | Espelho das notas no repositório `brains` (etapa 14) | — |
 
 A pilha de Integrações foi atualizada com a `main` depois do merge do #16 e do #23, e o único conflito foi no `.env.example`. No topo da pilha (#24), passam os tipos, o lint, os 321 testes e a avaliação fixa por regra (15 de 15, sem falha de segurança).
 
-**Ordem de merge da frente de Integrações:** #3 → #5 → #7 → #8 → #11 → #14 → #15 → #19 → #24, cada um com **merge commit**. Os PRs estão empilhados: enquanto o anterior não entra, a diferença de cada um mostra também os commits do anterior.
+**Ordem de merge da frente de Integrações:** #3 → #5 → #7 → #8 → #11 → #14 → #15 → #19 → #24 → #29, cada um com **merge commit**. Os PRs estão empilhados: enquanto o anterior não entra, a diferença de cada um mostra também os commits do anterior.
 
 ## 2. Bloqueios
 
@@ -78,6 +80,13 @@ O Drizzle aplica as migrações pela ordem do `meta/_journal.json`. Duas migraç
 
 Se a pilha de Integrações entrar primeiro, as migrações de Funções passam a começar na `0008`.
 
+### B10. Ações sem aprovação ficariam paradas no outbox (#22 a #28 com o #7)
+
+**Dono:** Funções.
+**Causa:** o `createPgOutbox.enqueue` (`packages/actions/src/pg.ts`, a partir do #22) grava `state = "approved"` só quando há `approvedBy`. As ações que dispensam aprovação, como o comentário da revisão noturna (`github.comment`), entram como `pending`. O executor do #7 só roda as `approved`, então elas nunca saem.
+**Além disso:** o `enqueue` dele recusa com erro uma ação que exige aprovação e ainda não tem aprovador. No #7, essa ação entra como `pending` e espera a aprovação (`approveAction`), que é como a tela de aprovações funciona.
+**Correção sugerida:** depois do merge do #7, fazer o `createPgOutbox(db, orgId).enqueue(a)` chamar `enqueueAction(db, orgId, a)`, do `packages/actions/src/executor.ts`. Se o #22 entrar antes, a correção mínima é `state: action.approvedBy || !REQUIRES_APPROVAL[action.type] ? "approved" : "pending"`.
+
 ### B6. Avaliação com o modelo real não rodou
 
 **Dono:** Avaliador.
@@ -92,7 +101,7 @@ Se a pilha de Integrações entrar primeiro, as migrações de Funções passam 
 
 ### B8. Permissões desta sessão de trabalho
 
-**Situação:** o assistente não consegue comentar em PRs, por causa da regra de escritas em sistemas externos. Por isso os avisos de B4 e B5 estão aqui, e não nos PRs do Eduardo.
+**Situação:** o assistente não consegue comentar em PRs, por causa da regra de escritas em sistemas externos. Por isso os avisos de B4, B5 e B10 estão aqui, e não nos PRs do Eduardo.
 **Destrava:** repassar este documento ao Eduardo, ou liberar a ação em `/permissions`.
 
 ## 3. O que configurar
