@@ -56,11 +56,11 @@ export async function registrarAusencia(input: { personId: string; kind: string;
 }
 
 /** Aprova o plano, com os itens deixados de fora. As mudanças entram no outbox com a aprovação registrada. */
-export async function aprovarPlano(planId: string, exclude: string[]): Promise<FlowResult> {
+export async function aprovarPlano(planId: string, exclude: string[], adjust: { itemId: string; toId: string }[] = []): Promise<FlowResult> {
   return guarded(async () => {
     const ctx = await leader();
     if (!ctx) return DENIED;
-    const r = await ctx.flow.approve(ctx.orgId, ctx.personId, planId, exclude.length ? { exclude } : {});
+    const r = await ctx.flow.approve(ctx.orgId, ctx.personId, planId, { ...(exclude.length ? { exclude } : {}), ...(adjust.length ? { adjust } : {}) });
     revalidatePath("/", "layout");
     if (r.status === "ok") return { ok: true, ...(r.warnings.length ? { message: r.warnings.join(". ") } : {}) };
     if (r.status === "denied") return DENIED;
@@ -80,5 +80,23 @@ export async function descartarPlano(planId: string): Promise<FlowResult> {
     if (r.status === "ok") return { ok: true };
     if (r.status === "conflict") return { ok: false, error: "Este plano já foi decidido." };
     return r.status === "denied" ? DENIED : { ok: false, error: "Plano não encontrado." };
+  });
+}
+
+/**
+ * Passa adiante um item recusado, que falhou ou ficou sem responsável, depois da aprovação.
+ * As regras de quem pode receber (ausência, conta no Linear, autor do PR) ficam no fluxo.
+ */
+export async function repassarItem(itemId: string, toId: string): Promise<FlowResult> {
+  return guarded(async () => {
+    const ctx = await leader();
+    if (!ctx) return DENIED;
+    const r = await ctx.flow.reassign(ctx.orgId, ctx.personId, itemId, toId);
+    revalidatePath("/", "layout");
+    if (r.status === "ok") return { ok: true, ...(r.warnings.length ? { message: r.warnings.join(". ") } : {}) };
+    if (r.status === "denied") return DENIED;
+    if (r.status === "conflict") return { ok: false, error: "Este item mudou antes da troca. Recarregue a página." };
+    if (r.status === "invalid") return { ok: false, error: `Não dá para passar a essa pessoa: ${r.reason}.` };
+    return { ok: false, error: "Item não encontrado." };
   });
 }

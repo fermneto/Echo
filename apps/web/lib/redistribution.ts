@@ -4,8 +4,23 @@ import { stamp } from "./time";
 /** Regras de exibição da Redistribuição (puras). Os números vêm da calculadora de carga; aqui só viram texto. */
 
 export type Tone = "wait" | "done" | "off" | "fail";
-export type ItemView = { id: string; item: string; title: string; to?: string; reason: string; load?: string; chip: { label: string; tone: Tone }; excludable: boolean };
+export type ItemView = {
+  id: string;
+  item: string;
+  title: string;
+  to?: string;
+  toId?: string;
+  reason: string;
+  load?: string;
+  chip: { label: string; tone: Tone };
+  /** Antes da aprovação: dá para deixar de fora ou trocar quem recebe. */
+  excludable: boolean;
+  /** Depois da aprovação: recusado, falhou ou sem responsável, dá para passar a outra pessoa. */
+  reassignable: boolean;
+};
 export type PlanView = {
+  /** Quem está ausente: nunca aparece como opção de quem recebe. */
+  absentName: string;
   id: string;
   title: string;
   state: PanelPlan["state"];
@@ -78,20 +93,23 @@ export function planView(plan: PanelPlan, timeZone: string): PlanView {
       item: i.label,
       title: i.title,
       ...(i.toName ? { to: i.toName } : {}),
+      ...(i.toId ? { toId: i.toId } : {}),
       reason: i.reason,
       ...(load ? { load } : {}),
       chip: itemChip(i.state),
       excludable: awaiting && (i.state === "proposed" || i.state === "unassigned"),
+      reassignable: (plan.state === "executing" || plan.state === "done") && (i.state === "refused" || i.state === "failed" || i.state === "unassigned"),
     };
   });
   const receivers = [...new Set(plan.items.filter((i) => i.toName && i.state !== "excluded").map((i) => i.toName!))];
   const out = outcome(plan, timeZone);
-  return { id: plan.id, title: plan.title, state: plan.state, items, receivers, ...(out ? { outcome: out } : {}) };
+  return { id: plan.id, title: plan.title, state: plan.state, absentName: plan.absentName, items, receivers, ...(out ? { outcome: out } : {}) };
 }
 
 /** Texto da confirmação: o que muda, quem é avisado. Itens sem responsável seguem com o motivo. */
-export function confirmText(items: ItemView[], excluded: ReadonlySet<string>): { title: string; text: string; changes: number } {
-  const kept = items.filter((i) => !excluded.has(i.id));
+export function confirmText(items: ItemView[], excluded: ReadonlySet<string>, adjusted: ReadonlyMap<string, string> = new Map()): { title: string; text: string; changes: number } {
+  // A troca feita pela liderança vale no lugar da sugestão do plano.
+  const kept = items.filter((i) => !excluded.has(i.id)).map((i) => (adjusted.has(i.id) ? { ...i, to: adjusted.get(i.id)! } : i));
   const moving = kept.filter((i) => i.to);
   const receivers = [...new Set(moving.map((i) => i.to!))];
   const loose = kept.length - moving.length;
