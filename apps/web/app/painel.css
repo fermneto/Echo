@@ -1207,12 +1207,29 @@
   margin-left: 2px;
   margin-bottom: 3px;
 }
-/* No mapa, sem a grade apagada do bonequinho (que se mistura aos pontos) e com sombra para destacar. */
+/* No mapa, cada bonequinho fica numa plaquinha escura: não se mistura aos pontos coloridos e não pede filtro caro. */
 .wmap__people .sprite .dot-off {
   opacity: 0;
 }
-.wmap__people .sprite {
-  filter: drop-shadow(0 0 2px rgb(0 0 0 / 95%)) drop-shadow(0 0 4px rgb(0 0 0 / 80%)) brightness(1.35);
+.wmap__person,
+.wmap__more {
+  display: grid;
+  place-items: center;
+  min-width: 26px;
+  height: 28px;
+  padding: 2px 3px;
+  border: 1px solid rgb(255 255 255 / 12%);
+  border-radius: var(--rounded-sm);
+  background: rgb(0 0 0 / 82%);
+}
+.wmap__more {
+  font-size: 11px;
+  color: var(--color-cloud);
+  cursor: pointer;
+  pointer-events: auto;
+}
+.wmap__more:hover {
+  background: var(--color-charcoal);
 }
 .wmap__dot {
   width: 9px;
@@ -1282,18 +1299,14 @@
   gap: var(--space-md) var(--space-lg);
 }
 .wmap__person {
-  display: block;
-  padding: 2px 1px 0;
-  border: 0;
-  border-radius: var(--rounded-sm);
-  background: transparent;
   cursor: pointer;
   pointer-events: auto;
-  transition: background 150ms ease-out, translate 150ms ease-out;
+  transition: background 150ms ease-out, translate 150ms ease-out, border-color 150ms ease-out;
 }
 .wmap__person:hover,
 .wmap__person.is-selected {
-  background: rgb(255 255 255 / 10%);
+  background: var(--color-charcoal);
+  border-color: rgb(255 255 255 / 28%);
   translate: 0 -2px;
 }
 .wmap__person:focus-visible {
