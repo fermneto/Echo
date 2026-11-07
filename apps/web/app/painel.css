@@ -2417,89 +2417,89 @@ select.field option {
   line-height: 1.45;
 }
 
-/* Campo de pergunta com halo */
-.halo {
-  --halo-speed: 2.2;
-  --halo-glow: 0.42;
+/* Campo de pergunta: brilho na borda, orbe e texto animado */
+.ask-field {
+  --glow-speed: 2.2;
+  --glow-glow: 0.42;
   --orb-spin: 9s;
   --orb-pulse: 5.2s;
   position: relative;
   padding: 1px;
   border-radius: var(--rounded-pill);
 }
-.halo:focus-within {
-  --halo-glow: 0.6;
+.ask-field:focus-within {
+  --glow-glow: 0.6;
 }
-.halo.is-typing {
+.ask-field.is-typing {
   --orb-spin: 3.2s;
   --orb-pulse: 2.6s;
 }
-.halo.is-busy {
-  --halo-speed: 1.2;
-  --halo-glow: 0.75;
+.ask-field.is-busy {
+  --glow-speed: 1.2;
+  --glow-glow: 0.75;
   --orb-spin: 1.6s;
   --orb-pulse: 1.6s;
 }
-.halo__glow {
+.ask-field__glow {
   position: absolute;
   inset: 0;
   overflow: hidden;
   border-radius: inherit;
   pointer-events: none;
-  opacity: var(--halo-glow);
+  opacity: var(--glow-glow);
   transition: opacity 250ms ease-out;
 }
 /* Brilho externo: as mesmas manchas, mais desfocadas, vazando sob o campo. */
-.halo__bloom {
+.ask-field__bloom {
   position: absolute;
   inset: 40% 4% -10px;
   pointer-events: none;
-  opacity: calc(var(--halo-glow) * 0.4);
+  opacity: calc(var(--glow-glow) * 0.4);
   filter: blur(20px) saturate(0.6);
   transition: opacity 250ms ease-out;
 }
-.halo__bloom .halo__blob {
+.ask-field__bloom .ask-field__blob {
   bottom: -6px;
 }
-.halo__blob {
+.ask-field__blob {
   position: absolute;
   bottom: -18px;
   border-radius: 50%;
   filter: blur(14px) saturate(0.6);
-  animation: halo-drift calc(6s * var(--halo-speed)) ease-in-out infinite;
+  animation: glow-drift calc(6s * var(--glow-speed)) ease-in-out infinite;
 }
-.halo__blob--a {
+.ask-field__blob--a {
   width: 200px;
   height: 56px;
   background: linear-gradient(90deg, var(--color-signal-twin-deep), var(--color-signal-twin), var(--color-signal-twin-text));
   --from: -6%;
   --to: 72%;
 }
-.halo__blob--b {
+.ask-field__blob--b {
   width: 130px;
   height: 44px;
   background: linear-gradient(90deg, var(--color-signal-on), color-mix(in srgb, var(--color-signal-on) 40%, var(--color-signal-twin)));
   --from: 66%;
   --to: 6%;
-  animation-duration: calc(5s * var(--halo-speed));
+  animation-duration: calc(5s * var(--glow-speed));
   opacity: 0.7;
 }
-.halo__blob--c {
+.ask-field__blob--c {
   width: 96px;
   height: 36px;
   background: linear-gradient(90deg, var(--color-signal-twin-text), var(--color-signal-twin));
   --from: 28%;
   --to: 56%;
-  animation-duration: calc(4s * var(--halo-speed));
+  animation-duration: calc(4s * var(--glow-speed));
 }
-.halo.is-clearing .halo__blob--a {
+.ask-field.is-clearing .ask-field__blob--a {
   background: linear-gradient(90deg, var(--color-danger), var(--color-signal-wait));
 }
-.halo.is-clearing .halo__blob--b,
-.halo.is-clearing .halo__blob--c {
+.ask-field.is-clearing .ask-field__blob--b,
+.ask-field.is-clearing .ask-field__blob--c {
   background: linear-gradient(90deg, var(--color-signal-wait), var(--color-danger));
 }
-@keyframes halo-drift {
+@keyframes glow-drift {
   0%,
   100% {
     left: var(--from);
@@ -2508,7 +2508,7 @@ select.field option {
     left: var(--to);
   }
 }
-.halo__field {
+.ask-field__field {
   position: relative;
   display: flex;
   align-items: center;
@@ -2520,14 +2520,14 @@ select.field option {
   background: linear-gradient(to bottom, var(--color-panel), color-mix(in srgb, var(--color-panel) 90%, var(--color-black))) padding-box;
   transition: border-color 200ms ease-out, background 200ms ease-out;
 }
-.halo:focus-within .halo__field {
+.ask-field:focus-within .ask-field__field {
   border-color: color-mix(in srgb, var(--color-cloud) 18%, transparent);
 }
-.halo.is-busy .halo__field {
+.ask-field.is-busy .ask-field__field {
   background: linear-gradient(to bottom, color-mix(in srgb, var(--color-panel) 78%, transparent), color-mix(in srgb, var(--color-panel) 66%, transparent)) padding-box;
   backdrop-filter: blur(16px) saturate(1.4);
 }
-.halo__orb {
+.ask-field__orb {
   position: relative;
   flex: none;
   width: 32px;
@@ -2538,7 +2538,7 @@ select.field option {
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-cloud) 10%, transparent);
   animation: orb-pulse var(--orb-pulse) ease-in-out infinite;
 }
-.halo__orb-swirl {
+.ask-field__orb-swirl {
   position: absolute;
   inset: -40%;
   background:
@@ -2565,14 +2565,14 @@ select.field option {
     transform: scale(0.99) rotate(-1.5deg);
   }
 }
-.halo__input-wrap {
+.ask-field__input-wrap {
   position: relative;
   flex: 1;
   min-width: 0;
   display: flex;
   align-items: center;
 }
-.halo__input {
+.ask-field__input {
   width: 100%;
   padding: 8px 0;
   border: 0;
@@ -2583,12 +2583,12 @@ select.field option {
   caret-color: var(--color-signal-twin-text);
   outline: none;
 }
-.halo__input.is-hidden {
+.ask-field__input.is-hidden {
   color: transparent;
   caret-color: transparent;
 }
-.halo__placeholder,
-.halo__ghost {
+.ask-field__placeholder,
+.ask-field__ghost {
   position: absolute;
   inset: 0 0 0 0;
   display: flex;
@@ -2598,24 +2598,24 @@ select.field option {
   font-size: 16px;
   pointer-events: none;
 }
-.halo__placeholder {
+.ask-field__placeholder {
   color: var(--color-ash);
   mask-image: linear-gradient(to right, #000 calc(100% - 32px), transparent);
 }
-.halo__placeholder > span {
+.ask-field__placeholder > span {
   opacity: 0;
   animation: glyph-in 160ms ease-out forwards;
 }
-.halo__placeholder--loading {
+.ask-field__placeholder--loading {
   color: var(--color-signal-twin-text);
 }
-.halo__placeholder--loading > span {
+.ask-field__placeholder--loading > span {
   animation: glyph-in 360ms ease-out forwards, glyph-shimmer 1.8s ease-in-out 600ms infinite;
 }
-.halo__ghost {
+.ask-field__ghost {
   color: var(--color-cloud);
 }
-.halo__ghost > span {
+.ask-field__ghost > span {
   animation: glyph-out 260ms ease-out forwards;
 }
 @keyframes glyph-in {
@@ -2639,14 +2639,14 @@ select.field option {
     opacity: 0.45;
   }
 }
-.halo__trail {
+.ask-field__trail {
   display: flex;
   align-items: center;
   gap: 6px;
   flex: none;
 }
-.halo__clear,
-.halo__spinner {
+.ask-field__clear,
+.ask-field__spinner {
   display: grid;
   place-items: center;
   width: 26px;
@@ -2657,18 +2657,18 @@ select.field option {
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-cloud) 10%, transparent);
   animation: trail-in 200ms ease-out;
 }
-.halo__clear {
+.ask-field__clear {
   border: 0;
   padding: 0;
   cursor: pointer;
   transition: background 150ms ease-out, color 150ms ease-out;
 }
-.halo__clear:hover {
+.ask-field__clear:hover {
   background: var(--color-edge);
   color: var(--color-cloud);
 }
-.halo__clear svg,
-.halo__send svg {
+.ask-field__clear svg,
+.ask-field__send svg {
   width: 14px;
   height: 14px;
   fill: none;
@@ -2677,7 +2677,7 @@ select.field option {
   stroke-linecap: round;
   stroke-linejoin: round;
 }
-.halo__spinner::after {
+.ask-field__spinner::after {
   content: "";
   width: 12px;
   height: 12px;
@@ -2692,7 +2692,7 @@ select.field option {
     transform: scale(0.88);
   }
 }
-.halo__send {
+.ask-field__send {
   display: grid;
   place-items: center;
   width: 40px;
@@ -2705,15 +2705,15 @@ select.field option {
   cursor: pointer;
   transition: transform 150ms ease-out, opacity 150ms ease-out, background 150ms ease-out;
 }
-.halo__send:hover:not(:disabled) {
+.ask-field__send:hover:not(:disabled) {
   transform: translateX(1px) scale(1.04);
 }
-.halo__send:disabled {
+.ask-field__send:disabled {
   opacity: 0.25;
   cursor: default;
 }
-.halo__send:focus-visible,
-.halo__clear:focus-visible {
+.ask-field__send:focus-visible,
+.ask-field__clear:focus-visible {
   outline: 2px solid var(--color-signal-twin-text);
   outline-offset: 2px;
 }
@@ -2731,15 +2731,15 @@ select.field option {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .halo__blob,
-  .halo__orb,
-  .halo__orb-swirl,
-  .halo__spinner::after,
+  .ask-field__blob,
+  .ask-field__orb,
+  .ask-field__orb-swirl,
+  .ask-field__spinner::after,
   .chat__turn:last-child .chat__reply {
     animation: none;
   }
-  .halo__placeholder > span,
-  .halo__ghost > span {
+  .ask-field__placeholder > span,
+  .ask-field__ghost > span {
     animation-duration: 1ms;
     animation-delay: 0ms !important;
   }

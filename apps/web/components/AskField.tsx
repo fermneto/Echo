@@ -18,11 +18,11 @@ function Stagger({ text, className, step = 18 }: { text: string; className: stri
 }
 
 /**
- * Campo de pergunta com halo: um brilho que corre pela borda de baixo, um orbe que "pensa"
+ * Campo de pergunta: um brilho que corre pela borda de baixo, um orbe que "pensa"
  * (mais rápido enquanto a pessoa digita e enquanto o agente consulta), placeholder que entra
  * letra a letra e texto que se desfaz ao limpar. Tudo em CSS, desligado com movimento reduzido.
  */
-export function HaloField({
+export function AskField({
   id,
   name,
   value,
@@ -73,19 +73,19 @@ export function HaloField({
   const empty = !value && !ghost && !pending;
 
   return (
-    <div className={`halo ${state}`}>
-      {["halo__bloom", "halo__glow"].map((layer) => (
+    <div className={`ask-field ${state}`}>
+      {["ask-field__bloom", "ask-field__glow"].map((layer) => (
         <div key={layer} className={layer} aria-hidden="true">
-          <span className="halo__blob halo__blob--a" />
-          <span className="halo__blob halo__blob--b" />
-          <span className="halo__blob halo__blob--c" />
+          <span className="ask-field__blob ask-field__blob--a" />
+          <span className="ask-field__blob ask-field__blob--b" />
+          <span className="ask-field__blob ask-field__blob--c" />
         </div>
       ))}
-      <div className="halo__field" aria-busy={pending || undefined}>
-        <span className="halo__orb" aria-hidden="true">
-          <span className="halo__orb-swirl" />
+      <div className="ask-field__field" aria-busy={pending || undefined}>
+        <span className="ask-field__orb" aria-hidden="true">
+          <span className="ask-field__orb-swirl" />
         </span>
-        <div className="halo__input-wrap">
+        <div className="ask-field__input-wrap">
           <label htmlFor={id} className="sr-only">
             {label}
           </label>
@@ -93,7 +93,7 @@ export function HaloField({
             ref={inputRef}
             id={id}
             name={name}
-            className={`halo__input${pending || ghost ? " is-hidden" : ""}`}
+            className={`ask-field__input${pending || ghost ? " is-hidden" : ""}`}
             value={value}
             onChange={(e) => {
               const next = e.target.value;
@@ -108,10 +108,10 @@ export function HaloField({
             autoComplete="off"
             required
           />
-          {empty && <Stagger key={`p${placeholderKey}`} text={placeholder} className="halo__placeholder" />}
-          {pending && <Stagger key="loading" text={loadingText} className="halo__placeholder halo__placeholder--loading" step={38} />}
+          {empty && <Stagger key={`p${placeholderKey}`} text={placeholder} className="ask-field__placeholder" />}
+          {pending && <Stagger key="loading" text={loadingText} className="ask-field__placeholder ask-field__placeholder--loading" step={38} />}
           {ghost && (
-            <span key={ghost.key} className="halo__ghost" aria-hidden="true">
+            <span key={ghost.key} className="ask-field__ghost" aria-hidden="true">
               {Array.from(ghost.text).map((c, i, all) => (
                 <span key={i} style={{ animationDelay: `${Math.min((all.length - 1 - i) * 12, 420)}ms` }}>
                   {c === " " ? " " : c}
@@ -120,14 +120,14 @@ export function HaloField({
             </span>
           )}
         </div>
-        <div className="halo__trail">
+        <div className="ask-field__trail">
           {pending ? (
-            <span className="halo__spinner" aria-hidden="true" />
+            <span className="ask-field__spinner" aria-hidden="true" />
           ) : (
             value && (
               <button
                 type="button"
-                className="halo__clear"
+                className="ask-field__clear"
                 aria-label="Limpar a pergunta"
                 onClick={() => {
                   dissolve(value);
@@ -141,7 +141,7 @@ export function HaloField({
               </button>
             )
           )}
-          <button type="submit" className="halo__send" disabled={pending || !value.trim()} aria-label={pending ? "Consultando" : "Perguntar"}>
+          <button type="submit" className="ask-field__send" disabled={pending || !value.trim()} aria-label={pending ? "Consultando" : "Perguntar"}>
             <svg viewBox="0 0 24 24" aria-hidden="true">
               <path d="M5 12h14M13 6l6 6-6 6" />
             </svg>

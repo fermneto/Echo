@@ -2,7 +2,7 @@
 
 import { useActionState, useEffect, useRef, useState } from "react";
 import type { AskState } from "@/lib/ask";
-import { HaloField } from "./HaloField";
+import { AskField } from "./AskField";
 import { ProductWindow } from "./ProductWindow";
 
 const INITIAL: AskState = { turns: [] };
@@ -107,7 +107,7 @@ export function AskPanel({
         {Object.entries(hidden ?? {}).map(([k, v]) => (
           <input key={k} type="hidden" name={k} value={v} />
         ))}
-        <HaloField
+        <AskField
           id="pergunta"
           name="pergunta"
           label="Sua pergunta para o agente"
