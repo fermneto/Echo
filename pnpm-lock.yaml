@@ -327,9 +327,15 @@ importers:
 
   apps/web:
     dependencies:
+      '@echo/actions':
+        specifier: workspace:*
+        version: link:../../packages/actions
       '@echo/agents':
         specifier: workspace:*
         version: link:../../packages/agents
+      '@echo/brain':
+        specifier: workspace:*
+        version: link:../../packages/brain
       '@echo/config':
         specifier: workspace:*
         version: link:../../packages/config
@@ -342,6 +348,12 @@ importers:
       '@echo/domain':
         specifier: workspace:*
         version: link:../../packages/domain
+      '@echo/jobs':
+        specifier: workspace:*
+        version: link:../../packages/jobs
+      '@echo/observability':
+        specifier: workspace:*
+        version: link:../../packages/observability
       next:
         specifier: 'catalog:'
         version: 16.4.5(@opentelemetry/api@1.9.1)(@types/node@24.19.2)(react-dom@19.3.1(react@19.3.1))(react@19.3.1)
