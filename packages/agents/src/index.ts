@@ -1,4 +1,5 @@
 // Contratos dos agentes (aba IA). Frente: Funções implementa o laço; frente Avaliador testa contra estes tipos.
+import type { DigestKind } from "@echo/domain";
 import { z } from "zod";
 
 export const MODELS = {
@@ -68,6 +69,11 @@ export interface AnswerResult {
    * Quem sabe sem fontes numa mensagem de canal que não chamou o @Echo: quem publica fica em silêncio.
    */
   kind?: "gemeo" | "livre" | "quem_sabe";
+  /**
+   * Para o resumo da ausência (F5b), por regra: o tipo da mensagem e uma linha de pedido e outra de resposta.
+   * Só quando há dono. Quem grava a pergunta guarda estes campos; as linhas somem na entrega ou em 30 dias.
+   */
+  digest?: { kind: DigestKind; request: string; reply: string };
 }
 
 export interface ValidationIssue {
@@ -170,6 +176,9 @@ export {
   type WeeklyReport,
   type WeeklyReportDeps,
 } from "./report.ts";
+
+export { createGains, type BaselineOutcome, type Gains, type GainsDeps, type GainsHistory, type GainsStore, type GainsView } from "./gains.ts";
+export { createAwayDigest, digestMessage, type AwayDigest, type AwayDigestDeps, type DigestOutcome, type DigestStore } from "./away-digest.ts";
 
 /**
  * Fluxo de resposta (F2) com as dependências padrão: Postgres (DATABASE_URL) e a chave da empresa

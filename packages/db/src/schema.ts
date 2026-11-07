@@ -244,11 +244,16 @@ export const questions = pgTable("questions", {
   claimedBy: text("claimed_by"),
   needsOwner: boolean("needs_owner").notNull().default(false),
   digestKind: text("digest_kind"), // reuniao | proposta | decisao | nenhum
+  /** Resumo da ausência (F5b): uma linha de pedido e uma de resposta, apagadas na entrega ou em 30 dias. */
+  digestRequest: text("digest_request"),
+  digestReply: text("digest_reply"),
+  /** Quando entrou num resumo entregue ao dono. */
+  digestedAt: ts("digested_at"),
   resolved: boolean("resolved"),
   ownerReturnsAt: ts("owner_returns_at"),
   answeredAt: ts("answered_at"),
   createdAt: createdAt(),
-}, (t) => [uniqueIndex("questions_source_ref").on(t.orgId, t.sourceRef)]);
+}, (t) => [uniqueIndex("questions_source_ref").on(t.orgId, t.sourceRef), index("questions_owner_digest").on(t.orgId, t.ownerId, t.digestedAt)]);
 
 export const reviews = pgTable("reviews", {
   id: id(),

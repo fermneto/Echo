@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { allOrgIds, dueEndOfDay, dueMorning, serverEndOfDay, serverMorningPlan, serverNightReview, serverRedistribution, serverWeeklyReport, dueWeeklyReports } from "@echo/agents/server";
+import { allOrgIds, createGithubGainsHistory, dueAwayDigests, dueEndOfDay, dueMorning, needsGainsBaseline, serverAwayDigest, serverEndOfDay, serverGains, serverMorningPlan, serverNightReview, serverRedistribution, serverWeeklyReport, dueWeeklyReports } from "@echo/agents/server";
 import { ensureProductNote } from "@echo/brain/pg";
 import { loadConfig } from "@echo/config";
 import { createDb, createPool } from "@echo/db";
@@ -14,11 +14,12 @@ import type { SlackMessageJob } from "./inbox.ts";
 import { registerActions } from "./actions.ts";
 import { registerInbox } from "./inbox.ts";
 import { scheduleReconcile } from "./reconcile.ts";
-import { platformsFromEnv } from "@echo/connectors";
+import { githubForOrg, platformsFromEnv } from "@echo/connectors";
 import { registerEndOfDay } from "./end-of-day.ts";
 import { registerNight } from "./night.ts";
 import { registerRedistribution } from "./redistribution.ts";
 import { registerWeeklyReport } from "./weekly-report.ts";
+import { registerGains } from "./gains.ts";
 
 const cfg = loadConfig("worker");
 const log = createLogger("worker", cfg.LOG_LEVEL);
@@ -107,6 +108,27 @@ const runWeeklyReport = () =>
 void runWeeklyReport();
 const weeklyReportTimer = setInterval(() => void runWeeklyReport(), cfg.END_OF_DAY_SCAN_MS);
 
+// Resumo da ausência e Ganhos (etapa 13): resumo no início e no fim do expediente, limpeza das linhas e a
+// referência de 90 dias do GitHub, uma vez por empresa, quando a conta está ligada.
+const gains = await registerGains(queue, {
+  digest: serverAwayDigest(db, cfg.WEB_URL),
+  gains: serverGains(db),
+  dueDigests: (now) => dueAwayDigests(db, now),
+  orgIds: () => allOrgIds(db),
+  needsBaseline: (orgId) => needsGainsBaseline(db, orgId),
+  history: async (orgId) => {
+    const gh = await githubForOrg(db, platforms, orgId);
+    return gh ? createGithubGainsHistory(db, orgId, gh) : null;
+  },
+});
+const runGains = () =>
+  gains.tick().then(
+    (r) => (r.digests > 0 || r.purged > 0 || r.baselines > 0) && log.info(r, "resumos da ausência e ganhos"),
+    (err) => log.error({ err }, "falha na agenda do resumo da ausência e dos ganhos"),
+  );
+void runGains();
+const gainsTimer = setInterval(() => void runGains(), cfg.END_OF_DAY_SCAN_MS);
+
 // Confirma, a cada início, que a fila chega ao reviewer.
 await queue.work<PingMessage>(QUEUES.reviewerPong, async (job) => log.info({ nonce: job.data.nonce }, "reviewer respondeu ao ping"));
 await queue.send<PingMessage>(QUEUES.reviewerPing, { from: "worker", sentAt: new Date().toISOString(), nonce: randomUUID() });
@@ -123,6 +145,7 @@ async function shutdown(signal: string) {
   clearInterval(nightTimer);
   clearInterval(redistributionTimer);
   clearInterval(weeklyReportTimer);
+  clearInterval(gainsTimer);
   await Promise.allSettled([queue.stop(), pool.end(), flush()]);
   process.exit(0);
 }

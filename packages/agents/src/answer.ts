@@ -5,7 +5,7 @@
 // Toda execução grava uma linha em agent_runs.
 import type Anthropic from "@anthropic-ai/sdk";
 import type { BrainStore } from "@echo/brain";
-import { type Clock, costLevel, isAway, localDate, systemClock, type AwayResult } from "@echo/domain";
+import { type Clock, costLevel, digestKind, digestLine, isAway, localDate, systemClock, type AwayResult } from "@echo/domain";
 import type { AgentRun, RunRecorder } from "@echo/observability";
 import { modelCostUsd, type Usage } from "./cost.ts";
 import type { AgentData } from "./data.ts";
@@ -107,7 +107,9 @@ export function createAnswer(deps: AnswerDeps): (req: AnswerRequest) => Promise<
       const finish = async (out: AnswerOutput, usedModel: boolean, result: AgentRun["result"], extraWarning?: string, error?: string): Promise<AnswerResult> => {
         if (extraWarning) warnings.push(extraWarning);
         const kind = flow === "quem_sabe" ? "quem_sabe" : owner ? "gemeo" : "livre";
-        const final = compose({ out, agentName: owner ? `Agente de ${ownerName}` : "Echo", ownerName, away, askerTz: asker.timezone, ctx, usedModel, warnings, kind });
+        // Acima do dobro do limite, a resposta por regra não conta nos ganhos: sem a volta gravada.
+        const countsForGains = !(ruleReason && level === "hard_limit");
+        const final = compose({ out, agentName: owner ? `Agente de ${ownerName}` : "Echo", ownerName, away, countsForGains, askerTz: asker.timezone, ctx, usedModel, warnings, kind, question: req.text });
         await record({
           result,
           ...(usedModel || stats.usage.input > 0
@@ -306,6 +308,9 @@ function compose(input: {
   usedModel: boolean;
   warnings: string[];
   kind: NonNullable<AnswerResult["kind"]>;
+  /** False acima do dobro do limite: a volta não é gravada e a resposta não entra na espera evitada. */
+  countsForGains: boolean;
+  question: string;
 }): AnswerResult {
   const { out, away, ownerName } = input;
   let text = out.texto.trim();
@@ -318,10 +323,12 @@ function compose(input: {
     text,
     sources,
     needsOwner: out.precisa_do_dono || (out.status === "nao_sei" && !!ownerName),
-    ...(away?.away && away.returnsAt ? { ownerReturnsAt: away.returnsAt } : {}),
+    ...(away?.away && away.returnsAt && input.countsForGains ? { ownerReturnsAt: away.returnsAt } : {}),
     usedModel: input.usedModel,
     warnings: [...input.warnings],
     kind: input.kind,
+    // Resumo da ausência: tipo e linhas por regra, só para quem tem dono.
+    ...(ownerName ? { digest: { kind: digestKind(input.question), request: digestLine(input.question), reply: digestLine(out.texto) } } : {}),
   };
 }
 

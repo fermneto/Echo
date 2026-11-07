@@ -3,7 +3,7 @@ import Anthropic from "@anthropic-ai/sdk";
 import { createPgBrainStore } from "@echo/brain/pg";
 import { createPgOutbox } from "@echo/actions/pg";
 import { agentRuns, asSystem, createDb, createPool, type Database, orgs, withOrg } from "@echo/db";
-import { endOfDayDue, morningDue, reportsDue } from "@echo/domain";
+import { awayDigestDue, digestPurgeBefore, endOfDayDue, morningDue, parseGainsBaseline, reportsDue } from "@echo/domain";
 import type { AgentRun, RunRecorder } from "@echo/observability";
 import { type AnswerDeps, createAnswer, type ModelCall } from "./answer.ts";
 import type { AnswerRequest, AnswerResult } from "./index.ts";
@@ -20,6 +20,10 @@ import { createRedistribution, type Redistribution } from "./redistribution.ts";
 import { createPgRedistributionStore } from "./pg-redistribution.ts";
 import { createWeeklyReport, type WeeklyReport } from "./report.ts";
 import { createPgReportStore } from "./pg-report.ts";
+import { createGains, type Gains } from "./gains.ts";
+import { createPgGainsStore } from "./pg-gains.ts";
+import { createAwayDigest, type AwayDigest } from "./away-digest.ts";
+import { createPgDigestStore } from "./pg-away-digest.ts";
 
 export { createPgAgentData } from "./pg-data.ts";
 export { createPgDailyNoteStore } from "./pg-notes.ts";
@@ -27,6 +31,8 @@ export { createPgPlanStore, createPgReviewStore } from "./pg-night.ts";
 export { createPgFixStore } from "./pg-fix.ts";
 export { createPgRedistributionStore } from "./pg-redistribution.ts";
 export { createPgReportStore } from "./pg-report.ts";
+export { createGithubGainsHistory, createPgGainsStore, type CodeHistorySource } from "./pg-gains.ts";
+export { createPgDigestStore } from "./pg-away-digest.ts";
 export { createManagedFixSandbox, fixAgentParams, fixEnvironmentParams, fixPrompt, readFixOutputs, driveSession, sessionCost, REPO_PATH, OUTPUTS } from "./managed-fix.ts";
 
 /** Grava cada execução em agent_runs, dentro da empresa (RLS). */
@@ -163,6 +169,44 @@ export function serverWeeklyReport(db: Database, apiKey: string | undefined, web
     recorder: createDbRunRecorder(db),
     webUrl,
   });
+}
+
+/** Ganhos (etapa 13) com Postgres. Sem modelo. */
+export function serverGains(db: Database): Gains {
+  return createGains({ data: (orgId) => createPgAgentData(db, orgId), store: (orgId) => createPgGainsStore(db, orgId), recorder: createDbRunRecorder(db) });
+}
+
+/** A referência dos Ganhos ainda não foi medida nesta empresa? */
+export async function needsGainsBaseline(db: Database, orgId: string): Promise<boolean> {
+  return !parseGainsBaseline(await createPgGainsStore(db, orgId).baseline());
+}
+
+/** Resumo da ausência (etapa 13) com Postgres e outbox. Sem modelo. */
+export function serverAwayDigest(db: Database, webUrl: string): AwayDigest {
+  return createAwayDigest({
+    data: (orgId) => createPgAgentData(db, orgId),
+    store: (orgId) => createPgDigestStore(db, orgId),
+    outbox: (orgId) => createPgOutbox(db, orgId),
+    recorder: createDbRunRecorder(db),
+    webUrl,
+  });
+}
+
+/** Quem está no início ou no fim do expediente com algo no resumo, em todas as empresas. */
+export async function dueAwayDigests(db: Database, now: Date): Promise<{ orgId: string; personId: string; date: string; slot: "inicio" | "fim" }[]> {
+  const due: { orgId: string; personId: string; date: string; slot: "inicio" | "fim" }[] = [];
+  for (const orgId of await allOrgIds(db)) {
+    const data = createPgAgentData(db, orgId);
+    const store = createPgDigestStore(db, orgId);
+    const [people, absences] = await Promise.all([data.people(), data.absences()]);
+    for (const person of people) {
+      // Sem o último envio, a regra das 3 horas não vale: só consulta quem está na janela.
+      if (!awayDigestDue(person, absences, now)) continue;
+      const d = awayDigestDue(person, absences, now, await store.lastSentAt(person.id));
+      if (d && (await store.pending(person.id, digestPurgeBefore(now))).length > 0) due.push({ orgId, personId: person.id, ...d });
+    }
+  }
+  return due;
 }
 
 /** Relatórios que já passaram do corte e ainda não existem, em todas as empresas. */

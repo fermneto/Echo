@@ -163,6 +163,16 @@ function toPr(repo: string, pr: any): ExternalPullRequest {
   };
 }
 
+/** Histórico de um PR para a referência dos Ganhos: só datas e logins. */
+export interface PullRequestHistory {
+  repository: string;
+  number: number;
+  authorLogin?: string | undefined;
+  openedAt: Date;
+  mergedAt?: Date | undefined;
+  reviews: { login: string; isBot: boolean; at: Date }[];
+}
+
 /** PRs com até 3.000 arquivos: acima disso o GitHub corta e a análise automática não roda. */
 const MAX_FILE_PAGES = 30;
 
@@ -252,6 +262,35 @@ export class GithubCodeHost implements CodeHost, CodeWriter {
       const { data } = await this.get<{ repositories: { full_name: string }[] }>(`/installation/repositories?per_page=100&page=${page}`);
       out.push(...data.repositories.map((r) => r.full_name));
       if (data.repositories.length < 100) break;
+    }
+    return out;
+  }
+
+  /**
+   * PRs abertos em [from, to) com as revisões enviadas, para a referência dos Ganhos (90 dias antes do Echo,
+   * medida uma vez). Só datas e logins: nem título, nem texto da revisão. Até `maxPrs` por repositório.
+   */
+  async listPullRequestHistory(repo: string, from: Date, to: Date, maxPrs = 300): Promise<PullRequestHistory[]> {
+    const out: PullRequestHistory[] = [];
+    for (let page = 1; page <= 30 && out.length < maxPrs; page++) {
+      const { data } = await this.get<any[]>(`/repos/${repo}/pulls?state=all&sort=created&direction=desc&per_page=100&page=${page}`);
+      let older = false;
+      for (const pr of data) {
+        const openedAt = new Date(pr.created_at);
+        if (openedAt.getTime() < from.getTime()) {
+          older = true;
+          break;
+        }
+        if (openedAt.getTime() >= to.getTime() || out.length >= maxPrs) continue;
+        const reviews: PullRequestHistory["reviews"] = [];
+        for (let rp = 1; rp <= 5; rp++) {
+          const { data: rs } = await this.get<any[]>(`/repos/${repo}/pulls/${pr.number}/reviews?per_page=100&page=${rp}`);
+          for (const r of rs) if (r.submitted_at && r.user?.login) reviews.push({ login: r.user.login, isBot: r.user.type === "Bot", at: new Date(r.submitted_at) });
+          if (rs.length < 100) break;
+        }
+        out.push({ repository: repo, number: pr.number, authorLogin: pr.user?.login ?? undefined, openedAt, mergedAt: pr.merged_at ? new Date(pr.merged_at) : undefined, reviews });
+      }
+      if (older || data.length < 100) break;
     }
     return out;
   }

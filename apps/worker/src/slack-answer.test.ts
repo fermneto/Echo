@@ -30,6 +30,7 @@ const answered: AnswerResult = {
   usedModel: true,
   warnings: [],
   ownerReturnsAt: new Date("2026-11-06T12:00:00Z"),
+  digest: { kind: "nenhum", request: "@Fernando posso seguir com a branch ech-131-api-v2?", reply: "Sim, para ech-131-api-v2: Fernando deixou essa branch liberada na nota do dia confirmada." },
 };
 
 describe.skipIf(!url)("F2 no Slack (Postgres real, papel comum)", () => {
@@ -78,6 +79,10 @@ describe.skipIf(!url)("F2 no Slack (Postgres real, papel comum)", () => {
     const [q] = await db.select().from(questions).where(eq(questions.orgId, orgId));
     expect(q).toMatchObject({ state: "answered", askerId: ids.edu, ownerId: ids.fer, kind: "gemeo", sourceRef: `slack:C1:${m.ts}` });
     expect(q!.textExpiresAt).not.toBeNull();
+    // Resumo da ausência: tipo e as duas linhas, sem a menção ao próprio dono; volta gravada para os Ganhos.
+    expect(q).toMatchObject({ digestKind: "nenhum", digestRequest: "posso seguir com a branch ech-131-api-v2?", digestReply: answered.digest!.reply, digestedAt: null });
+    expect(q!.ownerReturnsAt).toEqual(answered.ownerReturnsAt);
+    expect(q!.answeredAt).not.toBeNull();
     expect(JSON.stringify(posted[0]!.blocks)).toContain(q!.id); // botões Resolveu / Não resolveu
     expect(JSON.stringify(posted[0]!.blocks)).toContain("Fontes: nota do dia de Fernando (confirmada)");
 

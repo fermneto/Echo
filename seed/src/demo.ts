@@ -84,8 +84,14 @@ export function buildDemo(now: Date): DemoData {
       monthlyLimitUsd: "50",
       hardLimitUsd: "100",
       repositoriesOpenToTeam: [DEMO_REPO],
-      // Referência para Ganhos (antes do Echo), em horas.
-      gainsBaseline: { questionWaitHours: 9, firstReviewHours: 26 },
+      // Referência para Ganhos (90 dias de GitHub antes do Echo, medida uma vez), no formato de gainsBaseline.
+      gainsBaseline: {
+        capturedAt: ago(30 * DAY).toISOString(),
+        from: ago(120 * DAY).toISOString(),
+        to: ago(30 * DAY).toISOString(),
+        org: { prs: 38, firstReviewHours: 26, reviewRoundsPerPr: 2.5 },
+        teams: { [DEMO_IDS.team]: { prs: 38, firstReviewHours: 26, reviewRoundsPerPr: 2.5 } },
+      },
     },
   ];
 
@@ -380,13 +386,13 @@ export function buildDemo(now: Date): DemoData {
       orgId: org, askerId: P.eduardo, ownerId: P.fernando, kind: "gemeo", channel: "painel", sourceRef: "demo:q1",
       answer: "Agente de Fernando: a branch ech-131-api-v2 está liberada para Eduardo na nota do dia confirmada.",
       sources: [{ label: "nota do dia de Fernando (confirmada)", ref: "daily_note:fernando" }],
-      state: "answered", resolved: true, answeredAt: ago(3 * DAY), createdAt: ago(3 * DAY),
+      state: "answered", resolved: true, answeredAt: ago(3 * DAY), ownerReturnsAt: ago(3 * DAY - 6 * HOUR), createdAt: ago(3 * DAY),
     },
     {
       orgId: org, askerId: P.bruno, ownerId: P.carla, kind: "gemeo", channel: "painel", sourceRef: "demo:q2",
       answer: "Agente de Carla: o PR 34 continua aberto e espera revisão.",
       sources: [{ label: "PR 34", ref: "github:pr/34" }],
-      state: "answered", resolved: true, answeredAt: ago(2 * DAY), createdAt: ago(2 * DAY),
+      state: "answered", resolved: true, answeredAt: ago(2 * DAY), ownerReturnsAt: ago(2 * DAY - 3 * HOUR), createdAt: ago(2 * DAY),
     },
     {
       orgId: org, askerId: P.carla, kind: "quem_sabe", channel: "painel", sourceRef: "demo:q3",
