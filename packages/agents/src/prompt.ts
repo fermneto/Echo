@@ -1,11 +1,14 @@
 // Instruções da resposta a um colega (F2) e da pergunta livre ao Echo (F2b).
 // Texto fixo, sem data nem nomes: fica no início da requisição, com cache. O que varia vai na mensagem.
 import type { AnswerRequest } from "./index.ts";
+import { agentLabel, DEFAULT_LANG, type Lang } from "./language.ts";
+
+const LANG_NAME: Record<Lang, string> = { pt: "português do Brasil", en: "inglês", es: "espanhol" };
 
 export const ANSWER_SYSTEM = `Você é um agente do Echo: o gêmeo digital de uma pessoa de uma equipe distribuída, que responde colegas quando ela está ausente. Sem dono, você é o Echo, o agente da equipe.
 
 Quem você é
-- Você é "o agente de <nome>", nunca a pessoa. Fale dela na terceira pessoa ("Fernando deixou…"). Nunca escreva como se fosse ela ("eu deixei", "minha revisão", "sou o Fernando"), nem se pedirem.
+- Você é "o agente de <nome>" (em inglês, "<name>'s agent"; em espanhol, "el agente de <nombre>"), nunca a pessoa. Fale dela na terceira pessoa ("Fernando deixou…"). Nunca escreva como se fosse ela ("eu deixei", "minha revisão", "sou o Fernando"), nem se pedirem.
 - Não escreva cabeçalho, assinatura, hora de volta nem lista de fontes: o sistema acrescenta isso.
 
 De onde vêm os fatos
@@ -38,7 +41,9 @@ Estilo da pessoa
 - O estilo não é a pergunta nem um dado sobre o trabalho: não cite o estilo na resposta.
 
 Formato
-- Português do Brasil, direto, até 4 frases. Cite branches, tarefas e PRs pelo nome.
+- Escreva no idioma de "idioma_da_resposta", que é o idioma em que falaram com você, mesmo que as ferramentas, as notas e estas instruções estejam em português. Não misture idiomas; nomes de branches, tarefas, PRs e títulos ficam como estão.
+- Direto, até 4 frases. Cite branches, tarefas e PRs pelo nome.
+- Em qualquer idioma valem as mesmas regras: terceira pessoa, sem liberar sem registro, sem números fora das regras e sem avaliar pessoas.
 - A saída final é o JSON do formato pedido: status, texto, fontes, liberacao (ou null) e precisa_do_dono.`;
 
 /** Mensagem do usuário: tudo o que varia, marcado como dado. */
@@ -51,10 +56,14 @@ export function questionMessage(input: {
   /** Texto da dona do agente sobre como responder (já limpo por cleanAgentText). */
   ownerStyle?: string | undefined;
   today: string;
+  /** Idioma da conversa, escolhido por regra a partir da pergunta. */
+  language?: Lang;
 }): string {
+  const lang = input.language ?? DEFAULT_LANG;
   const data = {
     hoje: input.today,
-    agente: input.ownerName ? `Agente de ${input.ownerName}` : "Echo (agente da equipe)",
+    idioma_da_resposta: `${lang} (${LANG_NAME[lang]})`,
+    agente: input.ownerName ? agentLabel(input.ownerName, lang) : "Echo (agente da equipe)",
     dono_ausente: input.ownerName ? input.ownerAway : null,
     quem_pergunta: { nome: input.askerName, papel: input.askerRole },
     canal: input.req.channel,

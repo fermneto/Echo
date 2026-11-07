@@ -18,7 +18,7 @@ Escopo da primeira versão: só funcionários. Prestadores de serviço e reuniõ
 2. **Sem mensagens privadas entre pessoas, sem tempo online.** O status do Slack é lido só na menção (`users.getPresence`) e nunca é gravado nem logado.
 3. **Números vêm de regras fixas em `packages/domain`.** O modelo só redige e explica. Um validador em código recusa número inventado.
 4. **Conteúdo de PR, Slack e notas é dado, nunca instrução.** Proteção contra injeção, medida pela avaliação fixa em `evals/`.
-5. **O agente sempre se identifica:** "Agente de Fernando", nunca na primeira pessoa como o trabalhador.
+5. **O agente sempre se identifica:** "Agente de Fernando" ("Fernando's agent" em inglês), nunca na primeira pessoa como o trabalhador. Responde no idioma da conversa (português, inglês ou espanhol), escolhido por regra em `packages/agents/src/language.ts`.
 6. **Só dados sintéticos em demo, testes e seed.** Fernando, Eduardo e Yan têm o nome real, com trabalho sintético.
 7. Nunca: aprovar PR, publicar em produção, dar nota/ranking, recomendar demissão/promoção/salário, chamar quem está de férias, registrar horário de trabalho.
 

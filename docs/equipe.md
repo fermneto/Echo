@@ -59,7 +59,7 @@ Situação em **7/11/2026, 21h**. O que bloqueia, o que configurar e o que testa
 
 **Dona de:** `evals/`, os testes ponta a ponta (Playwright), `.github/workflows`, `infra/` (Blueprint da Render e imagens, inclusive a do modelo aberto) e a submissão.
 
-**Entregue:** CI e deploy pela Render via Actions, com a migração antes do código; os 15 casos fixos de segurança, que passam com o modelo real (15 de 15).
+**Entregue:** CI e deploy pela Render via Actions, com a migração antes do código; os 15 casos fixos de segurança e 3 de idioma (inglês e espanhol), que passam com o modelo real (18 de 18).
 
 **Falta até a entrega:**
 

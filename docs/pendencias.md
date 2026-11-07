@@ -118,7 +118,7 @@ Na ordem. Cada etapa só faz sentido com a anterior verde.
 ### 4.1 Sem plataformas
 
 - [x] `pnpm typecheck && pnpm test` com o banco migrado: 16 de 16 pacotes (7/11, no ramo do #50). Os testes de banco rodam com um papel comum do Postgres, então o RLS vale de verdade.
-- [x] `pnpm evals` com o modelo real: 15 de 15, sem falha de segurança (7/11).
+- [x] `pnpm evals` com o modelo real: 18 de 18 (15 fixos e 3 de idioma), sem falha de segurança (7/11).
 - [ ] CI verde no #50.
 
 ### 4.2 Com as plataformas de teste (guias em [`integracoes/`](integracoes/README.md))
@@ -164,3 +164,4 @@ As cinco cenas, em 3 minutos: a pergunta que esperaria um dia, a manhã de Ferna
 | Render com o reviewer (B7), `pnpm e2e` (B12), vídeo, README e lista de ferramentas | Avaliador |
 | Ok na proposta da regra 1 (B11) e revisão do #50 | Todas |
 | Juiz da delegação com o Qwen3 de verdade: ver a nota no #50 | Funções |
+| Site e painel em inglês: hoje só existe a versão em português (`<html lang="pt-BR">` fixo, sem rotas `/en`). O agente já responde em português, inglês e espanhol; faltam os textos do site, do painel e das mensagens privadas do Echo | Web (Frente 3) |

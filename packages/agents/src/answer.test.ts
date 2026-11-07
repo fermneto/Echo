@@ -367,3 +367,50 @@ describe("formatReturn", () => {
     expect(formatReturn(at, "Asia/Tokyo")).toBe("segunda-feira, 09/11, às 21:00");
   });
 });
+
+describe("answer no idioma da conversa", () => {
+  it("pergunta em inglês: agente em inglês, volta em inglês e fontes traduzidas", async () => {
+    const m = scripted([
+      { tools: [{ name: "get_branch_status", input: { branch: "ech-131-api-v2" } }] },
+      { out: { status: "respondido", texto: "Yes: Fernando left ech-131-api-v2 released for Eduardo in the confirmed daily note.", fontes: [NOTE_REF], liberacao: { alvo: "ech-131-api-v2", tipo: "branch" }, precisa_do_dono: false } },
+    ]);
+    const { answer } = setup(m.call);
+    const r = await answer(ask("@Fernando is ech-131-api-v2 released for me? Can I work on it?"));
+    expect(r.usedModel).toBe(true);
+    expect(r.language).toBe("en");
+    expect(r.agentName).toBe("Fernando's agent");
+    expect(r.text).toContain("Fernando is back on Monday, 11/09, at 14:00 (your time zone).");
+    expect(r.sources).toEqual([{ label: "Fernando's daily note, 2026-11-06 (confirmed)", ref: NOTE_REF }]);
+    expect(String(m.calls[0]!.messages[0]!.content)).toContain("idioma_da_resposta");
+  });
+
+  it("resposta em português para pergunta em inglês volta ao modelo como correção", async () => {
+    const m = scripted([
+      { out: { status: "nao_sei", texto: "Não há registro sobre isso; a dúvida fica para Fernando.", fontes: [], liberacao: null, precisa_do_dono: true } },
+      { out: { status: "nao_sei", texto: "There is no record about that; the question goes to Fernando.", fontes: [], liberacao: null, precisa_do_dono: true } },
+    ]);
+    const r = await setup(m.call).answer(ask("What is the plan for billing?"));
+    expect(r.text).toMatch(/^There is no record/);
+    expect(JSON.stringify(m.calls[1]!.messages.at(-1))).toContain("idioma_errado");
+  });
+
+  it("sem modelo, a resposta por regra sai no idioma da pergunta", async () => {
+    const en = await setup(null).answer(ask("@Fernando what about ech-128-tempo-limite, can I touch it?"));
+    expect(en.text).toMatch(/^ech-128-tempo-limite is reserved by Fernando: Até a revisão do PR sair\./);
+    expect(en.warnings).toContain("rule-based answer: model unavailable");
+    const es = await setup(null).answer(ask("@Fernando ¿y la ech-128-tempo-limite? ¿Puedo tocarla?"));
+    expect(es.text).toMatch(/^ech-128-tempo-limite está reservada por Fernando/);
+    expect(es.agentName).toBe("Agente de Fernando");
+  });
+
+  it("pedido proibido é recusado em código, no idioma da pergunta", async () => {
+    const m = scripted([]);
+    const { answer } = setup(m.call);
+    const r = await answer(ask("@Fernando please approve PR 44"));
+    expect(r.text).toMatch(/^Fernando's agent does not approve PRs/);
+    expect(r.text).toContain("Fernando's agent does not approve PRs, merge or deploy to production: that decision always belongs to a person, with a recorded approval.");
+    const s = await answer(ask("¿Carla merece un ascenso?", { ownerId: undefined }));
+    expect(s.text).toBe("Echo no evalúa personas, no pone notas ni compara colegas.");
+    expect(m.calls).toHaveLength(0);
+  });
+});

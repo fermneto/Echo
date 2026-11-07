@@ -151,6 +151,10 @@ _Nunca delegável, diga o texto o que disser_
 - Enviar ou aprovar relatório ao RH
 - Alterar números, metas ou prazos
 
+### Idioma da conversa
+
+O agente responde no idioma em que falaram com ele: português, inglês ou espanhol. Pergunta sem sinal de idioma ("ech-131?") segue o idioma da conversa no tópico; sem nenhum sinal, português. Em inglês ele se apresenta como "Fernando's agent"; em espanhol, "Agente de Fernando". As recusas, a hora de volta, as fontes e os botões Resolveu / Não resolveu saem no mesmo idioma. As regras são as mesmas nos três idiomas, e o validador confere cada um com as próprias frases. Notas, nomes de tarefa e textos de colegas são citados como foram escritos. O painel, as mensagens privadas do Echo (nota do dia, plano da manhã, relatório) e o site continuam só em português.
+
 ### A nota do dia como contexto
 
 _Nota de Fernando · confirmada_
