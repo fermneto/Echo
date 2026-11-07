@@ -2,7 +2,7 @@
 
 Gêmeos digitais para equipes distribuídas. Cada pessoa tem um agente que conhece o trabalho dela, responde quando ela está ausente, adianta revisões à noite e ajuda o líder a redistribuir tarefas sem sobrecarregar ninguém.
 
-Projeto do hackathon Converge Challenge (Canastra Ventures). Escopo da primeira versão: só funcionários. Prestadores de serviço e reuniões ficam fora.
+Escopo da primeira versão: só funcionários. Prestadores de serviço e reuniões ficam fora.
 
 ## Documentos
 

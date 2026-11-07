@@ -2,13 +2,13 @@
 
 Quatro frentes em paralelo a partir das **10:30**. Cada frente é dona de pastas próprias, para quase não haver conflito de merge. Os pontos de contato entre as frentes são os **contratos já escritos** em `packages/*/src/index.ts`. Mudar um contrato exige avisar o time antes.
 
-## Prazos do Converge Challenge
+## Prazos
 
 | Quando | O quê |
 |---|---|
 | Sábado 7/11, 10h30 | Início do hacking. Nenhum código do projeto antes disso, e o repositório começa no dia. |
 | Sábado 7/11, 17h00 | Fim do primeiro dia |
-| Domingo 8/11, 13h00 | **Prazo final de submissão**, pelo painel da Canastra |
+| Domingo 8/11, 13h00 | **Prazo final de entrega** |
 | Domingo 8/11, 16h00 | Demo Day: 3 minutos por time, e os jurados testam o sistema |
 
 **A submissão exige:** descrição (problema, para quem, solução e como o agente funciona), vídeo de demonstração, link navegável e testável, material do pitch e a lista de ferramentas, modelos e APIs usados. Vale sinalizar o **Desafio Tako** (Digital Workers para RH).

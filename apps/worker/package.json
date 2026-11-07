@@ -8,6 +8,17 @@
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run --passWithNoTests"
   },
-  "dependencies": { "@echo/config": "workspace:*", "@echo/observability": "workspace:*", "@echo/jobs": "workspace:*", "tsx": "catalog:" },
-  "devDependencies": { "@types/node": "catalog:", "typescript": "catalog:", "vitest": "catalog:" }
+  "dependencies": {
+    "@echo/config": "workspace:*",
+    "@echo/observability": "workspace:*",
+    "@echo/jobs": "workspace:*",
+    "tsx": "catalog:",
+    "@echo/connectors": "workspace:*",
+    "@echo/db": "workspace:*"
+  },
+  "devDependencies": {
+    "@types/node": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
 }

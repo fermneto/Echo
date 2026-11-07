@@ -160,6 +160,9 @@ export const pullRequests = pgTable("pull_requests", {
   openedAt: ts("opened_at"),
   mergedAt: ts("merged_at"),
   firstHumanReviewAt: ts("first_human_review_at"),
+  checksState: text("checks_state"),
+  /** Hora da última mudança na origem: avisos fora de ordem não sobrescrevem dado mais novo. */
+  externalUpdatedAt: ts("external_updated_at"),
   updatedAt: updatedAt(),
 }, (t) => [uniqueIndex("prs_repo_number").on(t.orgId, t.repository, t.number)]);
 
