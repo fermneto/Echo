@@ -1,6 +1,6 @@
 {
-  "id": "8a4ddf50-9e20-4f08-92c3-06d2f75c956f",
-  "prevId": "2307f36b-bb04-40d3-9080-70bf472affaa",
+  "id": "e68877bb-77b8-4318-abd6-7e8f30d93929",
+  "prevId": "2c2ad1e4-5d9b-4187-9474-7c67c67a95fd",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -57,30 +57,12 @@
           "primaryKey": false,
           "notNull": false
         },
-        "calendar_event_id": {
-          "name": "calendar_event_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "inferred": {
           "name": "inferred",
           "type": "boolean",
           "primaryKey": false,
           "notNull": true,
           "default": false
-        },
-        "confirmed_at": {
-          "name": "confirmed_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "confirmed_by": {
-          "name": "confirmed_by",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": false
         },
         "cancelled_at": {
           "name": "cancelled_at",
@@ -108,27 +90,6 @@
             },
             {
               "expression": "hr_event_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "absences_calendar_event": {
-          "name": "absences_calendar_event",
-          "columns": [
-            {
-              "expression": "org_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "calendar_event_id",
               "isExpression": false,
               "asc": true,
               "nulls": "last"
@@ -1045,156 +1006,6 @@
           "tableTo": "people",
           "columnsFrom": [
             "person_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {},
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
-    "public.deployments": {
-      "name": "deployments",
-      "schema": "",
-      "columns": {
-        "id": {
-          "name": "id",
-          "type": "uuid",
-          "primaryKey": true,
-          "notNull": true,
-          "default": "gen_random_uuid()"
-        },
-        "org_id": {
-          "name": "org_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "provider": {
-          "name": "provider",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "external_id": {
-          "name": "external_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "repository": {
-          "name": "repository",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "sha": {
-          "name": "sha",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "branch": {
-          "name": "branch",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "environment": {
-          "name": "environment",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "state": {
-          "name": "state",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "url": {
-          "name": "url",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "occurred_at": {
-          "name": "occurred_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "updated_at": {
-          "name": "updated_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {
-        "deployments_ext": {
-          "name": "deployments_ext",
-          "columns": [
-            {
-              "expression": "org_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "provider",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "external_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": true,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        },
-        "deployments_sha": {
-          "name": "deployments_sha",
-          "columns": [
-            {
-              "expression": "org_id",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            },
-            {
-              "expression": "sha",
-              "isExpression": false,
-              "asc": true,
-              "nulls": "last"
-            }
-          ],
-          "isUnique": false,
-          "concurrently": false,
-          "method": "btree",
-          "with": {}
-        }
-      },
-      "foreignKeys": {
-        "deployments_org_id_orgs_id_fk": {
-          "name": "deployments_org_id_orgs_id_fk",
-          "tableFrom": "deployments",
-          "tableTo": "orgs",
-          "columnsFrom": [
-            "org_id"
           ],
           "columnsTo": [
             "id"
@@ -2246,12 +2057,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "work_hours_suggested": {
-          "name": "work_hours_suggested",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": false
-        },
         "active": {
           "name": "active",
           "type": "boolean",
@@ -2574,18 +2379,6 @@
         "checks_state": {
           "name": "checks_state",
           "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "checks_url": {
-          "name": "checks_url",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "checks_updated_at": {
-          "name": "checks_updated_at",
-          "type": "timestamp with time zone",
           "primaryKey": false,
           "notNull": false
         },
