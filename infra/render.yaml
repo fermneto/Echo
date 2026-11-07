@@ -1,7 +1,8 @@
-# Blueprint da Render para o evento: banco, API, painel e worker (o reviewer está comentado no fim).
+# Blueprint da Render para o evento: banco, API, painel, worker e triagem (o reviewer está comentado no fim).
 # Variáveis com sync: false são pedidas só na criação; as novas entram pelo painel de cada serviço.
 #
-# Planos (B7): banco, API e painel no gratuito; só o worker é pago, porque a Render não tem worker gratuito.
+# Planos (B7): banco, API e painel no gratuito; worker e triagem são pagos (a Render não tem worker nem serviço
+# privado gratuito).
 # - O banco gratuito expira 30 dias depois de criado e não tem backup.
 # - API e painel gratuitos hibernam depois de ~15 min parados: abra o painel e chame /health antes da demo.
 #   Aviso do GitHub perdido na hibernação é recuperado pela reconciliação (RECONCILE_INTERVAL_MS).
@@ -137,7 +138,27 @@ services:
       # Endereço público do painel (botão "Editar no painel" da nota do dia). Definir no painel da Render.
       - key: WEB_URL
         sync: false
+      # Triagem da revisão noturna pelo modelo aberto do echo-triage (host:porta na rede privada).
+      - key: TRIAGE_OLLAMA_URL
+        fromService:
+          type: pserv
+          name: echo-triage
+          property: hostport
       - fromGroup: echo-shared
+
+  # Triagem da revisão noturna: Ollama com Qwen3 4B Instruct (modelo aberto, Apache 2.0) embutido na imagem.
+  # Serviço privado: sem endereço público; só o worker chega nele. Plano pago (não há serviço privado gratuito):
+  # pro = 2 CPU e 4 GB. Só reconstrói quando o Dockerfile dele muda (cada build baixa ~2,5 GB de modelo).
+  - type: pserv
+    name: echo-triage
+    runtime: docker
+    region: oregon
+    plan: pro
+    dockerfilePath: ./infra/Dockerfile.ollama
+    dockerContext: ./infra
+    buildFilter:
+      paths:
+        - infra/Dockerfile.ollama
 
   # Correção em ambiente isolado (etapa 10). Fora do plano gratuito: é outro worker pago (starter).
   # Para ligar, descomente e preencha ANTHROPIC_API_KEY, FIX_AGENT_ID e FIX_ENVIRONMENT_ID

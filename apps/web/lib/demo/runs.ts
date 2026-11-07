@@ -50,6 +50,7 @@ const EXTRA_FLOWS: Record<string, string> = {
   fix_ready: "Correção",
   night_review: "Revisão de PR",
   night_review_batch: "Revisão de PR",
+  night_triage: "Triagem de PR (modelo aberto)",
   gains_baseline: "Ganhos",
   help_confirm: "Ajuda",
   redistribution_done: "Redistribuição",
