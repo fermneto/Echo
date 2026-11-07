@@ -28,6 +28,8 @@ export type GlobePoint = {
   place: string;
   /** O que aparece ao clicar no ponto. */
   detail?: ReactNode;
+  /** Etiqueta só aparece com o ponteiro em cima (para o globo não ficar poluído). */
+  quiet?: boolean;
 };
 
 export type GlobeArc = { id: string; from: [number, number]; to: [number, number]; tone: Tone };
@@ -122,6 +124,7 @@ export function EchoGlobe({ points, arcs, focusLongitude = -5, theta = 0.32 }: {
     const cities = points.map((p) => ({ ...p, v: toVec(p.location[0], p.location[1]) }));
     /** Posição na tela de cada cidade no último quadro (para o clique). */
     const screen = cities.map(() => ({ x: 0, y: 0, z: -1 }));
+    let hovered = -1;
     const arcVecs = arcs.map((a) => ({ ...a, a: toVec(a.from[0], a.from[1]), b: toVec(a.to[0], a.to[1]) }));
     let dots: Dot[] = [];
 
@@ -229,10 +232,11 @@ export function EchoGlobe({ points, arcs, focusLongitude = -5, theta = 0.32 }: {
         const label = labelRefs.current[i];
         const alpha = Math.max(0, Math.min(1, (z - 0.08) / 0.25));
         const isOpen = openRef.current === i;
+        const shown = p.quiet ? (hovered === i ? alpha : 0) : alpha;
         if (label) {
           label.style.transform = `translate(${sx.toFixed(1)}px, ${sy.toFixed(1)}px)`;
-          label.style.opacity = String(isOpen ? 0 : alpha);
-          label.style.pointerEvents = alpha > 0.5 && !isOpen ? "auto" : "none";
+          label.style.opacity = String(isOpen ? 0 : shown);
+          label.style.pointerEvents = shown > 0.5 && !isOpen ? "auto" : "none";
         }
         const popup = popupRef.current;
         if (isOpen && popup) {
@@ -252,7 +256,7 @@ export function EchoGlobe({ points, arcs, focusLongitude = -5, theta = 0.32 }: {
         }
         ctx.fillStyle = `rgba(${pr},${pg},${pb},${Math.max(0.3, alpha).toFixed(3)})`;
         ctx.beginPath();
-        ctx.arc(sx, sy, isOpen ? 7 : 5, 0, Math.PI * 2);
+        ctx.arc(sx, sy, isOpen ? 7 : p.quiet ? 4 : 5, 0, Math.PI * 2);
         ctx.fill();
         if (isOpen) {
           ctx.strokeStyle = "rgba(250,250,250,0.9)";
@@ -340,7 +344,13 @@ export function EchoGlobe({ points, arcs, focusLongitude = -5, theta = 0.32 }: {
     };
     const onHover = (e: PointerEvent) => {
       if (drag) return;
-      canvas.style.cursor = hit(e) >= 0 ? "pointer" : "grab";
+      hovered = hit(e);
+      canvas.style.cursor = hovered >= 0 ? "pointer" : "grab";
+      if (reduce) draw(performance.now());
+    };
+    const onLeave = () => {
+      hovered = -1;
+      if (reduce) draw(performance.now());
     };
     const onClick = (e: PointerEvent) => {
       if (!downAt || Math.hypot(e.clientX - downAt.x, e.clientY - downAt.y) > 5) return;
@@ -375,6 +385,7 @@ export function EchoGlobe({ points, arcs, focusLongitude = -5, theta = 0.32 }: {
     };
     canvas.addEventListener("pointerdown", onDown);
     canvas.addEventListener("pointermove", onHover);
+    canvas.addEventListener("pointerleave", onLeave);
     canvas.addEventListener("pointerup", onClick);
     window.addEventListener("pointermove", onMove, { passive: true });
     window.addEventListener("pointerup", onUp, { passive: true });
@@ -386,6 +397,7 @@ export function EchoGlobe({ points, arcs, focusLongitude = -5, theta = 0.32 }: {
       ro.disconnect();
       canvas.removeEventListener("pointerdown", onDown);
       canvas.removeEventListener("pointermove", onHover);
+      canvas.removeEventListener("pointerleave", onLeave);
       canvas.removeEventListener("pointerup", onClick);
       window.removeEventListener("pointermove", onMove);
       window.removeEventListener("pointerup", onUp);

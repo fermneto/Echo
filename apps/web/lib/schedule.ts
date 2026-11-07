@@ -21,11 +21,15 @@ const toMinutes = (hhmm: string) => {
   return Number(h) * 60 + Number(m);
 };
 
+/** No expediente naquele instante, pelo fuso e pelo horário cadastrados. */
+export function workingAt(timezone: string, hours: { days: number[]; start: string; end: string }, at: Date): boolean {
+  const { weekday, minutes } = localParts(at, timezone);
+  return hours.days.includes(weekday) && minutes >= toMinutes(hours.start) && minutes < toMinutes(hours.end);
+}
+
 export function railStateAt(p: Persona, at: Date): RailState {
   if (p.availability.kind === "vacation") return "wait";
-  const { weekday, minutes } = localParts(at, p.timezone);
-  const working = p.workHours.days.includes(weekday) && minutes >= toMinutes(p.workHours.start) && minutes < toMinutes(p.workHours.end);
-  return working ? "on" : "twin";
+  return workingAt(p.timezone, p.workHours, at) ? "on" : "twin";
 }
 
 export type Rail = { segments: { state: RailState; past: boolean }[]; nowIndex: number };

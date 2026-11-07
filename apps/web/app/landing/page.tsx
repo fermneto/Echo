@@ -7,7 +7,8 @@ import { MOMENTS } from "@/components/landing/moments";
 import { IntegrationsCarousel } from "@/components/landing/integrations";
 import { PixelSprite, type SpriteMode } from "@/components/PixelSprite";
 import { lookFor } from "@/lib/demo/looks";
-import { DEMO_NOW, PERSONAS } from "@/lib/demo/personas";
+import { WORLD, worldCounts, worldState, type WorldMember } from "@/lib/demo/world";
+import { DEMO_NOW } from "@/lib/demo/personas";
 import { localTime } from "@/lib/time";
 import "./landing.css";
 
@@ -144,18 +145,109 @@ const POINTS: GlobePoint[] = [
   { id: "yan", location: YAN, tone: "wait", halo: 6, side: "left", place: "Tóquio, com Yan de férias", detail: DETAIL.yan, label: <GlobeCrew ids={["yan"]} mode="away" caption="Gêmeo de Yan · férias" code="TYO" tz="Asia/Tokyo" /> },
 ];
 
+const member = (id: string) => WORLD.find((m) => m.id === id)!;
+const at = (m: WorldMember) => `${m.cityCode} ${localTime(DEMO_NOW, m.timezone)}`;
+
+/** Conversas entre quem trabalha na Ásia e os agentes de quem dorme. Fictícias. */
+const WORLD_TALKS = [
+  {
+    from: "priya",
+    to: "ines",
+    ask: "@Inês o contrato da API de faturas mudou?",
+    answer: "Não: Inês deixou o contrato congelado na nota do dia até a revisão de segunda. Ela volta às 9h de Lisboa.",
+    source: "nota do dia de Inês",
+  },
+  {
+    from: "wei",
+    to: "jonas",
+    ask: "@Jonas posso fazer o deploy da fila nova?",
+    answer: "Não há liberação para esse deploy na nota do dia de Jonas. A dúvida entra no plano da manhã dele, às 9h de Berlim.",
+    source: "nota do dia de Jonas",
+  },
+  {
+    from: "olivia",
+    to: "ana",
+    ask: "@Ana o PR 88 já tem revisão?",
+    answer: "Ainda não: o PR 88 está aberto e esperando revisão. Ana volta às 9h de São Paulo.",
+    source: "PR 88 no GitHub (ao vivo)",
+  },
+] as const;
+
+function talkCard(t: (typeof WORLD_TALKS)[number]) {
+  const a = member(t.from);
+  const b = member(t.to);
+  return (
+    <div className="lp-chat">
+      <Line who={a.name} meta={at(a)}>
+        {t.ask}
+      </Line>
+      <Line who={`Agente de ${b.name}`} agent meta={`${b.name} está fora · ${at(b)}`}>
+        {t.answer}
+      </Line>
+      <span className="lp-source">Fonte: {t.source}</span>
+    </div>
+  );
+}
+
+function worldDetail(m: WorldMember) {
+  const talk = WORLD_TALKS.find((t) => t.from === m.id || t.to === m.id);
+  if (talk) return talkCard(talk);
+  const state = worldState(m);
+  const text =
+    state === "wait"
+      ? `${m.name} está de férias. O agente cobre e ninguém chama quem está de férias.`
+      : state === "twin"
+        ? `${m.name} começa às 9h em ${m.city}. Até lá, o agente responde por ${m.name}, sempre citando a fonte.`
+        : `${m.name} está no expediente em ${m.city} e responde por si.`;
+  return (
+    <div className="lp-chat">
+      <Line who={state === "on" ? m.name : `Agente de ${m.name}`} agent={state !== "on"} meta={at(m)}>
+        {text}
+      </Line>
+    </div>
+  );
+}
+
+/** A equipe pelo mundo: etiqueta só ao passar o mouse; conversa ao clicar. */
+const WORLD_POINTS: GlobePoint[] = WORLD.map((m) => {
+  const state = worldState(m);
+  const mode: SpriteMode = state === "on" ? "person" : state === "twin" ? "twin" : "away";
+  const caption = state === "on" ? m.name : state === "twin" ? `Gêmeo de ${m.name}` : `Gêmeo de ${m.name} · férias`;
+  return {
+    id: m.id,
+    location: m.location,
+    tone: state,
+    halo: 7,
+    quiet: true,
+    place: m.city,
+    detail: worldDetail(m),
+    label: (
+      <span className="globe__tag">
+        <span className="globe__crew">
+          <PixelSprite look={{ hair: m.hair }} mode={mode} size={28} />
+        </span>
+        <span className="globe__text">
+          <span className="globe__who">{caption}</span>
+          <span className="lp-mono">{at(m)}</span>
+        </span>
+      </span>
+    ),
+  };
+});
+
+const ALL_POINTS = [...POINTS, ...WORLD_POINTS];
+
 /** Branco: a pergunta da vez. Azul: um agente respondendo. Verde: quem está trabalhando agora. */
 const ARCS: GlobeArc[] = [
   { id: "pergunta", from: CITY.JNB!, to: CITY.FOR!, tone: "ask" },
   { id: "agente-yan", from: YAN, to: CITY.JNB!, tone: "twin" },
   { id: "expediente", from: CITY.JNB!, to: CITY.TYO!, tone: "on" },
+  ...WORLD_TALKS.map((t) => ({ id: `${t.from}-${t.to}`, from: member(t.from).location, to: member(t.to).location, tone: "twin" as const })),
+  { id: "seul-singapura", from: member("jiwoo").location, to: member("wei").location, tone: "on" },
+  { id: "dubai-bangalore", from: member("omar").location, to: member("priya").location, tone: "on" },
 ];
 
-const COUNTS = {
-  on: PERSONAS.filter((p) => p.availability.kind === "working").length,
-  twin: PERSONAS.filter((p) => p.availability.kind === "off").length,
-  wait: PERSONAS.filter((p) => p.availability.kind === "vacation").length,
-};
+const COUNTS = worldCounts();
 
 function Pill() {
   return <span className="lp-pill">Exemplo</span>;
@@ -204,13 +296,13 @@ export default function LandingPage() {
           </div>
 
           <div className="lp-hero__globe">
-            <EchoGlobe points={POINTS} arcs={ARCS} focusLongitude={-12} theta={0.3} />
+            <EchoGlobe points={ALL_POINTS} arcs={ARCS} focusLongitude={-12} theta={0.3} />
             <ul className="lp-legend" aria-label="Equipe da demonstração agora">
               <li>
                 <span className="lp-dot" aria-hidden="true" /> {COUNTS.on} trabalhando
               </li>
               <li>
-                <span className="lp-dot lp-dot--twin" aria-hidden="true" /> {COUNTS.twin} coberto pelo agente
+                <span className="lp-dot lp-dot--twin" aria-hidden="true" /> {COUNTS.twin} {COUNTS.twin === 1 ? "coberta" : "cobertas"} pelo agente
               </li>
               <li>
                 <span className="lp-dot lp-dot--wait" aria-hidden="true" /> {COUNTS.wait} de férias
