@@ -2226,82 +2226,95 @@ select.field option {
   line-height: 1.45;
 }
 
-/* Campo de pergunta: o eco aparece só quando algo acontece */
+/* Campo de pergunta com halo */
 .halo {
+  --halo-speed: 1;
+  --halo-glow: 0.7;
+  --orb-spin: 9s;
+  --orb-pulse: 5.2s;
   position: relative;
+  padding: 1px;
   border-radius: var(--rounded-pill);
 }
-.halo__echo {
+.halo:focus-within {
+  --halo-glow: 1;
+}
+.halo.is-typing {
+  --orb-spin: 3.2s;
+  --orb-pulse: 2.6s;
+}
+.halo.is-busy {
+  --halo-speed: 0.55;
+  --halo-glow: 1;
+  --orb-spin: 1.6s;
+  --orb-pulse: 1.6s;
+}
+.halo__glow {
   position: absolute;
   inset: 0;
-  pointer-events: none;
+  overflow: hidden;
   border-radius: inherit;
+  pointer-events: none;
+  opacity: var(--halo-glow);
+  transition: opacity 250ms ease-out;
 }
-.halo__ring {
+/* Brilho externo: as mesmas manchas, mais desfocadas, vazando sob o campo. */
+.halo__bloom {
   position: absolute;
-  inset: 0;
-  border: 1px solid var(--color-signal-twin-text);
-  border-radius: var(--rounded-pill);
-  opacity: 0;
-  animation: halo-ring 1.8s cubic-bezier(0.2, 0.6, 0.3, 1) infinite;
-  animation-delay: calc(var(--k) * 0.9s);
+  inset: 40% 4% -10px;
+  pointer-events: none;
+  opacity: calc(var(--halo-glow) * 0.55);
+  filter: blur(18px);
+  transition: opacity 250ms ease-out;
 }
-.halo__ring--done {
-  border-color: var(--color-signal-on);
-  animation: halo-ring 900ms cubic-bezier(0.2, 0.6, 0.3, 1) 1 forwards;
+.halo__bloom .halo__blob {
+  bottom: -6px;
 }
-@keyframes halo-ring {
-  0% {
-    inset: 0;
-    opacity: 0.55;
-  }
-  100% {
-    inset: -10px -14px;
-    opacity: 0;
-  }
+.halo__blob {
+  position: absolute;
+  bottom: -18px;
+  border-radius: 50%;
+  filter: blur(14px);
+  animation: halo-drift calc(6s * var(--halo-speed)) ease-in-out infinite;
 }
-.halo__meter {
-  flex: none;
-  display: flex;
-  flex-direction: column;
-  width: 8px;
-  margin: 0 4px 0 10px;
+.halo__blob--a {
+  width: 200px;
+  height: 56px;
+  background: linear-gradient(90deg, var(--color-signal-twin-deep), var(--color-signal-twin), var(--color-signal-twin-text));
+  --from: -6%;
+  --to: 72%;
 }
-.halo__cell {
-  height: 8px;
-  margin-top: -1px;
-  border: 1px solid transparent;
-  transition: height 220ms ease-out, margin 220ms ease-out, border-color 200ms ease-out;
+.halo__blob--b {
+  width: 130px;
+  height: 44px;
+  background: linear-gradient(90deg, var(--color-signal-on), color-mix(in srgb, var(--color-signal-on) 40%, var(--color-signal-twin)));
+  --from: 66%;
+  --to: 6%;
+  animation-duration: calc(5s * var(--halo-speed));
+  opacity: 0.7;
 }
-/* Parado, só o ponto; consultando, a coluna do medidor cresce para cima. */
-.halo:not(.is-busy) .halo__cell:not(.is-on) {
-  height: 0;
-  margin-top: 0;
-  border-width: 0;
+.halo__blob--c {
+  width: 96px;
+  height: 36px;
+  background: linear-gradient(90deg, var(--color-signal-twin-text), var(--color-signal-twin));
+  --from: 28%;
+  --to: 56%;
+  animation-duration: calc(4s * var(--halo-speed));
 }
-.halo.is-busy .halo__cell {
-  border-color: rgb(255 255 255 / 16%);
-  animation: halo-meter 1.2s steps(1, end) infinite;
-  animation-delay: calc(var(--k) * 0.07s);
+.halo.is-clearing .halo__blob--a {
+  background: linear-gradient(90deg, var(--color-danger), var(--color-signal-wait));
 }
-.halo__cell.is-on,
-.halo.is-busy .halo__cell.is-on {
-  background: var(--color-signal-on);
-  border-color: var(--color-signal-on);
-  animation: none;
+.halo.is-clearing .halo__blob--b,
+.halo.is-clearing .halo__blob--c {
+  background: linear-gradient(90deg, var(--color-signal-wait), var(--color-danger));
 }
-@keyframes halo-meter {
+@keyframes halo-drift {
   0%,
   100% {
-    background: transparent;
+    left: var(--from);
   }
-  8%,
-  22% {
-    background: rgb(152 255 56 / 30%);
-    border-color: rgb(152 255 56 / 60%);
-  }
-  30% {
-    background: transparent;
+  50% {
+    left: var(--to);
   }
 }
 .halo__field {
@@ -2311,20 +2324,54 @@ select.field option {
   gap: var(--space-md);
   min-height: 56px;
   padding: 8px 8px 8px 12px;
-  border: 1px solid var(--color-edge);
+  border: 1px solid color-mix(in srgb, var(--color-cloud) 9%, transparent);
   border-radius: inherit;
   background: linear-gradient(to bottom, var(--color-panel), color-mix(in srgb, var(--color-panel) 90%, var(--color-black))) padding-box;
   transition: border-color 200ms ease-out, background 200ms ease-out;
 }
 .halo:focus-within .halo__field {
-  border-color: var(--color-iron);
+  border-color: color-mix(in srgb, var(--color-cloud) 18%, transparent);
 }
 .halo.is-busy .halo__field {
-  border-color: color-mix(in srgb, var(--color-signal-twin-text) 55%, transparent);
+  background: linear-gradient(to bottom, color-mix(in srgb, var(--color-panel) 78%, transparent), color-mix(in srgb, var(--color-panel) 66%, transparent)) padding-box;
+  backdrop-filter: blur(16px) saturate(1.4);
+}
+.halo__orb {
+  position: relative;
+  flex: none;
+  width: 32px;
+  height: 32px;
+  overflow: hidden;
+  border-radius: 50%;
+  background: var(--color-chip);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--color-cloud) 10%, transparent);
+  animation: orb-pulse var(--orb-pulse) ease-in-out infinite;
+}
+.halo__orb-swirl {
+  position: absolute;
+  inset: -40%;
+  background:
+    radial-gradient(circle at 30% 35%, var(--color-signal-twin-text) 0 18%, transparent 42%),
+    radial-gradient(circle at 70% 65%, var(--color-signal-on) 0 12%, transparent 38%),
+    conic-gradient(from 0deg, var(--color-signal-twin-deep), var(--color-signal-twin), var(--color-signal-on), var(--color-signal-twin-text), var(--color-signal-twin-deep));
+  filter: blur(5px) saturate(1.2);
+  animation: orb-spin var(--orb-spin) linear infinite;
 }
 @keyframes orb-spin {
   to {
     transform: rotate(1turn);
+  }
+}
+@keyframes orb-pulse {
+  0%,
+  100% {
+    transform: scale(1) rotate(0deg);
+  }
+  35% {
+    transform: scale(1.055) rotate(2deg);
+  }
+  70% {
+    transform: scale(0.99) rotate(-1.5deg);
   }
 }
 .halo__input-wrap {
@@ -2493,8 +2540,9 @@ select.field option {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .halo__ring,
-  .halo__cell,
+  .halo__blob,
+  .halo__orb,
+  .halo__orb-swirl,
   .halo__spinner::after,
   .chat__turn:last-child .chat__reply {
     animation: none;

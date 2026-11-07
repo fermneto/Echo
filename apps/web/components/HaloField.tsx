@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, useState, type CSSProperties, type RefObject } from "react";
+import { useEffect, useRef, useState, type RefObject } from "react";
 
 const CLEAR_MS = 520;
 
@@ -18,8 +18,8 @@ function Stagger({ text, className, step = 18 }: { text: string; className: stri
 }
 
 /**
- * Campo de pergunta: parado, só o ponto verde do "echo."; consultando, o contorno ecoa para
- * fora e o ponto vira medidor; ao responder, um último eco verde. Placeholder que entra
+ * Campo de pergunta com halo: um brilho que corre pela borda de baixo, um orbe que "pensa"
+ * (mais rápido enquanto a pessoa digita e enquanto o agente consulta), placeholder que entra
  * letra a letra e texto que se desfaz ao limpar. Tudo em CSS, desligado com movimento reduzido.
  */
 export function HaloField({
@@ -48,8 +48,6 @@ export function HaloField({
   const [typing, setTyping] = useState(false);
   const [ghost, setGhost] = useState<{ text: string; key: number } | null>(null);
   const [placeholderKey, setPlaceholderKey] = useState(0);
-  const [answered, setAnswered] = useState(0);
-  const wasPending = useRef(false);
   const typingTimer = useRef<number | null>(null);
   const ghostTimer = useRef<number | null>(null);
 
@@ -60,11 +58,6 @@ export function HaloField({
     },
     [],
   );
-
-  useEffect(() => {
-    if (wasPending.current && !pending) setAnswered((n) => n + 1);
-    wasPending.current = pending;
-  }, [pending]);
 
   const dissolve = (text: string) => {
     if (!text) return;
@@ -81,18 +74,16 @@ export function HaloField({
 
   return (
     <div className={`halo ${state}`}>
-      {/* O eco só aparece quando algo acontece: ondas enquanto consulta e uma verde quando responde. */}
-      <div className="halo__echo" aria-hidden="true">
-        {pending && [0, 1].map((k) => <span key={k} className="halo__ring" style={{ "--k": k } as CSSProperties} />)}
-        {answered > 0 && <span key={answered} className="halo__ring halo__ring--done" />}
-      </div>
+      {["halo__bloom", "halo__glow"].map((layer) => (
+        <div key={layer} className={layer} aria-hidden="true">
+          <span className="halo__blob halo__blob--a" />
+          <span className="halo__blob halo__blob--b" />
+          <span className="halo__blob halo__blob--c" />
+        </div>
+      ))}
       <div className="halo__field" aria-busy={pending || undefined}>
-        {/* O ponto do "echo." como medidor: acende de baixo para cima no ritmo do eco. */}
-        <span className="halo__meter" aria-hidden="true">
-          {[4, 3, 2, 1].map((k) => (
-            <span key={k} className="halo__cell" style={{ "--k": k } as CSSProperties} />
-          ))}
-          <span className="halo__cell is-on" />
+        <span className="halo__orb" aria-hidden="true">
+          <span className="halo__orb-swirl" />
         </span>
         <div className="halo__input-wrap">
           <label htmlFor={id} className="sr-only">
