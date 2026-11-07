@@ -439,19 +439,6 @@ export default function LandingPage() {
           <p className="lp-mono lp-stack">GITHUB · LINEAR · SLACK · RH POR AVISO ASSINADO · POWERED BY CLAUDE</p>
         </section>
 
-        <section className="lp-section lp-closing" aria-labelledby="fechamento">
-          <h2 id="fechamento" className="lp-headline">
-            Amanhã cedo, a resposta já estará lá.
-          </h2>
-          <div className="lp-actions">
-            <Link href="/entrar" className="lp-btn lp-btn--paper">
-              Testar a demo
-            </Link>
-            <a href="#como-funciona" className="lp-btn lp-btn--ghost">
-              Ver como funciona
-            </a>
-          </div>
-        </section>
       </main>
 
       <footer className="lp-footer">

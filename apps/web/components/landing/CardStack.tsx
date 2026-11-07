@@ -59,7 +59,7 @@ export function CardStack({
   const [shift, setShift] = useState(0);
   const [dragging, setDragging] = useState(false);
   const stage = useRef<HTMLDivElement>(null);
-  const drag = useRef<{ x: number; lastX: number; lastT: number; v: number; moved: boolean } | null>(null);
+  const drag = useRef<{ x: number; y: number; lastX: number; lastT: number; v: number; moved: boolean } | null>(null);
   const spacingRef = useRef(230);
   /** Acabou de arrastar: o clique que vem junto com o soltar é ignorado. */
   const justDragged = useRef(false);
@@ -77,14 +77,15 @@ export function CardStack({
     return () => ro.disconnect();
   }, []);
 
-  // Roda do mouse / trackpad: acumula e troca um cartão por vez.
+  // Só o gesto horizontal (trackpad ou Shift + roda) troca de cartão; o vertical rola a página.
   useEffect(() => {
     const el = stage.current;
     if (!el) return;
     let acc = 0;
     let last = 0;
     const onWheel = (e: WheelEvent) => {
-      const d = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+      const horizontal = Math.abs(e.deltaX) > Math.abs(e.deltaY);
+      const d = horizontal ? e.deltaX : e.shiftKey ? e.deltaY : 0;
       if (!d) return;
       e.preventDefault();
       acc += d;
@@ -133,13 +134,19 @@ export function CardStack({
         onKeyDown={onKeyDown}
         onPointerDown={(e) => {
           if (e.button !== 0) return;
-          drag.current = { x: e.clientX, lastX: e.clientX, lastT: performance.now(), v: 0, moved: false };
+          drag.current = { x: e.clientX, y: e.clientY, lastX: e.clientX, lastT: performance.now(), v: 0, moved: false };
         }}
         onPointerMove={(e) => {
           const d = drag.current;
           if (!d) return;
           const dx = e.clientX - d.x;
-          if (!d.moved && Math.abs(dx) < 4) return;
+          const dy = e.clientY - d.y;
+          if (!d.moved && Math.abs(dx) < 4 && Math.abs(dy) < 4) return;
+          // Movimento mais vertical que horizontal é rolagem da página: o carrossel não reage.
+          if (!d.moved && Math.abs(dy) >= Math.abs(dx)) {
+            drag.current = null;
+            return;
+          }
           if (!d.moved) {
             // Só captura o ponteiro quando vira arrasto, para o clique simples chegar ao cartão.
             e.currentTarget.setPointerCapture(e.pointerId);
