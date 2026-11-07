@@ -71,6 +71,15 @@ describe("mensagens privadas e efêmeras", () => {
     expect(calls[0]!.body.blocks[1].elements.map((e: any) => e.action_id)).toEqual([SLACK_ACTIONS.confirmDailyNote, SLACK_ACTIONS.editDailyNote]);
     expect(calls[1]!.body).toEqual({ channel: "C1", user: "UEDU", text: "Agente de Fernando consultando…" });
   });
+
+  it("aviso 'consultando' é mensagem comum no tópico, com o nome do agente, e pode ser apagado", async () => {
+    const { chat, calls } = fakeSlack({ "chat.postMessage": () => Response.json({ ok: true, channel: "C1", ts: "5.5" }), "chat.delete": () => Response.json({ ok: true }) });
+    const notice = await chat.postNotice({ channel: "C1", threadTs: "1.1", agentName: "Agente de Fernando", text: "_Agente de Fernando consultando os registros…_" });
+    expect(notice).toEqual({ channel: "C1", ts: "5.5" });
+    expect(calls[0]!.body).toMatchObject({ channel: "C1", thread_ts: "1.1", username: "Agente de Fernando" });
+    await chat.deleteMessage(notice!.channel, notice!.ts);
+    expect(calls[1]!.body).toEqual({ channel: "C1", ts: "5.5" });
+  });
 });
 
 describe("blocos e limites", () => {
