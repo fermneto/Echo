@@ -36,8 +36,12 @@ export type Presence = "active" | "away" | "unknown";
 export interface ChatPlatform {
   /** Lido só na menção, com limite de 1,5 s. NUNCA gravar nem logar o resultado. */
   getPresence(userExternalId: string, timeoutMs?: number): Promise<Presence>;
-  /** Mensagem efêmera "consultando…" para quem chamou. */
+  /** Mensagem efêmera só para uma pessoa (ex.: aviso de pergunta perdida). O Slack não deixa o bot apagá-la. */
   postEphemeral(channel: string, userExternalId: string, text: string): Promise<void>;
+  /** Aviso temporário no tópico ("consultando…"), apagado com deleteMessage depois da resposta. */
+  postNotice?(input: { channel: string; threadTs?: string; agentName: string; text: string }): Promise<{ channel: string; ts: string } | null>;
+  /** Apaga uma mensagem do próprio bot. */
+  deleteMessage?(channel: string, ts: string): Promise<void>;
   /** Resposta do agente, identificada (ex.: "Agente de Fernando"). Blocos prontos em answerBlocks. */
   postAgentReply(input: { channel: string; threadTs?: string; agentName: string; blocks?: unknown[]; text: string; iconUrl?: string }): Promise<{ ts: string }>;
   sendDm(userExternalId: string, input: { text: string; blocks?: unknown[] }): Promise<void>;

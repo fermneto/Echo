@@ -102,6 +102,8 @@ export const workerSchema = baseSchema.extend({
   // Intervalo da agenda do fim do expediente (nota do dia).
   END_OF_DAY_SCAN_MS: z.coerce.number().int().min(10_000).default(300_000),
   // Hora UTC em que o lote da revisão noturna é criado, uma vez por noite por empresa.
+  // Ensaio de dia: quem é citado é tratado como ausente, sem olhar o status do Slack (só para a demo).
+  DEMO_ALWAYS_AWAY: bool.default(false),
   NIGHT_REVIEW_UTC_HOUR: z.coerce.number().int().min(0).max(23).default(5),
 });
 
