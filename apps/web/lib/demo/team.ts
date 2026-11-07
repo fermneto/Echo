@@ -1,7 +1,7 @@
 import { live } from "./availability";
 import { PERSONAS } from "./personas";
 import type { Persona } from "./types";
-import { WORLD } from "./world";
+import { WEEK, WORLD } from "./world";
 
 /**
  * A equipe inteira do painel: as 7 personas da demo mais a equipe fictícia espalhada pelo mundo.
@@ -45,7 +45,7 @@ const fromWorld: Persona[] = WORLD.map((m) =>
     city: m.city,
     cityCode: m.cityCode,
     timezone: m.timezone,
-    workHours: { days: [1, 2, 3, 4, 5], start: "09:00", end: "18:00" },
+    workHours: m.hours ?? WEEK,
     areas: [],
     skills: [],
     active: true,
