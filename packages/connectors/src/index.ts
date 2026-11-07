@@ -22,8 +22,8 @@ export interface ChatPlatform {
   getPresence(userExternalId: string, timeoutMs?: number): Promise<Presence>;
   /** Mensagem efêmera "consultando…" para quem chamou. */
   postEphemeral(channel: string, userExternalId: string, text: string): Promise<void>;
-  /** Resposta do agente, identificada (ex.: "Agente de Fernando"). */
-  postAgentReply(input: { channel: string; threadTs?: string; agentName: string; blocks: unknown[]; text: string }): Promise<{ ts: string }>;
+  /** Resposta do agente, identificada (ex.: "Agente de Fernando"). Blocos prontos em answerBlocks. */
+  postAgentReply(input: { channel: string; threadTs?: string; agentName: string; blocks?: unknown[]; text: string; iconUrl?: string }): Promise<{ ts: string }>;
   sendDm(userExternalId: string, input: { text: string; blocks?: unknown[] }): Promise<void>;
 }
 
@@ -54,3 +54,4 @@ export { linearRouteKey, linearState, normalizeLinear } from "./linear.ts";
 export { HELP_REACTIONS, isWhoKnows, normalizeSlack, slackShouldKeep, type SlackEntryContext } from "./slack.ts";
 export { ingest, type IngestResult } from "./ingest.ts";
 export { processInbox, receive, routeOrg, slackBotUserIdOf, type Delivery, type InboxJob, type InboxSource, type ProcessOptions } from "./inbox.ts";
+export { answerBlocks, dailyNoteDraftBlocks, fitText, respondToInteraction, SLACK_ACTIONS, SlackApiError, SlackChat, sourcesLine, type SlackClientOptions } from "./slack-client.ts";

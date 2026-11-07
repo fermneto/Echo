@@ -52,6 +52,8 @@ export const webSchema = baseSchema.extend({
 
 export const workerSchema = baseSchema.extend({
   ...database,
+  /** Token do bot do Slack (xoxb-…). Sem ele, o worker não fala no Slack. */
+  SLACK_BOT_TOKEN: optionalString,
   HEARTBEAT_INTERVAL_MS: z.coerce.number().int().min(1000).default(30_000),
 });
 
