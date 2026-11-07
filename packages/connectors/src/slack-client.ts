@@ -76,6 +76,9 @@ export function dailyNoteDraftBlocks(input: { text: string; noteId: string; pane
   ];
 }
 
+/** Métodos que não aceitam corpo JSON (o Slack ignora os argumentos em silêncio). */
+const FORM_METHODS = /^(users\.|auth\.test$)/;
+
 export class SlackChat implements ChatPlatform {
   private readonly fetch: FetchLike;
   private readonly base: string;
@@ -89,13 +92,18 @@ export class SlackChat implements ChatPlatform {
     this.sleep = opts.sleep ?? ((ms) => new Promise((r) => setTimeout(r, ms)));
   }
 
-  /** Chamada à Web API. Tenta de novo uma vez quando o Slack pede para esperar (429). */
+  /**
+   * Chamada à Web API. Tenta de novo uma vez quando o Slack pede para esperar (429).
+   * Métodos de leitura (users.*, auth.test) vão como formulário: neles o Slack ignora corpo JSON.
+   * Em users.getPresence, isso devolvia o status do próprio bot ("active") para qualquer pessoa.
+   */
   async call<T = Record<string, unknown>>(method: string, body: Record<string, unknown>, timeoutMs = this.timeoutMs): Promise<T> {
+    const form = FORM_METHODS.test(method);
     for (let attempt = 0; ; attempt++) {
       const res = await this.fetch(`${this.base}/${method}`, {
         method: "POST",
-        headers: { authorization: `Bearer ${this.opts.token}`, "content-type": "application/json; charset=utf-8" },
-        body: JSON.stringify(body),
+        headers: { authorization: `Bearer ${this.opts.token}`, "content-type": form ? "application/x-www-form-urlencoded" : "application/json; charset=utf-8" },
+        body: form ? new URLSearchParams(Object.entries(body).map(([k, v]): [string, string] => [k, String(v)])).toString() : JSON.stringify(body),
         signal: AbortSignal.timeout(timeoutMs),
       });
       if (res.status === 429 && attempt === 0) {

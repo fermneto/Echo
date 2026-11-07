@@ -1,15 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { answerBlocks, dailyNoteDraftBlocks, fitText, respondToInteraction, SLACK_ACTIONS, SlackApiError, SlackChat } from "./slack-client.ts";
 
-type Call = { url: string; body: any; auth: string | null };
+type Call = { url: string; body: any; auth: string | null; form: boolean };
 
-/** Slack falso: responde por método e registra as chamadas. */
+/** Slack falso: responde por método e registra as chamadas (corpo JSON ou formulário). */
 function fakeSlack(handlers: Record<string, (body: any) => Response | Promise<Response>>) {
   const calls: Call[] = [];
   const fetch = async (url: string, init: RequestInit) => {
     const method = url.split("/").pop()!;
-    const body = JSON.parse(String(init.body ?? "{}"));
-    calls.push({ url, body, auth: new Headers(init.headers).get("authorization") });
+    const form = (new Headers(init.headers).get("content-type") ?? "").startsWith("application/x-www-form-urlencoded");
+    const body = form ? Object.fromEntries(new URLSearchParams(String(init.body ?? ""))) : JSON.parse(String(init.body ?? "{}"));
+    calls.push({ url, body, auth: new Headers(init.headers).get("authorization"), form });
     const h = handlers[method];
     if (!h) return Response.json({ ok: false, error: "unknown_method" });
     return h(body);
@@ -22,6 +23,12 @@ describe("getPresence", () => {
     const { chat, calls } = fakeSlack({ "users.getPresence": () => Response.json({ ok: true, presence: "away" }) });
     expect(await chat.getPresence("UFER")).toBe("away");
     expect(calls[0]).toMatchObject({ body: { user: "UFER" }, auth: "Bearer xoxb-teste" });
+  });
+
+  it("vai como formulário: com corpo JSON o Slack ignora o user e devolve o status do próprio bot", async () => {
+    const { chat, calls } = fakeSlack({ "users.getPresence": () => Response.json({ ok: true, presence: "away" }) });
+    await chat.getPresence("UYAN");
+    expect(calls[0]).toMatchObject({ form: true, body: { user: "UYAN" } });
   });
 
   it("erro, resposta estranha ou demora viram unknown (reserva: isAway)", async () => {
