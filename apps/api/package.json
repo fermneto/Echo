@@ -1,0 +1,13 @@
+{
+  "name": "@echo/api",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch --env-file-if-exists=../../.env src/main.ts",
+    "start": "tsx src/main.ts",
+    "typecheck": "tsc -p tsconfig.json",
+    "test": "vitest run --passWithNoTests"
+  },
+  "dependencies": { "@echo/config": "workspace:*", "@echo/observability": "workspace:*", "@echo/jobs": "workspace:*", "tsx": "catalog:", "@echo/db": "workspace:*", "@hono/node-server": "catalog:", "hono": "catalog:" },
+  "devDependencies": { "@types/node": "catalog:", "typescript": "catalog:", "vitest": "catalog:" }
+}
