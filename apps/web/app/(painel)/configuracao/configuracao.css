@@ -1,0 +1,98 @@
+/* Configuração: conexões, quem vê o quê e limite de custo. Reaproveita card, status-tag, runs-table e profile-grid. */
+
+.settings-card__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: var(--space-md);
+  flex-wrap: wrap;
+}
+.settings-card__head .card__title {
+  margin-bottom: var(--space-md);
+}
+.settings-card__head .mono {
+  font-size: 11px;
+}
+
+.settings-conn {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.settings-conn__row {
+  display: grid;
+  grid-template-columns: minmax(120px, 0.6fr) minmax(0, 1.4fr) auto;
+  align-items: center;
+  gap: var(--space-md);
+  padding: 10px 0;
+  border-top: 1px solid var(--color-line);
+}
+.settings-conn__name {
+  font-size: 15px;
+}
+.settings-conn__use {
+  font-size: 14px;
+}
+.settings-conn__state {
+  justify-self: end;
+  white-space: nowrap;
+}
+.settings-conn__state.is-off,
+.settings-conn__state.is-no_env {
+  color: var(--color-ash);
+}
+
+.settings-grid {
+  margin-top: var(--space-xl);
+}
+.settings-access th.num,
+.settings-access td.num {
+  text-align: center;
+}
+.settings-access__n {
+  font-size: 11px;
+}
+
+.settings-limit__v {
+  margin: 0;
+}
+.settings-limit__k {
+  margin: 4px 0 var(--space-lg);
+  font-size: 11px;
+}
+.settings-steps {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+.settings-steps li {
+  display: grid;
+  grid-template-columns: 9.5em minmax(0, 1fr);
+  gap: var(--space-md);
+  padding: 8px 0;
+  border-top: 1px solid var(--color-line);
+  font-size: 14px;
+}
+.settings-steps__at {
+  font-size: 12px;
+  color: var(--color-cloud);
+}
+
+@media (max-width: 900px) {
+  .settings-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+@media (max-width: 520px) {
+  .settings-conn__row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .settings-conn__use {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+  .settings-steps li {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 2px;
+  }
+}
