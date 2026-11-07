@@ -1,66 +1,65 @@
-/* Bonequinhos em pixel art: animação em passos, para manter o pixel inteiro. */
+/* Bonequinhos em matriz de pontos, de uma cor só: a do estado. */
 
 .sprite {
   display: block;
   overflow: visible;
-  image-rendering: pixelated;
+  color: var(--color-signal-twin);
 }
-.sprite__body,
-.sprite__eyes,
-.sprite__pad {
-  transform-box: fill-box;
+.sprite--person {
+  color: var(--color-signal-on);
+}
+.sprite circle {
+  fill: currentColor;
+}
+/* A grade inteira aparece, bem fraca. */
+.sprite .dot-off,
+.sprite .dot-eye {
+  opacity: 0.16;
+}
+.sprite .dot-head,
+.sprite .dot-body {
+  opacity: 1;
+}
+/* De férias: a cabeça esmaece, o corpo fica aceso. */
+.sprite--away .dot-head {
+  opacity: 0.28;
 }
 
-/* Pessoa no expediente: respira (sobe um pixel) e pisca. */
-.sprite--person .sprite__body {
-  animation: sprite-breathe 1.6s steps(1, end) infinite;
-}
-.sprite__eyes {
-  transform-origin: center;
+/* No expediente: pisca (os olhos se fecham por um instante). */
+.sprite--person .dot-eye {
   animation: sprite-blink 4.2s steps(1, end) infinite;
-}
-@keyframes sprite-breathe {
-  0%,
-  100% {
-    transform: translateY(0);
-  }
-  50% {
-    transform: translateY(-0.5px);
-  }
 }
 @keyframes sprite-blink {
   0%,
   94%,
   100% {
-    transform: scaleY(1);
+    opacity: 0.16;
   }
-  96% {
-    transform: scaleY(0.15);
+  95% {
+    opacity: 1;
   }
 }
 
-/* Gêmeo no comando: flutua sobre a base de luz, que pulsa no mesmo ritmo. */
-.sprite--twin .sprite__body {
-  animation: sprite-float 2.4s steps(4, jump-none) infinite alternate;
+/* Gêmeo no comando: uma varredura de brilho desce linha a linha, como um holograma. */
+.sprite--twin .dot-head,
+.sprite--twin .dot-body,
+.sprite--away .dot-body {
+  animation: sprite-scan 2.6s linear infinite;
+  animation-delay: calc(var(--row) * 0.08s);
 }
-.sprite--twin .sprite__pad {
-  transform-origin: center bottom;
-  animation: sprite-pad 2.4s steps(4, jump-none) infinite alternate;
+.sprite--away .dot-body {
+  animation-duration: 3.6s;
 }
-@keyframes sprite-float {
-  from {
-    transform: translateY(-0.5px);
-  }
-  to {
-    transform: translateY(-1.5px);
-  }
-}
-@keyframes sprite-pad {
-  from {
+@keyframes sprite-scan {
+  0%,
+  100% {
     opacity: 1;
   }
-  to {
-    opacity: 0.45;
+  8% {
+    opacity: 0.6;
+  }
+  16% {
+    opacity: 1;
   }
 }
 
@@ -68,41 +67,23 @@
 .pixel-avatar {
   position: relative;
   display: inline-grid;
-  place-items: end center;
+  place-items: center;
   flex: none;
   overflow: hidden;
   border-radius: var(--rounded-md);
-  background-color: var(--color-black);
-  background-image: radial-gradient(var(--color-edge) 0.75px, transparent 0.75px);
-  background-size: 6px 6px;
+  background: var(--color-black);
   box-shadow: inset 0 0 0 1px var(--color-edge);
 }
-.pixel-avatar .sprite {
-  margin-bottom: 4%;
-}
 .pixel-avatar--working {
-  box-shadow: inset 0 0 0 1px var(--color-signal-on);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-signal-on) 70%, transparent);
 }
-.pixel-avatar--off {
-  box-shadow: inset 0 0 0 1px var(--color-signal-twin);
-}
+.pixel-avatar--off,
 .pixel-avatar--vacation {
-  box-shadow: inset 0 0 0 1px var(--color-signal-wait);
-}
-.pixel-avatar__diamond {
-  position: absolute;
-  right: 2px;
-  top: 2px;
-  width: 6px;
-  height: 6px;
-  background: var(--color-signal-twin);
-  transform: rotate(45deg);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-signal-twin) 70%, transparent);
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .sprite__body,
-  .sprite__eyes,
-  .sprite__pad {
+  .sprite circle {
     animation: none !important;
   }
 }

@@ -44,7 +44,7 @@ function Moment({
   where: City;
   tone: "on" | "twin";
   who: string;
-  twin?: boolean;
+  twin?: boolean | "away";
   title: string;
   decides: string;
   children: ReactNode;
@@ -53,7 +53,7 @@ function Moment({
     <article className="moment">
       <header className="moment__head">
         <span className="moment__actor">
-          <PixelSprite look={lookFor(who)} mode={twin ? "twin" : "person"} size={34} />
+          <PixelSprite look={lookFor(who)} mode={twin === "away" ? "away" : twin ? "twin" : "person"} size={30} />
           <span className="moment__title">{title}</span>
         </span>
         <span className="lp-pill">Exemplo</span>
@@ -132,7 +132,7 @@ export const MOMENTS: StackItem[] = [
     id: "yan",
     title: "16:02 em Tóquio: o agente de Yan, de férias, responde sobre a ECH-140",
     content: (
-      <Moment at="2026-11-06T07:02:00Z" where="TYO" tone="twin" who="yan" twin title="Yan está de férias; o agente cobre" decides="Ninguém chama quem está de férias">
+      <Moment at="2026-11-06T07:02:00Z" where="TYO" tone="twin" who="yan" twin="away" title="Yan está de férias; o agente cobre" decides="Ninguém chama quem está de férias">
         <p>
           <b>Eduardo</b> @Yan o ECH-140 já terminou?
         </p>

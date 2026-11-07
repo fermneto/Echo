@@ -5,7 +5,7 @@ import { DotField } from "@/components/landing/DotField";
 import { CardStack } from "@/components/landing/CardStack";
 import { MOMENTS } from "@/components/landing/moments";
 import { IntegrationsCarousel } from "@/components/landing/integrations";
-import { PixelSprite } from "@/components/PixelSprite";
+import { PixelSprite, type SpriteMode } from "@/components/PixelSprite";
 import { lookFor } from "@/lib/demo/looks";
 import { DEMO_NOW, PERSONAS } from "@/lib/demo/personas";
 import { localTime } from "@/lib/time";
@@ -54,12 +54,12 @@ const CITY: Record<string, [number, number]> = {
 };
 
 /** Etiqueta ao lado do ponto: os bonequinhos, quem está ali e a hora local. */
-function GlobeCrew({ ids, twin, code, tz, caption }: { ids: string[]; twin?: boolean; code: string; tz: string; caption: string }) {
+function GlobeCrew({ ids, mode = "person", code, tz, caption }: { ids: string[]; mode?: SpriteMode; code: string; tz: string; caption: string }) {
   return (
     <span className="globe__tag">
       <span className="globe__crew">
         {ids.map((id) => (
-          <PixelSprite key={id} look={lookFor(id)} mode={twin ? "twin" : "person"} size={30} />
+          <PixelSprite key={id} look={lookFor(id)} mode={mode} size={28} />
         ))}
       </span>
       <span className="globe__text">
@@ -76,10 +76,10 @@ const YAN: [number, number] = [43.06, 141.35];
 
 /** Halo verde onde há gente no expediente; azul onde o gêmeo está no comando. */
 const POINTS: GlobePoint[] = [
-  { id: "fernando", location: CITY.FOR!, tone: "twin", halo: 15, label: <GlobeCrew ids={["fernando"]} twin caption="Gêmeo de Fernando" code="FOR" tz="America/Fortaleza" /> },
+  { id: "fernando", location: CITY.FOR!, tone: "twin", halo: 15, label: <GlobeCrew ids={["fernando"]} mode="twin" caption="Gêmeo de Fernando" code="FOR" tz="America/Fortaleza" /> },
   { id: "jnb", location: CITY.JNB!, tone: "on", halo: 14, label: <GlobeCrew ids={["eduardo", "rita"]} caption="Eduardo, Rita" code="JNB" tz="Africa/Johannesburg" /> },
   { id: "tyo", location: CITY.TYO!, tone: "on", halo: 12, label: <GlobeCrew ids={["marina", "bruno", "carla"]} caption="Marina, Bruno, Carla" code="TYO" tz="Asia/Tokyo" /> },
-  { id: "yan", location: YAN, tone: "wait", halo: 6, side: "left", label: <GlobeCrew ids={["yan"]} twin caption="Gêmeo de Yan · férias" code="TYO" tz="Asia/Tokyo" /> },
+  { id: "yan", location: YAN, tone: "wait", halo: 6, side: "left", label: <GlobeCrew ids={["yan"]} mode="away" caption="Gêmeo de Yan · férias" code="TYO" tz="Asia/Tokyo" /> },
 ];
 
 /** Branco: a pergunta da vez. Azul: um agente respondendo. Verde: quem está trabalhando agora. */

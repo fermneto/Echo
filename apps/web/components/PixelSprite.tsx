@@ -1,86 +1,69 @@
 import type { Look } from "@/lib/demo/looks";
 
 /**
- * Bonequinho 2D em pixel art, 12×18, em SVG com animação só de CSS (sem JavaScript).
- * - "person": a pessoa no expediente, de pé, respirando e piscando.
- * - "twin": o gêmeo no comando, flutuando sobre uma base de luz.
+ * Bonequinho em matriz de pontos (11×12), de uma cor só: a do estado. Os pontos apagados
+ * continuam visíveis bem fracos, mostrando a grade inteira.
+ * - "person": no expediente, verde, pisca.
+ * - "twin": o gêmeo no comando, azul, com uma varredura de brilho de cima para baixo.
+ * - "away": de férias, azul, cabeça esmaecida; o gêmeo cobre.
+ * Animação só em CSS (sprites.css).
  */
 
-const BODY = [
-  "....hhhh....",
-  "...hhhhhh...",
-  "..hhhhhhhh..",
-  "..hssssssh..",
-  "..sseSsess..",
-  "..ssssssss..",
-  "..sssmmsss..",
-  "...ssssss...",
-  "....ssss....",
-  "..bbbbbbbb..",
-  ".bbbbbbbbbb.",
-  ".sbbbbbbbbs.",
-  "..pppppppp..",
-  "..ppp..ppp..",
-  "..ppp..ppp..",
-  "..ooo..ooo..",
+export type SpriteMode = "person" | "twin" | "away";
+
+const COLS = 11;
+
+/** h = cabeça, e = olho (apagado; acende ao piscar), b = corpo. Proporção da figura: compacta. */
+const BASE = [
+  "...........",
+  "...hhhhh...",
+  "..hhhhhhh..",
+  "..heeheeh..",
+  "..heeheeh..",
+  "..hhhhhhh..",
+  "...........",
+  "bb.bbbbb.bb",
+  "bb.bbbbb.bb",
+  "...........",
+  "...........",
 ];
 
 function grid(hair: Look["hair"]): string[][] {
-  const g = BODY.map((r) => r.replace("S", "s").split(""));
-  // Olhos ficam numa camada própria para piscar.
-  for (const row of g) for (let i = 0; i < row.length; i++) if (row[i] === "e") row[i] = "s";
+  const g = BASE.map((r) => r.split(""));
   const set = (r: number, c: number, v: string) => {
     const row = g[r];
     if (row) row[c] = v;
   };
-  if (hair === "long") for (let r = 3; r <= 8; r++) (set(r, 1, "h"), set(r, 10, "h"));
+  if (hair === "long") for (let r = 2; r <= 5; r++) (set(r, 1, "h"), set(r, 9, "h"));
   if (hair === "curly") {
-    g[0] = "...hhhhhh...".split("");
-    g[1] = "..hhhhhhhh..".split("");
-    g[2] = ".hhhhhhhhhh.".split("");
-    for (const r of [3, 4]) (set(r, 1, "h"), set(r, 10, "h"));
+    g[0] = "...h.h.h...".split("");
+    g[1] = "..hhhhhhh..".split("");
   }
-  if (hair === "bun") {
-    g[0] = ".....hh.....".split("");
-    g[1] = "...hhhhhh...".split("");
-  }
+  if (hair === "bun") g[0] = "....hhh....".split("");
+  if (hair === "square") g[1] = "..hhhhhhh..".split("");
   return g;
 }
 
-const EYES: [number, number][] = [
-  [4, 4],
-  [7, 4],
-];
-
-export function PixelSprite({ look, mode, size = 36, label }: { look: Look; mode: "person" | "twin"; size?: number; label?: string }) {
-  const fill: Record<string, string> = { h: look.hairColor, s: look.skin, m: "#6e4330", b: look.shirt, p: look.pants, o: "#141414" };
-  const rects = grid(look.hair).flatMap((row, y) => row.map((c, x) => (c === "." ? null : <rect key={`${x}-${y}`} x={x} y={y} width="1" height="1" fill={fill[c]} />)));
-
+export function PixelSprite({ look, mode, size = 36, label }: { look: Look; mode: SpriteMode; size?: number; label?: string }) {
+  const g = grid(look.hair);
+  const rows = g.length;
+  const dots = g.flatMap((row, y) =>
+    row.map((c, x) => {
+      const part = c === "h" ? "head" : c === "b" ? "body" : c === "e" ? "eye" : "off";
+      return <circle key={`${x}-${y}`} className={`dot-${part}`} cx={x + 0.5} cy={y + 0.5} r={0.34} style={{ ["--row" as string]: y }} />;
+    }),
+  );
   return (
     <svg
       className={`sprite sprite--${mode}`}
-      viewBox="0 0 12 18"
-      width={(size * 12) / 18}
+      viewBox={`0 0 ${COLS} ${rows}`}
+      width={(size * COLS) / rows}
       height={size}
-      shapeRendering="crispEdges"
       role={label ? "img" : undefined}
       aria-label={label}
       aria-hidden={label ? undefined : true}
     >
-      {mode === "twin" && (
-        <g className="sprite__pad">
-          <rect x="2" y="16" width="8" height="1" fill="#8db4ff" />
-          <rect x="3" y="17" width="6" height="1" fill="#4d8dff" />
-        </g>
-      )}
-      <g className="sprite__body">
-        {rects}
-        <g className="sprite__eyes">
-          {EYES.map(([x, y]) => (
-            <rect key={x} x={x} y={y} width="1" height="1" fill="#101010" />
-          ))}
-        </g>
-      </g>
+      {dots}
     </svg>
   );
 }
