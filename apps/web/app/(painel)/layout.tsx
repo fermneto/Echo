@@ -4,6 +4,7 @@ import { navFor } from "@/lib/access";
 import { currentPersona, demoMode } from "@/lib/session";
 import { Logo } from "@/components/Logo";
 import { Nav } from "@/components/Nav";
+import { PageEnter } from "@/components/PageEnter";
 import { sair } from "../entrar/actions";
 
 export const dynamic = "force-dynamic";
@@ -32,7 +33,7 @@ export default async function PainelLayout({ children }: { children: ReactNode }
         </div>
       </header>
       <main className="page">
-        {children}
+        <PageEnter>{children}</PageEnter>
       </main>
     </>
   );
