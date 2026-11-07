@@ -113,8 +113,10 @@
   background: var(--color-charcoal);
   color: var(--color-cloud);
 }
-.lp-nav > .lp-btn {
+.lp-nav__actions {
   margin-left: auto;
+  display: flex;
+  gap: var(--space-sm);
 }
 
 /* Botões */
@@ -144,6 +146,14 @@
 .lp-btn--paper:hover {
   background: var(--color-cloud);
 }
+.lp-btn--outline {
+  background: transparent;
+  color: var(--color-cloud);
+  border: 1px solid var(--color-edge);
+}
+.lp-btn--outline:hover {
+  background: var(--color-charcoal);
+}
 .lp-btn--ghost {
   background: var(--color-edge);
   color: var(--color-cloud);
@@ -162,16 +172,23 @@
 .lp-hero {
   width: min(var(--lp-width), calc(100% - 2 * var(--space-gutter)));
   margin: 0 auto;
-  padding-top: clamp(40px, 5vw, 72px);
+  padding-top: clamp(32px, 4vw, 56px);
+  display: grid;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.1fr);
+  align-items: center;
+  gap: var(--space-2xl);
+  min-height: min(760px, calc(100dvh - 88px));
 }
 .lp-hero__copy {
   display: flex;
   flex-direction: column;
   gap: var(--space-xl);
-  max-width: 1060px;
+  position: relative;
+  z-index: 2;
 }
 .lp-hero__copy .lp-display {
-  max-width: 16ch;
+  font-size: clamp(44px, 5vw, 72px);
+  max-width: 14ch;
 }
 .lp-actions {
   display: flex;
@@ -182,7 +199,6 @@
 /* A noite: eixo de horas e as janelas do produto */
 .lp-night {
   position: relative;
-  margin-top: clamp(40px, 4.5vw, 64px);
   scroll-margin-top: 96px;
 }
 .lp-axis {
@@ -427,6 +443,12 @@
   border-top: 1px solid var(--color-line);
   font-size: 14px;
 }
+.lp-dot--twin {
+  background: var(--color-signal-twin) !important;
+}
+.lp-dot--wait {
+  background: var(--color-signal-wait) !important;
+}
 .lp-dot {
   width: 6px;
   height: 6px;
@@ -667,4 +689,230 @@
 }
 .lp-day__cta-link .lp-day__who {
   border-top-color: var(--color-iron);
+}
+
+
+/* Herói: o globo da equipe */
+.lp-hero__globe {
+  position: relative;
+  justify-self: end;
+  width: min(600px, 100%);
+}
+.globe {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 1;
+  /* Âncoras do cobe ficam dentro daqui */
+  container-type: inline-size;
+}
+.globe__canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+  cursor: grab;
+  touch-action: pan-y;
+  opacity: 0;
+  transform: scale(0.97);
+  transition: opacity 1.2s var(--ease-enter), transform 1.2s var(--ease-enter);
+}
+.globe__canvas.is-ready {
+  opacity: 1;
+  transform: none;
+}
+.globe__label {
+  position: absolute;
+  bottom: anchor(top);
+  left: anchor(center);
+  translate: -50% -10px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 6px 10px;
+  background: rgb(10 10 10 / 82%);
+  border: 1px solid var(--color-edge);
+  border-radius: var(--rounded-md);
+  white-space: nowrap;
+  pointer-events: none;
+  transition: opacity 0.3s ease, filter 0.3s ease;
+}
+@supports not (position-anchor: --a) {
+  .globe__label {
+    display: none;
+  }
+}
+.globe__who {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-cloud);
+}
+.globe__label .lp-mono {
+  color: var(--color-fog);
+  font-size: 11px;
+}
+
+.lp-legend {
+  position: absolute;
+  top: 4%;
+  right: 0;
+  list-style: none;
+  margin: 0;
+  padding: 10px 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  background: rgb(10 10 10 / 85%);
+  border: 1px solid var(--color-edge);
+  border-radius: var(--rounded-lg);
+  font-size: 13px;
+  color: var(--color-paper);
+  font-variant-numeric: tabular-nums;
+}
+.lp-legend li {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.lp-chat {
+  position: absolute;
+  left: -14%;
+  bottom: -4%;
+  width: min(340px, 80%);
+  padding: 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background: var(--color-panel);
+  border: 1px solid var(--color-edge);
+  border-radius: var(--rounded-xl);
+  box-shadow: var(--shadow-float);
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--color-paper);
+  animation: lp-deal 0.9s var(--ease-enter) 0.6s both;
+}
+.lp-chat p {
+  margin: 0;
+}
+.lp-chat__head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: var(--space-md);
+  font-size: 13px;
+}
+.lp-chat__head b {
+  font-weight: 500;
+  color: var(--color-cloud);
+}
+.lp-chat__head .lp-mono {
+  color: var(--color-ash);
+  font-size: 11px;
+  white-space: nowrap;
+}
+.lp-chat__head--agent {
+  margin-top: var(--space-sm) !important;
+}
+.lp-chat__head--agent b {
+  color: var(--color-signal-twin-text);
+}
+
+/* Integrações: faixa rolante */
+.lp-integrations {
+  margin-top: var(--space-3xl);
+  padding: var(--space-xl) 0;
+  border-top: 1px solid var(--color-line);
+  border-bottom: 1px solid var(--color-line);
+}
+.lp-integrations__title {
+  width: min(var(--lp-width), calc(100% - 2 * var(--space-gutter)));
+  margin: 0 auto var(--space-lg);
+  font-size: 13px;
+  font-weight: 400;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-ash);
+}
+.marquee {
+  display: flex;
+  overflow: hidden;
+  mask-image: linear-gradient(to right, transparent, #000 8%, #000 92%, transparent);
+}
+.marquee__track {
+  display: flex;
+  flex: none;
+  gap: var(--space-3xl);
+  margin: 0;
+  padding: 0 var(--space-3xl) 0 0;
+  list-style: none;
+  animation: lp-marquee 60s linear infinite;
+}
+.marquee:hover .marquee__track {
+  animation-play-state: paused;
+}
+@keyframes lp-marquee {
+  to {
+    transform: translateX(-100%);
+  }
+}
+.marquee__item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  white-space: nowrap;
+  color: var(--color-ash);
+  font-size: 17px;
+  font-weight: 500;
+}
+.marquee__item.is-live {
+  color: var(--color-cloud);
+}
+.marquee__soon {
+  font-family: var(--font-mono);
+  font-size: 11px;
+  font-weight: 400;
+  letter-spacing: -0.02em;
+  color: var(--color-ash);
+  border: 1px solid var(--color-edge);
+  border-radius: var(--rounded-sm);
+  padding: 1px 6px;
+}
+@media (prefers-reduced-motion: reduce) {
+  .marquee {
+    mask-image: none;
+  }
+  .marquee__track {
+    flex-wrap: wrap;
+    flex: 1;
+    gap: var(--space-lg) var(--space-2xl);
+    padding: 0 var(--space-gutter);
+  }
+  .marquee__track[aria-hidden="true"] {
+    display: none;
+  }
+}
+
+@media (max-width: 900px) {
+  .lp-hero {
+    grid-template-columns: 1fr;
+    min-height: 0;
+  }
+  .lp-hero__globe {
+    justify-self: center;
+    width: min(520px, 100%);
+    margin-top: var(--space-xl);
+  }
+  .lp-chat {
+    position: relative;
+    left: auto;
+    bottom: auto;
+    width: 100%;
+    margin-top: calc(-1 * var(--space-3xl));
+  }
+  .lp-legend {
+    top: 0;
+  }
+  .lp-nav__actions .lp-btn--outline {
+    display: none;
+  }
 }

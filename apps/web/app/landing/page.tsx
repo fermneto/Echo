@@ -1,5 +1,9 @@
 import type { CSSProperties } from "react";
 import Link from "next/link";
+import { EchoGlobe, type GlobeArc, type GlobePoint } from "@/components/landing/EchoGlobe";
+import { IntegrationsMarquee } from "@/components/landing/integrations";
+import { DEMO_NOW, PERSONAS } from "@/lib/demo/personas";
+import { localTime } from "@/lib/time";
 import "./landing.css";
 
 export const metadata = {
@@ -44,6 +48,44 @@ const ROLES = [
   { role: "Empresa", gain: "Menos espera, menos retrabalho, mais previsibilidade." },
 ];
 
+const CITY: Record<string, [number, number]> = {
+  FOR: [-3.73, -38.53],
+  JNB: [-26.2, 28.05],
+  TYO: [35.68, 139.65],
+};
+
+function GlobeLabel({ names, code, tz }: { names: string; code: string; tz: string }) {
+  return (
+    <>
+      <span className="globe__who">{names}</span>
+      <span className="lp-mono">
+        {code} {localTime(DEMO_NOW, tz)}
+      </span>
+    </>
+  );
+}
+
+/** Pontos da demo: Fernando dorme em Fortaleza, Eduardo trabalha em Joanesburgo, Yan está de férias. */
+const POINTS: GlobePoint[] = [
+  { id: "fernando", location: CITY.FOR!, tone: "twin", label: <GlobeLabel names="Agente de Fernando" code="FOR" tz="America/Fortaleza" /> },
+  { id: "jnb", location: CITY.JNB!, tone: "on", label: <GlobeLabel names="Eduardo, Rita" code="JNB" tz="Africa/Johannesburg" /> },
+  { id: "tyo", location: CITY.TYO!, tone: "on", label: <GlobeLabel names="Marina, Bruno, Carla" code="TYO" tz="Asia/Tokyo" /> },
+  { id: "yan", location: [37.4, 141.6], tone: "wait", label: <GlobeLabel names="Yan · férias" code="TYO" tz="Asia/Tokyo" /> },
+];
+
+/** Branco: a pergunta da vez. Azul: um agente respondendo. Verde: quem está trabalhando agora. */
+const ARCS: GlobeArc[] = [
+  { id: "pergunta", from: CITY.JNB!, to: CITY.FOR!, tone: "ask" },
+  { id: "agente-yan", from: [37.4, 141.6], to: CITY.JNB!, tone: "twin" },
+  { id: "expediente", from: CITY.JNB!, to: CITY.TYO!, tone: "on" },
+];
+
+const COUNTS = {
+  on: PERSONAS.filter((p) => p.availability.kind === "working").length,
+  twin: PERSONAS.filter((p) => p.availability.kind === "off").length,
+  wait: PERSONAS.filter((p) => p.availability.kind === "vacation").length,
+};
+
 function Pill() {
   return <span className="lp-pill">Exemplo</span>;
 }
@@ -60,9 +102,14 @@ export default function LandingPage() {
           <a href="#nunca">O que nunca faz</a>
           <a href="#para-quem">Para quem</a>
         </nav>
-        <Link href="/entrar" className="lp-btn lp-btn--paper lp-btn--sm">
-          Testar a demo
-        </Link>
+        <div className="lp-nav__actions">
+          <Link href="/entrar" className="lp-btn lp-btn--outline lp-btn--sm">
+            Entrar
+          </Link>
+          <Link href="/entrar" className="lp-btn lp-btn--paper lp-btn--sm">
+            Testar a demo
+          </Link>
+        </div>
       </header>
 
       <main>
@@ -72,18 +119,61 @@ export default function LandingPage() {
               O trabalho continua quando a pessoa não está.
             </h1>
             <p className="lp-lead">
-              Cada pessoa tem um gêmeo que conhece o trabalho dela. Ele responde quando ela dorme, revisa à noite e deixa o plano pronto de manhã.
+              O Echo dá a cada pessoa um agente que conhece o trabalho dela. Ele responde aos colegas na ausência dela, adianta revisões à noite e ajuda a liderança a redistribuir tarefas sem sobrecarregar ninguém.
             </p>
             <div className="lp-actions">
               <Link href="/entrar" className="lp-btn lp-btn--paper">
                 Testar a demo
               </Link>
-              <a href="#noite" className="lp-btn lp-btn--ghost">
-                Ver uma noite do Echo
+              <a href="#como-funciona" className="lp-btn lp-btn--ghost">
+                Ver como funciona
               </a>
             </div>
           </div>
 
+          <div className="lp-hero__globe">
+            <EchoGlobe points={POINTS} arcs={ARCS} focusLongitude={-22} theta={0.18} />
+            <ul className="lp-legend" aria-label="Equipe da demonstração agora">
+              <li>
+                <span className="lp-dot" aria-hidden="true" /> {COUNTS.on} trabalhando
+              </li>
+              <li>
+                <span className="lp-dot lp-dot--twin" aria-hidden="true" /> {COUNTS.twin} coberto pelo agente
+              </li>
+              <li>
+                <span className="lp-dot lp-dot--wait" aria-hidden="true" /> {COUNTS.wait} de férias
+              </li>
+            </ul>
+            <article className="lp-chat" aria-label="Exemplo de resposta do agente">
+              <p className="lp-chat__head">
+                <b>Eduardo</b>
+                <span className="lp-mono">JNB {localTime(DEMO_NOW, "Africa/Johannesburg")}</span>
+              </p>
+              <p>@Fernando posso seguir com a branch ech-131-api-v2?</p>
+              <p className="lp-chat__head lp-chat__head--agent">
+                <b className="lp-twin">Agente de Fernando</b>
+                <span className="lp-mono">Fernando está fora · FOR {localTime(DEMO_NOW, "America/Fortaleza")}</span>
+              </p>
+              <p>Sim: Fernando deixou essa branch liberada na nota do dia confirmada. Ele volta às 9h.</p>
+              <span className="lp-source">Fonte: nota do dia de Fernando</span>
+            </article>
+          </div>
+        </section>
+
+        <section className="lp-integrations" aria-labelledby="integracoes">
+          <h2 id="integracoes" className="lp-integrations__title">
+            Conecta onde a equipe já trabalha
+          </h2>
+          <IntegrationsMarquee />
+        </section>
+
+        <section className="lp-section" aria-labelledby="noite-titulo">
+          <div className="lp-section__intro">
+            <h2 id="noite-titulo" className="lp-headline">
+              Uma noite de Fernando, em documentos.
+            </h2>
+            <p className="lp-lead">Tudo o que o agente prepara enquanto ele dorme, e quem decide sobre cada coisa.</p>
+          </div>
           <div className="lp-night" id="noite" aria-label="Uma noite de Fernando, de 18:00 a 08:45 em Fortaleza">
             <ol className="lp-axis" aria-hidden="true">
               {NIGHT.map((n, i) => (
