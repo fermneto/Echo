@@ -1051,10 +1051,6 @@
 
 .waiting-strip {
   margin-top: var(--space-3xl);
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: var(--space-lg);
   padding: var(--space-md) var(--space-lg);
   border: 1px solid var(--color-line);
   border-radius: var(--rounded-lg);
@@ -1076,6 +1072,12 @@
   flex-wrap: wrap;
   gap: var(--space-sm);
 }
+.waiting-strip__row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: var(--space-lg);
+}
 .waiting-chip {
   display: flex;
   flex-direction: column;
@@ -1084,6 +1086,64 @@
   border: 1px solid var(--color-edge);
   border-radius: var(--rounded-md);
   background: var(--color-canvas-app);
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 150ms ease-out, background 150ms ease-out;
+}
+.waiting-chip:hover {
+  border-color: var(--color-iron);
+}
+.waiting-chip.is-open {
+  border-color: color-mix(in srgb, var(--color-signal-wait) 55%, transparent);
+  background: var(--color-charcoal);
+}
+.waiting-chip:focus-visible {
+  outline: 1px solid var(--color-cloud);
+  outline-offset: 2px;
+}
+/* Detalhe do item aberto, embaixo da faixa. */
+.waiting-detail {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-md) var(--space-xl);
+  margin-top: var(--space-md);
+  padding-top: var(--space-md);
+  border-top: 1px solid var(--color-line);
+}
+.waiting-detail__body {
+  flex: 1 1 360px;
+  min-width: 0;
+}
+.waiting-detail__body p {
+  margin: 0;
+}
+.waiting-detail__title {
+  font-size: 15px;
+  font-weight: 500;
+}
+.waiting-detail__text {
+  margin-top: 4px !important;
+  max-width: 70ch;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--color-fog);
+}
+.waiting-detail__meta {
+  margin-top: 6px !important;
+  font-size: 11px;
+}
+.waiting-detail__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+}
+.waiting-detail .waiting-detail__close {
+  font-size: 13px;
+  color: var(--color-fog);
 }
 .waiting-chip__title {
   font-size: 14px;

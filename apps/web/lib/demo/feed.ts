@@ -25,13 +25,47 @@ export type WaitingItem = {
   text: string;
   since: string;
   leaderOnly?: boolean;
+  /** O que é, por que espera esta pessoa e o que acontece se ela não decidir. */
+  detail: string;
+  /** Onde se resolve. */
+  action: { label: string; href: string };
   /** Some quando a decisão com este id é tomada (ver decisions-store). */
   decisionId?: "ferias-bruno" | "ech-160";
 };
 
 export const WAITING: readonly WaitingItem[] = [
-  { id: "PR 41", ownerId: "fernando", text: "Correção preparada no PR da ECH-128, esperando aprovação", since: "esta noite" },
-  { id: "ech-128", ownerId: "fernando", text: "Eduardo perguntou se pode mexer na ech-128-tempo-limite", since: "03:15 FOR" },
-  { id: "PR 34", ownerId: "eduardo", text: "Revisão do PR 34, de Carla", since: "há 2 dias" },
-  { id: "Férias", ownerId: "marina", text: "Plano para as férias de Bruno, de 10 a 21/11", since: "hoje", leaderOnly: true, decisionId: "ferias-bruno" },
+  {
+    id: "PR 41",
+    ownerId: "fernando",
+    text: "Correção preparada no PR da ECH-128, esperando aprovação",
+    since: "esta noite",
+    detail: "A revisão noturna achou o erro de tempo limite que faz os testes falharem e deixou a correção numa versão separada do PR. Nada foi aprovado nem unido: só você decide.",
+    action: { label: "Ver no meu plano", href: "/plano" },
+  },
+  {
+    id: "ech-128",
+    ownerId: "fernando",
+    text: "Eduardo perguntou se pode mexer na ech-128-tempo-limite",
+    since: "03:15 FOR",
+    detail: "O seu agente não liberou: a branch está reservada na sua nota do dia até a revisão do PR sair. Eduardo espera a sua resposta para seguir.",
+    action: { label: "Responder a Eduardo", href: "/pessoas/eduardo" },
+  },
+  {
+    id: "PR 34",
+    ownerId: "eduardo",
+    text: "Revisão do PR 34, de Carla",
+    since: "há 2 dias",
+    detail: "O PR está aberto há 2 dias sem a primeira revisão humana. Você foi escolhido como revisor por ter folga na semana.",
+    action: { label: "Ver no meu plano", href: "/plano" },
+  },
+  {
+    id: "Férias",
+    ownerId: "marina",
+    text: "Plano para as férias de Bruno, de 10 a 21/11",
+    since: "hoje",
+    leaderOnly: true,
+    decisionId: "ferias-bruno",
+    detail: "Três tarefas de Bruno foram distribuídas por regra, respeitando áreas e carga. Nada muda no Linear nem no GitHub até você aprovar.",
+    action: { label: "Revisar o plano", href: "/redistribuicao" },
+  },
 ];
