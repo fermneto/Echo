@@ -40,6 +40,8 @@ const BOTTOM = -58;
 const SPAN = TOP - BOTTOM;
 const STEP = 1.7; // graus entre pontos
 const RGB = { on: [152, 255, 56], twin: [77, 141, 255], wait: [224, 179, 84] } as const;
+/** Raio, em graus, da área colorida em volta de cada cidade. */
+const ACTIVE_RADIUS = 10;
 const MIN_Z = 1;
 const MAX_Z = 6;
 /** Resolução máxima do canvas (dpr × zoom), para não estourar memória em zoom alto. */
@@ -107,19 +109,24 @@ export function WorldMap({ crews, zones, arcs, nowIso }: { crews: MapCrew[]; zon
           // Hora solar local: noite entre 18h e 6h deixa o ponto mais apagado.
           const solar = (((utcHours + lng / 15) % 24) + 24) % 24;
           const night = solar < 6 || solar >= 18;
-          let rgb: readonly number[] = [170, 170, 170];
-          let a = night ? 0.22 : 0.55;
+          // Terra sem ninguém fica discreta; a noite, bem mais apagada que o dia.
+          let rgb: readonly number[] = [150, 150, 150];
+          let a = night ? 0.12 : 0.32;
+          let rr = r;
           for (const c of crews) {
             const d = Math.hypot(lat - c.location[0], (lng - c.location[1]) * Math.cos((lat * Math.PI) / 180));
-            if (d < 9) {
-              rgb = RGB[c.tone === "wait" ? "twin" : c.tone];
-              a = 0.9 - (d / 9) * 0.55;
+            if (d < ACTIVE_RADIUS) {
+              // Área ativa: cor do estado, cheia no centro e esmaecendo até a borda.
+              const k = d / ACTIVE_RADIUS;
+              rgb = RGB[c.tone];
+              a = 1 - k * 0.6;
+              rr = r * (1.25 - k * 0.25);
               break;
             }
           }
           ctx.fillStyle = `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${a.toFixed(2)})`;
           ctx.beginPath();
-          ctx.arc(x(lng) * w, y(lat) * h, r, 0, Math.PI * 2);
+          ctx.arc(x(lng) * w, y(lat) * h, rr, 0, Math.PI * 2);
           ctx.fill();
         }
       }
