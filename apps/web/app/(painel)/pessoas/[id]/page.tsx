@@ -1,75 +1,245 @@
+import Link from "next/link";
+import type { ReactNode } from "react";
 import { notFound } from "next/navigation";
 import { canAskTwin } from "@/lib/access";
-import { DEMO_NOW, findPersona } from "@/lib/demo/personas";
+import { DEMO_NOW } from "@/lib/demo/personas";
+import { profileFor } from "@/lib/demo/profiles";
+import { findMember } from "@/lib/demo/team";
 import { suggestedQuestions } from "@/lib/demo/twin";
 import { requireAccess } from "@/lib/session";
 import { localTime } from "@/lib/time";
-import { HolderPanel, StatusChip } from "@/components/Status";
+import { AskPanel } from "@/components/AskPanel";
 import { PixelAvatar } from "@/components/PixelAvatar";
+import { HolderPanel, StatusChip } from "@/components/Status";
 import { RailTrack } from "@/components/TimeRail";
-import { AskTwin } from "./AskTwin";
+import { perguntar } from "./actions";
+
+const DAYS = ["domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sábado"];
+
+function Chips({ items }: { items: string[] }) {
+  return (
+    <ul className="chips" role="list">
+      {items.map((i) => (
+        <li key={i} className="chip mono">
+          <span className="dot dot--off" aria-hidden="true" />
+          {i}
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function Field({ k, children }: { k: string; children: ReactNode }) {
+  return (
+    <div className="field-row">
+      <p className="field-row__k mono">{k}</p>
+      <div className="field-row__v">{children}</div>
+    </div>
+  );
+}
+
+function List({ items }: { items: string[] }) {
+  return (
+    <ul>
+      {items.map((b) => (
+        <li key={b}>{b}</li>
+      ))}
+    </ul>
+  );
+}
 
 export default async function PessoaPage({ params }: { params: Promise<{ id: string }> }) {
   const me = await requireAccess("pessoa");
-  const persona = findPersona((await params).id);
+  const persona = findMember((await params).id);
   if (!persona) notFound();
+  const profile = profileFor(persona);
+  const isMe = me.id === persona.id;
+  const away = persona.availability.kind !== "working";
+  const seesWork = canAskTwin(me.role);
 
   return (
-    <div className="split">
-      <div className="split__text">
-        <div className="profile-head">
-          <figure className="profile-avatar">
-            <PixelAvatar persona={persona} size={120} />
-            {persona.availability.kind !== "working" && <figcaption className="mono">Gêmeo de {persona.name} no comando</figcaption>}
-          </figure>
-          <div>
-            <p className="mono muted">
-              {persona.cityCode} {localTime(DEMO_NOW, persona.timezone)}
-            </p>
-            <h1 className="app-title">{persona.name}</h1>
-          </div>
-        </div>
-        <p className="lead">
-          {persona.title} em {persona.city}
-        </p>
-        <StatusChip persona={persona} />
+    <>
+      <Link href="/equipe" className="back-link mono">
+        ← Pessoas
+      </Link>
 
-        <HolderPanel persona={persona} />
-
-        <div className="profile-rail">
-          <p className="mono muted profile-rail__label">
-            <span>−12H</span>
-            <span>AGORA</span>
-            <span>+12H</span>
+      <header className="profile-top">
+        <figure className="profile-avatar">
+          <PixelAvatar persona={persona} size={132} />
+          <figcaption className="mono">{away ? `Gêmeo de ${persona.name} no comando` : `${persona.name} no expediente`}</figcaption>
+        </figure>
+        <div className="profile-top__text">
+          <h1 className="app-title">{persona.name}</h1>
+          <p className="lead">
+            {persona.title}
+            {persona.simulated && <span className="tag mono">persona simulada</span>}
           </p>
-          <RailTrack persona={persona} now={DEMO_NOW} />
+          <StatusChip persona={persona} />
+        </div>
+        {isMe && (
+          <span className="button-pill is-disabled" title="Chega com a edição do contexto">
+            Editar meu contexto
+          </span>
+        )}
+      </header>
+
+      <div className="profile-grid">
+        <div className="profile-col">
+          {seesWork && (
+            <section className="card" aria-labelledby="trabalho">
+              <h2 id="trabalho" className="card__title">
+                No que está trabalhando
+              </h2>
+              {profile.focus && (
+                <Field k="Foco atual">
+                  <p>{profile.focus}</p>
+                </Field>
+              )}
+              {profile.work.length > 0 ? (
+                <ul className="work-list" role="list">
+                  {profile.work.map((w) => (
+                    <li key={w.title}>
+                      <p className="work-list__title">{w.title}</p>
+                      <p className="work-list__meta mono">{w.meta}</p>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="muted">Nada registrado no GitHub ou no Linear para esta pessoa na demo.</p>
+              )}
+              {profile.activity && <p className="card__foot mono">{profile.activity}</p>}
+            </section>
+          )}
+
+          {seesWork && profile.lastNote && (
+            <section className="card" aria-labelledby="nota">
+              <h2 id="nota" className="card__title">
+                Última nota do dia ({profile.lastNote.date})
+              </h2>
+              <Field k="Parou em">
+                <p>{profile.lastNote.stoppedAt}</p>
+              </Field>
+              <Field k="Travou">
+                <List items={profile.lastNote.blocked} />
+              </Field>
+              <Field k="Liberado">
+                <List items={profile.lastNote.released} />
+              </Field>
+              <Field k="Reservado">
+                <List items={profile.lastNote.reserved} />
+              </Field>
+            </section>
+          )}
+
+          {seesWork && !isMe && (
+            <section id="perguntar" className="ask-anchor">
+              <AskPanel
+                ask={perguntar}
+                title={`Pergunte ao gêmeo de ${persona.name}`}
+                footer={`É o mesmo agente que responde por ${persona.name} no Slack: só lê e cita a fonte. Quem decide é ${persona.name}.`}
+                agent={`Agente de ${persona.name}`}
+                ownerName={persona.name}
+                hidden={{ pessoa: persona.id }}
+                askerName={me.name}
+                empty={`Pergunte sobre uma branch, uma tarefa ou quando ${persona.name} volta. O agente responde com o que ${persona.name} deixou registrado.`}
+                placeholder={`Por exemplo: onde ${persona.name} parou?`}
+                suggestions={suggestedQuestions(persona)}
+              />
+            </section>
+          )}
+
+          {seesWork && profile.notes.length > 0 && (
+            <section className="card" aria-labelledby="notas">
+              <h2 id="notas" className="card__title">
+                Notas
+              </h2>
+              <ul className="note-list" role="list">
+                {profile.notes.map((n) => (
+                  <li key={n.title}>
+                    <p className="note-list__title">{n.title}</p>
+                    <p className="note-list__excerpt">{n.excerpt}</p>
+                    <Chips items={n.tags} />
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+
+          {!seesWork && <p className="card muted">O RH vê disponibilidade e contexto, mas não lê notas, tarefas nem perguntas.</p>}
         </div>
 
-        <dl className="module facts">
-          <div>
-            <dt className="mono muted">EXPEDIENTE</dt>
-            <dd className="mono">
-              {persona.workHours.start}–{persona.workHours.end} {persona.cityCode}
-            </dd>
-          </div>
-          <div>
-            <dt className="mono muted">FUSO</dt>
-            <dd className="mono">{persona.timezone}</dd>
-          </div>
-          <div>
-            <dt className="mono muted">ÁREAS</dt>
-            <dd>{persona.areas.length > 0 ? persona.areas.join(", ") : "Sem área definida"}</dd>
-          </div>
-        </dl>
-      </div>
+        <div className="profile-col">
+          <HolderPanel persona={persona} />
+          <section className="card" aria-labelledby="como">
+            <h2 id="como" className="card__title">
+              Como trabalha
+            </h2>
+            <Field k="Expediente">
+              <p>
+                {persona.workHours.start} às {persona.workHours.end}, {persona.workHours.days.map((d) => DAYS[d]).join(", ")}
+              </p>
+            </Field>
+            <Field k="Fuso">
+              <p>
+                {persona.city}, agora são {localTime(DEMO_NOW, persona.timezone)}
+              </p>
+              <div className="profile-rail">
+                <p className="mono muted profile-rail__label">
+                  <span>−12H</span>
+                  <span>AGORA</span>
+                  <span>+12H</span>
+                </p>
+                <RailTrack persona={persona} now={DEMO_NOW} />
+              </div>
+            </Field>
+            {profile.howToTalk && (
+              <Field k="Como falar">
+                <p>{profile.howToTalk}</p>
+              </Field>
+            )}
+            {profile.whenAway && (
+              <Field k="Na ausência">
+                <p>{profile.whenAway}</p>
+              </Field>
+            )}
+          </section>
 
-      <div className="split__object">
-        {canAskTwin(me.role) ? (
-          <AskTwin personId={persona.id} personName={persona.name} askerName={me.name} suggestions={suggestedQuestions(persona)} />
-        ) : (
-          <p className="module note muted">O RH vê disponibilidade e contexto, mas não lê notas, tarefas nem perguntas.</p>
-        )}
+          {profile.skills.length > 0 && (
+            <section className="card" aria-labelledby="skills">
+              <h2 id="skills" className="card__title">
+                Skills
+              </h2>
+              {profile.skills.map((g) => (
+                <Field key={g.label} k={g.label}>
+                  <Chips items={g.items} />
+                </Field>
+              ))}
+            </section>
+          )}
+
+          <section className="card" aria-labelledby="sobre">
+            <h2 id="sobre" className="card__title">
+              Sobre
+            </h2>
+            {profile.about && (
+              <Field k="O que faz">
+                <p>{profile.about}</p>
+              </Field>
+            )}
+            <Field k="Áreas de atuação">{persona.areas.length > 0 ? <Chips items={persona.areas} /> : <p className="muted">Sem área definida</p>}</Field>
+            {profile.tools.length > 0 && (
+              <Field k="Ferramentas">
+                <Chips items={profile.tools} />
+              </Field>
+            )}
+            {profile.languages.length > 0 && (
+              <Field k="Idiomas">
+                <Chips items={profile.languages} />
+              </Field>
+            )}
+          </section>
+        </div>
       </div>
-    </div>
+    </>
   );
 }

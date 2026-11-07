@@ -17,17 +17,26 @@ export default async function PainelLayout({ children }: { children: ReactNode }
     <>
       <header className="topbar">
         <div className="topbar__inner">
-          <Logo />
-          <Nav groups={navFor(persona.role, { demo })} />
-          <div className="topbar__me">
-            <span className="mono muted">{persona.name.toUpperCase()}</span>
-            <form action={sair}>
-              <button type="submit" className="link-button label-caps">Sair</button>
-            </form>
+          <div className="topbar__row">
+            <Logo />
+            <div className="topbar__me">
+              <span className="topbar__name">{persona.name}</span>
+              <form action={sair}>
+                <button type="submit" className="link-button mono">
+                  SAIR
+                </button>
+              </form>
+            </div>
           </div>
+          <Nav groups={navFor(persona.role, { demo })} />
         </div>
       </header>
-      <main className="page">{children}</main>
+      <main className="page">
+        {demo && (
+          <p className="demo-banner mono">Demonstração: dados sintéticos. Só Fernando, Eduardo e Yan são pessoas reais; as demais são personas simuladas.</p>
+        )}
+        {children}
+      </main>
     </>
   );
 }

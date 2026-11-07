@@ -1,28 +1,55 @@
 "use client";
 
 import { useActionState, useEffect, useRef, useState } from "react";
-import { ProductWindow } from "@/components/ProductWindow";
-import { perguntar, type AskState } from "./actions";
+import type { AskState } from "@/lib/ask";
+import { ProductWindow } from "./ProductWindow";
 
 const INITIAL: AskState = { turns: [] };
 
-export function AskTwin({ personId, personName, askerName, suggestions }: { personId: string; personName: string; askerName: string; suggestions: string[] }) {
-  const [state, action, pending] = useActionState(perguntar, INITIAL);
+/**
+ * Conversa com um agente no painel: o gêmeo de uma pessoa ou o Echo da equipe.
+ * A pergunta aparece na hora e o agente fica "consultando" até a resposta chegar.
+ */
+export function AskPanel({
+  ask,
+  title,
+  footer,
+  agent,
+  ownerName,
+  hidden,
+  askerName,
+  empty,
+  placeholder,
+  suggestions,
+}: {
+  ask: (prev: AskState, form: FormData) => Promise<AskState>;
+  title: string;
+  footer: string;
+  /** Nome de quem responde enquanto consulta ("Agente de Fernando", "Echo"). */
+  agent: string;
+  /** Dono do plano da manhã, quando a resposta manda a dúvida para ele. */
+  ownerName?: string;
+  hidden?: Record<string, string>;
+  askerName: string;
+  empty: string;
+  placeholder: string;
+  suggestions: string[];
+}) {
+  const [state, action, pending] = useActionState(ask, INITIAL);
   const [question, setQuestion] = useState("");
   const [asking, setAsking] = useState("");
   const input = useRef<HTMLInputElement>(null);
-  const agent = `Agente de ${personName}`;
 
   useEffect(() => {
     if (!pending) setAsking("");
   }, [pending]);
 
   return (
-    <ProductWindow title={`Pergunte ao gêmeo de ${personName}`} footer={`O agente só lê e cita a fonte. Quem decide é ${personName}.`}>
+    <ProductWindow title={title} footer={footer}>
       <ol className="chat" aria-live="polite" aria-busy={pending}>
         {state.turns.length === 0 && !pending && (
           <li className="chat__empty">
-            <p className="muted">Pergunte sobre uma branch, uma tarefa ou quando {personName} volta. O agente responde com o que {personName} deixou registrado.</p>
+            <p className="muted">{empty}</p>
           </li>
         )}
         {state.turns.map((t, i) => (
@@ -46,7 +73,7 @@ export function AskTwin({ personId, personName, askerName, suggestions }: { pers
                   ))}
                 </ul>
               )}
-              {t.reply.needsOwner && <p className="mono muted chat__meta">Entra no plano da manhã de {personName}</p>}
+              {t.reply.needsOwner && ownerName && <p className="mono muted chat__meta">Entra no plano da manhã de {ownerName}</p>}
             </div>
           </li>
         ))}
@@ -57,7 +84,7 @@ export function AskTwin({ personId, personName, askerName, suggestions }: { pers
             </p>
             <p className="chat__line chat__reply chat__typing">
               <span className="chat__who chat__who--twin">{agent}</span>
-              <span className="muted">consultando a nota do dia e os registros</span>
+              <span className="muted">consultando os registros</span>
               <span className="typing-dots" aria-hidden="true">
                 <span />
                 <span />
@@ -76,7 +103,9 @@ export function AskTwin({ personId, personName, askerName, suggestions }: { pers
           setTimeout(() => setQuestion(""), 0);
         }}
       >
-        <input type="hidden" name="pessoa" value={personId} />
+        {Object.entries(hidden ?? {}).map(([k, v]) => (
+          <input key={k} type="hidden" name={k} value={v} />
+        ))}
         <label htmlFor="pergunta" className="mono muted">
           Sua pergunta para o agente
         </label>
@@ -88,7 +117,7 @@ export function AskTwin({ personId, personName, askerName, suggestions }: { pers
             className="field"
             value={question}
             onChange={(e) => setQuestion(e.target.value)}
-            placeholder={`@${personName} posso seguir com…`}
+            placeholder={placeholder}
             maxLength={500}
             autoComplete="off"
             required
