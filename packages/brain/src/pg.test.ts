@@ -1,7 +1,7 @@
 // BrainStore contra o Postgres real (DATABASE_URL), depois de `pnpm db:migrate`.
 import { randomUUID } from "node:crypto";
-import { asSystem, createDb, createPool, type Database, orgs, people, teams } from "@echo/db";
-import { eq } from "drizzle-orm";
+import { asSystem, brainNotes, createDb, createPool, type Database, orgs, people, teams } from "@echo/db";
+import { and, eq } from "drizzle-orm";
 import type pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import type { BrainStore, Viewer } from "./index.ts";
@@ -112,8 +112,14 @@ describe.skipIf(!url)("BrainStore em Postgres", () => {
   });
 
   it("cria a nota do produto uma vez por empresa", async () => {
+    // Outros pacotes criam empresas no mesmo banco em paralelo na CI: a contagem global varia,
+    // então a checagem é só sobre esta empresa.
     await ensureProductNote(db);
-    expect(await ensureProductNote(db)).toBe(0);
+    await ensureProductNote(db);
+    const rows = await asSystem(db, (tx) =>
+      tx.select({ version: brainNotes.version }).from(brainNotes).where(and(eq(brainNotes.orgId, org), eq(brainNotes.path, PRODUCT_NOTE_PATH))),
+    );
+    expect(rows).toEqual([{ version: 1 }]);
     const [note] = await store.search(viewer("eduardo"), "como o echo funciona");
     expect(note?.path).toBe(PRODUCT_NOTE_PATH);
   });
