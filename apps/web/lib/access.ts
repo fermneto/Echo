@@ -27,11 +27,12 @@ export const ROUTES = {
 
 export type RouteId = keyof typeof ROUTES;
 
-/** Só telas prontas entram no menu; Nota do dia e Simulador voltam quando existirem. */
+/** Grupos do menu, na ordem em que aparecem. */
 export const NAV_GROUPS: readonly { label: string; routes: readonly RouteId[] }[] = [
-  { label: "Meu dia", routes: ["plano"] },
+  { label: "Meu dia", routes: ["plano", "notaDoDia"] },
   { label: "Equipe", routes: ["equipe", "notas"] },
   { label: "Gestão", routes: ["redistribuicao", "relatorios", "ganhos", "execucoes", "configuracao"] },
+  { label: "Demo", routes: ["simulador"] },
 ];
 
 export function canSee(role: Role, route: RouteId, opts: { demo: boolean }): boolean {
