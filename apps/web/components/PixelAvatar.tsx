@@ -4,7 +4,7 @@ import { PixelSprite } from "./PixelSprite";
 
 /**
  * Moldura com o bonequinho da pessoa, na cor do estado. Fora do expediente, quem aparece é
- * o gêmeo no comando, em azul; de férias, com a cabeça esmaecida.
+ * o gêmeo no comando, em azul; de férias, em âmbar.
  */
 export function PixelAvatar({ persona, size = 40, decorative = false }: { persona: Persona; size?: number; decorative?: boolean }) {
   const state = persona.availability.kind;

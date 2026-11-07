@@ -1226,6 +1226,9 @@
 .wmap__crew--on .wmap__label {
   color: var(--color-signal-on);
 }
+.wmap__crew--wait .wmap__label {
+  color: var(--color-signal-wait);
+}
 .wmap__person {
   display: block;
   padding: 2px 1px 0;
