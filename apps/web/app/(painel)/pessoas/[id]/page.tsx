@@ -2,7 +2,6 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { notFound } from "next/navigation";
 import { canAskTwin } from "@/lib/access";
-import { DEMO_NOW } from "@/lib/demo/personas";
 import { profileFor } from "@/lib/demo/profiles";
 import { findMember } from "@/lib/demo/team";
 import { suggestedQuestions } from "@/lib/demo/twin";
@@ -52,6 +51,7 @@ function List({ items }: { items: string[] }) {
 
 export default async function PessoaPage({ params }: { params: Promise<{ id: string }> }) {
   const me = await requireAccess("pessoa");
+  const now = new Date();
   const persona = findMember((await params).id);
   if (!persona) notFound();
   const profile = profileFor(persona);
@@ -187,7 +187,7 @@ export default async function PessoaPage({ params }: { params: Promise<{ id: str
             </Field>
             <Field k="Fuso">
               <p>
-                {persona.city}, agora são {localTime(DEMO_NOW, persona.timezone)}
+                {persona.city}, agora são {localTime(now, persona.timezone)}
               </p>
               <div className="profile-rail">
                 <p className="mono muted profile-rail__label">
@@ -195,7 +195,7 @@ export default async function PessoaPage({ params }: { params: Promise<{ id: str
                   <span>AGORA</span>
                   <span>+12H</span>
                 </p>
-                <RailTrack persona={persona} now={DEMO_NOW} />
+                <RailTrack persona={persona} now={now} />
               </div>
             </Field>
             {profile.howToTalk && (

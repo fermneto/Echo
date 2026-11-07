@@ -1,6 +1,7 @@
-import { DEMO_NOW, PERSONAS } from "./personas";
+import { live } from "./availability";
+import { PERSONAS } from "./personas";
 import type { Persona } from "./types";
-import { WORLD, worldState } from "./world";
+import { WORLD } from "./world";
 
 /**
  * A equipe inteira do painel: as 7 personas da demo mais a equipe fictícia espalhada pelo mundo.
@@ -33,9 +34,8 @@ const TITLE: Record<string, string> = {
   olivia: "Engenheira do aplicativo",
 };
 
-const fromWorld: Persona[] = WORLD.map((m) => {
-  const state = worldState(m, DEMO_NOW);
-  return {
+const fromWorld: Persona[] = WORLD.map((m) =>
+  live({
     id: m.id,
     orgId: "demo",
     name: m.name,
@@ -49,15 +49,15 @@ const fromWorld: Persona[] = WORLD.map((m) => {
     areas: [],
     skills: [],
     active: true,
-    availability: state === "on" ? { kind: "working" } : state === "twin" ? { kind: "off", returns: `às 9h, horário de ${m.city}` } : { kind: "vacation", until: "14/11" },
+    availability: m.vacation ? { kind: "vacation", until: "14/11" } : { kind: "working" },
     location: m.location,
     simulated: true,
     hair: m.hair,
-  };
-});
+  }),
+);
 
 export const TEAM: readonly Persona[] = [
-  ...PERSONAS.map((p) => ({ ...p, location: LOCATION[p.id], simulated: !REAL.has(p.id) })),
+  ...PERSONAS.map((p) => live({ ...p, location: LOCATION[p.id], simulated: !REAL.has(p.id) })),
   ...fromWorld,
 ].sort((a, b) => a.name.localeCompare(b.name, "pt-BR"));
 

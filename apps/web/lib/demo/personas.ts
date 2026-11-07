@@ -1,3 +1,4 @@
+import { live } from "./availability";
 import type { Persona } from "./types";
 
 const ORG_ID = "demo";
@@ -9,10 +10,14 @@ const WEEKDAYS = [1, 2, 3, 4, 5];
  * Cidades de Marina, Bruno, Carla e Rita são escolha provisória: confirmar com o seed.
  */
 
-/** Instante fixo da cena 1: 03:12 em Fortaleza, 08:12 em Joanesburgo, 15:12 em Tóquio. */
+/**
+ * Instante fixo usado só nos testes (03:12 em Fortaleza, 08:12 em Joanesburgo, 15:12 em Tóquio).
+ * O painel usa o relógio real: a disponibilidade de cada persona sai do expediente (availability.ts).
+ */
 export const DEMO_NOW = new Date("2026-11-06T06:12:00Z");
 
-export const PERSONAS: readonly Persona[] = [
+export const PERSONAS: readonly Persona[] = (
+  [
   {
     id: "fernando",
     name: "Fernando",
@@ -125,7 +130,8 @@ export const PERSONAS: readonly Persona[] = [
     areas: [],
     availability: { kind: "working" },
   },
-];
+  ] as Persona[]
+).map(live);
 
 export function findPersona(id: string): Persona | undefined {
   return PERSONAS.find((p) => p.id === id);

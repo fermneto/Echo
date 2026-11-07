@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { DEMO_NOW, PERSONAS } from "@/lib/demo/personas";
+import { PERSONAS } from "@/lib/demo/personas";
 import { requireAccess } from "@/lib/session";
 import { localTime } from "@/lib/time";
 import { StatusChip } from "@/components/Status";
@@ -35,7 +35,7 @@ export default async function EquipePage() {
                 </td>
                 <td className="muted">{p.title}</td>
                 <td className="muted">{p.city}</td>
-                <td className="mono num">{localTime(DEMO_NOW, p.timezone)}</td>
+                <td className="mono num">{localTime(new Date(), p.timezone)}</td>
                 <td>
                   <StatusChip persona={p} />
                 </td>

@@ -247,7 +247,8 @@ const ARCS: GlobeArc[] = [
   { id: "dubai-bangalore", from: member("omar").location, to: member("priya").location, tone: "on" },
 ];
 
-const COUNTS = worldCounts();
+// A landing é um exemplo roteirizado: fica no instante da história, não no relógio real.
+const COUNTS = worldCounts(DEMO_NOW);
 
 function Pill() {
   return <span className="lp-pill">Exemplo</span>;

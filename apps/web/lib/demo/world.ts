@@ -1,6 +1,6 @@
 import type { Look } from "./looks";
-import { DEMO_NOW, PERSONAS } from "./personas";
-import { workingAt } from "../schedule";
+import { PERSONAS } from "./personas";
+import { railStateAt, workingAt } from "../schedule";
 
 /**
  * Equipe espalhada pelo mundo para o globo da landing. FICTÍCIA: mostra como seria uma empresa
@@ -36,14 +36,14 @@ export const WORLD: readonly WorldMember[] = [
   { id: "olivia", name: "Olivia", city: "Sydney", cityCode: "SYD", timezone: "Australia/Sydney", location: [-33.87, 151.21], hair: "curly" },
 ];
 
-export function worldState(m: WorldMember, at: Date = DEMO_NOW): WorldState {
+export function worldState(m: WorldMember, at: Date = new Date()): WorldState {
   if (m.vacation) return "wait";
   return workingAt(m.timezone, WEEK, at) ? "on" : "twin";
 }
 
-/** Contagem da equipe inteira (demo + mundo) no instante da demo. */
-export function worldCounts(at: Date = DEMO_NOW) {
-  const demo = PERSONAS.map((p) => (p.availability.kind === "working" ? "on" : p.availability.kind === "off" ? "twin" : "wait"));
+/** Contagem da equipe inteira (demo + mundo) naquele instante. */
+export function worldCounts(at: Date = new Date()) {
+  const demo = PERSONAS.map((p) => railStateAt(p, at));
   const all = [...demo, ...WORLD.map((m) => worldState(m, at))];
   return { on: all.filter((s) => s === "on").length, twin: all.filter((s) => s === "twin").length, wait: all.filter((s) => s === "wait").length, total: all.length };
 }
