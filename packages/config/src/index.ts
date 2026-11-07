@@ -54,6 +54,12 @@ export const workerSchema = baseSchema.extend({
   ...database,
   /** Token do bot do Slack (xoxb-…). Sem ele, o worker não fala no Slack. */
   SLACK_BOT_TOKEN: optionalString,
+  /** GitHub App: id e chave privada (PEM; "\n" escapado é aceito). */
+  GITHUB_APP_ID: optionalString,
+  GITHUB_PRIVATE_KEY: optionalString,
+  /** App OAuth do Linear instalado como app (actor=app). */
+  LINEAR_CLIENT_ID: optionalString,
+  LINEAR_CLIENT_SECRET: optionalString,
   HEARTBEAT_INTERVAL_MS: z.coerce.number().int().min(1000).default(30_000),
 });
 

@@ -36,6 +36,7 @@ export interface ExternalTask {
   size?: number | undefined;
   labels: string[];
   updatedAt: Date;
+  completedAt?: Date | undefined;
 }
 
 export interface ExternalPullRequest {
@@ -51,6 +52,12 @@ export interface ExternalPullRequest {
   openedAt?: Date | undefined;
   mergedAt?: Date | undefined;
   updatedAt: Date;
+}
+
+/** PR consultado ao vivo: inclui arquivos e se dá para unir (null = o GitHub ainda está calculando). */
+export interface LivePullRequest extends ExternalPullRequest {
+  files: string[];
+  mergeable: boolean | null;
 }
 
 export interface ChatMessage {

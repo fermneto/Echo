@@ -1,18 +1,21 @@
 // Portas das plataformas externas. Frente: Integrações implementa os adaptadores.
 // Os agentes usam SÓ estas interfaces (nunca Octokit/Slack/Linear direto).
-import type { PullRequest, Task } from "@echo/domain";
+import type { ExternalPullRequest, ExternalTask, LivePullRequest } from "./normalized.ts";
 
 /** Nenhuma porta de leitura escreve. Escrita só via packages/actions, depois de aprovação. */
+// Retornam pessoas como identificadores EXTERNOS; quem chama resolve pela tabela identities.
 export interface CodeHost {
-  getPullRequest(repo: string, number: number): Promise<PullRequest | null>;
-  findPullRequestByBranch(repo: string, branch: string): Promise<PullRequest | null>;
+  getPullRequest(repo: string, number: number): Promise<LivePullRequest | null>;
+  /** PR mais recente da branch, aberto ou não. */
+  findPullRequestByBranch(repo: string, branch: string): Promise<ExternalPullRequest | null>;
   getLastCommitAt(repo: string, branch: string): Promise<Date | null>;
-  listOpenPullRequests(repo: string): Promise<PullRequest[]>;
+  listOpenPullRequests(repo: string): Promise<ExternalPullRequest[]>;
 }
 
 export interface IssueTracker {
-  getTask(key: string): Promise<Task | null>;
-  listOpenTasks(): Promise<Task[]>;
+  getTask(key: string): Promise<ExternalTask | null>;
+  /** Até 10 páginas de 50; `truncated` avisa que havia mais. */
+  listOpenTasks(): Promise<{ tasks: ExternalTask[]; truncated: boolean }>;
 }
 
 export type Presence = "active" | "away" | "unknown";
@@ -55,3 +58,6 @@ export { HELP_REACTIONS, isWhoKnows, normalizeSlack, slackShouldKeep, type Slack
 export { ingest, type IngestResult } from "./ingest.ts";
 export { processInbox, receive, routeOrg, slackBotUserIdOf, type Delivery, type InboxJob, type InboxSource, type ProcessOptions } from "./inbox.ts";
 export { answerBlocks, dailyNoteDraftBlocks, fitText, respondToInteraction, SLACK_ACTIONS, SlackApiError, SlackChat, sourcesLine, type SlackClientOptions } from "./slack-client.ts";
+export { RefreshingToken } from "./tokens.ts";
+export { appJwt, GithubApiError, GithubApp, GithubCodeHost, normalizePem, selectDeliveriesToRetry, type GithubAppOptions, type WebhookDelivery } from "./github-client.ts";
+export { LinearApiError, LinearTracker, toTask, type LinearOptions } from "./linear-client.ts";
