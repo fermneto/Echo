@@ -18,6 +18,8 @@ interface PessoaTeste {
   github?: string;
   /** id do usuário no Linear */
   linear?: string;
+  /** matrícula no sistema de RH */
+  rh?: string;
 }
 
 const env = process.env;
@@ -53,6 +55,7 @@ for (const p of pessoas) {
     p.slack ? { platform: "slack", externalId: p.slack, login: null } : null,
     p.github ? { platform: "github", externalId: `login:${p.github.toLowerCase()}`, login: p.github } : null,
     p.linear ? { platform: "linear", externalId: p.linear, login: null } : null,
+    p.rh ? { platform: "rh", externalId: p.rh, login: null } : null,
   ].filter((a): a is { platform: string; externalId: string; login: string | null } => a !== null);
   for (const a of accounts) {
     await db

@@ -1,4 +1,8 @@
 import {
+  parseHrEvent,
+  verifyHr,
+  type HrEvent,
+  type HrResult,
   githubRouteKey,
   linearRouteKey,
   slackShouldKeep,
@@ -14,7 +18,13 @@ import type { Context, Hono } from "hono";
 export interface WebhookDeps {
   secrets: { github?: string | undefined; slack?: string | undefined; linear?: string | undefined };
   /** Segredos por empresa, para as rotas /o/<empresa>. Sem eles, essas rotas respondem 503. */
-  orgSecrets?: { slack?: (orgId: string) => Promise<string | null>; linear?: (orgId: string) => Promise<string | null> };
+  orgSecrets?: {
+    slack?: (orgId: string) => Promise<string | null>;
+    linear?: (orgId: string) => Promise<string | null>;
+    hr?: (orgId: string) => Promise<string | null>;
+  };
+  /** Aviso de RH já verificado: grava a ausência (ou o cancelamento). */
+  hr?: (orgId: string, event: HrEvent) => Promise<HrResult>;
   receive: (d: Delivery) => Promise<"queued" | "duplicate" | "unrouted">;
   routeOrg: (kind: InboxSource, externalId: string) => Promise<string | null>;
   /** Pessoas cadastradas no Slack da empresa, para o descarte na entrada. */
@@ -140,5 +150,24 @@ export function registerWebhooks(app: Hono, deps: WebhookDeps): void {
   app.post("/webhooks/slack/o/:orgId/interacoes", async (c) => {
     const orgId = c.req.param("orgId");
     return slackInteractions(c, isUuid(orgId) ? await deps.orgSecrets?.slack?.(orgId) : null, orgId);
+  });
+
+  // ---------- Aviso de RH (genérico, por empresa)
+  app.post("/webhooks/rh/o/:orgId", async (c) => {
+    const orgId = c.req.param("orgId");
+    const secret = isUuid(orgId) ? await deps.orgSecrets?.hr?.(orgId) : null;
+    if (!secret || !deps.hr) return c.body(null, 503);
+    const raw = await c.req.text();
+    // Mais de 5 minutos de diferença é recusado (reenvio forjado).
+    if (!verifyHr(secret, raw, headersOf(c), now()).ok) return c.body(null, 401);
+    const event = parseHrEvent(parseJson(raw));
+    if (!event) return c.json({ error: "aviso inválido: id, employee_id, starts_at e ends_at com fuso, kind vacation ou leave" }, 400);
+    try {
+      const r = await deps.hr(orgId, event);
+      // Matrícula desconhecida responde 200 (o RH não deve tentar de novo), sem dizer qual.
+      return c.json({ ok: true, status: r.status });
+    } catch (err) {
+      return fail(c, err, "rh");
+    }
   });
 }

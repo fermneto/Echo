@@ -40,6 +40,8 @@ export const apiSchema = baseSchema.extend({
   GITHUB_WEBHOOK_SECRET: optionalString,
   SLACK_SIGNING_SECRET: optionalString,
   LINEAR_WEBHOOK_SECRET: optionalString,
+  /** Chave das credenciais guardadas (openssl rand -hex 32), igual em web, api e worker. */
+  ENCRYPTION_KEY: optionalString.pipe(z.string().regex(/^[0-9a-f]{64}$/i, "precisa ter 64 caracteres hex (openssl rand -hex 32)").optional()),
   // A Render define PORT; localmente usamos API_PORT.
   PORT: port(3001).optional(),
   API_PORT: port(3001),
@@ -48,6 +50,17 @@ export const apiSchema = baseSchema.extend({
 export const webSchema = baseSchema.extend({
   PORT: port(3000).optional(),
   WEB_PORT: port(3000),
+  /** Banco: necessário para o login com o Slack (sem ele, só o login por persona da demo). */
+  DATABASE_URL: optionalString,
+  /** Assina o cookie de sessão. Gerado pelo Blueprint; local: openssl rand -hex 32. */
+  SESSION_SECRET: optionalString.pipe(z.string().min(32, "precisa ter pelo menos 32 caracteres").optional()),
+  /** App do Slack: login no painel ("Sign in with Slack"). */
+  SLACK_CLIENT_ID: optionalString,
+  SLACK_CLIENT_SECRET: optionalString,
+  /** Endereço público do painel (o retorno do login é PANEL_URL/api/sessao/slack/retorno). */
+  PANEL_URL: optionalString.pipe(z.url().optional()),
+  /** Espaço do Slack da empresa, para o login ir direto a ele (opcional). */
+  DEMO_SLACK_TEAM_ID: optionalString,
 });
 
 export const workerSchema = baseSchema.extend({

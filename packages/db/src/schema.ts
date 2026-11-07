@@ -90,7 +90,7 @@ export const absences = pgTable("absences", {
   inferred: boolean("inferred").notNull().default(false),
   cancelledAt: ts("cancelled_at"),
   createdAt: createdAt(),
-});
+}, (t) => [uniqueIndex("absences_hr_event").on(t.orgId, t.hrEventId)]);
 
 /** Entrada idempotente de webhooks. */
 export const inboxEvents = pgTable("inbox_events", {

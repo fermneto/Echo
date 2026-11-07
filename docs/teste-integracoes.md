@@ -12,6 +12,8 @@ O que este teste cobre:
 | D | Ação aprovada muda o responsável no Linear, comenta, posta no Slack e comenta no PR | O próprio Linear, Slack e GitHub |
 | E | Reenvio do mesmo aviso não duplica; assinatura errada é recusada | `inbox_events` e `curl` |
 | F | Aviso perdido é recuperado pela reconciliação | `pull_requests`, `work_events` e `tasks` |
+| G | Aviso de RH assinado registra férias, sem o motivo; cancelamento e matrícula desconhecida | `absences` e `audit_log` |
+| H | Login no painel com o Slack, sessão de 12 h; pessoa não cadastrada ou desligada não entra | O painel |
 
 A resposta do agente no Slack (F2) é da frente Funções: por enquanto a mensagem chega até a fila `slack.message` e para ali.
 
@@ -35,8 +37,8 @@ Na Render, `<API>` é o endereço do serviço `echo-api`.
 ### Slack
 
 1. Crie um espaço de teste (plano gratuito).
-2. Em [api.slack.com/apps](https://api.slack.com/apps) → **Create New App** → **From a manifest**, escolha o espaço e cole `infra/slack-manifest.yml`, trocando `<API>`.
-3. **Install to Workspace**. Copie o **Bot User OAuth Token** (`xoxb-…`) para `SLACK_BOT_TOKEN` e, em **Basic Information**, o **Signing Secret** para `SLACK_SIGNING_SECRET`.
+2. Em [api.slack.com/apps](https://api.slack.com/apps) → **Create New App** → **From a manifest**, escolha o espaço e cole `infra/slack-manifest.yml`, trocando `<API>` pelo endereço da API e `<PAINEL>` pelo do painel.
+3. **Install to Workspace**. Copie o **Bot User OAuth Token** (`xoxb-…`) para `SLACK_BOT_TOKEN` e, em **Basic Information**, o **Signing Secret** para `SLACK_SIGNING_SECRET` e o **Client ID** e **Client Secret** para `SLACK_CLIENT_ID` e `SLACK_CLIENT_SECRET` (login no painel).
 4. O Slack verifica a URL de eventos na hora: a API precisa estar no ar (passo 4) para aparecer **Verified**. Se salvou antes, volte em **Event Subscriptions** e clique em **Retry**.
 5. Crie um canal (ex.: `#time-produto`) e rode `/invite @Echo` nele.
 
@@ -231,6 +233,51 @@ select key, state from tasks order by updated_at desc limit 3;                  
 
 Rode `pnpm integracoes:reconciliar` de novo: nada é duplicado. As entregas que falharam também são pedidas de novo ao GitHub (veja em **Advanced → Recent Deliveries**) e, ao chegar, não criam linhas novas.
 
+### G. Aviso de RH
+
+Coloque a matrícula de alguém em `DEMO_IDENTITIES` (ex.: `"rh":"123"` no Bruno), rode `pnpm integracoes:ligar` e defina `ENCRYPTION_KEY` (a mesma da API). Gere o segredo da empresa de teste:
+
+```bash
+pnpm integracoes:rh
+```
+
+A saída mostra a URL (`https://<API>/webhooks/rh/o/<empresa>`), o segredo e o formato. Esse é o endereço a configurar num sistema de RH de verdade. Para simular o sistema de RH:
+
+```bash
+pnpm integracoes:rh --enviar --matricula 123 --inicio 2026-11-10 --fim 2026-11-21 --api https://<API>
+# Resposta: 200 {"ok":true,"status":"registered"}   (o corpo enviado traz "motivo", que é descartado)
+pnpm integracoes:rh --enviar --cancelar <id do evento mostrado acima> --api https://<API>
+# Resposta: 200 {"ok":true,"status":"cancelled"}
+pnpm integracoes:rh --enviar --matricula 999 --api https://<API>
+# Resposta: 200 {"ok":true,"status":"unknown_employee"}  (só vira contagem)
+```
+
+```sql
+select p.name, a.kind, a.source, a.starts_at, a.ends_at, a.cancelled_at from absences a join people p on p.id = a.person_id order by a.created_at desc limit 3;
+select action, target from audit_log where actor = 'rh' order by created_at desc limit 5;
+```
+
+Esperado: a ausência com `source = hr` e nenhuma coluna com o motivo; o cancelamento preenchido; a matrícula desconhecida só como `rh:matricula_desconhecida`, sem a matrícula. Cada ausência registrada também entra na fila `absence.registered`, de onde a frente Funções monta a redistribuição.
+
+Recusas: assinatura com mais de 5 minutos → 401; empresa sem segredo → 503; data sem fuso → 400.
+
+### H. Login no painel com o Slack
+
+No `.env` do painel: `SLACK_CLIENT_ID`, `SLACK_CLIENT_SECRET`, `SESSION_SECRET` (`openssl rand -hex 32`), `DATABASE_URL`, `PANEL_URL` (endereço público do painel; local: `http://localhost:3000`) e, opcional, `DEMO_SLACK_TEAM_ID` para o login ir direto ao espaço de teste. No app do Slack, **OAuth & Permissions → Redirect URLs** precisa ter `PANEL_URL/api/sessao/slack/retorno` (já vem no manifesto).
+
+```bash
+pnpm --filter @echo/web dev
+```
+
+1. Abra `PANEL_URL/entrar` → **Entrar com o Slack** → autorize. Esperado: o painel abre com o seu nome no topo e as telas do seu papel (`papel` em `DEMO_IDENTITIES`).
+2. Entre com uma conta do Slack que não está em `DEMO_IDENTITIES`. Esperado: volta para `/entrar` com "Sua conta do Slack ainda não está cadastrada no Echo".
+3. Desligue a pessoa (`update people set active = false where name = 'Marina';`) e recarregue o painel. Esperado: volta para `/entrar` na hora, mesmo com o cookie ainda válido.
+4. **Sair** apaga a sessão. A sessão vale 12 horas.
+
+```sql
+select actor, action, created_at from audit_log where action = 'login:slack' order by created_at desc limit 3;
+```
+
 ## Se algo der errado
 
 | Sintoma | Causa provável |
@@ -244,5 +291,9 @@ Rode `pnpm integracoes:reconciliar` de novo: nada é duplicado. As entregas que 
 | GitHub 404 "Integration not found" | `GITHUB_APP_ID` errado, ou chave de outro app |
 | GitHub 403 ao comentar | App sem *Pull requests: Read and write*, ou não instalado no repositório |
 | Linear `pessoa sem conta no Linear` | Faltou `"linear"` dessa pessoa em `DEMO_IDENTITIES` (a tarefa só vai para quem tem conta) |
+| Login: "não está configurado neste ambiente" | Falta alguma das variáveis do passo H no `.env` do painel |
+| Slack: `redirect_uri did not match` | A Redirect URL do app não é exatamente `PANEL_URL/api/sessao/slack/retorno` |
+| Login: "espaço do Slack não está ligado" | `DEMO_SLACK_TEAM_ID` não ligado: rode `pnpm integracoes:ligar` |
+| RH 401 | Segredo trocado (`pnpm integracoes:rh` gera outro) ou relógio com mais de 5 min de diferença |
 | Reconciliação "Outro worker está reconciliando agora" | Há um worker no ar fazendo a rodada; espere alguns segundos |
 | Linear `tarefa … sem id no Linear` | Tarefa não importada: rode `pnpm integracoes:ligar` de novo |

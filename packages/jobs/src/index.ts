@@ -12,6 +12,8 @@ export const QUEUES = {
   slackInteraction: "slack.interaction",
   /** Pede ao worker para executar as ações aprovadas de uma empresa agora (depois de uma aprovação). */
   actionsDrain: "actions.drain",
+  /** Ausência registrada (painel, RH ou agenda): a frente Funções monta a redistribuição. */
+  absenceRegistered: "absence.registered",
 } as const;
 export type QueueName = (typeof QUEUES)[keyof typeof QUEUES];
 
