@@ -248,6 +248,16 @@ describe("answer sem modelo", () => {
     expect(b.text).toMatch(/não aprova PRs/);
   });
 
+  it("pedido de gravação de vídeo é recusado: só preview, nunca produção", async () => {
+    const r = await setup(null).answer(ask("Grave o vídeo da entrega usando https://app.echo.com.br."));
+    expect(r.text).toMatch(/não grava vídeos/);
+    expect(r.text).toMatch(/nunca em produção/);
+    expect(r.text).toMatch(/preview/);
+    // Perguntar sobre um vídeo não é pedir para gravar.
+    const q = await setup(null).answer(ask("O vídeo da ECH-131 ficou pronto?"));
+    expect(q.text).not.toMatch(/não grava vídeos/);
+  });
+
   it("teto de 200%: não chama o modelo", async () => {
     const m = scripted([]);
     const { answer, runs } = setup(m.call, memoryData({ spent: 100 }));
