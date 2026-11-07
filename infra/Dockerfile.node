@@ -1,0 +1,24 @@
+# Imagem dos serviços Node (api, worker, reviewer).
+# APP escolhe o serviço: no build filtra as dependências; em execução escolhe o ponto de entrada.
+FROM node:24-slim AS base
+ENV PNPM_HOME=/pnpm PATH=/pnpm:$PATH CI=true
+RUN corepack enable
+WORKDIR /app
+
+FROM base AS deps
+ARG APP=""
+COPY . .
+RUN if [ -n "$APP" ]; then \
+      pnpm install --frozen-lockfile --prod --filter "@echo/${APP}..."; \
+    else \
+      pnpm install --frozen-lockfile --prod --filter "@echo/api..." --filter "@echo/worker..." --filter "@echo/reviewer..."; \
+    fi
+
+FROM node:24-slim
+ARG APP=""
+ENV NODE_ENV=production APP=${APP}
+WORKDIR /app
+COPY --from=deps --chown=node:node /app /app
+USER node
+# A migração roda no preDeployCommand da Render, sem shell: node /app/packages/db/src/migrate.ts
+CMD ["sh", "-c", "test -n \"$APP\" || { echo 'APP obrigatório (api, worker ou reviewer)'; exit 1; }; cd /app/apps/$APP && exec node --import tsx src/main.ts"]

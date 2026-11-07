@@ -1,0 +1,88 @@
+# Blueprint da Render para o evento: quatro serviços e o banco.
+# Variáveis com sync: false são pedidas só na criação; as novas entram pelo painel de cada serviço.
+databases:
+  - name: echo-db
+    databaseName: echo
+    user: echo
+    plan: basic-256mb
+    postgresMajorVersion: "17"
+    region: oregon
+
+envVarGroups:
+  - name: echo-shared
+    envVars:
+      - key: LOG_LEVEL
+        value: info
+      - key: DEMO_MODE
+        value: "true"
+      - key: LANGFUSE_PUBLIC_KEY
+        sync: false
+      - key: LANGFUSE_SECRET_KEY
+        sync: false
+      - key: LANGFUSE_BASE_URL
+        sync: false
+
+services:
+  - type: web
+    name: echo-api
+    runtime: docker
+    region: oregon
+    plan: starter
+    dockerfilePath: ./infra/Dockerfile.node
+    dockerContext: .
+    healthCheckPath: /ready
+    # Sem shell e com caminho absoluto.
+    preDeployCommand: node /app/packages/db/src/migrate.ts
+    envVars:
+      - key: APP
+        value: api
+      - key: DATABASE_URL
+        fromDatabase:
+          name: echo-db
+          property: connectionString
+      - fromGroup: echo-shared
+
+  - type: web
+    name: echo-web
+    runtime: docker
+    region: oregon
+    plan: starter
+    dockerfilePath: ./infra/Dockerfile.web
+    dockerContext: .
+    healthCheckPath: /api/health
+    envVars:
+      - key: SESSION_SECRET
+        generateValue: true
+      - fromGroup: echo-shared
+
+  - type: worker
+    name: echo-worker
+    runtime: docker
+    region: oregon
+    plan: starter
+    dockerfilePath: ./infra/Dockerfile.node
+    dockerContext: .
+    envVars:
+      - key: APP
+        value: worker
+      - key: DATABASE_URL
+        fromDatabase:
+          name: echo-db
+          property: connectionString
+      - fromGroup: echo-shared
+
+  - type: worker
+    name: echo-reviewer
+    runtime: docker
+    region: oregon
+    plan: starter
+    dockerfilePath: ./infra/Dockerfile.node
+    dockerContext: .
+    envVars:
+      - key: APP
+        value: reviewer
+      - key: DATABASE_URL
+        fromDatabase:
+          name: echo-db
+          property: connectionString
+      - fromGroup: echo-shared

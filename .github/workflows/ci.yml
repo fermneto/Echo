@@ -1,0 +1,60 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    name: Tipos, migração, testes e build
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:17
+        env:
+          POSTGRES_USER: echo
+          POSTGRES_PASSWORD: echo
+          POSTGRES_DB: echo
+        ports: ["5433:5432"]
+        options: >-
+          --health-cmd "pg_isready -U echo -d echo"
+          --health-interval 2s --health-timeout 3s --health-retries 30
+    env:
+      DATABASE_URL: postgres://echo:echo@localhost:5433/echo
+      NODE_ENV: test
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm db:migrate
+      - run: pnpm test
+      - run: pnpm build
+
+  images:
+    name: Imagem ${{ matrix.app }}
+    needs: check
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        app: [api, worker, reviewer, web]
+    steps:
+      - uses: actions/checkout@v5
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ${{ matrix.app == 'web' && 'infra/Dockerfile.web' || 'infra/Dockerfile.node' }}
+          build-args: APP=${{ matrix.app }}
+          push: false
+          cache-from: type=gha,scope=${{ matrix.app }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.app }}
