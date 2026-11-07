@@ -13,14 +13,17 @@
     "linear:check": "tsx --env-file-if-exists=../../.env src/linear-check.ts",
     "integracoes:ligar": "tsx --env-file-if-exists=../../.env src/dev-ligar.ts",
     "integracoes:rh": "tsx --env-file-if-exists=../../.env src/dev-rh.ts",
-    "agenda:check": "tsx --env-file-if-exists=../../.env src/agenda-check.ts"
+    "agenda:check": "tsx --env-file-if-exists=../../.env src/agenda-check.ts",
+    "integracoes:diagnostico": "tsx --env-file-if-exists=../../.env src/dev-diagnostico.ts",
+    "integracoes:simular": "tsx --env-file-if-exists=../../.env src/dev-simular.ts"
   },
   "dependencies": {
     "@echo/db": "workspace:*",
     "@echo/domain": "workspace:*",
     "@echo/jobs": "workspace:*",
     "drizzle-orm": "catalog:",
-    "tsx": "catalog:"
+    "tsx": "catalog:",
+    "@echo/config": "workspace:*"
   },
   "devDependencies": {
     "@types/node": "catalog:",

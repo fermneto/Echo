@@ -542,6 +542,9 @@ importers:
 
   packages/connectors:
     dependencies:
+      '@echo/config':
+        specifier: workspace:*
+        version: link:../config
       '@echo/db':
         specifier: workspace:*
         version: link:../db
