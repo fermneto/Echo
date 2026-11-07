@@ -15,6 +15,27 @@
       "when": 1794058512663,
       "tag": "0001_schema",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1794059369170,
+      "tag": "0002_prs_ordem",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1794061490027,
+      "tag": "0003_isolamento",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1794062333507,
+      "tag": "0004_busca_cerebro",
+      "breakpoints": true
     }
   ]
 }

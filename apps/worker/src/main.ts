@@ -1,15 +1,28 @@
 import { randomUUID } from "node:crypto";
+import { ensureProductNote } from "@echo/brain/pg";
 import { loadConfig } from "@echo/config";
+import { createDb, createPool } from "@echo/db";
 import { PgBossQueue, QUEUES, type PingMessage } from "@echo/jobs";
-import { createLogger, initTracing } from "@echo/observability";
+import { createLogger, initTracing, LogRunRecorder } from "@echo/observability";
+import { registerInbox } from "./inbox.ts";
 
 const cfg = loadConfig("worker");
 const log = createLogger("worker", cfg.LOG_LEVEL);
 const flush = initTracing({ publicKey: cfg.LANGFUSE_PUBLIC_KEY, secretKey: cfg.LANGFUSE_SECRET_KEY, baseUrl: cfg.LANGFUSE_BASE_URL });
 const queue = new PgBossQueue(cfg.DATABASE_URL);
 
+const pool = createPool(cfg.DATABASE_URL);
+const db = createDb(pool);
+
 await queue.start();
+// Até a gravação em agent_runs estar ligada (frente Funções), as execuções vão para o log.
+await registerInbox(db, queue, new LogRunRecorder(log));
 log.info({ demo: cfg.DEMO_MODE }, "worker no ar");
+// Nota do produto em toda empresa que ainda não a tem (etapa 5). Falha aqui não derruba o worker.
+await ensureProductNote(db).then(
+  (created) => created > 0 && log.info({ created }, "nota do produto criada"),
+  (err) => log.error({ err }, "falha ao criar a nota do produto"),
+);
 
 // Confirma, a cada início, que a fila chega ao reviewer.
 await queue.work<PingMessage>(QUEUES.reviewerPong, async (job) => log.info({ nonce: job.data.nonce }, "reviewer respondeu ao ping"));
@@ -20,7 +33,7 @@ const heartbeat = setInterval(() => log.info({ uptimeS: Math.round(process.uptim
 async function shutdown(signal: string) {
   log.info({ signal }, "encerrando worker");
   clearInterval(heartbeat);
-  await Promise.allSettled([queue.stop(), flush()]);
+  await Promise.allSettled([queue.stop(), pool.end(), flush()]);
   process.exit(0);
 }
 process.on("SIGTERM", () => void shutdown("SIGTERM"));

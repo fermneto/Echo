@@ -51,6 +51,12 @@ describe("loadConfig", () => {
     expect(() => loadConfig("reviewer", { DATABASE_URL: DB, LANGFUSE_BASE_URL: "não-é-url" })).toThrow(/LANGFUSE_BASE_URL/);
   });
 
+  it("aceita ANTHROPIC_API_KEY vazia e recusa chave fora do formato", () => {
+    expect(loadConfig("worker", { DATABASE_URL: DB, ANTHROPIC_API_KEY: "" }).ANTHROPIC_API_KEY).toBeUndefined();
+    expect(loadConfig("web", { ANTHROPIC_API_KEY: "sk-ant-teste" }).ANTHROPIC_API_KEY).toBe("sk-ant-teste");
+    expect(() => loadConfig("reviewer", { DATABASE_URL: DB, ANTHROPIC_API_KEY: "minha-senha" })).toThrow(/ANTHROPIC_API_KEY.*sk-ant-/);
+  });
+
   it("PORT da plataforma tem prioridade sobre a porta local", () => {
     expect(listenPort(loadConfig("api", { DATABASE_URL: DB, PORT: "10000" }))).toBe(10000);
     expect(listenPort(loadConfig("api", { DATABASE_URL: DB }))).toBe(3001);
