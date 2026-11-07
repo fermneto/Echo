@@ -259,7 +259,7 @@ export default function LandingPage() {
     <div className="lp">
       <header className="lp-nav">
         <Link href="/landing" className="lp-logo" aria-label="Echo">
-          echo<span>.</span>
+          echo<span className="lp-logo__dot" aria-hidden="true" />
         </Link>
         <nav className="lp-nav__links" aria-label="Seções">
           <a href="#como-funciona">Como funciona</a>
