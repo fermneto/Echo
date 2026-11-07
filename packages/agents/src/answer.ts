@@ -117,7 +117,7 @@ export function createAnswer(deps: AnswerDeps): (req: AnswerRequest) => Promise<
             : {}),
           ...(error ? { error } : {}),
         });
-        return final;
+        return countsForGains ? final : { ...final, overLimit: true };
       };
 
       // Aprovar, publicar ou avaliar pessoas: recusa fixa, sem modelo.

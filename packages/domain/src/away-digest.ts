@@ -33,6 +33,39 @@ export function digestKind(text: string): DigestKind {
   return "nenhum";
 }
 
+const escapeRe = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+/**
+ * Pessoas citadas pelo nome, sem menção (F5b, passo 2). Vale o nome completo ou o primeiro nome, sem acento e
+ * sem diferença de maiúsculas, como palavra inteira. Primeiro nome repetido na empresa só vale com o nome
+ * completo: o Echo não adivinha de quem se fala. Menções `<@…>` ficam de fora (essas seguem o fluxo da menção).
+ */
+export function citedByName<P extends { id: string; name: string }>(text: string, people: readonly P[]): P[] {
+  const t = fold(text.replace(/<[^>]*>/g, " "));
+  const firsts = new Map<string, number>();
+  for (const p of people) {
+    const f = fold(p.name.trim().split(/\s+/)[0] ?? "");
+    firsts.set(f, (firsts.get(f) ?? 0) + 1);
+  }
+  const has = (name: string) => name.length >= 3 && new RegExp(`(^|[^\\p{L}\\p{N}])${escapeRe(name)}($|[^\\p{L}\\p{N}])`, "u").test(t);
+  return people.filter((p) => {
+    const full = fold(p.name.trim().replace(/\s+/g, " "));
+    const first = full.split(" ")[0]!;
+    return has(full) || (firsts.get(first) === 1 && has(first));
+  });
+}
+
+/**
+ * Proposta (ou pedido de reunião) que cita exatamente uma pessoa só pelo nome: não gera resposta no canal,
+ * mas entra no resumo da ausência dela. Devolve essa pessoa, ou nada.
+ */
+export function proposalCitation<P extends { id: string; name: string }>(text: string, people: readonly P[], authorId?: string): P | undefined {
+  const kind = digestKind(text);
+  if (kind !== "proposta" && kind !== "reuniao") return undefined;
+  const cited = citedByName(text, people).filter((p) => p.id !== authorId);
+  return cited.length === 1 ? cited[0] : undefined;
+}
+
 /** Uma linha só, sem menções nem formatação, cortada no limite. */
 export function digestLine(text: string, max: number = AWAY_DIGEST_RULES.lineChars): string {
   const one = text

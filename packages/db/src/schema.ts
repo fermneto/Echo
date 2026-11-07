@@ -233,7 +233,7 @@ export const questions = pgTable("questions", {
   orgId: orgId(),
   askerId: uuid("asker_id").references(() => people.id),
   ownerId: uuid("owner_id").references(() => people.id),
-  kind: text("kind").notNull(), // gemeo | quem_sabe | livre | dm
+  kind: text("kind").notNull(), // gemeo | quem_sabe | livre | dm | citacao (proposta citada só pelo nome, F5b)
   channel: text("channel").notNull(), // slack:C123 | painel | mcp
   sourceRef: text("source_ref"),
   text: text("text"),

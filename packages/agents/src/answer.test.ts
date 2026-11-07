@@ -302,6 +302,14 @@ describe("answer sem modelo", () => {
     // Acima do dobro não conta nos ganhos: a volta segue no texto, mas não é gravada.
     expect(r.text).toContain("Fernando volta");
     expect(r.ownerReturnsAt).toBeUndefined();
+    expect(r.overLimit).toBe(true); // quem grava guarda como falha
+  });
+
+  it("abaixo do dobro do limite, nem a resposta por regra (modelo fora) é marcada como acima do teto", async () => {
+    const { answer } = setup(scripted([]).call);
+    const r = await answer(ask("ech-128-tempo-limite?"));
+    expect(r.usedModel).toBe(false);
+    expect(r.overLimit).toBeUndefined();
   });
 
   it("resumo da ausência: tipo e uma linha de pedido e outra de resposta, por regra, só com dono", async () => {
