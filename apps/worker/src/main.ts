@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { ensureProductNote } from "@echo/brain/pg";
 import { loadConfig } from "@echo/config";
 import { createDb, createPool } from "@echo/db";
 import { PgBossQueue, QUEUES, type PingMessage } from "@echo/jobs";
@@ -21,6 +22,11 @@ const runs = new LogRunRecorder(log);
 await registerInbox(db, queue, runs);
 const stopActions = await registerActions({ db, writers: writersFromEnv(db, cfg) }, queue, runs, log);
 log.info({ demo: cfg.DEMO_MODE }, "worker no ar");
+// Nota do produto em toda empresa que ainda não a tem (etapa 5). Falha aqui não derruba o worker.
+await ensureProductNote(db).then(
+  (created) => created > 0 && log.info({ created }, "nota do produto criada"),
+  (err) => log.error({ err }, "falha ao criar a nota do produto"),
+);
 
 // Confirma, a cada início, que a fila chega ao reviewer.
 await queue.work<PingMessage>(QUEUES.reviewerPong, async (job) => log.info({ nonce: job.data.nonce }, "reviewer respondeu ao ping"));
