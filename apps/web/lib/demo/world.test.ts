@@ -23,3 +23,14 @@ describe("worldState no instante da demo (06:12 UTC, sexta)", () => {
     expect(c.on + c.twin + c.wait).toBe(c.total);
   });
 });
+
+describe("plantão de fim de semana", () => {
+  it("no sábado à tarde e no domingo da demo, parte da equipe está no expediente", async () => {
+    const { WORLD, worldState } = await import("./world");
+    const on = (at: string) => WORLD.filter((m) => worldState(m, new Date(at)) === "on").map((m) => m.id);
+    // Sábado 07/11, 15h em Brasília.
+    expect(on("2026-11-07T18:00:00Z")).toEqual(expect.arrayContaining(["lucia", "ana", "ines", "jonas"]));
+    // Domingo 08/11, 16h em Brasília (Demo Day).
+    expect(on("2026-11-08T19:00:00Z")).toEqual(expect.arrayContaining(["lucia", "ana", "jonas"]));
+  });
+});

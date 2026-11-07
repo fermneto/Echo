@@ -558,7 +558,7 @@
   font-size: 15px;
 }
 .persona-row__role {
-  font-size: 10px;
+  font-size: 11px;
   text-transform: uppercase;
   color: var(--color-ash);
 }
@@ -1128,7 +1128,7 @@
   top: 8px;
   left: 6px;
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: -0.02em;
   white-space: nowrap;
   color: var(--color-ash);
@@ -1205,7 +1205,7 @@
   position: absolute;
   left: 16px;
   bottom: -4px;
-  font-size: 10px;
+  font-size: 11px;
   white-space: nowrap;
   color: var(--color-signal-twin-text);
   text-shadow: 0 1px 2px #000;
@@ -1225,6 +1225,32 @@
 }
 .wmap__crew--on .wmap__label {
   color: var(--color-signal-on);
+}
+.wmap__crew--wait .wmap__label {
+  color: var(--color-signal-wait);
+}
+.wmap__crew.is-up .wmap__label {
+  bottom: calc(100% + 2px);
+  left: 0;
+}
+.wmap__crew.is-up.is-flipped .wmap__label {
+  left: auto;
+  right: 0;
+}
+/* Ponto de 9px com área de toque de 28px, sem mudar o desenho. */
+.wmap__dot {
+  position: relative;
+}
+.wmap__dot::before {
+  content: "";
+  position: absolute;
+  inset: -10px;
+  border-radius: 50%;
+}
+.wmap__card-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-md) var(--space-lg);
 }
 .wmap__person {
   display: block;
@@ -1487,7 +1513,7 @@
   color: var(--color-fog);
 }
 .tag {
-  font-size: 10px;
+  font-size: 11px;
   text-transform: uppercase;
   color: var(--color-ash);
   border: 1px solid var(--color-edge);
@@ -1500,7 +1526,7 @@
   gap: 2px;
 }
 .people-row__k {
-  font-size: 10px;
+  font-size: 11px;
   text-transform: uppercase;
   color: var(--color-ash);
 }
@@ -1551,8 +1577,30 @@
   .people-row {
     grid-template-columns: 40px 1fr auto;
   }
-  .people-row__cell {
+  /* No celular o estado fica embaixo do nome; só a hora local sai. */
+  .people-row__cell--time {
     display: none;
+  }
+  .people-row > .pixel-avatar {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+    align-self: center;
+  }
+  .people-row__who {
+    grid-column: 2;
+    grid-row: 1;
+  }
+  .people-row__cell--now {
+    grid-column: 2;
+    grid-row: 2;
+  }
+  .people-row__cell--now .people-row__k {
+    display: none;
+  }
+  .people-row__actions {
+    grid-column: 3;
+    grid-row: 1 / span 2;
+    align-self: center;
   }
   .wmap__label {
     display: none;
@@ -1598,7 +1646,7 @@
   gap: var(--space-sm);
 }
 .profile-avatar figcaption {
-  font-size: 10px;
+  font-size: 11px;
   text-transform: uppercase;
   color: var(--color-ash);
   white-space: nowrap;
@@ -1721,7 +1769,7 @@
   align-items: center;
   gap: 6px;
   padding: 3px 8px;
-  font-size: 10px;
+  font-size: 11px;
   text-transform: uppercase;
   color: var(--color-fog);
   background: var(--color-chip);
@@ -1782,16 +1830,75 @@
   font-size: 16px;
 }
 .plan-item__why {
-  margin: 4px 0 10px !important;
+  margin: 4px 0 12px !important;
   font-size: 14px;
   color: var(--color-fog);
+}
+.plan-item__foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-md);
+}
+.plan-item.is-done .plan-item__title {
+  color: var(--color-fog);
+}
+.plan-item__undo,
+.plan-item__drop {
+  font-size: 13px;
+  color: var(--color-fog);
+}
+.button-pill--sm {
+  min-height: 32px;
+  padding: 6px 14px;
+  font-size: 12px;
+}
+/* Botão só de ícone: reordenar e ações secundárias. */
+.icon-button {
+  display: grid;
+  place-items: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  border: 1px solid var(--color-edge);
+  border-radius: var(--rounded-md);
+  background: transparent;
+  color: var(--color-fog);
+  cursor: pointer;
+  transition: background 150ms ease-out, color 150ms ease-out;
+}
+.icon-button svg {
+  width: 14px;
+  height: 14px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.75;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+.icon-button:hover:not(:disabled) {
+  background: var(--color-chip);
+  color: var(--color-cloud);
+}
+.icon-button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+.icon-button:focus-visible {
+  outline: 1px solid var(--color-cloud);
+  outline-offset: 2px;
 }
 .plan-item__kind.is-wait {
   color: var(--color-signal-wait);
 }
 .plan-item__actions {
   display: flex;
+  align-items: center;
   gap: var(--space-sm);
+  align-self: start;
+}
+.plan-item__drop {
+  margin-left: var(--space-sm);
 }
 .plan-dropped {
   margin-top: var(--space-lg);
@@ -1877,7 +1984,7 @@
   font-variant-numeric: tabular-nums;
 }
 .metric__k {
-  font-size: 10px;
+  font-size: 11px;
   text-transform: uppercase;
   color: var(--color-ash);
 }
@@ -1985,7 +2092,7 @@ select.field option {
 /* Redistribuição */
 .absence-form {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: var(--space-md);
   align-items: end;
 }
@@ -1993,6 +2100,10 @@ select.field option {
   display: flex;
   flex-direction: column;
   gap: 4px;
+  min-width: 0;
+}
+.absence-form__field .field {
+  width: 100%;
 }
 .absence-form .button-pill {
   grid-column: 1 / -1;
@@ -2045,8 +2156,8 @@ select.field option {
   font-size: 13px;
   color: var(--color-fog);
 }
-.assign__state.is-on {
-  color: var(--color-signal-on);
+.assign__state.is-done {
+  color: var(--color-paper);
 }
 .assign__state.is-wait {
   color: var(--color-signal-wait);
@@ -2062,12 +2173,47 @@ select.field option {
   margin: 0;
   font-size: 13px;
 }
-.plan-card__done {
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-  margin: var(--space-lg) 0 0;
+/* Confirmação antes de aplicar e resumo depois: o momento em que o trabalho muda de mãos. */
+.plan-confirm,
+.plan-done {
+  margin-top: var(--space-lg);
+  padding: var(--space-lg);
+  border: 1px solid var(--color-edge);
+  border-radius: var(--rounded-lg);
+  background: var(--color-black);
+  animation: plan-step-in 220ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.plan-confirm {
+  border-color: color-mix(in srgb, var(--color-signal-wait) 45%, transparent);
+}
+.plan-confirm .plan-card__actions {
+  margin-top: var(--space-md);
+}
+.plan-confirm__title,
+.plan-done__title {
+  margin: 0;
+  font-size: 15px;
+  font-weight: 500;
+}
+.plan-confirm__text,
+.plan-done__text {
+  margin: 6px 0 0;
   font-size: 14px;
+  line-height: 1.5;
+  color: var(--color-fog);
+}
+.plan-done .link-inline {
+  margin-top: var(--space-md);
+}
+.loose .plan-done {
+  margin-top: 0;
+  width: 100%;
+}
+@keyframes plan-step-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
 }
 .loose {
   display: flex;
@@ -2153,8 +2299,9 @@ select.field option {
   flex-wrap: wrap;
   gap: 6px;
 }
-.chip.is-on {
-  color: var(--color-signal-on);
+.chip.is-edited {
+  color: var(--color-paper);
+  border-color: var(--color-iron);
 }
 .note__actions {
   display: flex;
@@ -2264,7 +2411,7 @@ select.field option {
 .runs-table thead th {
   border-top: 0;
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 11px;
   text-transform: uppercase;
   color: var(--color-ash);
 }
@@ -2339,7 +2486,7 @@ select.field option {
   font-size: 11px;
 }
 .run__result.is-ok {
-  color: var(--color-signal-on);
+  color: var(--color-paper);
 }
 .run__result.is-fallback {
   color: var(--color-signal-twin-text);
@@ -2391,7 +2538,7 @@ select.field option {
 }
 .gains__kind {
   margin: 0 0 4px;
-  font-size: 10px;
+  font-size: 11px;
   text-transform: uppercase;
   color: var(--color-ash);
 }
@@ -2805,4 +2952,62 @@ select.field option {
     animation-duration: 1ms;
     transition: none;
   }
+}
+
+/* Relatórios no RH: lista à esquerda, uma pessoa por vez à direita */
+.hr-reports {
+  display: grid;
+  grid-template-columns: minmax(220px, 280px) minmax(0, 1fr);
+  gap: var(--space-xl);
+  margin-top: var(--space-2xl);
+  align-items: start;
+}
+.hr-reports__list {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--color-line);
+  border-radius: var(--rounded-lg);
+  overflow: hidden;
+}
+.hr-reports__item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  padding: var(--space-md) var(--space-lg);
+  color: inherit;
+  text-decoration: none;
+  transition: background 150ms ease-out;
+}
+.hr-reports__item + .hr-reports__item {
+  border-top: 1px solid var(--color-line);
+}
+.hr-reports__item:hover {
+  background: var(--color-chip);
+}
+.hr-reports__item.is-current {
+  background: var(--color-charcoal);
+}
+.hr-reports__item > span {
+  display: flex;
+  flex-direction: column;
+}
+.hr-reports__name {
+  font-size: 15px;
+}
+.hr-reports__meta {
+  font-size: 11px;
+}
+@media (max-width: 760px) {
+  .hr-reports {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* Parágrafos sem palavra sozinha na última linha. */
+.page p,
+.page li {
+  text-wrap: pretty;
+}
+.home-more {
+  margin: var(--space-xl) 0 0;
 }

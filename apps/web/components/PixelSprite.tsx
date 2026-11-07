@@ -5,7 +5,7 @@ import type { Look } from "@/lib/demo/looks";
  * continuam visíveis bem fracos, mostrando a grade inteira.
  * - "person": no expediente, verde, pisca.
  * - "twin": o gêmeo no comando, azul, com uma varredura de brilho de cima para baixo.
- * - "away": de férias, azul, cabeça esmaecida; o gêmeo cobre.
+ * - "away": de férias, âmbar; o gêmeo cobre.
  * Animação só em CSS (sprites.css).
  */
 

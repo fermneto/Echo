@@ -25,11 +25,13 @@ export type WaitingItem = {
   text: string;
   since: string;
   leaderOnly?: boolean;
+  /** Some quando a decisão com este id é tomada (ver decisions-store). */
+  decisionId?: "ferias-bruno" | "ech-160";
 };
 
 export const WAITING: readonly WaitingItem[] = [
   { id: "PR 41", ownerId: "fernando", text: "Correção preparada no PR da ECH-128, esperando aprovação", since: "esta noite" },
   { id: "ech-128", ownerId: "fernando", text: "Eduardo perguntou se pode mexer na ech-128-tempo-limite", since: "03:15 FOR" },
   { id: "PR 34", ownerId: "eduardo", text: "Revisão do PR 34, de Carla", since: "há 2 dias" },
-  { id: "Férias", ownerId: "marina", text: "Plano para as férias de Bruno, de 10 a 21/11", since: "hoje", leaderOnly: true },
+  { id: "Férias", ownerId: "marina", text: "Plano para as férias de Bruno, de 10 a 21/11", since: "hoje", leaderOnly: true, decisionId: "ferias-bruno" },
 ];

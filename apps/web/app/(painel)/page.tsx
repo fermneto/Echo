@@ -4,6 +4,8 @@ import { ECHO_SUGGESTIONS } from "@/lib/demo/echo";
 import { WAITING } from "@/lib/demo/feed";
 import { teamCounts, TEAM } from "@/lib/demo/team";
 import type { Persona } from "@/lib/demo/types";
+import { currentDecisions } from "@/lib/decisions-store";
+import { holderLine, statusLine, toneOf } from "@/lib/people";
 import { requireAccess } from "@/lib/session";
 import { localTime } from "@/lib/time";
 import { AskPanel } from "@/components/AskPanel";
@@ -17,22 +19,6 @@ function utcOffset(timeZone: string, at: Date): number {
   const m = name.match(/GMT([+-])(\d{1,2})(?::(\d{2}))?/);
   if (!m) return 0;
   return (m[1] === "-" ? -1 : 1) * (Number(m[2]) + Number(m[3] ?? 0) / 60);
-}
-
-const toneOf = (p: Persona) => (p.availability.kind === "working" ? "on" : p.availability.kind === "off" ? "twin" : "wait");
-
-function statusLine(p: Persona): string {
-  const a = p.availability;
-  if (a.kind === "working") return "No expediente";
-  if (a.kind === "vacation") return `De férias até ${a.until}`;
-  return `Fora, volta ${a.returns.replace(/, horário de .*/, "")}`;
-}
-
-function holderLine(p: Persona): string {
-  const a = p.availability;
-  if (a.kind === "working") return `${p.name} está no expediente e responde por si.`;
-  if (a.kind === "vacation") return `Agente de ${p.name} responde pelo que ficou registrado. Ninguém chama quem está de férias.`;
-  return `Agente de ${p.name} responde pelo que ficou registrado até a volta.`;
 }
 
 function buildMap(team: readonly Persona[], now: Date) {
@@ -89,16 +75,17 @@ export default async function InicioPage() {
   const now = new Date();
   const counts = teamCounts();
   const seesWork = canAskTwin(me.role);
-  const waiting = WAITING.filter((w) => w.ownerId === me.id);
+  const decisions = await currentDecisions();
+  const waiting = WAITING.filter((w) => w.ownerId === me.id && !(w.decisionId && w.decisionId in decisions));
   const { crews, zones, arcs } = buildMap(TEAM, now);
 
   return (
     <>
       <p className="live-strip mono">
         <span className="dot dot--on" aria-hidden="true" />
-        Agora · {counts.on} no expediente · {counts.away} gêmeos cobrindo · {counts.zones} fusos
+        Agora · {counts.on} no expediente · {counts.away} gêmeos cobrindo · {zones.length} fusos
       </p>
-      <h1 className="hero-title">Quem está trabalhando agora</h1>
+      <h1 className="hero-title">{counts.on > 0 ? "Quem está trabalhando agora" : "Ninguém no expediente agora"}</h1>
 
       <ul className="crew-grid" role="list" aria-label="Equipe">
         {TEAM.map((p) => (
@@ -154,7 +141,7 @@ export default async function InicioPage() {
         <h2 id="mapa" className="label-caps section__title">
           A equipe pelo mundo
         </h2>
-        <WorldMap crews={crews} zones={zones} arcs={arcs} nowIso={now.toISOString()} />
+        <WorldMap crews={crews} zones={zones} arcs={arcs} nowIso={now.toISOString()} canAsk={seesWork} />
         <p className="wmap-legend mono">
           <span>
             <span className="dot dot--on" aria-hidden="true" /> no expediente
@@ -169,47 +156,11 @@ export default async function InicioPage() {
         </p>
       </section>
 
-      <section className="section" aria-labelledby="pessoas">
-        <h2 id="pessoas" className="label-caps section__title">
-          Pessoas
-        </h2>
-        <ul className="people-list" role="list">
-          {TEAM.map((p) => (
-            <li key={p.id} className="people-row">
-              <PixelAvatar persona={p} size={40} />
-              <div className="people-row__who">
-                <p className="people-row__name">
-                  {p.name}
-                  {p.id === me.id ? <span className="tag mono">você</span> : p.simulated ? <span className="tag mono">persona simulada</span> : null}
-                </p>
-                <p className="people-row__title">{p.title}</p>
-              </div>
-              <div className="people-row__cell">
-                <span className="people-row__k mono">Agora</span>
-                <span className="people-row__v">
-                  <span className={`dot dot--${toneOf(p) === "on" ? "on" : toneOf(p) === "twin" ? "twin" : "wait"}`} aria-hidden="true" /> {statusLine(p)}
-                </span>
-              </div>
-              <div className="people-row__cell">
-                <span className="people-row__k mono">Hora local</span>
-                <span className="people-row__v mono">
-                  {p.cityCode} {localTime(now, p.timezone)}
-                </span>
-              </div>
-              <div className="people-row__actions">
-                <Link href={`/pessoas/${p.id}`} className="button-outline">
-                  Ver ficha
-                </Link>
-                {seesWork && p.id !== me.id && (
-                  <Link href={`/pessoas/${p.id}#perguntar`} className="text-link">
-                    Perguntar ao gêmeo
-                  </Link>
-                )}
-              </div>
-            </li>
-          ))}
-        </ul>
-      </section>
+      <p className="home-more">
+        <Link href="/equipe" className="text-link">
+          Ver todas as {TEAM.length} pessoas, com estado e hora local
+        </Link>
+      </p>
     </>
   );
 }

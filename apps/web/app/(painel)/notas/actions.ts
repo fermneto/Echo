@@ -13,7 +13,9 @@ export async function editarNota(_prev: EditState, formData: FormData): Promise<
   const me = await currentPersona();
   if (!me || !canAskTwin(me.role)) return { error: "Você não tem permissão para editar notas." };
   const id = String(formData.get("id") ?? "");
-  if (!findNote(notesWith({}), id)) return { error: "Nota não encontrada." };
+  const note = findNote(notesWith({}), id);
+  if (!note) return { error: "Nota não encontrada." };
+  if (note.ownerId !== me.id) return { error: "Só a dona da nota pode corrigi-la." };
   const body = String(formData.get("texto") ?? "").trim().slice(0, MAX_NOTE);
   if (!body) return { error: "A nota não pode ficar vazia." };
   await saveNoteEdit(id, body, me.name, "06/11");

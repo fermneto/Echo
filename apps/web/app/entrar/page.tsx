@@ -9,12 +9,12 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "Entrar · Echo" };
 
 const ROLE_LABEL = { member: "Equipe", leader: "Líder", hr: "RH" } as const;
-const REAL = new Set(["fernando", "eduardo", "yan"]);
 
-export default async function EntrarPage({ searchParams }: { searchParams: Promise<{ erro?: string }> }) {
+export default async function EntrarPage({ searchParams }: { searchParams: Promise<{ erro?: string; persona?: string }> }) {
   const demo = demoMode();
   const slack = slackLoginConfig() !== null;
-  const erro = (await searchParams).erro;
+  const { erro, persona: wanted } = await searchParams;
+  const preselected = PERSONAS.some((p) => p.id === wanted) ? wanted : PERSONAS[0]?.id;
   return (
     <main className="entrar">
       <Logo />
@@ -26,32 +26,27 @@ export default async function EntrarPage({ searchParams }: { searchParams: Promi
       ) : null}
       {demo ? (
         <>
-          <p className="lead">Ambiente de demonstração. Escolha quem você quer ser e veja o que essa pessoa pode acessar.</p>
-          {slack ? (
+          <p className="lead">Escolha com quem entrar. Cada pessoa vê só o que o papel dela permite.</p>
+          {slack && (
             <a className="button-pill entrar__slack" href="/api/sessao/slack">
               Entrar com o Slack
             </a>
-          ) : (
-            <button type="button" className="button-pill entrar__slack is-disabled" disabled title="O login com o Slack não está configurado neste ambiente">
-              Entrar com o Slack · em breve
-            </button>
           )}
           <form action={entrarComo} className="entrar__form">
             <fieldset className="persona-list">
               <legend className="sr-only">Persona</legend>
-              {PERSONAS.map((p, i) => (
+              {PERSONAS.map((p) => (
                 <label key={p.id} className="persona-row">
-                  <input type="radio" name="persona" value={p.id} defaultChecked={i === 0} aria-label={`${p.name}, ${ROLE_LABEL[p.role]}`} aria-describedby={`story-${p.id}`} />
+                  <input type="radio" name="persona" value={p.id} defaultChecked={p.id === preselected} aria-label={`${p.name}, ${ROLE_LABEL[p.role]}`} aria-describedby={`story-${p.id}`} />
                   <PixelAvatar persona={p} size={40} decorative />
                   <span className="persona-row__text">
                     <span className="persona-row__name">{p.name}</span>
                     <span className="persona-row__role mono">
                       {ROLE_LABEL[p.role]}
-                      {REAL.has(p.id) ? "" : " · persona simulada"}
                     </span>
                   </span>
                   <span className="persona-row__story" id={`story-${p.id}`}>
-                    {p.story}
+                    {p.title} · {p.city}
                   </span>
                 </label>
               ))}
@@ -60,7 +55,6 @@ export default async function EntrarPage({ searchParams }: { searchParams: Promi
               Entrar
             </button>
           </form>
-          <p className="mono muted entrar__note">Dados sintéticos. Só Fernando, Eduardo e Yan são pessoas reais.</p>
         </>
       ) : slack ? (
         <a className="button-pill entrar__slack" href="/api/sessao/slack">

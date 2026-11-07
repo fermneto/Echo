@@ -30,6 +30,18 @@ const REPORTS: Record<string, WeekReport> = {
     ],
     delays: [],
   },
+  marina: {
+    personId: "marina",
+    week: "02 a 06/11",
+    deliveries: 1,
+    commits: 0,
+    reviews: 4,
+    helps: [
+      { to: "Bruno", what: "destravou a priorização da ECH-133", source: "reação de obrigado no Slack" },
+      { to: "Carla", what: "revisão do PR 31 seguida de mudança no código", source: "GitHub" },
+    ],
+    delays: [],
+  },
   fernando: { personId: "fernando", week: "02 a 06/11", deliveries: 1, commits: 7, reviews: 0, helps: [], delays: [] },
   eduardo: { personId: "eduardo", week: "02 a 06/11", deliveries: 1, commits: 5, reviews: 2, helps: [{ to: "Fernando", what: "revisão do PR 39 seguida de mudança no código", source: "GitHub" }], delays: [] },
 };
