@@ -2,6 +2,7 @@
 
 import { useActionState, useEffect, useRef, useState } from "react";
 import type { AskState } from "@/lib/ask";
+import { HaloField } from "./HaloField";
 import { ProductWindow } from "./ProductWindow";
 
 const INITIAL: AskState = { turns: [] };
@@ -106,26 +107,17 @@ export function AskPanel({
         {Object.entries(hidden ?? {}).map(([k, v]) => (
           <input key={k} type="hidden" name={k} value={v} />
         ))}
-        <label htmlFor="pergunta" className="mono muted">
-          Sua pergunta para o agente
-        </label>
-        <div className="ask-form__row">
-          <input
-            ref={input}
-            id="pergunta"
-            name="pergunta"
-            className="field"
-            value={question}
-            onChange={(e) => setQuestion(e.target.value)}
-            placeholder={placeholder}
-            maxLength={500}
-            autoComplete="off"
-            required
-          />
-          <button type="submit" className="button-app-primary" disabled={pending || !question.trim()}>
-            {pending ? "Consultando" : "Perguntar"}
-          </button>
-        </div>
+        <HaloField
+          id="pergunta"
+          name="pergunta"
+          label="Sua pergunta para o agente"
+          value={question}
+          onChange={setQuestion}
+          placeholder={placeholder}
+          pending={pending}
+          loadingText={`${agent} está consultando os registros…`}
+          inputRef={input}
+        />
         {state.error && (
           <p className="error" role="alert">
             {state.error}
