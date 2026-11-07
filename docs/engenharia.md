@@ -714,7 +714,7 @@ Esquema, isolamento por empresa, Clock e dados sintéticos
 **Passos:**
 
 1. Escrever `packages/db/src/schema.ts` com todas as tabelas da aba Dados.
-2. Toda tabela de negócio tem `org_id`, com Row Level Security. Cada transação define a empresa por `withOrg`.
+2. Toda tabela de negócio tem `org_id`, com Row Level Security. Cada transação define a empresa por `withOrg`. Fora de `withOrg`/`asSystem` a conexão não enxerga nada (`createPool` com escopo `"none"` por padrão); só seed, scripts `dev-*`, reconciliação manual e evals pedem `"system"`.
 3. Referências entre tabelas usam chave composta com `org_id`, numa migração de isolamento. Só `installation_routes` fica fora, guardando apenas identificadores.
 4. `Clock` em `packages/domain`, com implementação real e de teste.
 5. `seed/`: empresa de demonstração com as personas, fusos, expedientes, equipes, tarefas, PRs, notas e histórias da demo. Só dados sintéticos.
@@ -876,7 +876,7 @@ Correção em ambiente isolado e PR em rascunho
 
 - **Testes:** Conferência de arquivos permitidos e união só se o rascunho não mudou. Delegação: travas antes do juiz, juiz que não cabe ou falha deixa com o autor, rascunho alterado recusa.
 - **Pronto quando:** Um erro plantado gera uma correção aprovável, unida pela aprovação do autor.
-- **Pendente para valer em produção:** o reviewer ainda roda com a porta do GitHub desligada (`codeHost: () => null`) e não está no Blueprint da Render; até isso, nem a correção nem a delegação agem.
+- **Como está ligado:** o reviewer usa o GitHub App da empresa (`fixHostOf`, em `packages/connectors`) para ler o PR e pedir o token só leitura, e está no Blueprint (`echo-reviewer`). O rascunho (`github.draft_pr`) é montado pela API do GitHub, aplicando o diff sobre a versão revisada sem git (`applyPatch`), e a união (`github.merge_fix`) confere de novo a versão aprovada; as duas são ações do outbox, executadas pelo worker, e o resultado do rascunho fica em `outbox_actions.result`. Em Meu plano, o autor aprova ou recusa a correção real (`decidirCorrecao`), e o painel confere o rascunho com o mesmo GitHub App (`GITHUB_APP_ID` também no `echo-web`).
 
 ### Etapa 11 · Redistribuição
 
@@ -1318,8 +1318,8 @@ Um agente Claude grava a feature entregue na semana
 | SLACK_SIGNING_SECRET | api | Slack |
 | SLACK_BOT_TOKEN | api, worker | Slack |
 | GITHUB_WEBHOOK_SECRET | api | GitHub |
-| GITHUB_APP_ID | worker, reviewer | GitHub |
-| GITHUB_PRIVATE_KEY | worker, reviewer | GitHub |
+| GITHUB_APP_ID | web, worker, reviewer | GitHub |
+| GITHUB_PRIVATE_KEY | web, worker, reviewer | GitHub |
 | LINEAR_WEBHOOK_SECRET | api | Linear |
 | LINEAR_CLIENT_ID | worker | Linear |
 | LINEAR_CLIENT_SECRET | worker | Linear |
