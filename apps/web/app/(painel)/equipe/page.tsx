@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { canAskTwin } from "@/lib/access";
-import { teamScope } from "@/lib/scope";
-import { scopeLabel, TeamPicker } from "@/components/TeamPicker";
+import { scopeLabel, teamScope } from "@/lib/scope";
+import { TeamPicker } from "@/components/TeamPicker";
 import { statusLine, toneOf } from "@/lib/people";
 import { requireAccess } from "@/lib/session";
 import { loadTeam } from "@/lib/team-live";
@@ -23,7 +23,7 @@ export default async function EquipePage() {
     <>
       <h1 className="hero-title hero-title--page">Pessoas</h1>
       <p className="lead">
-        {people.length} pessoas em {zones} fusos, de {scopeLabel(scope)}. Abra a ficha para ver a disponibilidade{seesWork ? " e perguntar ao gêmeo" : ""}.
+        {people.length} {people.length === 1 ? "pessoa" : "pessoas"} em {zones} {zones === 1 ? "fuso" : "fusos"}. Você vê {scopeLabel(scope)}. Abra a ficha para ver a disponibilidade{seesWork ? " e perguntar ao gêmeo" : ""}.
       </p>
       <TeamPicker scope={scope} back="/equipe" />
       <SearchFilter label="Buscar pessoas" placeholder="Buscar por nome, função, cidade ou estado" empty="Ninguém encontrado com essa busca.">

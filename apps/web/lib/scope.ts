@@ -65,6 +65,18 @@ export async function teamScope(me: Persona, team?: readonly Persona[]): Promise
   return scopeFrom(me, people, teams, followed);
 }
 
+/**
+ * De quem é o recorte, para "Você vê …". Só o RH, que escolhe as equipes, ouve "todas as equipes":
+ * membro e liderança veem o nome da própria equipe, mesmo quando a empresa só tem uma.
+ * Sem equipes cadastradas, diz isso; sem equipe à vista (leitura falhou, RH sem nenhuma escolhida), só a própria ficha.
+ */
+export function scopeLabel(scope: TeamScope): string {
+  const names = scope.teams.filter((t) => scope.visible.includes(t.id)).map((t) => t.name);
+  if (names.length === 0) return scope.teams.length === 0 && scope.people.length > 1 ? "as pessoas da empresa, que ainda não tem equipes" : "só a sua ficha";
+  if (scope.canChoose && names.length === scope.teams.length && names.length > 1) return "todas as equipes";
+  return names.length === 1 ? `a equipe ${names[0]}` : `as equipes ${names.slice(0, -1).join(", ")} e ${names.at(-1)}`;
+}
+
 /** Ids no banco de quem está no recorte, para filtrar o que as telas leem do banco. */
 export function scopeDbIds(scope: TeamScope): Set<string> {
   return new Set(scope.people.map((p) => personIdFor(p.id)));
