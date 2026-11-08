@@ -52,6 +52,11 @@ describe("execuções do banco", () => {
 
   it("fluxos sem rótulo próprio viram texto legível e somam com o principal", () => {
     expect(flowLabel("night_review_batch")).toBe("Revisão de PR");
+    // Fluxos novos do worker têm nome em português, não o nome técnico.
+    expect(flowLabel("team_video")).toBe("Vídeo da semana");
+    expect(flowLabel("daily_artifact")).toBe("Resumo do dia (modelo aberto)");
+    expect(flowLabel("reconcile_jira")).toBe("Reconciliação");
+    expect(flowLabel("redistribution_approve")).toBe("Redistribuição");
     expect(flowLabel("novo_fluxo.teste")).toBe("Novo fluxo teste");
     expect(flowLabel("")).toBe("Outro");
     const totals = totalsByFlow([runFromRow(row({ flow: "pr_review" }), TZ), runFromRow(row({ id: "r2", flow: "night_review" }), TZ)]);

@@ -23,11 +23,11 @@ export const metadata = {
 const DAY = [
   { when: "Durante o dia", what: "Registro", text: "O gêmeo registra commits, PRs, tarefas e ajudas confirmadas.", who: "Ninguém: é só registro." },
   { when: "Pessoa citada e fora", what: "Resposta", text: "Responde colegas citando a fonte, sempre identificado como agente. O status é olhado na hora da menção e não fica guardado.", who: "Quem perguntou decide o que fazer." },
-  { when: "Fim do expediente", what: "Nota do dia", text: "Rascunha onde a pessoa parou, o que travou, o que está liberado e o que está reservado.", who: "A pessoa confere e publica." },
-  { when: "Noite", what: "Revisão", text: "Revisa os PRs em lote e deixa a correção pronta numa versão separada.", who: "O autor aprova de manhã." },
+  { when: "Fim do expediente", what: "Nota do dia", text: "Rascunha onde a pessoa parou, o que travou, o que está liberado e o que está reservado, e manda o resumo do dia como imagem no privado.", who: "A pessoa confere e publica." },
+  { when: "Noite", what: "Revisão", text: "Revisa os PRs em lote e deixa a correção pronta numa versão separada.", who: "O autor aprova de manhã, ou antes, se deixou isso escrito numa delegação." },
   { when: "Manhã", what: "Plano", text: "Aprovações, correções prontas, dúvidas e prazos numa página, com fusos e carga.", who: "A pessoa reordena, descarta e aprova." },
   { when: "Férias ou nova demanda", what: "Redistribuição", text: "O gêmeo do líder consulta os outros e monta um plano sem sobrecarga.", who: "O líder aprova; quem recebe pode recusar." },
-  { when: "Sexta-feira", what: "Relatório", text: "Entregas e atuações da semana, com crédito por cada ajuda a um colega.", who: "A pessoa confere antes; segue ao RH 3 dias depois." },
+  { when: "Sexta-feira", what: "Relatório", text: "Entregas e atuações da semana, com crédito por cada ajuda a um colega, e o vídeo da semana da equipe.", who: "A pessoa confere antes; segue ao RH 3 dias depois." },
 ];
 
 const NEVER = [
@@ -494,7 +494,7 @@ export default function LandingPage() {
         </div>
 
         <p className="lp-footer__legal">
-          Os nomes e as conversas desta página são exemplos, com dados sintéticos. GitHub, Linear, Slack e Claude são marcas de seus donos.
+          Os nomes e as conversas desta página são exemplos, com dados sintéticos. GitHub, Linear, Jira, Slack e Claude são marcas de seus donos.
           <span className="lp-mono">Converge Challenge · Canastra Ventures · Powered by Claude</span>
         </p>
       </footer>

@@ -33,7 +33,7 @@ export default async function NotaDoDiaPage({ searchParams }: { searchParams: Pr
         <NoteEditor key={`${view.date}-${view.state}`} initial={view} ownerName={first} branchFormat={mode === "db"} />
       ) : (
         <p className="note muted">
-          {reason === "sem evento nas últimas 24 horas" ? "Sem atividade nas últimas 24 horas no GitHub ou no Linear, então o agente não escreveu rascunho." : "Ainda não há nota do dia."}
+          {reason === "sem evento nas últimas 24 horas" ? "Sem atividade nas últimas 24 horas no GitHub ou nas tarefas (Linear ou Jira), então o agente não escreveu rascunho." : "Ainda não há nota do dia."}
         </p>
       )}
     </>
