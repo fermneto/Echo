@@ -10,7 +10,7 @@ function setup(at: string) {
   queue.send = async (name, data, opts) => (sent.push({ name, ...(opts ? { opts } : {}) }), send(name, data, opts));
   const wiring = registerNight(queue, {
     night: {
-      prepareAndSubmit: async (o) => (calls.push(`lote:${o}`), { queued: 1, tooLarge: 0, skipped: 0 }),
+      prepareAndSubmit: async (o) => (calls.push(`lote:${o}`), { queued: 1, tooLarge: 0, skipped: 0, failed: 0 }),
       collect: async (o) => (calls.push(`buscar:${o}`), { reviewed: 0, noFindings: 0, failed: 0, pending: 0 }),
     },
     morning: { build: async (o, p, d) => (calls.push(`plano:${o}:${p}:${d}`), { status: "skipped", reason: "x" }) },
