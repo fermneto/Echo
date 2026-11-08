@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { answerBlocks, dailyNoteDraftBlocks, fitText, respondToInteraction, SLACK_ACTIONS, SlackApiError, SlackChat } from "./slack-client.ts";
+import { answerBlocks, dailyNoteDraftBlocks, fitText, respondToInteraction, SLACK_ACTIONS, SlackApiError, SlackChat, toMrkdwn } from "./slack-client.ts";
 
 type Call = { url: string; body: any; auth: string | null; form: boolean };
 
@@ -41,6 +41,19 @@ describe("getPresence", () => {
     const t0 = Date.now();
     expect(await slow.getPresence("U1", 50)).toBe("unknown");
     expect(Date.now() - t0).toBeLessThan(1_000);
+  });
+});
+
+describe("formato da resposta", () => {
+  it("converte Markdown comum para o Slack sem tocar em código", () => {
+    expect(toMrkdwn("## **Estado**\n- item **forte**\n- [PR](https://x.y/1)\nveja `**cru**` - fim\n```\n# fica\n```")).toBe("*Estado*\n• item *forte*\n• <https://x.y/1|PR>\nveja `**cru**` - fim\n```\n# fica\n```");
+  });
+
+  it("avisos e autoria ficam no rodapé, com fontes", () => {
+    const blocks = answerBlocks({ text: "Sim.", warnings: ["dado antigo"], agentName: "Agente de Fernando", sources: [{ label: "nota do dia" }] }) as { type: string; elements?: { text: string }[] }[];
+    expect(blocks.map((b) => b.type)).toEqual(["section", "context", "context"]);
+    expect(blocks[1]!.elements![0]!.text).toBe(":large_yellow_circle: Aviso: dado antigo");
+    expect(blocks[2]!.elements![0]!.text).toBe(":large_blue_circle: Agente de Fernando · Fontes: nota do dia");
   });
 });
 

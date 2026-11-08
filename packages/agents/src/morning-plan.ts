@@ -1,9 +1,10 @@
 // Plano da manhã (etapa 9, F5). Sem modelo: as regras coletam, ordenam e escrevem o motivo de cada item.
 // Envio privado pelo outbox; em Meu plano, só a própria pessoa reordena e descarta.
 import type { OutboxAction } from "@echo/actions";
-import { applyPlanEdits, type Clock, DAY, MORNING_RULES, morningPlan, type PlanFinding, type PlanFix, type PlanItem, type PlanQuestion, systemClock } from "@echo/domain";
+import { applyPlanEdits, type Clock, DAY, MORNING_RULES, morningPlan, type PlanFinding, type PlanFix, type PlanItem, type PlanItemKind, type PlanQuestion, systemClock } from "@echo/domain";
 import type { AgentRun, RunRecorder } from "@echo/observability";
 import type { AgentData } from "./data.ts";
+import { actions, context, dayMonth, divider, DOT, esc, header, linkButton, section } from "./slack-format.ts";
 
 /** Todos os itens, em ordem: a mensagem mostra os 7 primeiros, e o painel mostra o resto em "ver mais". */
 export interface StoredPlan {
@@ -37,19 +38,32 @@ export interface MorningPlanDeps {
 
 export type PlanOutcome = { status: "created"; plan: StoredPlan; dmQueued: boolean } | { status: "skipped"; reason: string };
 
+/** O ponto diz de quem é a vez: o agente já preparou, a pendência espera a pessoa, ou algo falhou. */
+const PLAN_DOT: Record<PlanItemKind, string> = {
+  fix_ready: DOT.agent,
+  finding: DOT.agent,
+  question: DOT.wait,
+  review_request: DOT.wait,
+  own_pr_waiting: DOT.wait,
+  task_due: DOT.wait,
+  task_overdue: DOT.error,
+  ci_failed: DOT.error,
+};
+
 export function planMessage(plan: StoredPlan, webUrl: string): { text: string; blocks: unknown[] } {
-  const lines = [
-    "*Seu plano de hoje*",
-    ...plan.items.slice(0, MORNING_RULES.maxItems).map((i) => `• *${i.text}* — ${i.reason}`),
-    ...(plan.items.length > MORNING_RULES.maxItems ? [`E mais ${plan.items.length - MORNING_RULES.maxItems} no painel.`] : []),
-    "Só você vê este plano.",
-  ];
-  const text = lines.join("\n");
+  const shown = plan.items.slice(0, MORNING_RULES.maxItems);
+  const more = plan.items.length - shown.length;
+  const moreLine = more > 0 ? `E mais ${more} no painel.` : "";
+  const lines = ["*Seu plano de hoje*", ...shown.map((i) => `• *${esc(i.text)}* — ${esc(i.reason)}`), ...(moreLine ? [moreLine] : []), "Só você vê este plano."];
   return {
-    text,
+    text: lines.join("\n"),
     blocks: [
-      { type: "section", text: { type: "mrkdwn", text } },
-      { type: "actions", elements: [{ type: "button", action_id: "abrir_plano", text: { type: "plain_text", text: "Abrir Meu plano" }, url: `${webUrl.replace(/\/$/, "")}/plano?data=${plan.date}` }] },
+      header("Seu plano de hoje"),
+      context(`\`${dayMonth(plan.date)}\` · Só você vê este plano.`),
+      divider(),
+      ...shown.map((i) => section(`${PLAN_DOT[i.kind]} *${esc(i.text)}*\n${esc(i.reason)}`)),
+      ...(moreLine ? [context(moreLine)] : []),
+      actions(linkButton("abrir_plano", "Abrir Meu plano", `${webUrl.replace(/\/$/, "")}/plano?data=${plan.date}`, true)),
     ],
   };
 }

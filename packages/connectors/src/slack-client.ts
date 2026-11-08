@@ -56,13 +56,27 @@ export function sourcesLine(sources: { label: string }[], lang: ReplyLang = "pt"
   return sources.length ? `${REPLY_TEXT[lang].sources}: ${sources.map((s) => s.label).join(" · ")}` : "";
 }
 
-/** Resposta do agente com fontes e os botões Resolveu / Não resolveu (só quem perguntou vale, checado no clique). */
-export function answerBlocks(input: { text: string; sources: { label: string }[]; questionId?: string; lang?: ReplyLang }): unknown[] | undefined {
+/** Markdown comum do modelo no formato do Slack, que não entende `**negrito**`, `# título` nem `[texto](url)`. Código fica intacto. */
+export function toMrkdwn(text: string): string {
+  const inline = (s: string) =>
+    s
+      .split(/(`[^`\n]*`)/)
+      .map((part, i) => (i % 2 ? part : part.replace(/\*\*(.+?)\*\*/g, "*$1*").replace(/\[([^\]]+)\]\((https?:\/\/[^)\s]+)\)/g, "<$2|$1>")))
+      .join("");
+  return text
+    .split(/(```[\s\S]*?```)/)
+    .map((part, i) => (i % 2 ? part : inline(part.replace(/^#{1,6}\s+(.+)$/gm, (_, t: string) => `*${t.replace(/\*/g, "")}*`).replace(/^(\s*)[-*]\s+/gm, "$1• "))))
+    .join("");
+}
+
+/** Resposta do agente com avisos, autoria e fontes no rodapé e os botões Resolveu / Não resolveu (só quem perguntou vale, checado no clique). */
+export function answerBlocks(input: { text: string; sources: { label: string }[]; questionId?: string; lang?: ReplyLang; agentName?: string; warnings?: string[] }): unknown[] | undefined {
   const t = REPLY_TEXT[input.lang ?? "pt"];
   if (input.text.length > MAX_SECTION) return undefined;
   const blocks: unknown[] = [{ type: "section", text: { type: "mrkdwn", text: input.text } }];
-  const src = sourcesLine(input.sources, input.lang);
-  if (src) blocks.push({ type: "context", elements: [{ type: "mrkdwn", text: fitText(src, MAX_SECTION) }] });
+  if (input.warnings?.length) blocks.push({ type: "context", elements: [{ type: "mrkdwn", text: fitText(input.warnings.map((w) => `:large_yellow_circle: ${t.warning}: ${w}`).join("\n"), MAX_SECTION) }] });
+  const foot = [input.agentName ? `:large_blue_circle: ${input.agentName}` : "", sourcesLine(input.sources, input.lang)].filter(Boolean).join(" · ");
+  if (foot) blocks.push({ type: "context", elements: [{ type: "mrkdwn", text: fitText(foot, MAX_SECTION) }] });
   if (input.questionId) {
     const button = (label: string, action_id: string) => ({ type: "button", text: { type: "plain_text", text: label }, action_id, value: input.questionId });
     blocks.push({ type: "actions", elements: [button(t.helpful, SLACK_ACTIONS.answerHelpful), button(t.notHelpful, SLACK_ACTIONS.answerNotHelpful)] });

@@ -31,6 +31,7 @@ import type { ModelCall } from "./answer.ts";
 import { modelCostUsd, type Usage } from "./cost.ts";
 import type { AgentData } from "./data.ts";
 import { MODELS } from "./index.ts";
+import { actions, columns, context, dayMonth, divider, DOT, esc, header, linkButton, section, statusTag } from "./slack-format.ts";
 import { firstName } from "./tools.ts";
 import { validateAnswer } from "./validator.ts";
 
@@ -198,7 +199,9 @@ async function modelStoppedAt(call: ModelCall, facts: Facts, timeoutMs: number):
 
 // ---------- Texto da nota e da mensagem (código)
 
-const dayMonth = (date: string) => `${date.slice(8, 10)}/${date.slice(5, 7)}`;
+/** Blocos que mudam ao confirmar: a etiqueta vira "confirmada" e o aviso do prazo sai. */
+const NOTE_STATUS_BLOCK = "nota_estado";
+const NOTE_DEADLINE_BLOCK = "nota_prazo";
 
 export function blockedText(blockers: NoteBlocker[]): string | undefined {
   const parts = blockers.map((b) => {
@@ -211,37 +214,44 @@ export function blockedText(blockers: NoteBlocker[]): string | undefined {
 
 function markText(m: BranchMark, names: Map<string, string>, kind: "released" | "reserved"): string {
   const to = kind === "released" && m.to ? ` para ${names.get(m.to) ?? "outra pessoa"}` : "";
-  const reason = m.reason ? ` (${m.reason.replace(/\.$/, "")})` : "";
-  return `\`${m.branch}\`${to}${reason}`;
+  const reason = m.reason ? ` (${esc(m.reason.replace(/\.$/, ""))})` : "";
+  return `\`${esc(m.branch)}\`${to}${reason}`;
 }
 
 export function draftMessage(note: DailyNote, names: Map<string, string>, webUrl: string): { text: string; blocks: unknown[] } {
-  const released = note.released.length ? note.released.map((m) => markText(m, names, "released")).join(", ") : "nada";
-  const reserved = note.reserved.length ? note.reserved.map((m) => markText(m, names, "reserved")).join(", ") : "nada";
+  const released = note.released.map((m) => markText(m, names, "released"));
+  const reserved = note.reserved.map((m) => markText(m, names, "reserved"));
+  const stopped = esc(note.stoppedAt ?? "sem registro");
+  const blocked = note.blocked ? esc(note.blocked) : undefined;
+  const deadline = `Só você declara o que está liberado ou reservado. Sem resposta em ${NOTE_RULES.confirmHours} horas, a nota é publicada sem conferência e não libera nada novo.`;
   const lines = [
     "*Rascunho da sua nota de hoje.*",
-    `*Parou em:* ${note.stoppedAt ?? "sem registro"}`,
-    `*Travou:* ${note.blocked ?? "nada apontado pelas regras."}`,
-    `*Liberado (ainda válido):* ${released}`,
-    `*Reservado:* ${reserved}`,
-    `Só você declara o que está liberado ou reservado. Sem resposta em ${NOTE_RULES.confirmHours} horas, a nota é publicada sem conferência e não libera nada novo.`,
+    `*Parou em:* ${stopped}`,
+    `*Travou:* ${blocked ?? "nada apontado pelas regras."}`,
+    `*Liberado (ainda válido):* ${released.join(", ") || "nada"}`,
+    `*Reservado:* ${reserved.join(", ") || "nada"}`,
+    deadline,
   ];
   const text = lines.join("\n");
   const value = JSON.stringify({ personId: note.personId, date: note.date });
   const base = webUrl.replace(/\/$/, "");
   const url = `${base}/nota-do-dia?data=${note.date}`;
+  const owner = names.get(note.personId);
   return {
     text,
     blocks: [
-      { type: "section", text: { type: "mrkdwn", text } },
-      {
-        type: "actions",
-        elements: [
-          { type: "button", action_id: CONFIRM_ACTION_ID, style: "primary", text: { type: "plain_text", text: "Confirmar" }, value },
-          { type: "button", action_id: "editar_nota", text: { type: "plain_text", text: "Editar no painel" }, url },
-          { type: "button", action_id: "abrir_resumo", text: { type: "plain_text", text: "Abrir resumo do dia" }, url: `${base}/resumos?data=${note.date}` },
-        ],
-      },
+      header(`Nota do dia, ${dayMonth(note.date)}`),
+      statusTag(DOT.agent, "RASCUNHO", owner ? `Agente de ${esc(owner)}` : "Echo", NOTE_STATUS_BLOCK),
+      section(`*Onde parou*\n> ${stopped}`),
+      section(blocked ? `${DOT.wait} *O que travou*\n${blocked.replace(/\.$/, "").split("; ").map((b) => `• ${b}`).join("\n")}` : "*O que travou*\nNada apontado pelas regras."),
+      divider(),
+      columns(`*Liberado (ainda válido)*\n${released.join("\n") || "Nada"}`, `*Reservado*\n${reserved.join("\n") || "Nada"}`),
+      context(deadline, NOTE_DEADLINE_BLOCK),
+      actions(
+        { type: "button", action_id: CONFIRM_ACTION_ID, style: "primary", text: { type: "plain_text", text: "Confirmar" }, value },
+        linkButton("editar_nota", "Editar no painel", url),
+        linkButton("abrir_resumo", "Abrir resumo do dia", `${base}/resumos?data=${note.date}`),
+      ),
     ],
   };
 }
@@ -258,7 +268,12 @@ export function confirmReply(outcome: ConfirmOutcome, original: { text?: unknown
   }
   const status = outcome.status === "confirmed" ? "*Nota confirmada.* O que você liberou e reservou passa a valer para o seu agente." : "*Esta nota já estava confirmada.*";
   const blocks = (Array.isArray(original.blocks) ? original.blocks : []).flatMap((b) => {
-    const block = b as { type?: string; elements?: { action_id?: string }[] };
+    const block = b as { type?: string; block_id?: string; elements?: { action_id?: string; text?: unknown }[] };
+    if (block?.block_id === NOTE_DEADLINE_BLOCK) return [];
+    if (block?.block_id === NOTE_STATUS_BLOCK) {
+      const agent = String(block.elements?.[0]?.text ?? "").split(" · ")[1];
+      return [context(`✓ *CONFIRMADA*${agent ? ` · ${agent}` : ""}`)];
+    }
     if (block?.type !== "actions") return [b];
     const elements = (block.elements ?? []).filter((e) => e?.action_id !== CONFIRM_ACTION_ID);
     return elements.length ? [{ ...block, elements }] : [];

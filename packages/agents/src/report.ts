@@ -31,6 +31,7 @@ import type { ModelCall } from "./answer.ts";
 import { modelCostUsd, type Usage } from "./cost.ts";
 import type { AgentData } from "./data.ts";
 import { MODELS } from "./index.ts";
+import { actions, columns, context, DOT, header, linkButton, statusTag } from "./slack-format.ts";
 import { firstName } from "./tools.ts";
 import { validateAnswer } from "./validator.ts";
 
@@ -212,6 +213,18 @@ export function noticeText(m: WeeklyMetrics, week: string, webUrl: string): stri
   ].join("\n");
 }
 
+/** O mesmo aviso em blocos: os quatro números das regras em colunas e o botão para conferir. */
+export function noticeBlocks(m: WeeklyMetrics, week: string, webUrl: string): unknown[] {
+  const stat = (label: string, n: number) => `*${label}*\n\`${n}\``;
+  return [
+    header("Seu relatório da semana está pronto"),
+    statusTag(DOT.wait, "ESPERA SUA CONFERÊNCIA", `\`${week}\` · segue ao RH em ${REPORT_RULES.sendAfterNoticeDays} dias`),
+    columns(stat("Commits", m.commits), stat("Entregas diretas", m.deliveries), stat("Ajudas a colegas", m.helps), stat("Revisões", m.reviews)),
+    context('Você pode conferir e escrever uma observação. Ela entra marcada como "informado por você", sem mudar os números.'),
+    actions(linkButton("abrir_relatorio", "Conferir no painel", `${webUrl.replace(/\/$/, "")}/relatorios?semana=${week}`, true)),
+  ];
+}
+
 export function reportDocument(r: StoredReport, timezone: string): ReportDocument {
   return {
     personId: r.personId,
@@ -234,7 +247,7 @@ export function createWeeklyReport(deps: WeeklyReportDeps) {
   const record = (run: AgentRun) => deps.recorder.record(run).catch(() => undefined);
 
   async function enqueueNotice(orgId: string, r: StoredReport) {
-    const res = await deps.outbox(orgId).enqueue({ type: "slack.dm", target: `person:${r.personId}`, payload: { personId: r.personId, text: noticeText(r.metrics, r.week, deps.webUrl) }, idempotencyKey: noticeKey(r.id) });
+    const res = await deps.outbox(orgId).enqueue({ type: "slack.dm", target: `person:${r.personId}`, payload: { personId: r.personId, text: noticeText(r.metrics, r.week, deps.webUrl), blocks: noticeBlocks(r.metrics, r.week, deps.webUrl) },idempotencyKey: noticeKey(r.id) });
     return !res.duplicate;
   }
 

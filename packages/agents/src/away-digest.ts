@@ -5,6 +5,7 @@ import type { OutboxAction } from "@echo/actions";
 import { AWAY_DIGEST_RULES, awayDigest, type AwayDigestDue, type Clock, type DigestItem, type DigestSection, digestPurgeBefore, type Person, systemClock } from "@echo/domain";
 import type { AgentRun, RunRecorder } from "@echo/observability";
 import type { AgentData } from "./data.ts";
+import { actions, context, divider, DOT, esc, header, linkButton, sectionsOf } from "./slack-format.ts";
 
 export interface DigestStore {
   /** Último resumo entregue à pessoa (o mais recente `digested_at`). */
@@ -32,6 +33,9 @@ export type DigestOutcome = { status: "sent"; items: number; sections: Record<st
 
 const first = (name: string) => name.split(" ")[0] ?? name;
 
+/** Âmbar: ainda espera a pessoa. Azul: o agente já cobriu. */
+const DIGEST_DOT: Record<DigestSection["key"], string> = { propostas: DOT.wait, decisoes: DOT.wait, sem_resposta: DOT.wait, respondidas: DOT.agent };
+
 /** Texto da mensagem privada: quatro seções, até 20 itens em cada, o resto no painel. */
 export function digestMessage(sections: DigestSection[], people: Pick<Person, "id" | "name">[], webUrl: string): { text: string; blocks: unknown[] } {
   const nameOf = (id: string | undefined) => {
@@ -48,14 +52,19 @@ export function digestMessage(sections: DigestSection[], people: Pick<Person, "i
     if (s.total > s.items.length) lines.push(`E mais ${s.total - s.items.length} no painel.`);
     if (s.key === "propostas" && s.total) lines.push("_O agente não aceitou, recusou nem marcou nada por você._");
   }
-  const text = lines.join("\n");
-  return {
-    text,
-    blocks: [
-      { type: "section", text: { type: "mrkdwn", text } },
-      { type: "actions", elements: [{ type: "button", action_id: "abrir_resumo", text: { type: "plain_text", text: "Abrir no painel" }, url: `${webUrl.replace(/\/$/, "")}/plano` }] },
-    ],
-  };
+  const blocks: unknown[] = [header("Enquanto você estava fora"), context(sections.map((s) => `${esc(s.title)} \`${s.total}\``).join(" · "))];
+  for (const s of sections) {
+    if (!s.total) continue;
+    const items = s.items.map((i) => {
+      const ask = `*${esc(nameOf(i.askerId))}:* ${esc(i.request || "mensagem sem texto guardado")}`;
+      return s.key === "respondidas" && i.reply ? `${ask}\n> ${esc(i.reply)}` : ask;
+    });
+    blocks.push(divider(), ...sectionsOf([`${DIGEST_DOT[s.key]} *${esc(s.title)}*`, ...items]));
+    if (s.total > s.items.length) blocks.push(context(`E mais ${s.total - s.items.length} no painel.`));
+    if (s.key === "propostas") blocks.push(context("O agente não aceitou, recusou nem marcou nada por você."));
+  }
+  blocks.push(actions(linkButton("abrir_resumo", "Abrir no painel", `${webUrl.replace(/\/$/, "")}/plano`, true)));
+  return { text: lines.join("\n"), blocks };
 }
 
 export function createAwayDigest(deps: AwayDigestDeps) {

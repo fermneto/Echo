@@ -23,6 +23,7 @@ import {
 } from "@echo/domain";
 import type { AgentRun, RunRecorder } from "@echo/observability";
 import type { AgentData } from "./data.ts";
+import { actions, context, DOT, esc, header, linkButton, section, sectionsOf, statusTag } from "./slack-format.ts";
 
 // ---------- Portas
 
@@ -142,6 +143,22 @@ export function planText(title: string, items: StoredPlanItem[], l: Lookup, webU
   return [`*${title}*`, ...lines, "Nada muda até você aprovar.", `Abrir no painel: ${webUrl.replace(/\/$/, "")}/redistribuicao#plano-${planId}`].join("\n");
 }
 
+/** O plano em blocos para a liderança: cada item com responsável e motivo, e o botão para decidir no painel. */
+export function planBlocks(title: string, items: StoredPlanItem[], l: Lookup, webUrl: string, planId: string): unknown[] {
+  const lines = items.map((i) =>
+    i.toId ? `\`${itemLabel(i, l)}\` → *${firstName(l.people, i.toId)}*\n${esc(i.reason)}` : `${DOT.wait} \`${itemLabel(i, l)}\` sem responsável\n${esc(i.reason)}`,
+  );
+  return [
+    header(title),
+    statusTag(DOT.wait, "ESPERA SUA APROVAÇÃO", "Nada muda até você aprovar."),
+    ...sectionsOf(lines),
+    actions(linkButton("abrir_redistribuicao", "Abrir no painel", `${webUrl.replace(/\/$/, "")}/redistribuicao#plano-${planId}`, true)),
+  ];
+}
+
+/** Aviso a quem recebe o trabalho, com o caminho para recusar a um clique. */
+const handoverBlocks = (text: string, webUrl: string) => [section(esc(text)), actions(linkButton("abrir_redistribuicao", "Abrir Redistribuição", `${webUrl.replace(/\/$/, "")}/redistribuicao`))];
+
 // ---------- Fluxo
 
 const RECENT_DAYS = 7;
@@ -168,9 +185,11 @@ export function createRedistribution(deps: RedistributionDeps) {
     if (input.items.length === 0) return null;
     const store = deps.store(orgId);
     const plan = await store.createPlan({ trigger: input.trigger, ...(input.absence ? { absenceId: input.absence.id } : {}), absentId: input.absent.id, items: input.items });
-    const text = planText(absenceTitle(input.absent, ctx.people, input.absence, input.trigger), plan.items, ctx.lookup, deps.webUrl, plan.id);
+    const title = absenceTitle(input.absent, ctx.people, input.absence, input.trigger);
+    const text = planText(title, plan.items, ctx.lookup, deps.webUrl, plan.id);
+    const blocks = planBlocks(title, plan.items, ctx.lookup, deps.webUrl, plan.id);
     for (const leaderId of await leadersOf(orgId, input.absent, ctx.people)) {
-      await deps.outbox(orgId).enqueue({ type: "slack.dm", target: `person:${leaderId}`, payload: { personId: leaderId, text }, idempotencyKey: `redistribution_plan:${plan.id}:${leaderId}` });
+      await deps.outbox(orgId).enqueue({ type: "slack.dm", target: `person:${leaderId}`, payload: { personId: leaderId, text, blocks }, idempotencyKey: `redistribution_plan:${plan.id}:${leaderId}` });
     }
     return plan;
   }
@@ -269,15 +288,16 @@ export function createRedistribution(deps: RedistributionDeps) {
         plan.trigger === "return"
           ? `${task.key} voltou para você, com aprovação de ${firstName(ctx.people, approver.id)}.`
           : `${firstName(ctx.people, approver.id)} aprovou: ${task.key} passa para você${span}. ${item.reason} Se não puder assumir, recuse com o motivo em Redistribuição.`;
-      await outbox.enqueue({ type: "slack.dm", target: `person:${toId}`, payload: { personId: toId, text }, idempotencyKey: `${key}:dm` });
+      await outbox.enqueue({ type: "slack.dm", target: `person:${toId}`, payload: { personId: toId, text, ...(plan.trigger === "return" ? {} : { blocks: handoverBlocks(text, deps.webUrl) }) }, idempotencyKey: `${key}:dm` });
     } else if (item.prId) {
       const pr = ctx.lookup.prs.get(item.prId);
       if (!pr) return;
       await outbox.enqueue({ type: "github.set_reviewers", target: `github:${pr.repository}#${pr.number}`, payload: { repo: pr.repository, number: pr.number, personIds: [toId], planItemId: item.id }, idempotencyKey: `${key}:reviewers`, approvedBy: approver.id });
+      const text = `${firstName(ctx.people, approver.id)} aprovou: a revisão do PR ${pr.number} passa para você${span}. Se não puder, recuse com o motivo em Redistribuição.`;
       await outbox.enqueue({
         type: "slack.dm",
         target: `person:${toId}`,
-        payload: { personId: toId, text: `${firstName(ctx.people, approver.id)} aprovou: a revisão do PR ${pr.number} passa para você${span}. Se não puder, recuse com o motivo em Redistribuição.` },
+        payload: { personId: toId, text, blocks: handoverBlocks(text, deps.webUrl) },
         idempotencyKey: `${key}:dm`,
       });
     }
@@ -416,7 +436,11 @@ export function createRedistribution(deps: RedistributionDeps) {
         await deps.outbox(orgId).enqueue({
           type: "slack.dm",
           target: `person:${plan.approvedBy}`,
-          payload: { personId: plan.approvedBy, text: [`Plano aprovado por ${firstName(ctx.people, plan.approvedBy)} executado.`, ...lines].join(" ") },
+          payload: {
+            personId: plan.approvedBy,
+            text: [`Plano aprovado por ${firstName(ctx.people, plan.approvedBy)} executado.`, ...lines].join(" "),
+            blocks: [header("Plano executado"), context(`Aprovado por ${firstName(ctx.people, plan.approvedBy)}`), ...sectionsOf(lines.map((l) => `• ${esc(l)}`))],
+          },
           idempotencyKey: `redistribution_done:${plan.id}:${plan.items.map((i) => i.state[0]).join("")}`,
         });
       }
