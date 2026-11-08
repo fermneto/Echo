@@ -46,8 +46,9 @@ export function platformsFromEnv(env: PlatformEnv): Platforms {
     : env.LINEAR_CLIENT_ID && env.LINEAR_CLIENT_SECRET
       ? new LinearTracker({ clientId: env.LINEAR_CLIENT_ID, clientSecret: env.LINEAR_CLIENT_SECRET })
       : undefined;
+  // Um tracker por vez: com o Linear ligado, vale o Linear, e o Jira fica de fora (leitura, reconciliação e escrita).
   const jira =
-    env.JIRA_BASE_URL && env.JIRA_EMAIL && env.JIRA_API_TOKEN
+    !linear && env.JIRA_BASE_URL && env.JIRA_EMAIL && env.JIRA_API_TOKEN
       ? new JiraTracker({
           baseUrl: env.JIRA_BASE_URL,
           email: env.JIRA_EMAIL,
