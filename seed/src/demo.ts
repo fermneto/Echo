@@ -2,7 +2,7 @@
 // com trabalho inventado; as demais personas são simuladas.
 // Datas são relativas ao `now` recebido, para a história valer em qualquer dia da apresentação.
 import type { schema } from "@echo/db";
-import { addDays, isoWeek, lastClosedWeek, weekMonday } from "@echo/domain";
+import { addDays, isoWeek, weekMonday } from "@echo/domain";
 
 type Row<T extends { $inferInsert: unknown }> = T["$inferInsert"];
 
@@ -478,11 +478,10 @@ export function buildDemo(now: Date): DemoData {
   });
   const absences: DemoData["absences"] = [vacation("yan", nextMonday(now, "Asia/Tokyo")), vacation("noah", new Date("2026-11-14T23:59:00-05:00"))];
 
-  // Relatórios enviados das 7 semanas antes da última fechada de cada pessoa. A última fechada (corte já passado, no
-  // fuso da pessoa) fica sem relatório: é a que `pnpm relatorio:agora` gera aberta para a conferência (cena 4), em
-  // qualquer dia da semana. Números sintéticos e estáveis por pessoa e semana. Nenhum envio cai nos últimos 7 dias
-  // nem tem aviso gravado: o vídeo da semana entra na fila por relatório liberado há menos de 7 dias, e o seed não
-  // pode disparar gravação (cada uma custa).
+  // Relatórios enviados de 7 semanas, da 8ª à 2ª antes da atual no fuso de cada pessoa. A semana anterior fica
+  // vazia: é a que `reportsDue` dá como pendente, e o fluxo de verdade (ou `pnpm relatorio:agora`, no e2e) gera o
+  // relatório dela para a pessoa conferir. Números sintéticos e estáveis por pessoa e semana. Nenhum envio cai nos últimos 7 dias nem tem aviso gravado: o vídeo da semana entra na fila
+  // por relatório liberado há menos de 7 dias, e o seed não pode disparar gravação (cada uma custa).
   const vary = (key: string, n: number) => {
     let h = 2166136261;
     for (let i = 0; i < key.length; i++) h = Math.imul(h ^ key.charCodeAt(i), 16777619);
@@ -495,10 +494,9 @@ export function buildDemo(now: Date): DemoData {
   const plural = (v: number, one: string, many: string) => `${v} ${v === 1 ? one : many}`;
   const weeklyReports: DemoData["weeklyReports"] = [];
   for (const p of reporters) {
-    const closed = lastClosedWeek({ timezone: p.timezone, workHours: p.workHours ?? weekdays }, now);
-    const lastMonday = closed ? weekMonday(closed)! : weekMonday(isoWeek(localDate(now, p.timezone)))!;
-    for (let back = 7; back >= 1; back--) {
-      const monday = addDays(lastMonday, -7 * back);
+    const thisMonday = weekMonday(isoWeek(localDate(now, p.timezone)))!;
+    for (let back = 8; back >= 2; back--) {
+      const monday = addDays(thisMonday, -7 * back);
       const week = isoWeek(monday);
       if (vary(`${p.id}:${week}:envio`, 12) === 0) continue; // de vez em quando alguém não tem relatório
       const deliveries = vary(`${p.id}:${week}:e`, 4);

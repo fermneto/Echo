@@ -1,5 +1,5 @@
+import { type Person, reportsDue } from "@echo/domain";
 import { describe, expect, it } from "vitest";
-import { addDays, FixedClock, isoWeek, lastClosedWeek, weekMonday } from "@echo/domain";
 import { buildDemo, DEMO_IDS, localDate } from "./demo.ts";
 
 // Noite em Fortaleza (03:12), manhã em Joanesburgo: o momento da cena 1.
@@ -38,7 +38,9 @@ describe("empresa de demonstração", () => {
 
   it("relatórios enviados só das semanas anteriores, nunca do RH, sem aviso e fora da janela do vídeo", () => {
     expect(demo.weeklyReports.length).toBeGreaterThan(50);
-    for (const id of new Set(demo.weeklyReports.map((r) => r.personId))) expect(demo.weeklyReports.filter((r) => r.personId === id).length).toBeLessThanOrEqual(7);
+    // 7 semanas por pessoa, contadas no fuso dela: entre fusos, a janela pode cobrir até 8 semanas ISO.
+    expect(new Set(demo.weeklyReports.map((r) => r.week)).size).toBeGreaterThanOrEqual(7);
+    expect(new Set(demo.weeklyReports.map((r) => r.week)).size).toBeLessThanOrEqual(8);
     expect(demo.weeklyReports.some((r) => r.personId === P.rita)).toBe(false);
     for (const r of demo.weeklyReports) {
       expect(r.state).toBe("sent");
@@ -48,22 +50,18 @@ describe("empresa de demonstração", () => {
     }
   });
 
-  // Cena 4: a semana fechada mais recente de cada pessoa fica sem relatório no seed, para `relatorio:agora` gerá-la
-  // aberta à conferência. Vale em qualquer dia: sexta, domingo antes e depois do corte em Tóquio, segunda.
-  it.each(["2026-11-06T15:00:00Z", "2026-11-07T06:12:00Z", "2026-11-08T06:22:00Z", "2026-11-08T09:30:00Z", "2026-11-09T12:00:00Z", "2026-11-11T03:00:00Z"])(
-    "em %s, a última semana fechada de cada pessoa fica para o relatório aberto",
-    (at) => {
-      const clock = new FixedClock(at);
-      const d = buildDemo(clock.now());
-      for (const p of d.people.filter((x) => x.role !== "hr")) {
-        const closed = lastClosedWeek({ timezone: p.timezone, workHours: p.workHours! }, clock.now())!;
-        const weeks = d.weeklyReports.filter((r) => r.personId === p.id).map((r) => r.week);
-        expect(weeks.length).toBeGreaterThan(0);
-        for (const w of weeks) expect(w < closed).toBe(true);
-        expect(weeks).toContain(isoWeek(addDays(weekMonday(closed)!, -7)));
+  it("nunca ocupa a semana que o fluxo dá como pendente: o relatório dela sai para a pessoa conferir (cena 4)", () => {
+    // Domingo e segunda em UTC, com fusos de -5 a +10 no mapa: a semana anterior de cada um muda em horas diferentes.
+    for (const at of ["2026-11-08T06:00:00Z", "2026-11-08T22:00:00Z", "2026-11-09T02:00:00Z", "2026-11-11T12:00:00Z", "2026-11-14T23:30:00Z"]) {
+      const t = new Date(at);
+      const d = buildDemo(t);
+      for (const p of d.people) {
+        const due = reportsDue({ ...p, active: true, role: p.role ?? "member" } as Person, t).map((x) => x.week);
+        const seeded = d.weeklyReports.filter((r) => r.personId === p.id).map((r) => r.week);
+        expect(seeded.filter((w) => due.includes(w)), `${p.name} em ${at}`).toEqual([]);
       }
-    },
-  );
+    }
+  });
 
   it("dá um papel por persona: Marina lidera, Rita é do RH", () => {
     const role = (id: string) => demo.people.find((p) => p.id === id)?.role ?? "member";
