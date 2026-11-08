@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { addDays, isoWeek, weekMonday } from "@echo/domain";
 import { buildDemo, DEMO_IDS, localDate } from "./demo.ts";
 
 // Noite em Fortaleza (03:12), manhã em Joanesburgo: o momento da cena 1.
@@ -38,6 +39,9 @@ describe("empresa de demonstração", () => {
   it("relatórios enviados só das semanas anteriores, nunca do RH, sem aviso e fora da janela do vídeo", () => {
     expect(demo.weeklyReports.length).toBeGreaterThan(50);
     expect(new Set(demo.weeklyReports.map((r) => r.week)).size).toBe(7);
+    // A semana que acabou de fechar fica para a conferência da pessoa (pnpm relatorio:agora, cena 4).
+    const lastClosed = isoWeek(addDays(weekMonday(isoWeek(now.toISOString().slice(0, 10)))!, -7));
+    expect(demo.weeklyReports.some((r) => r.week === lastClosed)).toBe(false);
     expect(demo.weeklyReports.some((r) => r.personId === P.rita)).toBe(false);
     for (const r of demo.weeklyReports) {
       expect(r.state).toBe("sent");

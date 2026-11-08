@@ -478,8 +478,9 @@ export function buildDemo(now: Date): DemoData {
   });
   const absences: DemoData["absences"] = [vacation("yan", nextMonday(now, "Asia/Tokyo")), vacation("noah", new Date("2026-11-14T23:59:00-05:00"))];
 
-  // Relatórios enviados das 7 semanas anteriores (a atual ainda não fechou). Números sintéticos e estáveis por
-  // pessoa e semana. Nenhum envio cai nos últimos 7 dias nem tem aviso gravado: o vídeo da semana entra na fila
+  // Relatórios enviados de 7 semanas, antes da que acabou de fechar (a atual ainda não fechou). A que acabou de
+  // fechar fica sem relatório: ela ainda passa pela conferência da pessoa, e é `pnpm relatorio:agora` que a gera
+  // (cena 4 e e2e: a pessoa comenta, e o número não muda). Números sintéticos e estáveis por pessoa e semana. Nenhum envio cai nos últimos 7 dias nem tem aviso gravado: o vídeo da semana entra na fila
   // por relatório liberado há menos de 7 dias, e o seed não pode disparar gravação (cada uma custa).
   const vary = (key: string, n: number) => {
     let h = 2166136261;
@@ -493,7 +494,7 @@ export function buildDemo(now: Date): DemoData {
   const reporters = people.filter((p) => p.role !== "hr");
   const plural = (v: number, one: string, many: string) => `${v} ${v === 1 ? one : many}`;
   const weeklyReports: DemoData["weeklyReports"] = [];
-  for (let back = 7; back >= 1; back--) {
+  for (let back = 8; back >= 2; back--) {
     const monday = addDays(thisMonday, -7 * back);
     const week = isoWeek(monday);
     for (const p of reporters) {
