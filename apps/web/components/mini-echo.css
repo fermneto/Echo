@@ -1,0 +1,164 @@
+/* Mini Echo: o botão no topo do painel e a janelinha flutuante. */
+.mini-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-sm);
+}
+
+.mini-body {
+  margin: 0;
+  min-height: 0;
+  background: var(--color-canvas-app);
+  color: var(--color-paper);
+  overflow: hidden;
+}
+
+.mini {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  font-family: var(--font-sans);
+  font-size: 13px;
+  line-height: 1.4;
+}
+
+.mini__bar {
+  flex: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-sm);
+  padding: var(--space-sm) var(--space-md);
+}
+
+/* Recolhida: a janela inteira é o bonequinho, e o clique expande. */
+.mini-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 100vh;
+  padding: 0;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+
+.mini-icon__sprite {
+  position: relative;
+  display: inline-flex;
+}
+
+.mini-icon__badge {
+  position: absolute;
+  top: -2px;
+  left: calc(100% + 2px);
+  min-width: 18px;
+  height: 18px;
+  padding: 0 5px;
+  border-radius: var(--rounded-pill);
+  background: var(--color-signal-wait);
+  color: var(--color-black);
+  font-family: var(--font-sans);
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 18px;
+  text-align: center;
+}
+
+.mini__head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.mini__who {
+  flex: 1;
+  min-width: 0;
+  color: var(--color-signal-twin-text);
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.mini__collapse {
+  color: var(--color-ash);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+}
+.mini__head:hover .mini__collapse {
+  color: var(--color-cloud);
+}
+
+.mini__counts {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-sm);
+}
+
+.mini__count {
+  padding: var(--space-xs) var(--space-sm);
+  border: 1px solid var(--color-edge);
+  border-radius: var(--rounded-md);
+  background: var(--color-chip);
+  color: var(--color-paper);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+.mini__count:hover {
+  border-color: var(--color-iron);
+}
+.mini__count[aria-pressed="true"] {
+  border-color: var(--color-field-border);
+  color: var(--color-cloud);
+}
+.mini__count.is-new {
+  border-color: var(--color-signal-wait);
+  color: var(--color-signal-wait);
+}
+
+.mini__list {
+  flex: 1;
+  min-height: 0;
+  margin: 0;
+  padding: 0 var(--space-md) var(--space-md);
+  list-style: none;
+  overflow-y: auto;
+}
+
+.mini__item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding: var(--space-sm) 0;
+  border-top: 1px solid var(--color-line);
+}
+
+.mini__ref {
+  color: var(--color-ash);
+  font-size: 11px;
+}
+
+.mini__wait,
+.mini__late {
+  color: var(--color-signal-wait);
+  font-size: 11px;
+}
+
+.mini__empty {
+  margin: 0;
+  padding: var(--space-sm) var(--space-md);
+  color: var(--color-fog);
+  font-size: 12px;
+}
+.mini__list .mini__empty {
+  padding-inline: 0;
+}

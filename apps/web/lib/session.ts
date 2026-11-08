@@ -1,10 +1,12 @@
 import { cookies } from "next/headers";
 import { notFound, redirect } from "next/navigation";
 import { loadConfig } from "@echo/config";
+import { parseAvatarTraits } from "@echo/domain";
 import { canSee, type RouteId } from "./access";
 import { loadPanelPerson } from "@echo/connectors";
 import { readSession, SESSION_COOKIE } from "./auth";
 import { panelDb } from "./db";
+import { lookFor } from "./demo/looks";
 import { findPersona } from "./demo/personas";
 import type { Persona } from "./demo/types";
 
@@ -62,6 +64,7 @@ function personaFromPerson(p: NonNullable<Awaited<ReturnType<typeof loadPanelPer
     city,
     cityCode: city.slice(0, 3).toUpperCase(),
     availability: { kind: "working" },
+    ...(p.avatar ? { avatar: parseAvatarTraits(p.avatar, lookFor(p.id)).traits } : {}),
   };
 }
 
