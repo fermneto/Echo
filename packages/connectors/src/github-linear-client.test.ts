@@ -93,6 +93,38 @@ describe("GitHub App", () => {
     expect(await gh.getPullRequestDiff("a/b", 6)).toBeNull();
   });
 
+  it("correção: alvo, token só leitura do repositório, rascunho com o diff aplicado e união da versão aprovada", async () => {
+    const bodies: Record<string, any> = {};
+    const f = fakeFetch({
+      "POST /app/installations/9/access_tokens": ({ body }) => ((bodies.token = body), Response.json({ token: body ? "ghs_leitura" : "t", expires_at: new Date(NOW + 3600_000).toISOString() })),
+      "GET /repos/a/b/pulls/5": () => Response.json({ state: "open", draft: false, head: { sha: "base1", ref: "feat-x", repo: { full_name: "a/b" } }, base: { repo: { full_name: "a/b", default_branch: "main" } } }),
+      "GET /repos/a/b/contents/src/x.ts?ref=base1": () => Response.json({ sha: "blob1", encoding: "base64", content: Buffer.from("a\nb\nc\n").toString("base64") }),
+      "GET /repos/a/b/git/commits/base1": () => Response.json({ tree: { sha: "tree1" } }),
+      "POST /repos/a/b/git/trees": ({ body }) => ((bodies.tree = body), Response.json({ sha: "tree2" })),
+      "POST /repos/a/b/git/commits": ({ body }) => ((bodies.commit = body), Response.json({ sha: "fix1" })),
+      "POST /repos/a/b/git/refs": () => Response.json({ message: "Reference already exists" }, { status: 422 }),
+      "PATCH /repos/a/b/git/refs/heads/echo/fix-pr-5": ({ body }) => ((bodies.ref = body), Response.json({})),
+      "POST /repos/a/b/pulls": ({ body }) => ((bodies.pr = body), Response.json({ number: 6 })),
+      "POST /repos/a/b/merges": ({ body }) => ((bodies.merge = body), Response.json({ sha: "m1" }, { status: 201 })),
+    });
+    const gh = new GithubApp({ appId: "1", privateKey, fetch: f.fetch, now: () => NOW }).forInstallation("9");
+    expect(await gh.target("a/b", 5)).toEqual({ state: "open", headSha: "base1", headRepository: "a/b", repository: "a/b", branch: "feat-x", defaultBranch: "main" });
+    expect(await gh.pull("a/b", 5)).toEqual({ state: "open", headSha: "base1" });
+    expect(await gh.readToken("a/b")).toBe("ghs_leitura");
+    expect(bodies.token).toEqual({ repositories: ["b"], permissions: { contents: "read" } });
+
+    const patch = ["diff --git a/src/x.ts b/src/x.ts", "--- a/src/x.ts", "+++ b/src/x.ts", "@@ -1,3 +1,3 @@", " a", "-b", "+B", " c", ""].join("\n");
+    expect(await gh.createFixDraft({ repo: "a/b", base: "feat-x", baseSha: "base1", branch: "echo/fix-pr-5", title: "Correção", body: "corpo", patch })).toEqual({ number: 6, headSha: "fix1" });
+    expect(bodies.tree).toEqual({ base_tree: "tree1", tree: [{ path: "src/x.ts", mode: "100644", type: "blob", content: "a\nB\nc\n" }] });
+    expect(bodies.commit).toMatchObject({ tree: "tree2", parents: ["base1"] });
+    expect(bodies.ref).toEqual({ sha: "fix1", force: true }); // branch do Echo que já existia
+    expect(bodies.pr).toMatchObject({ head: "echo/fix-pr-5", base: "feat-x", draft: true });
+    await expect(gh.createFixDraft({ repo: "a/b", base: "feat-x", baseSha: "base1", branch: "echo/fix-pr-5", title: "t", body: "b", patch: patch.replace(" a\n", " z\n") })).rejects.toThrow(/contexto não bate/);
+
+    expect(await gh.mergeFix({ repo: "a/b", base: "feat-x", sha: "fix1", message: "m" })).toEqual({ sha: "m1" });
+    expect(bodies.merge).toEqual({ base: "feat-x", head: "fix1", commit_message: "m" });
+  });
+
   it("404 vira null; último commit e PR pela branch", async () => {
     const { gh } = setup();
     expect(await gh.getPullRequest("org-teste/app", 7)).toBeNull();

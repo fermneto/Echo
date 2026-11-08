@@ -1,9 +1,9 @@
 // Adaptador do GitHub (GitHub App) para a porta CodeHost, por HTTP, sem SDK.
 // Token de instalação de 1 hora, renovado num só lugar. Somente leitura: escrever é com packages/actions.
 import { createSign } from "node:crypto";
-import { FileChangedError, trustedLogin, type CodeHost, type CodeWriter, type CommitIdentity, type FixDraftInput, type FixMergeInput, type PathEdits, type RepoFiles } from "./index.ts";
+import { FileChangedError, trustedLogin, type CodeHost, type CodeWriter, type CommitIdentity, type PathEdits, type RepoFiles } from "./index.ts";
+import { applyFilePatch, PatchConflictError, splitUnifiedDiff, type FixTarget, type PullHead } from "@echo/domain";
 import { checksStateOf } from "./github.ts";
-import { applyPatch } from "./patch.ts";
 import { taskKeyFrom, type ChecksState, type ExternalPullRequest, type LivePullRequest } from "./normalized.ts";
 import { RefreshingToken } from "./tokens.ts";
 
@@ -18,23 +18,6 @@ export class GithubApiError extends Error {
   ) {
     super(`GitHub ${status} em ${path}${detail ? `: ${detail}` : ""}`);
   }
-}
-
-/**
- * A porta de leitura da correção (FixCodeHost, em @echo/agents) sobre o GitHub de uma instalação: usada pelo
- * reviewer (abrir a correção) e pelo painel (conferir o rascunho antes de aprovar).
- */
-export function fixHostOf(gh: GithubCodeHost) {
-  return {
-    target: (repo: string, n: number) => gh.fixTarget(repo, n),
-    readToken: (repo: string) => gh.readOnlyToken(repo),
-    pull: (repo: string, n: number) => gh.pullHead(repo, n),
-  };
-}
-
-/** Correção que não adianta repetir (rascunho mudou, conflito ao unir): o executor marca como falha na hora. */
-export class FixRefused extends Error {
-  override name = "FixRefused";
 }
 
 const b64url = (data: string | Buffer) => Buffer.from(data).toString("base64url");
@@ -144,18 +127,6 @@ export class GithubApp {
       this.tokens.set(installationId, t);
     }
     return t.get();
-  }
-
-  /**
-   * Token de 1 hora só para um repositório e só `contents: read` (correção, etapa 10): fica no proxy de Git do
-   * ambiente isolado, nunca dentro dele. Não é guardado: cada sessão pede o seu.
-   */
-  async readOnlyToken(installationId: string, repo: string): Promise<string> {
-    const { data } = await this.request<{ token: string }>(`/app/installations/${installationId}/access_tokens`, async () => this.jwt(), {
-      method: "POST",
-      body: { repositories: [repo.split("/")[1]], permissions: { contents: "read" } },
-    });
-    return data.token;
   }
 
   /** Reconciliação: pede de novo as entregas que falharam (até 100 mais recentes). */
@@ -277,6 +248,96 @@ export class GithubCodeHost implements CodeHost, CodeWriter, RepoFiles {
     return { headSha, files, totalChars: patch.length, patch };
   }
 
+  // ---------- Correção (etapa 10)
+
+  /** O PR como está agora, para decidir se a correção pode rodar (aberto, mesma versão, sem fork). */
+  async target(repo: string, number: number): Promise<FixTarget | null> {
+    const pr = await this.getOrNull<any>(`/repos/${repo}/pulls/${number}`);
+    if (!pr?.head?.sha) return null;
+    return {
+      state: pr.merged_at ? "merged" : pr.state === "closed" ? "closed" : pr.draft ? "draft" : "open",
+      headSha: pr.head.sha,
+      headRepository: pr.head.repo?.full_name ?? "",
+      repository: pr.base?.repo?.full_name ?? repo,
+      branch: pr.head.ref,
+      defaultBranch: pr.base?.repo?.default_branch ?? "main",
+    };
+  }
+
+  /** Estado e versão de um PR (o original ou o rascunho), conferidos na hora da aprovação. */
+  async pull(repo: string, number: number): Promise<PullHead | null> {
+    const pr = await this.getOrNull<any>(`/repos/${repo}/pulls/${number}`);
+    if (!pr?.head?.sha) return null;
+    return { state: pr.merged_at ? "merged" : pr.state === "closed" ? "closed" : "open", headSha: pr.head.sha };
+  }
+
+  /** Token de 1 h só deste repositório e só `contents: read`, para o ambiente isolado clonar o código. */
+  async readToken(repo: string): Promise<string> {
+    const name = repo.split("/")[1] ?? repo;
+    const { data } = await this.app.request<{ token: string }>(`/app/installations/${this.installationId}/access_tokens`, async () => this.app.jwt(), {
+      method: "POST",
+      body: { repositories: [name], permissions: { contents: "read" } },
+    });
+    return data.token;
+  }
+
+  private send<T>(path: string, method: string, body: unknown) {
+    return this.app.request<T>(path, () => this.app.installationToken(this.installationId), { method, body });
+  }
+
+  /** Conteúdo de um arquivo numa versão; null se não existe. */
+  private async fileAt(repo: string, path: string, ref: string): Promise<string | null> {
+    const data = await this.getOrNull<{ sha: string; content?: string; encoding?: string }>(`/repos/${repo}/contents/${path.split("/").map(encodeURIComponent).join("/")}?ref=${ref}`);
+    if (!data) return null;
+    // Acima de 1 MB a API de conteúdo não manda o corpo: lê pelo blob.
+    if (data.encoding === "base64" && data.content) return Buffer.from(data.content, "base64").toString("utf8");
+    return this.readBlob(repo, data.sha);
+  }
+
+  /**
+   * Rascunho da correção: aplica o diff (já conferido) sobre a versão analisada, num commit cujo pai é essa
+   * versão, na branch `branch` (só do Echo), e abre o PR em rascunho apontando para a branch do PR original.
+   * Diff que não bate com o código recusa tudo (PatchConflictError), sem branch nem PR.
+   */
+  async createFixDraft(input: { repo: string; base: string; baseSha: string; branch: string; title: string; body: string; patch: string }): Promise<{ number: number; headSha: string }> {
+    const { repo } = input;
+    const tree: { path: string; mode: string; type: "blob"; content: string }[] = [];
+    for (const f of splitUnifiedDiff(input.patch)) {
+      const original = f.status === "added" ? "" : await this.fileAt(repo, f.path, input.baseSha);
+      if (original === null) throw new PatchConflictError(`${f.path} não existe na versão ${input.baseSha.slice(0, 7)}`);
+      tree.push({ path: f.path, mode: "100644", type: "blob", content: applyFilePatch(original, f.hunks) });
+    }
+    if (!tree.length) throw new PatchConflictError("diff vazio");
+    const { data: baseCommit } = await this.get<{ tree: { sha: string } }>(`/repos/${repo}/git/commits/${input.baseSha}`);
+    const { data: newTree } = await this.send<{ sha: string }>(`/repos/${repo}/git/trees`, "POST", { base_tree: baseCommit.tree.sha, tree });
+    const { data: commit } = await this.send<{ sha: string }>(`/repos/${repo}/git/commits`, "POST", { message: input.title, tree: newTree.sha, parents: [input.baseSha] });
+    try {
+      await this.send(`/repos/${repo}/git/refs`, "POST", { ref: `refs/heads/${input.branch}`, sha: commit.sha });
+    } catch (err) {
+      // A branch já existe (correção anterior recusada ou falha): é só do Echo, aponta para o commit novo.
+      if (!(err instanceof GithubApiError && err.status === 422)) throw err;
+      await this.send(`/repos/${repo}/git/refs/heads/${input.branch.split("/").map(encodeURIComponent).join("/")}`, "PATCH", { sha: commit.sha, force: true });
+    }
+    try {
+      const { data: pr } = await this.send<{ number: number }>(`/repos/${repo}/pulls`, "POST", { title: input.title, body: input.body, head: input.branch, base: input.base, draft: true });
+      return { number: pr.number, headSha: commit.sha };
+    } catch (err) {
+      if (!(err instanceof GithubApiError && err.status === 422)) throw err;
+      const existing = await this.findPullRequestByBranch(repo, input.branch);
+      if (!existing || existing.state === "closed" || existing.state === "merged") throw err;
+      return { number: existing.number, headSha: commit.sha };
+    }
+  }
+
+  /**
+   * União aprovada pelo autor: leva exatamente a versão aprovada do rascunho para a branch do PR (merge do commit,
+   * não do PR, porque o GitHub não une PR em rascunho; o rascunho aparece como unido em seguida).
+   */
+  async mergeFix(input: { repo: string; base: string; sha: string; message: string }): Promise<{ sha: string | null }> {
+    const { data } = await this.send<{ sha?: string } | undefined>(`/repos/${input.repo}/merges`, "POST", { base: input.base, head: input.sha, commit_message: input.message });
+    return { sha: data?.sha ?? null };
+  }
+
   async findPullRequestByBranch(repo: string, branch: string): Promise<ExternalPullRequest | null> {
     const owner = repo.split("/")[0];
     const { data } = await this.get<any[]>(`/repos/${repo}/pulls?state=all&sort=updated&direction=desc&per_page=5&head=${encodeURIComponent(`${owner}:${branch}`)}`);
@@ -311,114 +372,7 @@ export class GithubCodeHost implements CodeHost, CodeWriter, RepoFiles {
     return { state, total: data.total_count, failed, running, url: `https://github.com/${repo}/commit/${ref}/checks` };
   }
 
-  // ---------- Correção (etapa 10): leitura para o reviewer
-
-  /** O PR como está agora, para decidir se a correção pode começar (fork, fechado, versão). */
-  async fixTarget(repo: string, number: number): Promise<{ state: ExternalPullRequest["state"]; headSha: string; headRepository: string; repository: string; branch: string; defaultBranch: string } | null> {
-    const pr = await this.getOrNull<any>(`/repos/${repo}/pulls/${number}`);
-    if (!pr) return null;
-    return {
-      state: toPr(repo, pr).state,
-      headSha: pr.head.sha,
-      // Branch apagada de um fork chega sem repositório: conta como fork (não corrige).
-      headRepository: pr.head.repo?.full_name ?? "",
-      repository: repo,
-      branch: pr.head.ref,
-      defaultBranch: pr.base.repo?.default_branch ?? "main",
-    };
-  }
-
-  /** Estado e versão de um PR (o original e o rascunho), conferidos antes de unir. */
-  async pullHead(repo: string, number: number): Promise<{ state: "open" | "closed" | "merged"; headSha: string } | null> {
-    const pr = await this.getOrNull<any>(`/repos/${repo}/pulls/${number}`);
-    if (!pr) return null;
-    return { state: pr.merged_at ? "merged" : pr.state === "closed" ? "closed" : "open", headSha: pr.head.sha };
-  }
-
-  readOnlyToken(repo: string): Promise<string> {
-    return this.app.readOnlyToken(this.installationId, repo);
-  }
-
   // ---------- Escritas (só packages/actions, depois de aprovação)
-
-  private send<T>(path: string, body: unknown, method = "POST") {
-    return this.app.request<T>(path, () => this.app.installationToken(this.installationId), { method, body });
-  }
-
-  /** Conteúdo e modo dos arquivos na versão revisada: a árvore de uma vez; o conteúdo, só do que o diff toca. */
-  private async baseFiles(repo: string, baseSha: string) {
-    const { data: commit } = await this.get<{ tree: { sha: string } }>(`/repos/${repo}/git/commits/${baseSha}`);
-    const { data: tree } = await this.get<{ tree: { path: string; mode: string; type: string; sha: string }[]; truncated: boolean }>(`/repos/${repo}/git/trees/${commit.tree.sha}?recursive=1`);
-    const entries = new Map(tree.tree.filter((e) => e.type === "blob").map((e) => [e.path, e]));
-    const read = async (path: string): Promise<string | null> => {
-      const e = entries.get(path);
-      if (e) {
-        const { data } = await this.get<{ content: string; encoding: string }>(`/repos/${repo}/git/blobs/${e.sha}`);
-        return Buffer.from(data.content, data.encoding === "base64" ? "base64" : "utf8").toString("utf8");
-      }
-      if (!tree.truncated) return null;
-      // Árvore grande demais veio cortada: pergunta pelo arquivo direto.
-      const c = await this.getOrNull<{ content: string }>(`/repos/${repo}/contents/${path.split("/").map(encodeURIComponent).join("/")}?ref=${baseSha}`);
-      return c ? Buffer.from(c.content, "base64").toString("utf8") : null;
-    };
-    return { treeSha: commit.tree.sha, mode: (path: string) => entries.get(path)?.mode ?? "100644", read };
-  }
-
-  /**
-   * Rascunho da correção: aplica o diff sobre a versão revisada, grava um commit na branch do Echo e abre o PR
-   * em rascunho contra a branch do PR original. Outra tentativa do outbox devolve o rascunho já aberto.
-   */
-  async openFixDraft(input: FixDraftInput): Promise<{ number: number; headSha: string }> {
-    const owner = input.repo.split("/")[0];
-    const { data: open } = await this.get<any[]>(`/repos/${input.repo}/pulls?state=open&head=${encodeURIComponent(`${owner}:${input.branch}`)}&base=${encodeURIComponent(input.base)}`);
-    if (open[0]) return { number: open[0].number, headSha: open[0].head.sha };
-
-    const base = await this.baseFiles(input.repo, input.baseSha);
-    const files = await applyPatch(input.patch, base.read);
-    const { data: tree } = await this.send<{ sha: string }>(`/repos/${input.repo}/git/trees`, {
-      base_tree: base.treeSha,
-      tree: files.map((f) => ({ path: f.path, mode: f.added ? "100644" : base.mode(f.path), type: "blob", content: f.content })),
-    });
-    const { data: commit } = await this.send<{ sha: string }>(`/repos/${input.repo}/git/commits`, { message: input.title, tree: tree.sha, parents: [input.baseSha] });
-    try {
-      await this.send(`/repos/${input.repo}/git/refs`, { ref: `refs/heads/${input.branch}`, sha: commit.sha });
-    } catch (err) {
-      // Branch do Echo sobrou de uma tentativa anterior sem PR: aponta para o commit novo.
-      if (!(err instanceof GithubApiError && err.status === 422)) throw err;
-      await this.send(`/repos/${input.repo}/git/refs/heads/${input.branch}`, { sha: commit.sha, force: true }, "PATCH");
-    }
-    const { data: pr } = await this.send<{ number: number; head: { sha: string } }>(`/repos/${input.repo}/pulls`, { title: input.title, body: input.body, head: input.branch, base: input.base, draft: input.draft ?? true });
-    return { number: pr.number, headSha: pr.head.sha };
-  }
-
-  /**
-   * Une o rascunho aprovado na branch do PR original. Recusa se o rascunho fechou ou mudou de versão depois da
-   * aprovação (`sha` é a versão aprovada), ou se o PR original não está aberto.
-   */
-  async mergeFix(input: FixMergeInput): Promise<{ sha: string | null }> {
-    const draft = await this.pullHead(input.repo, input.number);
-    if (!draft || draft.state === "closed") throw new FixRefused("rascunho fechado");
-    if (draft.headSha !== input.sha) throw new FixRefused("o rascunho mudou depois da aprovação");
-    if (input.prNumber) {
-      const original = await this.pullHead(input.repo, input.prNumber);
-      if (!original || original.state !== "open") throw new FixRefused("o PR original não está aberto");
-    }
-    try {
-      const { data } = await this.send<{ sha?: string } | undefined>(`/repos/${input.repo}/merges`, {
-        base: input.base,
-        head: input.sha,
-        commit_message: `Correção do Echo aprovada (rascunho #${input.number})`,
-      });
-      // 204: a versão já estava na branch (outra tentativa unira antes).
-      return { sha: data?.sha ?? null };
-    } catch (err) {
-      if (err instanceof GithubApiError && err.status === 409) throw new FixRefused("conflito ao unir: a branch do PR mudou");
-      if (err instanceof GithubApiError && err.status === 404) throw new FixRefused("a branch do PR não existe mais");
-      throw err;
-    }
-  }
-
-  // ---------- Escritas comuns
 
   async comment(repo: string, number: number, body: string): Promise<{ id: string }> {
     const { data } = await this.app.request<{ id: number }>(`/repos/${repo}/issues/${number}/comments`, () => this.app.installationToken(this.installationId), { method: "POST", body: { body } });

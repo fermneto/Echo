@@ -135,7 +135,9 @@ export interface FixDeps {
   data: (orgId: string) => AgentData;
   fixes: (orgId: string) => FixStore;
   /** Sem a porta do GitHub, não há correção. */
-  codeHost: (orgId: string) => FixCodeHost | null;
+  codeHost: (orgId: string) => FixCodeHost | null | Promise<FixCodeHost | null>;
+  /** Pessoa do Echo dona da conta do Slack (clique em Aplicar/Recusar). Sem ela, a decisão pelo Slack não roda. */
+  personBySlackUser?: (orgId: string, slackUserId: string) => Promise<string | null>;
   /** Sem agente e ambiente provisionados (FIX_AGENT_ID, FIX_ENVIRONMENT_ID), não há correção. */
   sandbox: FixSandbox | null;
   outbox: (orgId: string) => FixOutbox;
@@ -182,6 +184,51 @@ export function draftBody(input: { prNumber: number; findings: Finding[]; report
   ].join("\n");
 }
 
+// ---------- Aviso ao autor e clique no Slack
+
+export const FIX_APPROVE_ACTION_ID = "correcao_aplicar";
+export const FIX_DECLINE_ACTION_ID = "correcao_recusar";
+
+/** Mensagem ao autor quando o rascunho fica pronto. Texto por regra; não é aprovação do PR. */
+export function fixReadyMessage(input: { fixId: string; repository: string; prNumber: number; draftNumber: number }): { text: string; blocks: unknown[] } {
+  const url = `https://github.com/${input.repository}/pull/${input.draftNumber}`;
+  const text = `Echo: correção preparada para o seu PR #${input.prNumber} (${input.repository}), no rascunho #${input.draftNumber}. Isto não é uma aprovação do PR. Se concordar, Aplicar leva a correção para a branch do PR.`;
+  return {
+    text,
+    blocks: [
+      { type: "section", text: { type: "mrkdwn", text: `*Echo* · correção preparada para o seu PR #${input.prNumber} (\`${input.repository}\`), no rascunho <${url}|#${input.draftNumber}>.\nIsto não é uma aprovação do PR e não substitui a revisão de uma pessoa. Se concordar, *Aplicar* leva a correção para a branch do PR.` } },
+      {
+        type: "actions",
+        elements: [
+          { type: "button", action_id: FIX_APPROVE_ACTION_ID, style: "primary", text: { type: "plain_text", text: "Aplicar no PR" }, value: input.fixId },
+          { type: "button", action_id: FIX_DECLINE_ACTION_ID, text: { type: "plain_text", text: "Recusar" }, value: input.fixId },
+          { type: "button", action_id: "correcao_ver", text: { type: "plain_text", text: "Ver o rascunho" }, url },
+        ],
+      },
+    ],
+  };
+}
+
+/** Clique de Aplicar ou Recusar (já verificado pela API). */
+export function fixClick(payload: unknown): { slackUserId: string; fixId: string; decision: "approve" | "decline" } | null {
+  const p = payload as { type?: string; user?: { id?: string }; actions?: { action_id?: string; value?: string }[] };
+  if (p?.type !== "block_actions" || !p.user?.id) return null;
+  const a = p.actions?.find((x) => x.action_id === FIX_APPROVE_ACTION_ID || x.action_id === FIX_DECLINE_ACTION_ID);
+  if (!a?.value || !/^[0-9a-f-]{36}$/i.test(a.value)) return null;
+  return { slackUserId: p.user.id, fixId: a.value, decision: a.action_id === FIX_APPROVE_ACTION_ID ? "approve" : "decline" };
+}
+
+/** Resposta curta ao clique, por regra. */
+export const FIX_DECISION_TEXT: Record<FixDecisionOutcome["status"], string> = {
+  approved: "Aprovação registrada: a correção vai para a branch do PR em instantes.",
+  declined: "Correção recusada. Nada muda no PR.",
+  denied: "Só quem abriu o PR decide sobre a correção.",
+  not_found: "Correção não encontrada.",
+  unavailable: "O GitHub não está ligado agora; tente de novo depois.",
+  conflict: "Esta correção já foi decidida.",
+  refused: "A correção não pode mais ser aplicada (o rascunho ou o PR mudou).",
+};
+
 // ---------- Fluxo
 
 export type FixOutcome =
@@ -204,14 +251,14 @@ export function createFix(deps: FixDeps) {
 
   /** Revisões que podem virar correção agora. Vazio sem ambiente ou sem a porta do GitHub. */
   async function pending(orgId: string): Promise<string[]> {
-    if (!deps.sandbox || !deps.codeHost(orgId)) return [];
+    if (!deps.sandbox || !(await deps.codeHost(orgId))) return [];
     return (await deps.fixes(orgId).candidates()).map((c) => c.reviewId);
   }
 
   async function run(orgId: string, reviewId: string): Promise<FixOutcome> {
     const started = performance.now();
     const base = (): AgentRun => ({ flow: "fix", orgId, durationMs: Math.round(performance.now() - started), result: "ok" });
-    const host = deps.codeHost(orgId);
+    const host = await deps.codeHost(orgId);
     if (!deps.sandbox || !host) {
       await record({ ...base(), result: "skipped", error: "sem ambiente ou sem GitHub" });
       return { status: "skipped", reason: "sem ambiente ou sem GitHub" };
@@ -309,7 +356,21 @@ export function createFix(deps: FixDeps) {
         if (await store.markReady(fix.id, { number: draft.number, headSha: draft.headSha })) {
           out.ready++;
           await record({ flow: "fix_ready", orgId, durationMs: 0, result: "ok" });
-          await delegate(orgId, fix.id);
+          // A delegação escrita pelo autor decide primeiro; sem ela (ou sem cobrir), o autor decide pelo Slack:
+          // Aplicar leva a correção para a branch do PR; Recusar encerra.
+          // Erro na delegação não pode deixar a correção pronta sem o aviso ao autor.
+          const delegated = await delegate(orgId, fix.id).catch(async (err: unknown) => {
+            await record({ flow: "fix_delegation", orgId, durationMs: 0, result: "failed", error: String(err) });
+            return false;
+          });
+          if (!delegated && fix.pr.authorId) {
+            await deps.outbox(orgId).enqueue({
+              type: "slack.dm",
+              target: `slack:${fix.pr.authorId}`,
+              payload: { personId: fix.pr.authorId, ...fixReadyMessage({ fixId: fix.id, repository: fix.pr.repository, prNumber: fix.pr.number, draftNumber: draft.number }) },
+              idempotencyKey: `fix_ready_dm:${fix.id}`,
+            });
+          }
         }
       } else if (r?.state === "failed") {
         if (await store.markFailed(fix.id, "draft_queued", `rascunho não criado: ${r.error ?? "erro"}`)) out.failed++;
@@ -348,7 +409,7 @@ export function createFix(deps: FixDeps) {
       if (!(await store.decide(fixId, by, "declined", clock.now(), via))) return finish({ status: "conflict" }, "skipped");
       return finish({ status: "declined" }, "ok");
     }
-    const host = deps.codeHost(orgId);
+    const host = await deps.codeHost(orgId);
     if (!host) return finish({ status: "unavailable" }, "skipped");
     const [draft, pr] = await Promise.all([
       fix.draftPrNumber ? host.pull(fix.pr.repository, fix.draftPrNumber) : Promise.resolve(null),
@@ -373,21 +434,21 @@ export function createFix(deps: FixDeps) {
    * rascunho), registrada como aprovação do autor pela delegação, e o autor recebe o aviso com o motivo. Não
    * cobrindo ou na dúvida, a correção espera o autor, com a nota do porquê.
    */
-  async function delegate(orgId: string, fixId: string): Promise<void> {
+  async function delegate(orgId: string, fixId: string): Promise<boolean> {
     const del = deps.delegation;
-    if (!del) return;
+    if (!del) return false;
     const started = performance.now();
     const store = deps.fixes(orgId);
     const fix = await store.get(fixId);
-    if (!fix?.pr.authorId || fix.state !== "ready") return;
+    if (!fix?.pr.authorId || fix.state !== "ready") return false;
     const owner = await del.of(orgId, fix.pr.authorId);
-    if (!owner?.text) return;
+    if (!owner?.text) return false;
     const ms = () => Math.round(performance.now() - started);
     const gate = delegatedFixGate(owner.text, { files: fix.files, tests: fix.tests });
     if (!gate.ok) {
       await store.noteDelegation(fixId, `Ficou com você: ${gate.reason}.`);
       await record({ flow: "fix_delegation", orgId, durationMs: ms(), result: "skipped", error: gate.reason, tools: ["travas"] });
-      return;
+      return false;
     }
     const out = await runDelegation(del.judge, { decision: "aplicar_correcao", ownerName: owner.name, delegation: owner.text, fix: { repository: fix.pr.repository, prNumber: fix.pr.number, files: fix.files, tests: fix.tests } }, del.timeoutMs);
     const usage = { model: out.model, costUsd: 0, ...(out.inputTokens !== undefined ? { inputTokens: out.inputTokens } : {}), ...(out.outputTokens !== undefined ? { outputTokens: out.outputTokens } : {}) };
@@ -395,7 +456,7 @@ export function createFix(deps: FixDeps) {
       const why = out.verdict ? out.verdict.motivo : `o juiz não respondeu (${out.error ?? "sem resposta"})`;
       await store.noteDelegation(fixId, `Ficou com você: ${why}`.slice(0, DELEGATION_RULES.maxNoteChars));
       await record({ flow: "fix_delegation", orgId, durationMs: ms(), ...usage, result: out.verdict ? "skipped" : "fallback", error: why, tools: ["travas", "juiz"] });
-      return;
+      return false;
     }
     const since = owner.updatedAt ? ` de ${owner.updatedAt.toISOString().slice(0, 10)}` : "";
     const note = `Unida pela sua delegação${since}: ${out.verdict.motivo}`.slice(0, DELEGATION_RULES.maxNoteChars);
@@ -403,7 +464,7 @@ export function createFix(deps: FixDeps) {
     if (r.status !== "approved") {
       await store.noteDelegation(fixId, `Ficou com você: a delegação cobria, mas a conferência do rascunho recusou (${"reason" in r ? r.reason : r.status}).`);
       await record({ flow: "fix_delegation", orgId, durationMs: ms(), ...usage, result: "skipped", error: `conferência: ${r.status}`, tools: ["travas", "juiz"] });
-      return;
+      return false;
     }
     await deps.outbox(orgId).enqueue({
       type: "slack.dm",
@@ -412,9 +473,19 @@ export function createFix(deps: FixDeps) {
       idempotencyKey: `fix_delegated:${fixId}`,
     });
     await record({ flow: "fix_delegation", orgId, durationMs: ms(), ...usage, result: "ok", tools: ["travas", "juiz", "github.merge_fix", "slack.dm"] });
+    return true;
   }
 
-  return { pending, run, sync, decide };
+  /** Clique em Aplicar ou Recusar no Slack. Null quando o clique não é destes botões. */
+  async function decideFromSlack(orgId: string, payload: unknown): Promise<FixDecisionOutcome | null> {
+    const click = fixClick(payload);
+    if (!click) return null;
+    const by = deps.personBySlackUser ? await deps.personBySlackUser(orgId, click.slackUserId) : null;
+    if (!by) return { status: "denied" };
+    return decide(orgId, by, click.fixId, click.decision);
+  }
+
+  return { pending, run, sync, decide, decideFromSlack };
 }
 
 export type Fix = ReturnType<typeof createFix>;

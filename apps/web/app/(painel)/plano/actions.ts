@@ -25,9 +25,9 @@ export async function decidirCorrecao(fixId: string, decision: "approve" | "decl
   if (!db) return { final: false, message: "Demonstração sem banco: nada foi decidido." };
   const cfg = loadConfig("web");
   const { orgId, personId } = panelIds(me);
-  const [{ serverFix }, { fixHostOf, githubForOrg, platformsFromEnv }] = await Promise.all([import("@echo/agents/server"), import("@echo/connectors")]);
+  const [{ serverFix }, { githubForOrg, platformsFromEnv }] = await Promise.all([import("@echo/agents/server"), import("@echo/connectors")]);
   const gh = decision === "approve" ? await githubForOrg(db, platformsFromEnv(cfg), orgId) : undefined;
-  const host = gh ? fixHostOf(gh) : null;
+  const host = gh ?? null;
   const r = await serverFix(db, { codeHost: () => host }).decide(orgId, personId, fixId, decision);
   revalidatePath("/plano");
   switch (r.status) {

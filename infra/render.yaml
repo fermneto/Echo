@@ -1,7 +1,7 @@
-# Blueprint da Render para o evento: banco, API, painel, worker, triagem e reviewer (correção da revisão noturna).
+# Blueprint da Render para o evento: banco, API, painel, worker e triagem (o reviewer está comentado no fim).
 # Variáveis com sync: false são pedidas só na criação; as novas entram pelo painel de cada serviço.
 #
-# Planos (B7): banco, API e painel no gratuito; worker, triagem e reviewer são pagos (a Render não tem worker nem serviço
+# Planos (B7): banco, API e painel no gratuito; worker e triagem são pagos (a Render não tem worker nem serviço
 # privado gratuito).
 # - O banco gratuito expira 30 dias depois de criado e não tem backup.
 # - API e painel gratuitos hibernam depois de ~15 min parados: abra o painel e chame /health antes da demo.
@@ -129,6 +129,12 @@ services:
       # Respostas, nota do dia, revisão noturna e relatório. Sem ela, o agente responde só por regra.
       - key: ANTHROPIC_API_KEY
         sync: false
+      # Correção (etapa 10) no Managed Agents: IDs de `pnpm --filter @echo/reviewer provision`. Sem eles, não há
+      # correção (a revisão noturna continua).
+      - key: FIX_AGENT_ID
+        sync: false
+      - key: FIX_ENVIRONMENT_ID
+        sync: false
       # Repositório do espelho das notas, no formato org/brains.
       - key: BRAINS_REPOSITORY
         sync: false
@@ -159,7 +165,7 @@ services:
 
   # Modelo aberto da triagem da revisão noturna e do resumo do dia: Ollama com Qwen3 4B Instruct (Apache 2.0)
   # embutido na imagem.
-  # Serviço privado: sem endereço público; só o worker, o reviewer e o painel (currículo do cadastro) chegam nele. Plano pago (não há serviço privado gratuito):
+  # Serviço privado: sem endereço público; só o worker e o painel (currículo do cadastro) chegam nele. Plano pago (não há serviço privado gratuito):
   # pro = 2 CPU e 4 GB. Só reconstrói quando o Dockerfile dele muda (cada build baixa ~2,5 GB de modelo).
   - type: pserv
     name: echo-triage
@@ -172,37 +178,22 @@ services:
       paths:
         - infra/Dockerfile.ollama
 
-  # Correção em ambiente isolado (etapa 10) e delegação da correção: outro worker pago (starter).
-  # Preencha FIX_AGENT_ID e FIX_ENVIRONMENT_ID com `pnpm --filter @echo/reviewer provision` (uma vez) e o mesmo
-  # GitHub App do worker. Sem eles, o reviewer fica no ar sem abrir sessão. O rascunho e a união são ações do
-  # outbox, executadas pelo echo-worker; o juiz da delegação é o mesmo modelo aberto do echo-triage.
-  - type: worker
-    name: echo-reviewer
-    runtime: docker
-    region: oregon
-    plan: starter
-    dockerfilePath: ./infra/Dockerfile.node
-    dockerContext: .
-    envVars:
-      - key: APP
-        value: reviewer
-      - key: DATABASE_URL
-        fromDatabase:
-          name: echo-db
-          property: connectionString
-      - key: ANTHROPIC_API_KEY
-        sync: false
-      - key: FIX_AGENT_ID
-        sync: false
-      - key: FIX_ENVIRONMENT_ID
-        sync: false
-      - key: GITHUB_APP_ID
-        sync: false
-      - key: GITHUB_PRIVATE_KEY
-        sync: false
-      - key: SLM_OLLAMA_URL
-        fromService:
-          type: pserv
-          name: echo-triage
-          property: hostport
-      - fromGroup: echo-shared
+  # Reviewer (vídeos, mais tarde). A correção (etapa 10) roda no echo-worker: a sessão fica na nuvem do Managed
+  # Agents, então não precisa de outro serviço pago. Este bloco fica comentado até o reviewer ter trabalho próprio.
+  # - type: worker
+  #   name: echo-reviewer
+  #   runtime: docker
+  #   region: oregon
+  #   plan: starter
+  #   dockerfilePath: ./infra/Dockerfile.node
+  #   dockerContext: .
+  #   envVars:
+  #     - key: APP
+  #       value: reviewer
+  #     - key: DATABASE_URL
+  #       fromDatabase:
+  #         name: echo-db
+  #         property: connectionString
+  #     - key: ANTHROPIC_API_KEY
+  #       sync: false
+  #     - fromGroup: echo-shared

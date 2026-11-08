@@ -6,7 +6,7 @@ import { LogRunRecorder } from "@echo/observability";
 import { describe, expect, it } from "vitest";
 import type { AgentData } from "./data.ts";
 import type { DelegationModel } from "./delegation.ts";
-import { createFix, draftBody, type FixCandidate, type FixDecidedVia, type FixDelegationDeps, type FixCodeHost, type FixSandboxInput, type FixSandboxResult, type FixState, type FixStore, type StoredFix, validFixReport } from "./fix.ts";
+import { createFix, draftBody, FIX_APPROVE_ACTION_ID, FIX_DECLINE_ACTION_ID, fixClick, type FixCandidate, type FixDecidedVia, type FixDelegationDeps, type FixCodeHost, type FixSandboxInput, type FixSandboxResult, type FixState, type FixStore, type StoredFix, validFixReport } from "./fix.ts";
 import type { Finding } from "./night-review.ts";
 
 const NOW = new Date("2026-11-09T06:00:00Z");
@@ -110,7 +110,10 @@ describe("correção", () => {
     // Só o autor aprova; a união leva a versão do rascunho e a aprovação registrada.
     expect(await s.flow.decide("org", "eduardo", "fix1", "approve")).toEqual({ status: "denied" });
     expect(await s.flow.decide("org", "fernando", "fix1", "approve")).toEqual({ status: "approved" });
-    expect(s.outbox[1]).toMatchObject({ type: "github.merge_fix", approvedBy: "fernando", idempotencyKey: "fix_merge:fix1", payload: { repo: "org/app", number: 45, sha: "d45", base: "ech-128-filtro" } });
+    // Rascunho pronto: o autor recebe Aplicar/Recusar no privado (sem aprovação: é só aviso).
+    expect(s.outbox[1]).toMatchObject({ type: "slack.dm", idempotencyKey: "fix_ready_dm:fix1", payload: { personId: "fernando" } });
+    expect(JSON.stringify(s.outbox[1]!.payload)).toContain("não é uma aprovação");
+    expect(s.outbox[2]).toMatchObject({ type: "github.merge_fix", approvedBy: "fernando", idempotencyKey: "fix_merge:fix1", payload: { repo: "org/app", number: 45, sha: "d45", base: "ech-128-filtro" } });
     expect(await s.flow.decide("org", "fernando", "fix1", "approve")).toMatchObject({ status: "refused", reason: "nao_esta_pronta" });
 
     s.outboxRows.set("fix_merge:fix1", { state: "done", result: { merged: true } });
@@ -129,6 +132,15 @@ describe("correção", () => {
     expect(s.outbox.filter((a) => a.type === "github.merge_fix")).toEqual([]);
     expect(await s.flow.decide("org", "fernando", "fix1", "decline")).toEqual({ status: "declined" });
     expect(s.fixes.get("fix1")!.state).toBe("declined");
+  });
+
+  it("clique no Slack: só Aplicar/Recusar com id válido, e quem clica é a pessoa da conta do Slack", () => {
+    const click = (action_id: string, value: string, user = "UFER") => ({ type: "block_actions", user: { id: user }, actions: [{ action_id, value }] });
+    const id = "00000000-0000-4000-8000-000000000001";
+    expect(fixClick(click(FIX_APPROVE_ACTION_ID, id))).toEqual({ slackUserId: "UFER", fixId: id, decision: "approve" });
+    expect(fixClick(click(FIX_DECLINE_ACTION_ID, id))?.decision).toBe("decline");
+    expect(fixClick(click("confirmar_nota", id))).toBeNull();
+    expect(fixClick(click(FIX_APPROVE_ACTION_ID, "não é id"))).toBeNull();
   });
 
   it("diff com arquivo fora do PR ou de CI é recusado, sem rascunho", async () => {
@@ -212,6 +224,8 @@ describe("correção pela delegação escrita do autor", () => {
     await ready(s);
     expect(s.fixes.get("fix1")).toMatchObject({ state: "approved", decidedBy: "fernando", via: { via: "delegacao", note: "Unida pela sua delegação de 2026-11-08: A delegação libera correção pequena com testes passando." } });
     expect(s.outbox.find((a) => a.type === "github.merge_fix")).toMatchObject({ approvedBy: "fernando", payload: { number: 45, sha: "d45" } });
+    // Unida pela delegação: nada de Aplicar/Recusar para uma correção já unida.
+    expect(s.outbox.some((a) => a.idempotencyKey === "fix_ready_dm:fix1")).toBe(false);
     const dm = s.outbox.find((a) => a.type === "slack.dm")!;
     expect(dm).toMatchObject({ idempotencyKey: "fix_delegated:fix1", payload: { personId: "fernando" } });
     expect((dm.payload as { text: string }).text).toMatch(/^Agente de Fernando: a correção do PR #44 \(org\/app\) foi unida pela sua delegação de 2026-11-08\..*Para desfazer/);
@@ -232,7 +246,9 @@ describe("correção pela delegação escrita do autor", () => {
       await ready(s);
       expect(s.fixes.get("fix1")!.state).toBe("ready");
       expect(s.fixes.get("fix1")!.note).toContain(note);
-      expect(s.outbox.some((a) => a.type === "github.merge_fix" || a.type === "slack.dm")).toBe(false);
+      expect(s.outbox.some((a) => a.type === "github.merge_fix" || a.idempotencyKey === "fix_delegated:fix1")).toBe(false);
+      // Ficou com o autor: ele recebe o Aplicar/Recusar de sempre.
+      expect(s.outbox.some((a) => a.idempotencyKey === "fix_ready_dm:fix1")).toBe(true);
     }
   });
 

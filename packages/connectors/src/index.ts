@@ -72,37 +72,10 @@ export interface CodeWriter {
   putFile(repo: string, path: string, content: string, message: string, previousSha?: string): Promise<{ sha: string }>;
   /** Apaga um arquivo do espelho. Se o arquivo mudou (sha diferente), FileChangedError; se já não existe, nada. */
   deleteFile(repo: string, path: string, sha: string, message: string): Promise<void>;
-  /** Correção (etapa 10): abre o rascunho com o diff conferido. Opcional: sem ele, a ação falha com o motivo. */
-  openFixDraft?(input: FixDraftInput): Promise<{ number: number; headSha: string }>;
-  /** Correção (etapa 10): une o rascunho aprovado na branch do PR, se ele não mudou. */
-  mergeFix?(input: FixMergeInput): Promise<{ sha: string | null }>;
-}
-
-/** Carga de `github.draft_pr` (montada pelo fluxo da correção, depois de `checkFixDiff`). */
-export interface FixDraftInput {
-  repo: string;
-  /** Branch do PR original: o rascunho é aberto contra ela. */
-  base: string;
-  /** Versão revisada, sobre a qual o diff foi feito. */
-  baseSha: string;
-  /** Branch do Echo para o rascunho (echo/fix-pr-N). */
-  branch: string;
-  title: string;
-  body: string;
-  patch: string;
-  draft?: boolean;
-}
-
-/** Carga de `github.merge_fix` (só depois da aprovação do autor ou da delegação escrita por ele). */
-export interface FixMergeInput {
-  repo: string;
-  /** Número do rascunho. */
-  number: number;
-  /** Versão aprovada do rascunho. */
-  sha: string;
-  /** Branch do PR original. */
-  base: string;
-  prNumber?: number;
+  /** Rascunho da correção: commit com o diff sobre `baseSha`, branch do Echo e PR em rascunho para `base`. */
+  createFixDraft(input: { repo: string; base: string; baseSha: string; branch: string; title: string; body: string; patch: string }): Promise<{ number: number; headSha: string }>;
+  /** Leva a versão aprovada do rascunho (`sha`) para a branch do PR (`base`). */
+  mergeFix(input: { repo: string; base: string; sha: string; message: string }): Promise<{ sha: string | null }>;
 }
 
 /** O arquivo mudou no repositório desde a última leitura: a escrita foi recusada, sem sobrescrever. */
@@ -161,8 +134,7 @@ export { ingest, type IngestResult } from "./ingest.ts";
 export { processInbox, receive, routeOrg, slackBotUserIdOf, type Delivery, type InboxJob, type InboxSource, type ProcessOptions } from "./inbox.ts";
 export { answerBlocks, dailyNoteDraftBlocks, fitText, REPLY_TEXT, respondToInteraction, SLACK_ACTIONS, SlackApiError, SlackChat, sourcesLine, type ReplyLang, type SlackClientOptions } from "./slack-client.ts";
 export { RefreshingToken } from "./tokens.ts";
-export { applyPatch, PatchError, type PatchedFile } from "./patch.ts";
-export { appJwt, FixRefused, fixHostOf, GithubApiError, GithubApp, GithubCodeHost, normalizePem, selectDeliveriesToRetry, type GithubAppOptions, type PullRequestHistory, type WebhookDelivery } from "./github-client.ts";
+export { appJwt, GithubApiError, GithubApp, GithubCodeHost, normalizePem, selectDeliveriesToRetry, type GithubAppOptions, type PullRequestHistory, type WebhookDelivery } from "./github-client.ts";
 export { LinearApiError, LinearTracker, toTask, type LinearOptions } from "./linear-client.ts";
 export { BACKFILL_MS, MAX_DETAILS_PER_REPO, openPullRequestNumbers, reconcileGithub, reconcileLinear, type GithubReconciler, type GithubReconcileResult, type LinearReconciler } from "./reconcile.ts";
 export { calendarsForOrg, connectedOrgs, githubForOrg, orgRoute, platformsFromEnv, type PlatformEnv, type Platforms } from "./platforms.ts";

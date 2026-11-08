@@ -83,7 +83,7 @@ export const webSchema = baseSchema.extend({
 
 /**
  * Modelo aberto pequeno (Ollama): triagem da revisão noturna e resumo do dia (worker) e juiz da delegação da
- * correção (reviewer). Endereço do serviço: URL ou host:porta (a Render entrega host:porta). Sem ele, esses fluxos
+ * correção (worker). Endereço do serviço: URL ou host:porta (a Render entrega host:porta). Sem ele, esses fluxos
  * usam só a regra, e nenhuma correção é unida pela delegação.
  */
 const slm = {
@@ -101,10 +101,22 @@ const slm = {
   SSLM_TIMEOUT_MS: z.coerce.number().int().min(500).max(60_000).default(8_000),
 };
 
+/** Correção (etapa 10): roda no worker; o reviewer aceita as mesmas variáveis. */
+const fix = {
+  // Agente e ambiente da correção no Managed Agents, criados uma vez com `pnpm --filter @echo/reviewer provision`.
+  // Sem eles, não há correção.
+  FIX_AGENT_ID: optionalString.pipe(z.string().startsWith("agent_", "precisa começar com agent_").optional()),
+  FIX_ENVIRONMENT_ID: optionalString.pipe(z.string().startsWith("env_", "precisa começar com env_").optional()),
+  // Intervalo da busca por revisões a corrigir e por rascunhos prontos.
+  FIX_SCAN_MS: z.coerce.number().int().min(10_000).default(300_000),
+  // Tempo máximo de uma correção no ambiente isolado.
+  FIX_TIMEOUT_MS: z.coerce.number().int().min(60_000).max(3_600_000).default(1_200_000),
+};
 
 export const workerSchema = baseSchema.extend({
   ...database,
   ...anthropic,
+  ...fix,
   /** Token do bot do Slack (xoxb-…). Sem ele, o worker não fala no Slack. */
   SLACK_BOT_TOKEN: optionalString,
   /** Só para desenvolvimento e testes: outro endereço para a Web API do Slack (ex.: um Slack falso local). */
@@ -145,18 +157,7 @@ export const workerSchema = baseSchema.extend({
 export const reviewerSchema = baseSchema.extend({
   ...database,
   ...anthropic,
-  ...slm,
-  // Agente e ambiente da correção no Managed Agents, criados uma vez com `pnpm --filter @echo/reviewer provision`.
-  // Sem eles, não há correção.
-  FIX_AGENT_ID: optionalString.pipe(z.string().startsWith("agent_", "precisa começar com agent_").optional()),
-  FIX_ENVIRONMENT_ID: optionalString.pipe(z.string().startsWith("env_", "precisa começar com env_").optional()),
-  // GitHub App (o mesmo do worker): lê o PR, pede o token só leitura da sessão e confere o rascunho.
-  GITHUB_APP_ID: optionalString,
-  GITHUB_PRIVATE_KEY: optionalString,
-  // Intervalo da busca por revisões a corrigir e por rascunhos prontos.
-  FIX_SCAN_MS: z.coerce.number().int().min(10_000).default(300_000),
-  // Tempo máximo de uma correção no ambiente isolado.
-  FIX_TIMEOUT_MS: z.coerce.number().int().min(60_000).max(3_600_000).default(1_200_000),
+  ...fix,
 });
 
 export const schemas = { api: apiSchema, web: webSchema, worker: workerSchema, reviewer: reviewerSchema } as const;

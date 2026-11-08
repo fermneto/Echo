@@ -326,9 +326,6 @@ importers:
       '@echo/config':
         specifier: workspace:*
         version: link:../../packages/config
-      '@echo/connectors':
-        specifier: workspace:*
-        version: link:../../packages/connectors
       '@echo/db':
         specifier: workspace:*
         version: link:../../packages/db
