@@ -16,8 +16,13 @@ on:
     workflows: [CI]
     types: [completed]
     branches: [main]
-  # Para publicar de novo a main sem um commit novo.
+  # Para publicar de novo a main sem um commit novo. Com recriar_demo, apaga e recria só a empresa de demonstração.
   workflow_dispatch:
+    inputs:
+      recriar_demo:
+        description: "Apagar e recriar a empresa de demonstração no banco da Render"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -47,6 +52,7 @@ jobs:
       - name: Migração no banco da Render
         env:
           RENDER_DATABASE_URL: ${{ secrets.RENDER_DATABASE_URL }}
+          RECRIAR_DEMO: ${{ inputs.recriar_demo }}
         run: |
           test -n "$RENDER_DATABASE_URL" || { echo "::error::Falta o segredo RENDER_DATABASE_URL"; exit 1; }
           # A conexão externa da Render exige SSL.
@@ -57,6 +63,7 @@ jobs:
           esac
           echo "::add-mask::$url"
           DATABASE_URL="$url" pnpm db:migrate
+          if [ "$RECRIAR_DEMO" = "true" ]; then DATABASE_URL="$url" pnpm db:seed; fi
 
       - name: Deploy dos serviços (mesmo commit da migração)
         env:

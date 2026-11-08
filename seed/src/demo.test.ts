@@ -1,4 +1,4 @@
-import { type Person, reportsDue } from "@echo/domain";
+import { isoWeek, type Person, reportsDue } from "@echo/domain";
 import { describe, expect, it } from "vitest";
 import { buildDemo, DEMO_IDS, localDate } from "./demo.ts";
 
@@ -48,6 +48,24 @@ describe("empresa de demonstração", () => {
       expect(r.sentAt!.getTime()).toBeLessThan(now.getTime() - 7 * 24 * 3_600_000);
       expect(new Date(r.coveredPeriod.to).getTime()).toBeLessThanOrEqual(now.getTime());
     }
+  });
+
+  it("visão do RH: toda equipe tem respostas dos gêmeos em várias semanas e a mesma semana mais recente de relatórios", () => {
+    for (const t of demo.teams) {
+      const ids = new Set(demo.people.filter((p) => p.teamId === t.id).map((p) => p.id));
+      const twins = demo.questions.filter((q) => q.kind === "gemeo" && q.state === "answered" && ids.has(q.ownerId!));
+      expect(new Set(twins.map((q) => isoWeek(localDate(q.answeredAt!, "UTC")))).size, t.name).toBeGreaterThanOrEqual(6);
+      for (const q of twins.filter((x) => x.sourceRef?.startsWith("demo:rh:"))) {
+        expect(q.digestedAt).toEqual(q.answeredAt);
+        expect(q.answeredAt!.getTime()).toBeLessThanOrEqual(now.getTime() - 4 * 24 * 3_600_000);
+        expect(q.askerId).not.toBe(q.ownerId);
+      }
+    }
+    const newest = demo.teams.map((t) => {
+      const ids = new Set(demo.people.filter((p) => p.teamId === t.id).map((p) => p.id));
+      return demo.weeklyReports.filter((r) => ids.has(r.personId)).map((r) => r.week).sort().at(-1);
+    });
+    expect(new Set(newest).size).toBe(1);
   });
 
   it("nunca ocupa a semana que o fluxo dá como pendente: o relatório dela sai para a pessoa conferir (cena 4)", () => {
