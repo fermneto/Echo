@@ -68,6 +68,23 @@ describe("empresa de demonstração", () => {
     expect(new Set(newest).size).toBe(1);
   });
 
+  it("visão do RH hoje: toda equipe tem concluídas e respostas dos gêmeos recentes, com donos fora das cenas", () => {
+    const inScenes: string[] = [P.fernando, P.eduardo, P.yan, P.marina, P.carla, P.noah];
+    for (const t of demo.teams) {
+      const ids = new Set(demo.people.filter((p) => p.teamId === t.id).map((p) => p.id));
+      const done = demo.tasks.filter((x) => x.state === "done" && ids.has(x.assigneeId!) && x.externalUpdatedAt!.getTime() > now.getTime() - 12 * 3_600_000);
+      expect(done.length, t.name).toBeGreaterThanOrEqual(2);
+      const today = demo.questions.filter((q) => q.sourceRef?.startsWith("demo:rh-hoje:") && ids.has(q.ownerId!));
+      expect(today.length, t.name).toBeGreaterThanOrEqual(3);
+      for (const q of today) {
+        expect(inScenes).not.toContain(q.ownerId);
+        expect(q.askerId).not.toBe(q.ownerId);
+        expect(q.digestedAt).toEqual(q.answeredAt);
+        expect(q.answeredAt!.getTime()).toBeLessThanOrEqual(now.getTime());
+      }
+    }
+  });
+
   it("nunca ocupa a semana que o fluxo dá como pendente: o relatório dela sai para a pessoa conferir (cena 4)", () => {
     // Domingo e segunda em UTC, com fusos de -5 a +10 no mapa: a semana anterior de cada um muda em horas diferentes.
     for (const at of ["2026-11-08T06:00:00Z", "2026-11-08T22:00:00Z", "2026-11-09T02:00:00Z", "2026-11-11T12:00:00Z", "2026-11-14T23:30:00Z"]) {
