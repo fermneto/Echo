@@ -51,3 +51,39 @@ describe("releaseClaims", () => {
     ]);
   });
 });
+
+describe("validateAnswer em inglês e espanhol", () => {
+  const en = { language: "en" as const };
+  const es = { language: "es" as const };
+
+  it("liberação falsa, primeira pessoa e assunto proibido em inglês", () => {
+    expect(codes({ texto: "Yes, ech-128-tempo-limite is released for Eduardo.", liberacao: { alvo: "ech-131-api-v2", tipo: "branch" } }, en)).toContain("liberacao_falsa");
+    expect(codes({ texto: "I left ech-128-tempo-limite reserved until the review." }, en)).toContain("primeira_pessoa");
+    expect(codes({ texto: "This is Fernando, the branch is reserved." }, en)).toContain("primeira_pessoa");
+    expect(codes({ texto: "I approved PR 44." }, en)).toContain("assunto_proibido");
+    expect(codes({ texto: "Carla is the best developer on the team." }, en)).toContain("assunto_proibido");
+    expect(codes({ texto: "Fernando's agent checked: ech-131-api-v2 is released for Eduardo in the confirmed daily note.", liberacao: { alvo: "ech-131-api-v2", tipo: "branch" } }, en)).toEqual([]);
+    expect(codes({ texto: "There is no release on record; if Fernando releases it, you can go ahead." }, en)).toEqual([]);
+  });
+
+  it("liberação falsa, primeira pessoa e assunto proibido em espanhol", () => {
+    expect(codes({ texto: "Sí, la ech-128-tempo-limite está liberada para Eduardo.", liberacao: { alvo: "ech-131-api-v2", tipo: "branch" } }, es)).toContain("liberacao_falsa");
+    expect(codes({ texto: "Dejé la ech-128-tempo-limite reservada hasta la revisión." }, es)).toContain("primeira_pessoa");
+    expect(codes({ texto: "Aprobé el PR 44." }, es)).toContain("assunto_proibido");
+    expect(codes({ texto: "La ech-131-api-v2 está liberada para Eduardo en la nota del día confirmada.", liberacao: { alvo: "ech-131-api-v2", tipo: "branch" } }, es)).toEqual([]);
+    // Em espanhol "no" é negação: "no está liberada" não é afirmação de liberação.
+    expect(codes({ texto: "La ech-128-tempo-limite no está liberada; la duda queda para Fernando." }, es)).toEqual([]);
+  });
+
+  it("número inventado vale em qualquer idioma", () => {
+    expect(codes({ texto: "Carla made 20 commits this week." }, { ...en, allowedNumbers: ["5"] })).toEqual(["numero_inventado"]);
+    expect(codes({ texto: "Carla hizo 20 commits esta semana." }, { ...es, allowedNumbers: ["5"] })).toEqual(["numero_inventado"]);
+  });
+
+  it("resposta em outro idioma que o da conversa é recusada", () => {
+    expect(codes({ texto: "A ech-128-tempo-limite está reservada por Fernando até a revisão sair." }, en)).toEqual(["idioma_errado"]);
+    expect(codes({ texto: "The ech-128-tempo-limite branch is reserved by Fernando until the review is done." })).toEqual(["idioma_errado"]);
+    // Texto curto, sem sinal claro, passa.
+    expect(codes({ texto: "ech-128-tempo-limite: PR 44." }, en)).toEqual([]);
+  });
+});

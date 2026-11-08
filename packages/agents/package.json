@@ -8,6 +8,7 @@
     "./imagem": "./src/summary-image.ts",
     "./ganhos": "./src/pg-gains.ts",
     "./perguntas": "./src/pg-questions.ts",
+    "./perfil": "./src/pg-profile.ts",
     "./execucoes": "./src/pg-runs.ts",
     "./enquanto-fora": "./src/pg-away-log.ts",
     "./redistribuicao": "./src/pg-redistribution-view.ts"

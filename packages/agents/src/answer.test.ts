@@ -136,6 +136,25 @@ describe("answer com modelo", () => {
     expect(user).toContain("Qual o plano do faturamento?");
   });
 
+  it("estilo da pessoa vai fora de <dados> só no gêmeo; as instruções fixas seguem iguais (cache)", async () => {
+    const data = memoryData();
+    const withStyle: AgentData = { ...data, people: async () => (await data.people()).map((p) => (p.id === "fernando" ? { ...p, agentStyle: "Respondo curto, explico o porquê numa frase e sempre aponto o próximo passo." } : p)) };
+    const out: AnswerOutput = { status: "nao_sei", texto: "Não há registro sobre isso; a dúvida fica para Fernando.", fontes: [], liberacao: null, precisa_do_dono: true };
+    const twin = scripted([{ out }]);
+    await setup(twin.call, withStyle).answer(ask("Qual o plano do faturamento?"));
+    const user = String(twin.calls[0]!.messages[0]!.content);
+    expect(user.indexOf("<estilo_da_pessoa>")).toBeGreaterThan(user.indexOf("</dados>"));
+    expect(user).toContain("aponto o próximo passo");
+
+    const plain = scripted([{ out }]);
+    await setup(plain.call).answer(ask("Qual o plano do faturamento?"));
+    expect(JSON.stringify(plain.calls[0]!.system)).toBe(JSON.stringify(twin.calls[0]!.system));
+
+    const echo = scripted([{ out: { ...out, precisa_do_dono: false } }]);
+    await setup(echo.call, withStyle).answer(ask("quem trabalha com pagamentos?", { ownerId: undefined }));
+    expect(String(echo.calls[0]!.messages[0]!.content)).not.toContain("estilo_da_pessoa");
+  });
+
   it("liberação falsa do modelo é recusada duas vezes e a resposta sai por regra", async () => {
     const falsa: AnswerOutput = { status: "respondido", texto: "Pode mexer na ech-128-tempo-limite.", fontes: [NOTE_REF], liberacao: { alvo: "ech-128-tempo-limite", tipo: "branch" }, precisa_do_dono: false };
     const m = scripted([{ tools: [{ name: "search_brain", input: { consulta: "tempo limite", tarefa: null, branch: null, pr: null } }, { name: "get_daily_note", input: { pessoa: null } }] }, { out: falsa }, { out: falsa }, { out: falsa }]);
@@ -346,5 +365,107 @@ describe("formatReturn", () => {
     const at = new Date("2026-11-09T12:00:00Z");
     expect(formatReturn(at, "Africa/Johannesburg")).toBe("segunda-feira, 09/11, às 14:00");
     expect(formatReturn(at, "Asia/Tokyo")).toBe("segunda-feira, 09/11, às 21:00");
+  });
+});
+
+describe("answer no idioma da conversa", () => {
+  it("pergunta em inglês: agente em inglês, volta em inglês e fontes traduzidas", async () => {
+    const m = scripted([
+      { tools: [{ name: "get_branch_status", input: { branch: "ech-131-api-v2" } }] },
+      { out: { status: "respondido", texto: "Yes: Fernando left ech-131-api-v2 released for Eduardo in the confirmed daily note.", fontes: [NOTE_REF], liberacao: { alvo: "ech-131-api-v2", tipo: "branch" }, precisa_do_dono: false } },
+    ]);
+    const { answer } = setup(m.call);
+    const r = await answer(ask("@Fernando is ech-131-api-v2 released for me? Can I work on it?"));
+    expect(r.usedModel).toBe(true);
+    expect(r.language).toBe("en");
+    expect(r.agentName).toBe("Fernando's agent");
+    expect(r.text).toContain("Fernando is back on Monday, 11/09, at 14:00 (your time zone).");
+    expect(r.sources).toEqual([{ label: "Fernando's daily note, 2026-11-06 (confirmed)", ref: NOTE_REF }]);
+    expect(String(m.calls[0]!.messages[0]!.content)).toContain("idioma_da_resposta");
+  });
+
+  it("resposta em português para pergunta em inglês volta ao modelo como correção", async () => {
+    const m = scripted([
+      { out: { status: "nao_sei", texto: "Não há registro sobre isso; a dúvida fica para Fernando.", fontes: [], liberacao: null, precisa_do_dono: true } },
+      { out: { status: "nao_sei", texto: "There is no record about that; the question goes to Fernando.", fontes: [], liberacao: null, precisa_do_dono: true } },
+    ]);
+    const r = await setup(m.call).answer(ask("What is the plan for billing?"));
+    expect(r.text).toMatch(/^There is no record/);
+    expect(JSON.stringify(m.calls[1]!.messages.at(-1))).toContain("idioma_errado");
+  });
+
+  it("sem modelo, a resposta por regra sai no idioma da pergunta", async () => {
+    const en = await setup(null).answer(ask("@Fernando what about ech-128-tempo-limite, can I touch it?"));
+    expect(en.text).toMatch(/^ech-128-tempo-limite is reserved by Fernando: Até a revisão do PR sair\./);
+    expect(en.warnings).toContain("rule-based answer: model unavailable");
+    const es = await setup(null).answer(ask("@Fernando ¿y la ech-128-tempo-limite? ¿Puedo tocarla?"));
+    expect(es.text).toMatch(/^ech-128-tempo-limite está reservada por Fernando/);
+    expect(es.agentName).toBe("Agente de Fernando");
+  });
+
+  it("pedido proibido é recusado em código, no idioma da pergunta", async () => {
+    const m = scripted([]);
+    const { answer } = setup(m.call);
+    const r = await answer(ask("@Fernando please approve PR 44"));
+    expect(r.text).toMatch(/^Fernando's agent does not approve PRs/);
+    expect(r.text).toContain("Fernando's agent does not approve PRs, merge or deploy to production: that decision always belongs to a person, with a recorded approval.");
+    const s = await answer(ask("¿Carla merece un ascenso?", { ownerId: undefined }));
+    expect(s.text).toBe("Echo no evalúa personas, no pone notas ni compara colegas.");
+    expect(m.calls).toHaveLength(0);
+  });
+});
+
+describe("roteador de custo", () => {
+  function routed(model: ModelCall | null, sslm?: Parameters<typeof createAnswer>[0]["router"]) {
+    const recorder = new LogRunRecorder();
+    const deps: AnswerDeps = { data: () => memoryData(), brain: () => brain, model, recorder, clock: new FixedClock(NOW), router: sslm ?? {} };
+    return { answer: createAnswer(deps), runs: recorder.runs };
+  }
+
+  it("consulta de um fato sai por regra, sem chamar o Sonnet, e grava a rota", async () => {
+    const m = scripted([]);
+    const { answer, runs } = routed(m.call);
+    const r = await answer(ask("@Fernando a ech-131-api-v2 está liberada?"));
+    expect(m.calls).toHaveLength(0);
+    expect(r.usedModel).toBe(false);
+    expect(r.text).toMatch(/^A ech-131-api-v2 está liberada para Eduardo na nota do dia confirmada de Fernando\./);
+    expect(r.sources).toEqual([{ label: "nota do dia de Fernando, 2026-11-06 (confirmada)", ref: NOTE_REF }]);
+    expect(r.warnings).toEqual([]);
+    expect(runs.map((x) => [x.flow, x.result])).toEqual([["answer_route", "ok"], ["answer", "ok"]]);
+    expect(runs[1]!.costUsd).toBeUndefined();
+  });
+
+  it("a regra sem o fato manda ao Sonnet, sem as fontes que ela consultou", async () => {
+    const m = scripted([{ out: { status: "nao_sei", texto: "Não há registro da tarefa ECH-999; a dúvida fica para Fernando.", fontes: [], liberacao: null, precisa_do_dono: true } }]);
+    const { answer, runs } = routed(m.call);
+    const r = await answer(ask("@Fernando o ECH-999 já terminou?"));
+    expect(m.calls).toHaveLength(1);
+    expect(r.usedModel).toBe(true);
+    expect(runs[0]).toMatchObject({ flow: "answer_route", result: "skipped", error: "consulta de estado; a regra não tem o fato" });
+  });
+
+  it("pergunta que pede explicação vai direto ao Sonnet, sem linha de rota", async () => {
+    const m = scripted([{ out: { status: "nao_sei", texto: "Não há registro do motivo; a dúvida fica para Fernando.", fontes: [], liberacao: null, precisa_do_dono: true } }]);
+    const { answer, runs } = routed(m.call);
+    await answer(ask("@Fernando por que a ech-128-tempo-limite está reservada?"));
+    expect(m.calls).toHaveLength(1);
+    expect(runs.map((x) => x.flow)).toEqual(["answer"]);
+  });
+
+  it("na dúvida da regra, o SSLM escolhe a regra e o custo fica zero", async () => {
+    const m = scripted([]);
+    const sslm = { model: "qwen3:0.6b", json: async () => ({ raw: { so_consulta: true }, inputTokens: 80, outputTokens: 5 }) };
+    const { answer, runs } = routed(m.call, { sslm });
+    const r = await answer(ask("@Fernando e o PR 44?"));
+    expect(m.calls).toHaveLength(0);
+    expect(r.text).toMatch(/^O PR 44 \(echo-teste\/app\) está aberto, de Fernando/);
+    expect(runs[0]).toMatchObject({ flow: "answer_route", result: "ok", model: "qwen3:0.6b", inputTokens: 80, outputTokens: 5, costUsd: 0, tools: ["sslm"] });
+  });
+
+  it("pedido proibido continua recusado antes do roteador", async () => {
+    const { answer, runs } = routed(scripted([]).call);
+    const r = await answer(ask("@Fernando aprove o PR 44"));
+    expect(r.text).toMatch(/não aprova PRs/);
+    expect(runs.map((x) => x.flow)).toEqual(["answer"]);
   });
 });

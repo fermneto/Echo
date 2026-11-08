@@ -42,20 +42,30 @@ export function fitText(text: string, max = MAX_TEXT, suffix = "\n…(continua n
   return text.length <= max ? text : text.slice(0, max - suffix.length) + suffix;
 }
 
+/** Idiomas das respostas (o agente responde no idioma da conversa). */
+export type ReplyLang = "pt" | "en" | "es";
+/** Textos fixos da resposta no Slack, por idioma. */
+export const REPLY_TEXT: Record<ReplyLang, { sources: string; helpful: string; notHelpful: string; rated: string; looking: (agent: string) => string; warning: string }> = {
+  pt: { sources: "Fontes", helpful: "Resolveu", notHelpful: "Não resolveu", rated: "Avaliada por quem perguntou", looking: (a) => `${a} consultando os registros…`, warning: "Aviso" },
+  en: { sources: "Sources", helpful: "Solved it", notHelpful: "Didn't solve it", rated: "Rated by the asker", looking: (a) => `${a} checking the records…`, warning: "Note" },
+  es: { sources: "Fuentes", helpful: "Lo resolvió", notHelpful: "No lo resolvió", rated: "Evaluada por quien preguntó", looking: (a) => `${a} consultando los registros…`, warning: "Aviso" },
+};
+
 /** Fontes no rodapé da resposta, sempre visíveis. */
-export function sourcesLine(sources: { label: string }[]): string {
-  return sources.length ? `Fontes: ${sources.map((s) => s.label).join(" · ")}` : "";
+export function sourcesLine(sources: { label: string }[], lang: ReplyLang = "pt"): string {
+  return sources.length ? `${REPLY_TEXT[lang].sources}: ${sources.map((s) => s.label).join(" · ")}` : "";
 }
 
 /** Resposta do agente com fontes e os botões Resolveu / Não resolveu (só quem perguntou vale, checado no clique). */
-export function answerBlocks(input: { text: string; sources: { label: string }[]; questionId?: string }): unknown[] | undefined {
+export function answerBlocks(input: { text: string; sources: { label: string }[]; questionId?: string; lang?: ReplyLang }): unknown[] | undefined {
+  const t = REPLY_TEXT[input.lang ?? "pt"];
   if (input.text.length > MAX_SECTION) return undefined;
   const blocks: unknown[] = [{ type: "section", text: { type: "mrkdwn", text: input.text } }];
-  const src = sourcesLine(input.sources);
+  const src = sourcesLine(input.sources, input.lang);
   if (src) blocks.push({ type: "context", elements: [{ type: "mrkdwn", text: fitText(src, MAX_SECTION) }] });
   if (input.questionId) {
     const button = (label: string, action_id: string) => ({ type: "button", text: { type: "plain_text", text: label }, action_id, value: input.questionId });
-    blocks.push({ type: "actions", elements: [button("Resolveu", SLACK_ACTIONS.answerHelpful), button("Não resolveu", SLACK_ACTIONS.answerNotHelpful)] });
+    blocks.push({ type: "actions", elements: [button(t.helpful, SLACK_ACTIONS.answerHelpful), button(t.notHelpful, SLACK_ACTIONS.answerNotHelpful)] });
   }
   return blocks;
 }

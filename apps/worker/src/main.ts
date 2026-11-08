@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { renderSummaryPng } from "@echo/agents/imagem";
-import { allOrgIds, createGithubGainsHistory, serverFix, dueAwayDigests, dueEndOfDay, dueMorning, needsGainsBaseline, serverAwayDigest, serverDaySummary, serverEndOfDay, serverGains, serverMorningPlan, serverNightReview, serverRedistribution, serverWeeklyReport, dueWeeklyReports } from "@echo/agents/server";
+import { allOrgIds, createGithubGainsHistory, serverFix, dueAwayDigests, dueEndOfDay, dueMorning, needsGainsBaseline, serverAwayDigest, serverDaySummary, serverEndOfDay, serverGains, serverMorningPlan, serverNightReview, serverRedistribution, serverWeeklyReport, dueWeeklyReports, readAvatar } from "@echo/agents/server";
 import { ensureProductNote } from "@echo/brain/pg";
 import { loadConfig } from "@echo/config";
 import { createDb, createPool } from "@echo/db";
@@ -13,6 +13,7 @@ import { giveUpStaleQuestions, handleSlackInteraction, handleSlackMessage } from
 import { createInteractionRouter } from "./slack-interactions.ts";
 import type { SlackMessageJob } from "./inbox.ts";
 import { registerActions } from "./actions.ts";
+import { outboxAgentIcon } from "./agent-icon.ts";
 import { registerInbox } from "./inbox.ts";
 import { registerMirror } from "./mirror.ts";
 import { scheduleReconcile } from "./reconcile.ts";
@@ -37,7 +38,8 @@ await queue.start();
 // Até a gravação em agent_runs estar ligada (frente Funções), as execuções vão para o log.
 const runs = new LogRunRecorder(log);
 await registerInbox(db, queue, runs, { brainsRepository: cfg.BRAINS_REPOSITORY });
-const stopActions = await registerActions({ db, writers: writersFromEnv(db, cfg) }, queue, runs, log);
+// O que sai pelo outbox em nome de um gêmeo leva o bonequinho dele, como as respostas ao vivo.
+const stopActions = await registerActions({ db, writers: writersFromEnv(db, cfg), agentIcon: outboxAgentIcon(cfg.WEB_URL, (orgId, personId) => readAvatar(db, orgId, personId)) }, queue, runs, log);
 // F2: resposta no Slack com o fluxo da frente Funções (answer de @echo/agents).
 const interactions = createInteractionRouter(log);
 let giveUp: ReturnType<typeof setInterval> | undefined;
@@ -86,6 +88,8 @@ const fix = serverFix(db, {
   environmentId: cfg.FIX_ENVIRONMENT_ID,
   timeoutMs: cfg.FIX_TIMEOUT_MS,
   codeHost: async (orgId) => (await githubForOrg(db, platforms, orgId)) ?? null,
+  // Juiz da delegação da correção: o mesmo modelo aberto da triagem. Sem ele, nenhuma correção é unida pela delegação.
+  judge: cfg.SLM_OLLAMA_URL ? { url: cfg.SLM_OLLAMA_URL, model: cfg.SLM_MODEL, timeoutMs: cfg.TRIAGE_TIMEOUT_MS } : undefined,
 });
 interactions.add("correcao", async (job) => {
   const r = await fix.decideFromSlack(job.orgId, job.payload);
@@ -124,9 +128,20 @@ const endOfDayTimer = setInterval(() => void runEndOfDay(), cfg.END_OF_DAY_SCAN_
 const triage = slm ? { ...slm, timeoutMs: cfg.TRIAGE_TIMEOUT_MS } : undefined;
 const night = await registerNight(queue, {
   // Diff lido do GitHub da empresa (instalação do app). Sem instalação, nenhum PR tem diff e a noite não envia lote.
-  night: serverNightReview(db, cfg.ANTHROPIC_API_KEY, (orgId) => ({
-    getDiff: async (repo, number) => (await (await githubForOrg(db, platforms, orgId))?.getPullRequestDiff(repo, number)) ?? null,
-  }), triage),
+  // A instalação é resolvida uma vez por empresa em cada noite (`diffs(orgId)` é chamado uma vez por execução);
+  // se a consulta falhar, a próxima chamada tenta de novo.
+  night: serverNightReview(db, cfg.ANTHROPIC_API_KEY, (orgId) => {
+    let gh: ReturnType<typeof githubForOrg> | undefined;
+    return {
+      getDiff: async (repo, number) => {
+        gh ??= githubForOrg(db, platforms, orgId).catch((err: unknown) => {
+          gh = undefined;
+          throw err;
+        });
+        return (await (await gh)?.getPullRequestDiff(repo, number)) ?? null;
+      },
+    };
+  }, triage),
   morning: serverMorningPlan(db, cfg.WEB_URL),
   orgIds: () => allOrgIds(db),
   dueMorning: (now) => dueMorning(db, now),
