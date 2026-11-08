@@ -479,7 +479,8 @@ export function buildDemo(now: Date): DemoData {
   const absences: DemoData["absences"] = [vacation("yan", nextMonday(now, "Asia/Tokyo")), vacation("noah", new Date("2026-11-14T23:59:00-05:00"))];
 
   // Relatórios enviados das 7 semanas anteriores (a atual ainda não fechou). Números sintéticos e estáveis por
-  // pessoa e semana; sem aviso gravado, para não enfileirar o vídeo da semana de semanas antigas.
+  // pessoa e semana. Nenhum envio cai nos últimos 7 dias nem tem aviso gravado: o vídeo da semana entra na fila
+  // por relatório liberado há menos de 7 dias, e o seed não pode disparar gravação (cada uma custa).
   const vary = (key: string, n: number) => {
     let h = 2166136261;
     for (let i = 0; i < key.length; i++) h = Math.imul(h ^ key.charCodeAt(i), 16777619);
@@ -506,7 +507,7 @@ export function buildDemo(now: Date): DemoData {
         metrics: { deliveries, commits, reviews, helps, delays: [], deliveryRefs: [], helped: [] },
         text: `${p.name} registrou na semana ${plural(deliveries, "entrega", "entregas")}, ${plural(commits, "commit", "commits")} e ${plural(reviews, "revisão", "revisões")}, e ${plural(helps, "ajuda confirmada", "ajudas confirmadas")} a colegas.`,
         coveredPeriod: { from: `${monday}T00:00:00.000Z`, to: `${addDays(monday, 7)}T00:00:00.000Z` },
-        sentAt: new Date(`${addDays(monday, 10)}T12:00:00.000Z`),
+        sentAt: new Date(Math.min(new Date(`${addDays(monday, 10)}T12:00:00.000Z`).getTime(), now.getTime() - 8 * DAY)),
       });
     }
   }
