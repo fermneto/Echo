@@ -293,10 +293,7 @@ export default function LandingPage() {
           <a href="#para-quem">Para quem</a>
         </nav>
         <div className="lp-nav__actions">
-          <Link href="/entrar" className="lp-btn lp-btn--outline lp-btn--sm">
-            Entrar
-          </Link>
-          <StartButton small />
+          <StartButton small label="Testar" />
         </div>
       </header>
 
