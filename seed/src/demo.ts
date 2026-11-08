@@ -282,6 +282,16 @@ export function buildDemo(now: Date): DemoData {
       open("APP-79", "Testes visuais das telas principais", "ines", "todo", 3, "qualidade"),
       open("APP-80", "Login com biometria", "olivia", "todo", 3, "app"),
       open("APP-81", "Migrar a API de busca para v2", "lucia", "backlog", 5, "api"),
+      // Hoje, nas últimas horas. Em Produto só concluídas: tarefa aberta mudaria a carga da cena 3.
+      done("ECH-165", "Mensagem de cartão recusado no checkout", "bruno", 2, 0.1, "pagamentos"),
+      done("ECH-166", "Ordenação estável na listagem da API v2", "eduardo", 1, 0.2, "api"),
+      done("DAD-52", "Índice na consulta de eventos", "ana", 2, 0.1, "dados"),
+      done("DAD-53", "Reprocessar a carga da madrugada", "amara", 1, 0.2, "dados"),
+      open("DAD-54", "Alerta de partição sem dados", "wei", "in_review", 2, "dados"),
+      done("APP-82", "Link direto para o pedido no aplicativo", "olivia", 2, 0.1, "app"),
+      done("APP-83", "Mensagens de erro da API pública", "priya", 1, 0.2, "api"),
+      done("APP-84", "Testes do fluxo de devolução", "ines", 2, 0.3, "qualidade"),
+      open("APP-85", "Filtro de datas no histórico", "lucia", "in_review", 2, "api"),
     ];
   };
 
@@ -577,6 +587,13 @@ export function buildDemo(now: Date): DemoData {
   // Respostas dos gêmeos por equipe nas 8 semanas da visão do RH. Antigas o bastante para não entrar no "enquanto você
   // estava fora" das cenas, e já entregues no resumo da ausência.
   const oldEnough = now.getTime() - 4 * DAY;
+  const twinAnswer = (ref: string, key: string, owner: (typeof reporters)[number], asker: (typeof reporters)[number], answeredAt: Date) =>
+    questions.push({
+      orgId: org, askerId: asker.id!, ownerId: owner.id!, kind: "gemeo", channel: "slack:C_DEMO_PRODUTO", sourceRef: ref,
+      answer: `Agente de ${owner.name}: resposta com base na nota do dia confirmada.`,
+      sources: [{ label: `nota do dia de ${owner.name}`, ref: `daily_note:${owner.id}` }],
+      state: "answered", resolved: true, answeredAt, digestedAt: answeredAt, ownerReturnsAt: new Date(answeredAt.getTime() + (2 + vary(`${key}:volta`, 7)) * HOUR), createdAt: answeredAt,
+    });
   for (const t of teams) {
     const members = reporters.filter((p) => p.teamId === t.id);
     RHYTHM[t.id!]!.twins.forEach((count, step) => {
@@ -588,14 +605,26 @@ export function buildDemo(now: Date): DemoData {
         // De terça a quinta, no meio do dia: a semana é a mesma em qualquer fuso.
         const answeredAt = new Date(`${addDays(monday, 1 + vary(`${key}:dia`, 3))}T${String(10 + vary(`${key}:hora`, 8)).padStart(2, "0")}:00:00.000Z`);
         if (answeredAt.getTime() > oldEnough) continue;
-        questions.push({
-          orgId: org, askerId: asker.id!, ownerId: owner.id!, kind: "gemeo", channel: "slack:C_DEMO_PRODUTO", sourceRef: `demo:rh:${key}`,
-          answer: `Agente de ${owner.name}: resposta com base na nota do dia confirmada.`,
-          sources: [{ label: `nota do dia de ${owner.name}`, ref: `daily_note:${owner.id}` }],
-          state: "answered", resolved: true, answeredAt, digestedAt: answeredAt, ownerReturnsAt: new Date(answeredAt.getTime() + (2 + vary(`${key}:volta`, 7)) * HOUR), createdAt: answeredAt,
-        });
+        twinAnswer(`demo:rh:${key}`, key, owner, asker, answeredAt);
       }
     });
+  }
+
+  // Respostas de hoje, nas últimas horas. O Início do dono lista o que o agente respondeu, então os donos ficam fora
+  // das cenas e das férias. Quem já virou a semana (Tóquio, Sydney) responde antes da virada: o RH ainda vê a anterior.
+  const TODAY_TWINS: Record<string, number> = { [T.produto]: 4, [T.dados]: 3, [T.app]: 5 };
+  const inScenes = new Set<string>([P.fernando, P.eduardo, P.yan, P.marina, P.carla, P.noah]);
+  for (const t of teams) {
+    const members = reporters.filter((p) => p.teamId === t.id);
+    const owners = members.filter((p) => !inScenes.has(p.id!));
+    for (let n = 0; n < TODAY_TWINS[t.id!]!; n++) {
+      const key = `${t.id}:hoje:${n}`;
+      const owner = owners[n % owners.length]!;
+      const others = members.filter((p) => p.id !== owner.id);
+      let answeredAt = ago((1 + vary(`${key}:hora`, 7)) * HOUR);
+      while (weekMonday(isoWeek(localDate(answeredAt, owner.timezone))) !== baseMonday) answeredAt = new Date(answeredAt.getTime() - HOUR);
+      twinAnswer(`demo:rh-hoje:${key}`, key, owner, others[vary(`${key}:quem`, others.length)]!, answeredAt);
+    }
   }
 
   return {
