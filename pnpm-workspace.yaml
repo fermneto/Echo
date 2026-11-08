@@ -3,6 +3,7 @@ packages:
   - packages/*
   - seed
   - evals
+  - e2e
 
 catalog:
   "@anthropic-ai/sdk": 1.6.0

@@ -9,7 +9,8 @@
     "test": "vitest run --passWithNoTests",
     "reconciliar": "tsx --env-file-if-exists=../../.env src/reconcile-now.ts",
     "nota:agora": "tsx --env-file-if-exists=../../.env src/nota-agora.ts",
-    "noite:agora": "tsx --env-file-if-exists=../../.env src/noite-agora.ts"
+    "noite:agora": "tsx --env-file-if-exists=../../.env src/noite-agora.ts",
+    "relatorio:agora": "tsx --env-file-if-exists=../../.env src/relatorio-agora.ts"
   },
   "dependencies": {
     "@echo/agents": "workspace:*",

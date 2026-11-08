@@ -1,0 +1,11 @@
+{
+  "name": "@echo/e2e",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "typecheck": "tsc -p tsconfig.json",
+    "e2e": "playwright test",
+    "e2e:browser": "playwright install chromium"
+  },
+  "devDependencies": { "@playwright/test": "catalog:", "@types/node": "catalog:", "typescript": "catalog:" }
+}
