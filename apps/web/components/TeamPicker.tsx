@@ -23,11 +23,3 @@ export function TeamPicker({ scope, back }: { scope: TeamScope; back: string }) 
     </form>
   );
 }
-
-/** "Produto", "Produto e Dados e plataforma"… para dizer de quem é o recorte. */
-export function scopeLabel(scope: TeamScope): string {
-  const names = scope.teams.filter((t) => scope.visible.includes(t.id)).map((t) => t.name);
-  if (names.length === scope.teams.length) return "todas as equipes";
-  if (names.length === 0) return "nenhuma equipe";
-  return names.length === 1 ? `equipe ${names[0]}` : `equipes ${names.slice(0, -1).join(", ")} e ${names.at(-1)}`;
-}

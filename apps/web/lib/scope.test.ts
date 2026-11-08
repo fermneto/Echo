@@ -5,7 +5,7 @@ vi.mock("next/headers", () => ({ cookies: async () => ({ get: () => undefined })
 const live = vi.hoisted(() => ({ teams: vi.fn(), team: vi.fn() }));
 vi.mock("./team-live", () => ({ loadTeams: live.teams, loadTeam: live.team }));
 
-const { scopeFrom, teamScope } = await import("./scope");
+const { scopeFrom, scopeLabel, teamScope } = await import("./scope");
 
 const person = (id: string, over: Partial<Persona> = {}): Persona => ({
   id,
@@ -73,5 +73,21 @@ describe("recorte da empresa conectada", () => {
 
   it("regra pura: RH com equipes escolhidas vê só essas", () => {
     expect(names(scopeFrom(rita, team, [{ id: "t1", name: "P" }, { id: "t2", name: "D" }], ["t2"]))).toEqual(["caio", "rita"]);
+  });
+
+  it("só o RH lê \"todas as equipes\"; membro e liderança leem o nome da própria", () => {
+    const two = [{ id: "t1", name: "Plataforma" }, { id: "t2", name: "Dados" }];
+    const one = [{ id: "t1", name: "Plataforma" }];
+    expect(scopeLabel(scopeFrom(ana, team, one, null))).toBe("a equipe Plataforma");
+    expect(scopeLabel(scopeFrom(ana, team, two, null))).toBe("a equipe Plataforma");
+    expect(scopeLabel(scopeFrom(beto, team, two, null))).not.toContain("todas");
+    expect(scopeLabel(scopeFrom(rita, team, two, null))).toBe("todas as equipes");
+    expect(scopeLabel(scopeFrom(rita, team, two, ["t2"]))).toBe("a equipe Dados");
+    expect(scopeLabel(scopeFrom(rita, team, two, []))).toBe("só a sua ficha");
+  });
+
+  it("sem equipes cadastradas ou com a leitura falhando, não diz \"todas as equipes\"", () => {
+    expect(scopeLabel(scopeFrom(ana, team, [], null))).toBe("as pessoas da empresa, que ainda não tem equipes");
+    expect(scopeLabel(scopeFrom(ana, team, null, null))).toBe("só a sua ficha");
   });
 });

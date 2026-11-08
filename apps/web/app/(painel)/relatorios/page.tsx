@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { reportFor, SENT_TO_HR, summaryLine } from "@/lib/demo/reports";
 import { findMember } from "@/lib/demo/team";
-import { scopeDbIds, teamScope } from "@/lib/scope";
-import { scopeLabel, TeamPicker } from "@/components/TeamPicker";
+import { scopeDbIds, scopeLabel, teamScope } from "@/lib/scope";
+import { TeamPicker } from "@/components/TeamPicker";
 import type { Persona } from "@/lib/demo/types";
 import { panelDb } from "@/lib/db";
 import { panelPersona } from "@/lib/panel-person";
@@ -100,7 +100,7 @@ export default async function RelatoriosPage({ searchParams }: { searchParams: P
               }
             />
           ) : (
-            <p className="note muted">Nenhum relatório enviado por {scopeLabel(scope)} até agora. Cada um chega aqui três dias depois do aviso à pessoa.</p>
+            <p className="note muted">Nenhum relatório enviado até agora. Você vê {scopeLabel(scope)}; cada relatório chega aqui três dias depois do aviso à pessoa.</p>
           )}
         </>
       );
@@ -139,7 +139,7 @@ export default async function RelatoriosPage({ searchParams }: { searchParams: P
         <>
           <h1 className="hero-title hero-title--page">{HR_TITLE}</h1>
           <TeamPicker scope={scope} back="/relatorios" />
-          <p className="lead">Nenhum relatório enviado por {scopeLabel(scope)} nesta semana.</p>
+          <p className="lead">Nenhum relatório enviado nesta semana. Você vê {scopeLabel(scope)}.</p>
         </>
       );
     }
