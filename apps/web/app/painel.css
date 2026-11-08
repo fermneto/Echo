@@ -3287,7 +3287,8 @@ select.field option {
 .agent-decision.is-unida {
   border-left-color: var(--color-signal-twin);
 }
-.agent-decision.is-com_voce {
+.agent-decision.is-com_voce,
+.agent-decision.is-esperando_ci {
   border-left-color: var(--color-signal-wait);
 }
 .agent-decision__head {
@@ -3299,7 +3300,8 @@ select.field option {
 .agent-decision__tag.is-unida {
   color: var(--color-signal-twin-text);
 }
-.agent-decision__tag.is-com_voce {
+.agent-decision__tag.is-com_voce,
+.agent-decision__tag.is-esperando_ci {
   color: var(--color-signal-wait);
 }
 .agent-decision__when {

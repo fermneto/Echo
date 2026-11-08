@@ -68,6 +68,7 @@ describe.skipIf(!url)("correção em Postgres", () => {
         target: async () => ({ state: "open", headSha: "sha44", headRepository: "teste/app", repository: "teste/app", branch: "ech-128-filtro", defaultBranch: "main" }),
         readToken: async () => "tok",
         pull: async (_r, n) => pulls.get(n) ?? null,
+        getChecks: async () => ({ state: "success" as const }),
       }),
       sandbox: { run: async () => ({ sessionId: "sesn_pg", outcome: "done", diff: PATCH, fixJson: { resumo: "Parametrizado.", testes: { comando: "pnpm test", resultado: "passou" } }, costUsd: 0.37 }) },
       outbox: (o) => createPgOutbox(db, o),
@@ -97,6 +98,16 @@ describe.skipIf(!url)("correção em Postgres", () => {
     const morning = createMorningPlan({ data: (o) => createPgAgentData(db, o), plans: (o) => createPgPlanStore(db, o), outbox: (o) => createPgOutbox(db, o), recorder: createDbRunRecorder(db), clock: new FixedClock(new Date("2026-11-09T11:45:00Z")), webUrl: "http://localhost:3000" });
     const plan = await morning.build(org, fernando, "2026-11-09");
     expect(plan.status === "created" && plan.plan.items.map((i) => i.text).slice(0, 2)).toEqual(["Correção pronta no seu PR 44, aguardando sua aprovação", "Análise automática do seu PR 44: 1 achado"]);
+
+    // Espera do CI pela delegação: grava e lê a data e o último estado; null encerra.
+    const since = new Date("2026-11-09T06:05:00Z");
+    await createPgFixStore(db, org).waitCi(fixId, since, "pending");
+    expect((await createPgFixStore(db, org).get(fixId))!.ciWaitSince).toEqual(since);
+    await createPgFixStore(db, other).waitCi(fixId, null);
+    expect((await createPgFixStore(db, org).get(fixId))!.ciWaitSince).toEqual(since);
+    await createPgFixStore(db, org).waitCi(fixId, null);
+    const [waited] = await asSystem(db, (tx) => tx.select().from(fixRuns).where(eq(fixRuns.id, fixId)));
+    expect(waited).toMatchObject({ ciWaitSince: null, checksState: "pending" });
 
     // Outra empresa não vê nem decide.
     expect(await createPgFixStore(db, other).inState("ready")).toEqual([]);

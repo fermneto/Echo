@@ -56,6 +56,7 @@ export function createPgFixStore(db: Database, orgId: string): FixStore & { fixe
     files: f.files,
     ...(f.testsReported && TESTS.has(f.testsReported as FixTestResult) ? { tests: f.testsReported as FixTestResult } : {}),
     ...(f.costUsd !== null ? { costUsd: Number(f.costUsd) } : {}),
+    ...(f.ciWaitSince ? { ciWaitSince: f.ciWaitSince } : {}),
   });
 
   /** Muda o estado da correção (só a partir de `from`) e, se mudou, o da revisão (só a partir de `reviewFrom`). */
@@ -159,6 +160,9 @@ export function createPgFixStore(db: Database, orgId: string): FixStore & { fixe
     },
     async noteDelegation(id, note) {
       await run((tx) => tx.update(fixRuns).set({ delegationNote: note.slice(0, 400) }).where(and(eq(fixRuns.orgId, orgId), eq(fixRuns.id, id))));
+    },
+    async waitCi(id, since, checks) {
+      await run((tx) => tx.update(fixRuns).set({ ciWaitSince: since, ...(checks ? { checksState: checks } : {}) }).where(and(eq(fixRuns.orgId, orgId), eq(fixRuns.id, id))));
     },
     async markApplied(id) {
       return move(id, "approved", { state: "applied" }, { to: "applied", from: ["approved"] });

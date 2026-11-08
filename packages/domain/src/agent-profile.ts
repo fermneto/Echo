@@ -7,6 +7,10 @@ export const AGENT_PROFILE_RULES = {
   maxChars: 1200,
   /** Correção que o agente pode aplicar sozinho pela delegação: pequena, testada e fora de caminho sensível. */
   delegatedFixMaxFiles: 5,
+  /** Quanto a delegação espera o CI do rascunho terminar; passou disso, a correção fica com a pessoa. */
+  delegatedCiWaitMinutes: 45,
+  /** Sem nenhum check no rascunho por este tempo (repositório sem CI): fica com a pessoa. */
+  delegatedCiNoChecksMinutes: 15,
 } as const;
 
 /**
@@ -65,4 +69,28 @@ export function delegatedFixGate(delegation: string | null | undefined, fix: Del
   const sensitive = fix.files.find((f) => NIGHT_RULES.sensitivePaths.some((r) => r.test(f)));
   if (sensitive) return { ok: false, reason: `caminho sensível: ${sensitive}` };
   return { ok: true };
+}
+
+/**
+ * CI do commit do rascunho que seria unido, lido no GitHub. `none`: nenhum check ainda (logo depois de abrir o
+ * rascunho) ou o repositório não tem CI; `unknown`: não deu para ler.
+ */
+export type DraftCiState = "success" | "failure" | "pending" | "neutral" | "none" | "unknown";
+
+export type DelegatedCiGate = { ok: true } | { ok: false; reason: string } | { wait: true; reason: string };
+
+/**
+ * O "testes passaram" do fix.json é o próprio agente da correção quem diz: a delegação só une com o CI do
+ * rascunho verde, no commit exato que vai ser unido. Falhou ou só teve checks neutros: fica com a pessoa.
+ * Rodando, sem checks ou sem leitura: espera (o sync confere de novo) até o prazo; depois, fica com a pessoa.
+ */
+export function delegatedCiGate(ci: DraftCiState, waitingSince: Date, now: Date): DelegatedCiGate {
+  if (ci === "success") return { ok: true };
+  if (ci === "failure") return { ok: false, reason: "o CI do rascunho falhou" };
+  if (ci === "neutral") return { ok: false, reason: "o CI do rascunho não deu resultado (só checks neutros ou pulados)" };
+  const waited = (now.getTime() - waitingSince.getTime()) / 60_000;
+  const limit = ci === "none" ? AGENT_PROFILE_RULES.delegatedCiNoChecksMinutes : AGENT_PROFILE_RULES.delegatedCiWaitMinutes;
+  const label = ci === "pending" ? "o CI do rascunho ainda está rodando" : ci === "none" ? "o rascunho ainda não tem CI" : "não deu para ler o CI do rascunho";
+  if (waited < limit) return { wait: true, reason: label };
+  return { ok: false, reason: ci === "pending" ? `o CI do rascunho não terminou em ${limit} min` : ci === "none" ? `o rascunho não teve CI em ${limit} min` : `não deu para ler o CI do rascunho em ${limit} min` };
 }
