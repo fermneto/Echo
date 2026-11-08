@@ -1,7 +1,7 @@
 // Vídeo da semana da equipe: cenas por regra, totais da equipe, textos sem ranking e gravação conferida.
 import { describe, expect, it } from "vitest";
 import type { AvatarTraits } from "./avatar.ts";
-import { NARRATION_PAD_S, numbersNarration, planScenes, ruleTeamTexts, scenesSeconds, stretchScenes, TEAM_VIDEO_RULES, teamRecordingIssues, teamTextIssues, teamTotals, type TeamWeekFacts } from "./team-video.ts";
+import { NARRATION_PAD_S, numbersNarration, planScenes, ruleTeamTexts, scenesSeconds, stretchScenes, TEAM_VIDEO_RULES, teamRecordingIssues, teamTextIssues, teamTotals, teamVideoDue, type TeamWeekFacts } from "./team-video.ts";
 
 const a = { hair: "short", hairColor: "brown", skin: "s3", eyewear: "none", facialHair: "none", top: "tshirt", topColor: "blue", headwear: "none" } as AvatarTraits;
 const facts: TeamWeekFacts = {
@@ -62,6 +62,32 @@ describe("vídeo da semana: textos", () => {
     expect(teamTextIssues({ ...good, closing: "Nós fechamos a semana" }, facts)).toContain("closing: primeira pessoa");
     expect(teamTextIssues({ ...good, deliveries: "30 entregas" }, facts)).toContain("deliveries: número fora dos totais (30)");
     expect(teamTextIssues(null, facts)).toHaveLength(5);
+  });
+  it("ranking com acento e por quantidade também é recusado", () => {
+    for (const helps of ["Carla foi a campeã da semana", "Fernando, o campeão de entregas", "As campeãs do sprint", "A melhor da semana", "Carla, o que mais entregou", "Quem mais ajudou foi Carla", "Top 3 da equipe", "Destaques: Fernando"]) {
+      expect(teamTextIssues({ ...good, helps }, facts), helps).toContain("helps: compara ou classifica pessoas");
+    }
+  });
+  it("frases que não são ranking passam (sem recusar demais)", () => {
+    for (const helps of ["A tela do campeonato ficou pronta", "O checkout melhorou", "Ajudas trouxeram melhorias", "As anotações ajudaram a equipe", "Foi uma semana notável", "Tudo o que a equipe entregou", "Ajudas destravaram o que mais travava"]) {
+      expect(teamTextIssues({ ...good, helps }, facts), helps).toEqual([]);
+    }
+  });
+});
+
+describe("vídeo da semana: liberação", () => {
+  const sent = new Date("2026-11-09T21:00:00Z");
+  const h = 3_600_000;
+  it("só relatório liberado ao RH conta; em conferência não libera o vídeo", () => {
+    expect(teamVideoDue(2, [{ state: "awaiting_owner", sentAt: null }, { state: "commented", sentAt: null }], sent)).toBe(false);
+    expect(teamVideoDue(2, [{ state: "draft", sentAt: null }, { state: "sent", sentAt: sent }], sent)).toBe(false);
+    expect(teamVideoDue(2, [{ state: "sent", sentAt: sent }, { state: "sent_without_notice", sentAt: sent }], sent)).toBe(true);
+  });
+  it("sem todos liberados, sai 24 h depois do primeiro liberado", () => {
+    const r = [{ state: "sent", sentAt: sent }, { state: "awaiting_owner", sentAt: null }];
+    expect(teamVideoDue(2, r, new Date(sent.getTime() + 24 * h - 1))).toBe(false);
+    expect(teamVideoDue(2, r, new Date(sent.getTime() + 24 * h))).toBe(true);
+    expect(teamVideoDue(2, [], new Date(sent.getTime() + 99 * h))).toBe(false);
   });
 });
 

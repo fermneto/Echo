@@ -1204,26 +1204,26 @@ Nota do dia, plano da manhã e resumo da ausência como artefatos
 - **Testes:** Especificação com número inventado é recusada. Página de outra pessoa retorna 404. Interação sem permissão é recusada.
 - **Pronto quando:** A nota do dia abre como página interativa, a pessoa confirma o que está liberado nela, e a resposta do agente muda.
 
-### Etapa 27 · Vídeos das entregas no relatório
+### Etapa 27 · Vídeo da semana da equipe
 
-Um agente Claude grava a feature entregue na semana
+Um agente Claude grava um resumo animado da semana de cada equipe, depois da conferência dos relatórios
 
 - **Depende de:** 10, 12, 19
-- **Contas:** Armazenamento de mídia
+- **Contas:** Managed Agents (agente e ambiente de gravação); o mp4 fica na Files API da Anthropic
 
-**Passos:**
+**O que existe hoje:**
 
-1. Na criação do relatório, regras escolhem até 3 entregas da semana com mudança visível: PR unido que alterou telas e tem preview ou pode subir com dados sintéticos. Entregas sem tela ficam só no texto.
-2. O Claude (Sonnet) escreve o roteiro em saída estruturada: endereço inicial, passos (clicar, digitar, esperar) e legenda de cada passo, a partir do título do PR, da tarefa e do diff, tratados como dado.
-3. Rodar `pnpm --filter @echo/reviewer provision-video` uma vez: agente e ambiente do Managed Agents com navegador sem interface, Playwright e ffmpeg → `VIDEO_AGENT_ID` e `VIDEO_ENVIRONMENT_ID`.
-4. A sessão abre o preview do commit (etapa 19) ou sobe o app nesse commit com o seed, executa o roteiro, grava a tela do próprio navegador com o Playwright e queima as legendas com o ffmpeg.
-5. Fora do ambiente, a plataforma confere: só domínios de preview ou `localhost`, nunca produção; até 90 segundos; legendas em terceira pessoa e sem números fora das métricas.
-6. O vídeo vai para o armazenamento de mídia, com link assinado e retenção definida, e aparece no relatório ao lado da entrega, com capítulos por passo.
-7. A pessoa assiste antes do envio ao RH e pode descartar ou pedir nova gravação. O prazo de 3 dias não muda, e o relatório segue sem o vídeo se ele falhar.
-8. Limites: o vídeo para em 80% do limite da empresa, como a correção, e grava `agent_runs` com o custo.
+1. **Quando sai.** O vídeo só entra na fila depois que os relatórios da equipe foram liberados ao RH, pela mesma regra do envio: a pessoa conferiu e passaram os 3 dias do aviso, ou não houve aviso em 7 dias (`reportReleased` e `RELEASED_REPORT_STATES`, em `packages/domain/src/report.ts`). A decisão de fila é a regra pura `teamVideoDue` (`packages/domain/src/team-video.ts`): todos da equipe com relatório liberado, ou 24 h depois do primeiro liberado. Relatório ainda em conferência não conta e não entra no vídeo.
+2. **O que mostra.** Só os fatos dos relatórios liberados: totais da equipe (entregas, ajudas entre colegas e respostas dos gêmeos), até 6 entregas (referência e título, sem o autor, para não virar contagem por pessoa), até 5 ajudas ("X ajudou Y", crédito sem placar) e até 3 trechos de tela gravados no preview do commit (etapa 19). Até 90 s. Números saem das regras; o Claude Haiku só escreve frases curtas, conferidas por regra (`teamTextIssues`: sem ranking, sem primeira pessoa, sem número fora dos totais). Texto recusado vira texto por regra.
+3. **Trechos de tela.** Regras escolhem PRs unidos com mudança de tela e preview pronto. O Claude Sonnet escreve o roteiro em saída estruturada, conferido por regra (só domínio de preview).
+4. **Gravação.** Uma sessão do Managed Agents (agente e ambiente criados uma vez com `pnpm --filter @echo/reviewer provision-video`) grava os trechos com o Playwright e a página animada, com voz ou trilha. Fora do ambiente, o Echo confere a duração do mp4 contra as cenas e se o navegador só abriu o preview ou a página local (`teamRecordingIssues`). Recusado ou com falha, o vídeo fica `failed` e o relatório de cada pessoa segue igual.
+5. **Quem vê.** A página de relatórios mostra o último vídeo de cada equipe visível: a própria equipe para quem é dela e para a liderança; para o RH, as equipes que acompanha. O mp4 sai pela rota `/api/video/[org]/[id]` com link assinado (HMAC com `SESSION_SECRET`, válido por 1 h) e `cache-control: private`. Retenção de 30 dias; depois, o arquivo sai do armazenamento.
+6. **Custo.** No máximo 3 gravações por vídeo e US$ 2 por gravação. Com o gasto do mês em 80% do limite da empresa, os vídeos param, como a correção: a agenda não põe job (o vídeo fica `queued`, sem linha repetida em `agent_runs`) e volta sozinha quando o custo baixa. Cada etapa grava uma linha em `agent_runs` com o custo.
+7. **Variáveis** (worker, validadas em `packages/config`): `VIDEO_AGENT_ID` e `VIDEO_ENVIRONMENT_ID` (sem elas, não há vídeo), `VIDEO_SCAN_MS` (intervalo da agenda, padrão 300000) e `VIDEO_TIMEOUT_MS` (tempo máximo de uma gravação, padrão 1200000). Teste na hora: `pnpm video:agora`.
 
-- **Testes:** Roteiro com domínio de produção é recusado. Falha na gravação não atrasa o relatório. Vídeo descartado não vai ao RH.
-- **Pronto quando:** O relatório de uma semana com entrega de tela traz um vídeo curto, legendado, gravado pelo agente no preview, e a pessoa aprova antes do envio.
+- **Testes:** Relatório em conferência não libera o vídeo, e só entram entregas e ajudas de relatórios liberados. Texto com ranking ("campeã", "o que mais entregou") é recusado, sem recusar frase neutra. Card de entrega sem o nome do autor. Custo em pausa não põe job. Roteiro com domínio de produção é recusado. Falha na gravação não muda o relatório.
+- **Pronto quando:** Depois da conferência dos relatórios, a equipe e a liderança veem no painel um vídeo curto da semana, sem nota nem ranking, gravado pelo agente no preview.
+- **Por fazer:** o vídeo por entrega no relatório individual, com aprovação da pessoa antes do envio ao RH (ver `docs/pendencias.md`).
 
 ## Contas e variáveis
 

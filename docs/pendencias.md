@@ -28,7 +28,7 @@ Situação em **8/11/2026**, com a `main` no merge do #78. Aqui fica o que imped
 
 **Comandos para ensaiar os fluxos na hora:** `pnpm nota:agora` (#52), `pnpm noite:agora` (#60) e `pnpm manha:agora` (#69) põem o job na fila, e o worker faz o resto. `pnpm relatorio:agora` (#75) gera na hora o relatório da semana que já fechou, sem duplicar e sem enviar ao RH.
 
-**Fora do escopo da demo (próximos passos no pitch):** etapas 17 (camada de conexões), 20 (incidentes e plantão), 21 (Asana, GitHub Issues e GitLab; o Jira entrou no #77), 22 (chat alternativo), 23 (base de conhecimento), 24 (RH e diretório), 25 (API pública) e 27 (vídeos das entregas).
+**Fora do escopo da demo (próximos passos no pitch):** etapas 17 (camada de conexões), 20 (incidentes e plantão), 21 (Asana, GitHub Issues e GitLab; o Jira entrou no #77), 22 (chat alternativo), 23 (base de conhecimento), 24 (RH e diretório), 25 (API pública) e a parte da etapa 27 que ainda falta (vídeo por entrega no relatório individual, ver B16). O vídeo da semana da equipe já está na `main` (#82).
 
 ## 2. Bloqueios e decisões em aberto
 
@@ -83,6 +83,12 @@ Só "quem está no expediente" sai pela equipe da tela.
 - **Vários jobs da noite no mesmo dia:** um só job da revisão noturna por empresa no dia (#71). A agenda também não repete jobs nas outras filas: todo envio usa a janela do pg-boss (`DEDUPE_SECONDS`, #74).
 - **Telas com dados reais e recorte de equipe (#73):** quem entra pelo Slack vê a equipe, a ficha, as pendências e o plano lidos do banco. Se a leitura das equipes falha, `loadTeams` devolve `null` e o recorte fica só com a própria pessoa, em vez de abrir a empresa toda.
 - **Diff da correção, branch do rascunho e auditoria:** o diff conferido é o aplicado, a branch do rascunho fica travada e a aprovação vai ao `audit_log`, inclusive pela delegação, com a origem `delegacao` (#65).
+
+### B16. Vídeo por entrega no relatório individual
+
+**Dono:** Funções.
+**Situação:** a etapa 27 entrou como vídeo da semana da equipe (#82): sai depois da liberação dos relatórios ao RH, mostra só totais, entregas sem autor e ajudas, e a equipe e a liderança veem no painel com link assinado. O que o manual descreve para o relatório de cada pessoa continua por fazer: até 3 vídeos por entrega com tela, ao lado da entrega no relatório individual, que a pessoa assiste e aprova, descarta ou pede de novo antes do envio ao RH (vídeo descartado não vai ao RH; o prazo de 3 dias não muda).
+**Destrava:** reaproveitar o roteiro e a gravação do vídeo da equipe (`packages/agents/src/video.ts`), com um estado de aprovação por vídeo e o filtro no envio ao RH.
 
 ## 3. O que configurar
 

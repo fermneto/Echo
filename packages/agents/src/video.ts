@@ -1,6 +1,6 @@
 // Vídeo da semana da equipe (etapa 27). Depois dos relatórios da semana, o Echo monta um resumo animado da
 // equipe: entregas, ajudas entre colegas, gêmeos em ação e trechos das telas novas gravados no preview. Os números
-// vêm dos relatórios conferidos (regras); o Claude Haiku só escreve frases curtas, conferidas por regra; o Sonnet
+// vêm só dos relatórios já liberados ao RH, depois da conferência da pessoa ou do prazo (regras); o Claude Haiku só escreve frases curtas, conferidas por regra; o Sonnet
 // escreve o roteiro de cada trecho, também conferido. Uma sessão do Managed Agents grava os trechos e a página
 // animada, e o Echo confere tudo fora do ambiente. Vai direto para a equipe e a liderança no painel. Sem nota, sem
 // ranking: a semana é da equipe.
@@ -255,6 +255,15 @@ export function createVideo(deps: VideoDeps) {
   const clock = deps.clock ?? systemClock;
   const enabled = () => Boolean(deps.sandbox && deps.model);
 
+  /**
+   * Custo do mês em 80% do limite (ou mais): vídeos parados. A agenda consulta antes de pôr o job, para não gravar
+   * uma linha `skipped` em agent_runs a cada passada enquanto o vídeo espera na fila.
+   */
+  async function paused(orgId: string, now: Date = clock.now()): Promise<boolean> {
+    const { spentUsd, monthlyLimitUsd } = await deps.store.budget(orgId, monthStart(now));
+    return costLevel(spentUsd, monthlyLimitUsd) !== "normal";
+  }
+
   /** Grava o vídeo da semana de uma equipe. Qualquer falha deixa `failed`; o relatório de cada pessoa segue igual. */
   async function process(orgId: string, id: string): Promise<VideoOutcome> {
     const started = Date.now();
@@ -272,8 +281,8 @@ export function createVideo(deps: VideoDeps) {
     };
     if (row.attempts >= MAX_RECORDINGS) return fail("queued", "limite de gravações");
     const now = clock.now();
-    const { spentUsd, monthlyLimitUsd } = await deps.store.budget(orgId, monthStart(now));
-    if (costLevel(spentUsd, monthlyLimitUsd) !== "normal") return skip("80% do limite de custo do mês: vídeos parados");
+    // A agenda já não põe job com o custo em pausa (`paused`); isto cobre o job que entrou antes da pausa.
+    if (await paused(orgId, now)) return skip("80% do limite de custo do mês: vídeos parados");
 
     const got = await deps.store.facts(orgId, row.teamId, row.week);
     if (!got) return fail("queued", "equipe sem relatórios nesta semana");
@@ -321,7 +330,7 @@ export function createVideo(deps: VideoDeps) {
     return { status: "ready", id };
   }
 
-  return { enabled, process };
+  return { enabled, paused: (orgId: string) => paused(orgId), process };
 }
 
 export type Video = ReturnType<typeof createVideo>;
