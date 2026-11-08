@@ -3,7 +3,7 @@
 // Fora do ambiente, o código confere o diff; só então a plataforma pede, pelo outbox, a branch echo/fix-pr-N
 // e o PR em rascunho. A IA não une nada: só a aprovação registrada do autor enfileira a união, e só se o
 // rascunho não mudou.
-import type { OutboxAction } from "@echo/actions";
+import type { ApprovalSource, OutboxAction } from "@echo/actions";
 import {
   checkFixDiff,
   type Clock,
@@ -336,6 +336,8 @@ export function createFix(deps: FixDeps) {
         title: `Correção do Echo para o PR #${c.pr.number}`,
         body: draftBody({ prNumber: c.pr.number, findings: decision.findings, report, baseSha: c.headSha }),
         patch: result.diff,
+        // O executor confere o diff de novo contra estes arquivos antes de escrever.
+        prFiles: c.files,
         draft: true,
       },
       idempotencyKey: draftKey(fix.id),
@@ -395,8 +397,16 @@ export function createFix(deps: FixDeps) {
   /**
    * Meu plano: o autor aprova ou recusa. Aprovar confere, na hora, que o rascunho não mudou e enfileira a
    * união com a aprovação registrada; a versão do rascunho vai junto, e a execução recusa se ela mudar.
+   * O outbox grava, na mesma transação da união, quem aprovou (`person:<id>`) e por onde no `audit_log`.
    */
-  async function decide(orgId: string, by: string, fixId: string, decision: "approve" | "decline", via: FixDecidedVia = { via: "pessoa" }): Promise<FixDecisionOutcome> {
+  async function decide(
+    orgId: string,
+    by: string,
+    fixId: string,
+    decision: "approve" | "decline",
+    via: FixDecidedVia = { via: "pessoa" },
+    source: ApprovalSource = via.via === "delegacao" ? "delegacao" : "painel",
+  ): Promise<FixDecisionOutcome> {
     const started = performance.now();
     const finish = (outcome: FixDecisionOutcome, result: AgentRun["result"], tools: string[] = []) =>
       record({ flow: "fix_decision", orgId, durationMs: Math.round(performance.now() - started), result, tools, ...("reason" in outcome ? { error: outcome.reason } : {}) }).then(() => outcome);
@@ -427,6 +437,7 @@ export function createFix(deps: FixDeps) {
       payload: { repo: fix.pr.repository, number: fix.draftPrNumber, sha: fix.draftHeadSha, base: fix.pr.branch, prNumber: fix.pr.number },
       idempotencyKey: mergeKey(fixId),
       approvedBy: by,
+      approvalSource: source,
     });
     return finish({ status: "approved" }, "ok", ["github.merge_fix"]);
   }
@@ -483,9 +494,14 @@ export function createFix(deps: FixDeps) {
   async function decideFromSlack(orgId: string, payload: unknown): Promise<FixDecisionOutcome | null> {
     const click = fixClick(payload);
     if (!click) return null;
+    const started = performance.now();
     const by = deps.personBySlackUser ? await deps.personBySlackUser(orgId, click.slackUserId) : null;
-    if (!by) return { status: "denied" };
-    return decide(orgId, by, click.fixId, click.decision);
+    if (!by) {
+      // Conta do Slack sem pessoa do Echo: recusado, e a execução fica registrada como as outras decisões.
+      await record({ flow: "fix_decision", orgId, durationMs: Math.round(performance.now() - started), result: "refused", tools: [], error: "conta do Slack sem pessoa no Echo" });
+      return { status: "denied" };
+    }
+    return decide(orgId, by, click.fixId, click.decision, { via: "pessoa" }, "slack");
   }
 
   return { pending, run, sync, decide, decideFromSlack };

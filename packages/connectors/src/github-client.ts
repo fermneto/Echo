@@ -1,8 +1,10 @@
 // Adaptador do GitHub (GitHub App) para a porta CodeHost, por HTTP, sem SDK.
-// Token de instalação de 1 hora, renovado num só lugar. Somente leitura: escrever é com packages/actions.
+// Token de instalação de 1 hora, renovado num só lugar. Lê e também implementa as escritas da porta CodeWriter
+// (comentário, revisores, rascunho e união da correção, espelho), mas só packages/actions as chama, e só pelo
+// outbox, depois de aprovação ou das exceções registradas em REQUIRES_APPROVAL.
 import { createSign } from "node:crypto";
 import { FileChangedError, trustedLogin, type CodeHost, type CodeWriter, type CommitIdentity, type PathEdits, type RepoFiles } from "./index.ts";
-import { applyFilePatch, PatchConflictError, splitUnifiedDiff, type FixTarget, type PullHead } from "@echo/domain";
+import { applyFilePatch, FIX_RULES, PatchConflictError, splitUnifiedDiff, type FixTarget, type PullHead } from "@echo/domain";
 import { checksStateOf } from "./github.ts";
 import { taskKeyFrom, type ChecksState, type ExternalPullRequest, type LivePullRequest } from "./normalized.ts";
 import { RefreshingToken } from "./tokens.ts";
@@ -301,6 +303,8 @@ export class GithubCodeHost implements CodeHost, CodeWriter, RepoFiles {
    */
   async createFixDraft(input: { repo: string; base: string; baseSha: string; branch: string; title: string; body: string; patch: string }): Promise<{ number: number; headSha: string }> {
     const { repo } = input;
+    // A branch pode ser sobrescrita com força abaixo: só a do Echo, nunca a do PR. O executor já confere; esta é a segunda trava.
+    if (!input.branch.startsWith(FIX_RULES.branchPrefix) || input.branch === input.base) throw new PatchConflictError(`branch ${input.branch} não é do Echo`);
     const tree: { path: string; mode: string; type: "blob"; content: string }[] = [];
     for (const f of splitUnifiedDiff(input.patch)) {
       const original = f.status === "added" ? "" : await this.fileAt(repo, f.path, input.baseSha);

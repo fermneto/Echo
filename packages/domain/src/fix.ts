@@ -42,6 +42,18 @@ export const FIX_RULES = {
 export const fixBranch = (prNumber: number) => `${FIX_RULES.branchPrefix}${prNumber}`;
 export const isTestPath = (path: string) => FIX_RULES.testPaths.some((r) => r.test(path));
 
+/**
+ * Branch em que o rascunho pode ser escrito (com força, se já existir): só a do Echo para este PR
+ * (`echo/fix-pr-N`), nunca a branch do PR original nem a padrão. Conferida no executor, antes de chamar o GitHub.
+ */
+export function fixDraftBranchCheck(input: { branch: string; base: string; prNumber: number; defaultBranch?: string }): { ok: true } | { ok: false; reason: string } {
+  const { branch } = input;
+  if (!branch.startsWith(FIX_RULES.branchPrefix)) return { ok: false, reason: `branch ${branch} não é do Echo (${FIX_RULES.branchPrefix}…)` };
+  if (branch === input.base || branch === input.defaultBranch) return { ok: false, reason: `branch ${branch} é a base ou a padrão` };
+  if (!Number.isInteger(input.prNumber) || input.prNumber <= 0 || branch !== fixBranch(input.prNumber)) return { ok: false, reason: `branch ${branch} não é a do PR #${input.prNumber}` };
+  return { ok: true };
+}
+
 // ---------- Quais achados viram correção
 
 export interface FixableFinding {
@@ -125,39 +137,114 @@ export interface DiffFile {
 
 const unquote = (p: string) => p.trim();
 
-/** Lê um diff unificado do git. Caminho entre aspas (caracteres especiais) fica como está e é recusado depois. */
-export function parseUnifiedDiff(patch: string): DiffFile[] {
-  const files: DiffFile[] = [];
-  let cur: DiffFile | null = null;
+/** Cabeçalho de arquivo aceito. Qualquer outra linha que comece com "diff --git " recusa o diff inteiro. */
+const FILE_HEADER = /^diff --git (?:"?a\/(.+?)"?) (?:"?b\/(.+?)"?)$/;
+const HUNK_HEADER = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/;
+/** Linhas de cabeçalho de arquivo que o git escreve entre "diff --git" e o primeiro trecho. */
+const META_LINE = /^(index |new file mode |deleted file mode |old mode |new mode |similarity index |dissimilarity index |rename from |rename to |copy from |copy to |--- |\+\+\+ |Binary files )/;
+
+/** Arquivo do diff com os trechos (@@ … e o que vem depois), lidos na mesma passada. */
+export interface ParsedDiffFile extends DiffFile {
+  hunks: string[];
+}
+
+export interface ParsedDiff {
+  files: ParsedDiffFile[];
+  /** Problemas de formato. Qualquer um recusa o diff inteiro (conferência e aplicação). */
+  errors: string[];
+}
+
+/**
+ * Lê um diff unificado do git numa só passada: caminho, status, contagem e trechos saem do mesmo cabeçalho.
+ * Estrito: texto antes do primeiro cabeçalho, cabeçalho "diff --git" fora do formato, linha solta fora de trecho
+ * e trecho cuja contagem (@@ -a,b +c,d @@) não bate com as linhas viram erro. Caminho entre aspas fica como
+ * está e é recusado depois.
+ */
+export function readUnifiedDiff(patch: string): ParsedDiff {
+  const files: ParsedDiffFile[] = [];
+  const errors: string[] = [];
+  let cur: ParsedDiffFile | null = null;
+  /** Linhas que ainda faltam no trecho aberto (antigas e novas). */
+  let oldLeft = 0;
+  let newLeft = 0;
   let inHunk = false;
-  for (const line of patch.replace(/\r\n/g, "\n").split("\n")) {
-    const header = /^diff --git (?:"?a\/(.+?)"?) (?:"?b\/(.+?)"?)$/.exec(line);
-    if (header) {
-      cur = { path: unquote(header[2]!), oldPath: unquote(header[1]!), status: "modified", additions: 0, deletions: 0, binary: false, modeChange: false };
-      files.push(cur);
-      inHunk = false;
-      continue;
-    }
-    if (!cur) continue;
-    if (line.startsWith("@@")) {
-      inHunk = true;
-      continue;
-    }
+  /** Logo depois do fim de um trecho, "\ No newline at end of file" ainda é dele. */
+  let afterHunk = false;
+  /** Depois de "GIT binary patch", o corpo é binário até o próximo arquivo (o arquivo é recusado). */
+  let binaryBody = false;
+  const lines = patch.replace(/\r\n/g, "\n").split("\n");
+  // A última quebra de linha do diff gera uma linha vazia que não é conteúdo.
+  if (lines.at(-1) === "") lines.pop();
+  const closeHunk = (n: number) => {
+    if (inHunk && (oldLeft !== 0 || newLeft !== 0)) errors.push(`trecho incompleto em ${cur?.path || "?"} (linha ${n}): faltam ${oldLeft} linha(s) antigas e ${newLeft} novas`);
+    inHunk = false;
+  };
+  lines.forEach((line, i) => {
+    const n = i + 1;
     if (inHunk) {
-      if (line.startsWith("+")) cur.additions++;
-      else if (line.startsWith("-")) cur.deletions++;
-      else if (!line.startsWith(" ") && !line.startsWith("\\") && line !== "") inHunk = false;
-      if (inHunk) continue;
+      const c = line[0];
+      if (c === "\\") { cur!.hunks.push(line); return; }
+      if (c === " " || line === "" || c === "-" || c === "+") {
+        if (c === "+") { if (newLeft === 0) { errors.push(`trecho com linhas a mais em ${cur!.path} (linha ${n})`); inHunk = false; return; } newLeft--; cur!.additions++; }
+        else if (c === "-") { if (oldLeft === 0) { errors.push(`trecho com linhas a mais em ${cur!.path} (linha ${n})`); inHunk = false; return; } oldLeft--; cur!.deletions++; }
+        else { if (oldLeft === 0 || newLeft === 0) { errors.push(`trecho com linhas a mais em ${cur!.path} (linha ${n})`); inHunk = false; return; } oldLeft--; newLeft--; }
+        cur!.hunks.push(line);
+        if (oldLeft === 0 && newLeft === 0) { inHunk = false; afterHunk = true; }
+        return;
+      }
+      closeHunk(n);
     }
+    if (line.startsWith("diff --git ")) {
+      afterHunk = false;
+      binaryBody = false;
+      const header = FILE_HEADER.exec(line);
+      if (!header) {
+        errors.push(`cabeçalho de arquivo inválido na linha ${n}`);
+        cur = null;
+        return;
+      }
+      cur = { path: unquote(header[2]!), oldPath: unquote(header[1]!), status: "modified", additions: 0, deletions: 0, binary: false, modeChange: false, hunks: [] };
+      files.push(cur);
+      return;
+    }
+    if (!cur) {
+      // Nada antes do primeiro cabeçalho válido; depois de um cabeçalho inválido, o erro já foi registrado.
+      if (line.trim() !== "" && errors.length === 0) errors.push(`texto antes do primeiro arquivo na linha ${n}`);
+      return;
+    }
+    if (binaryBody) return;
+    if (line.startsWith("\\") && afterHunk) { cur.hunks.push(line); return; }
+    afterHunk = false;
+    const hunk = HUNK_HEADER.exec(line);
+    if (line.startsWith("@@")) {
+      if (!hunk) { errors.push(`trecho inválido na linha ${n}`); return; }
+      oldLeft = hunk[2] === undefined ? 1 : Number(hunk[2]);
+      newLeft = hunk[4] === undefined ? 1 : Number(hunk[4]);
+      cur.hunks.push(line);
+      inHunk = oldLeft > 0 || newLeft > 0;
+      if (!inHunk) errors.push(`trecho vazio na linha ${n}`);
+      return;
+    }
+    if (line === "") return;
+    if (line.startsWith("GIT binary patch")) { cur.binary = true; binaryBody = true; return; }
+    if (!META_LINE.test(line)) { errors.push(`linha fora de trecho em ${cur.path} (linha ${n})`); return; }
+    if (cur.hunks.length > 0) { errors.push(`cabeçalho depois dos trechos em ${cur.path} (linha ${n})`); return; }
     if (line.startsWith("new file mode")) cur.status = "added";
     else if (line.startsWith("deleted file mode")) cur.status = "deleted";
     else if (line.startsWith("rename from ")) { cur.status = "renamed"; cur.oldPath = line.slice(12).trim(); }
     else if (line.startsWith("rename to ")) cur.path = line.slice(10).trim();
+    else if (line.startsWith("copy from ") || line.startsWith("copy to ")) errors.push(`cópia de arquivo em ${cur.path}`);
     else if (line.startsWith("old mode") || line.startsWith("new mode")) cur.modeChange = true;
-    else if (line.startsWith("Binary files") || line.startsWith("GIT binary patch")) cur.binary = true;
+    else if (line.startsWith("Binary files")) cur.binary = true;
     else if (line.startsWith("+++ ") && line.slice(4).trim() !== "/dev/null") cur.path = unquote(line.slice(4).replace(/^b\//, ""));
-  }
-  return files;
+  });
+  closeHunk(lines.length);
+  return { files, errors };
+}
+
+/** Lê um diff unificado do git (só os metadados de cada arquivo). */
+export function parseUnifiedDiff(patch: string): DiffFile[] {
+  return readUnifiedDiff(patch).files.map(({ hunks: _h, ...f }) => f);
 }
 
 export type FixCheck = { ok: true; files: string[]; changedLines: number } | { ok: false; reasons: string[] };
@@ -169,7 +256,10 @@ const badPath = (p: string) => p === "" || p.startsWith("/") || p.includes("\\")
  * sem binário, remoção, renomeação ou mudança de permissão, e correção pequena. Arquivo novo, só de teste.
  */
 export function checkFixDiff(patch: string, prFiles: readonly string[]): FixCheck {
-  const files = parseUnifiedDiff(patch);
+  const parsed = readUnifiedDiff(patch);
+  // Formato fora do padrão recusa tudo: o que se confere aqui tem de ser exatamente o que se aplica depois.
+  if (parsed.errors.length) return { ok: false, reasons: parsed.errors.map((e) => `diff malformado: ${e}`) };
+  const files = parsed.files;
   if (files.length === 0) return { ok: false, reasons: ["diff vazio"] };
   const reasons: string[] = [];
   const inPr = new Set(prFiles);
@@ -224,32 +314,14 @@ export interface FilePatch {
   hunks: string[];
 }
 
-/** Separa o diff unificado por arquivo, com os trechos de cada um. */
+/**
+ * Separa o diff unificado por arquivo, com os trechos de cada um, pela mesma leitura de `checkFixDiff`
+ * (caminho e trechos vêm do mesmo cabeçalho, sem parear por posição). Diff malformado não é aplicado.
+ */
 export function splitUnifiedDiff(patch: string): FilePatch[] {
-  const meta = parseUnifiedDiff(patch);
-  const out: FilePatch[] = [];
-  let cur: FilePatch | null = null;
-  let inHunk = false;
-  for (const line of patch.replace(/\r\n/g, "\n").split("\n")) {
-    if (/^diff --git /.test(line)) {
-      const m = meta[out.length];
-      cur = { path: m?.path ?? "", status: m?.status ?? "modified", hunks: [] };
-      out.push(cur);
-      inHunk = false;
-      continue;
-    }
-    if (!cur) continue;
-    if (line.startsWith("@@")) {
-      inHunk = true;
-      cur.hunks.push(line);
-      continue;
-    }
-    if (inHunk && (line.startsWith("+") || line.startsWith("-") || line.startsWith(" ") || line.startsWith("\\") || line === "")) cur.hunks.push(line);
-    else inHunk = false;
-  }
-  // A linha vazia no fim vem da quebra final do diff, não é contexto (o git escreve contexto vazio como " ").
-  for (const f of out) while (f.hunks.at(-1) === "") f.hunks.pop();
-  return out;
+  const { files, errors } = readUnifiedDiff(patch);
+  if (errors.length) throw new PatchConflictError(`diff malformado: ${errors.join("; ")}`);
+  return files.map((f) => ({ path: f.path, status: f.status, hunks: f.hunks }));
 }
 
 export class PatchConflictError extends Error {
