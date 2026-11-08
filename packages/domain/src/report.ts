@@ -81,19 +81,6 @@ export function reportsDue(person: Person, now: Date): { week: string; cutoff: D
   });
 }
 
-/**
- * A semana mais recente já fechada (corte passado) no fuso da pessoa: a atual depois do corte, senão a anterior.
- * É a semana cujo relatório a pessoa confere agora. Null sem dia de expediente.
- */
-export function lastClosedWeek(person: Pick<Person, "timezone" | "workHours">, now: Date): string | null {
-  const today = localDate(now, person.timezone);
-  for (const week of [isoWeek(today), isoWeek(addDays(today, -7))]) {
-    const cutoff = weekCutoff(person, week);
-    if (cutoff && cutoff.getTime() <= now.getTime()) return week;
-  }
-  return null;
-}
-
 /** Cada relatório vai de onde o anterior parou; o primeiro cobre os 7 dias antes do corte. */
 export function coveredPeriod(previousTo: Date | undefined, cutoff: Date): { from: Date; to: Date } | null {
   const from = previousTo ?? new Date(cutoff.getTime() - 7 * DAY);
