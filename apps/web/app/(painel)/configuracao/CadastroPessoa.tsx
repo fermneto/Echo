@@ -44,7 +44,7 @@ export function CadastroPessoa({ action, teams }: { action: (prev: CadastroState
                 {t.name}
               </option>
             ))}
-            <option value="">Sem equipe (só RH)</option>
+            <option value="">Sem equipe (só para o papel RH)</option>
           </select>
         </label>
         <label className="onboard__field">
@@ -102,7 +102,7 @@ export function CadastroPessoa({ action, teams }: { action: (prev: CadastroState
               <PixelSprite look={state.avatar} mode="person" size={132} label={`Bonequinho de ${state.name}`} />
             </div>
             <p className="onboard__name">
-              <Link href={`/pessoas/${state.personId}`}>{state.name}</Link>
+              {state.personId ? <Link href={`/pessoas/${state.personId}`}>{state.name}</Link> : state.name}
             </p>
             <p className="mono muted onboard__title">{state.jobTitle ?? "Cargo a preencher"}</p>
             {state.skills.length || state.areas.length || state.languages.length ? (

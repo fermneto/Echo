@@ -21,8 +21,8 @@ export type CadastroState =
   | { status: "error"; error: string }
   | {
       status: "done";
-      /** Id da pessoa criada, para o link da ficha. */
-      personId: string;
+      /** Id da pessoa criada, para o link da ficha (sem ele, nada foi gravado: pré-visualização da demo). */
+      personId?: string;
       name: string;
       avatar: AvatarTraits;
       jobTitle: string | null;

@@ -3,18 +3,21 @@ import type { AvatarTraits } from "@echo/domain";
 import { LogRunRecorder } from "@echo/observability";
 import { describe, expect, it } from "vitest";
 import type { ModelCall } from "./answer.ts";
-import { cleanResume, type NewPerson, onboardPerson, RESUME_SYSTEM } from "./onboarding.ts";
+import { cleanResume, type NewPerson, ONBOARDING_LIMIT, OnboardingLimitError, onboardPerson, RESUME_SYSTEM } from "./onboarding.ts";
 import type { JsonModel } from "./triage-ollama.ts";
 
 const traits: AvatarTraits = { hair: "curly", hairColor: "auburn", skin: "s2", eyewear: "glasses", facialHair: "none", top: "hoodie", topColor: "green", headwear: "none" };
-const base = { orgId: "org-1", name: "Marina Teste", timezone: "America/Sao_Paulo", workHours: { days: [1, 2, 3, 4, 5], start: "09:00", end: "18:00" } };
+const base = { orgId: "org-1", actorId: "rh-1", name: "Marina Teste", timezone: "America/Sao_Paulo", workHours: { days: [1, 2, 3, 4, 5], start: "09:00", end: "18:00" } };
 const PHOTO = { mediaType: "image/png" as const, base64: "iVBORw0KGgo=" };
 
-function setup(opts: { slm?: JsonModel | null; vision?: ModelCall | null } = {}) {
+function setup(opts: { slm?: JsonModel | null; vision?: ModelCall | null; recent?: number } = {}) {
   const created: NewPerson[] = [];
+  const since: Date[] = [];
   const recorder = new LogRunRecorder();
-  const flow = onboardPerson({ store: { createPerson: async (p) => (created.push(p), { id: "p-1" }) }, recorder, timeoutMs: 1000, ...opts });
-  return { flow, created, runs: recorder.runs };
+  const { recent = 0, ...models } = opts;
+  const store = { createPerson: async (p: NewPerson) => (created.push(p), { id: "p-1" }), recentCount: async (_org: string, from: Date) => (since.push(from), recent) };
+  const flow = onboardPerson({ store, recorder, timeoutMs: 1000, clock: { now: () => new Date("2026-11-07T12:00:00Z") }, ...models });
+  return { flow, created, runs: recorder.runs, since };
 }
 
 function slm(raw: unknown | Error): JsonModel & { requests: { system: string; user: string }[] } {
@@ -145,5 +148,21 @@ describe("onboardPerson", () => {
     const { flow, created } = setup();
     await expect(flow({ ...base, name: "  " })).rejects.toThrow("nome obrigatório");
     expect(created).toHaveLength(0);
+  });
+
+  it("grava quem cadastrou, para o audit_log", async () => {
+    const { flow, created } = setup();
+    await flow(base);
+    expect(created[0]!.actorId).toBe("rh-1");
+  });
+
+  it("limite por hora: não chama modelo nem grava, e deixa a linha em agent_runs", async () => {
+    const vision = haiku(traits);
+    const { flow, created, runs, since } = setup({ vision: vision.call, recent: ONBOARDING_LIMIT.perHour });
+    await expect(flow({ ...base, photo: PHOTO })).rejects.toBeInstanceOf(OnboardingLimitError);
+    expect(since[0]).toEqual(new Date("2026-11-07T11:00:00Z"));
+    expect(vision.calls).toHaveLength(0);
+    expect(created).toHaveLength(0);
+    expect(runs).toEqual([expect.objectContaining({ flow: "onboarding", result: "skipped", error: "limite de cadastros por hora" })]);
   });
 });

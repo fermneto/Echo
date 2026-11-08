@@ -7,11 +7,14 @@ import { gainsOrgId } from "@/lib/gains";
 import { TEAMS } from "@/lib/demo/teams";
 import { parseOnboardingForm } from "@/lib/onboarding-form";
 import type { CadastroState } from "@/lib/onboarding-options";
-import { currentPersona } from "@/lib/session";
+import { personIdFor } from "@/lib/agent";
+import { currentPersona, isDemoSession } from "@/lib/session";
 
 /**
  * Cadastro de pessoa pelo RH: o currículo vira o contexto inicial do gêmeo (modelo aberto) e a foto vira o
- * bonequinho (Claude escolhe traços de uma lista fechada). Só RH e liderança cadastram.
+ * bonequinho (Claude escolhe traços de uma lista fechada). Só RH e liderança cadastram; a liderança, só
+ * pessoas da equipe e sem papel de RH.
+ * Na demonstração (persona escolhida em /entrar), só pré-visualiza: nada é gravado e nenhum modelo é chamado.
  */
 export async function cadastrarPessoa(_prev: CadastroState, form: FormData): Promise<CadastroState> {
   const me = await currentPersona();
@@ -19,6 +22,23 @@ export async function cadastrarPessoa(_prev: CadastroState, form: FormData): Pro
   const parsed = await parseOnboardingForm(form, TEAMS.map((t) => t.id));
   if (!parsed.ok) return { status: "error", error: parsed.error };
   const f = parsed.fields;
+  if (me.role === "leader" && f.role === "hr") return { status: "error", error: "A liderança cadastra pessoas da equipe; o papel de RH só o RH dá." };
+  if (me.role === "leader" && f.teamId !== me.teamId) return { status: "error", error: "A liderança só cadastra pessoas na própria equipe." };
+
+  if (isDemoSession(me)) {
+    const { traitsFromSeed } = await import("@echo/domain");
+    return {
+      status: "done",
+      name: f.name,
+      avatar: traitsFromSeed(`${me.orgId}:${f.name}`),
+      jobTitle: null,
+      skills: [],
+      areas: [],
+      languages: [],
+      notes: ["Demonstração: nada foi gravado. A foto e o currículo não saíram do painel, e o bonequinho saiu de traços padrão."],
+      saved: false,
+    };
+  }
 
   const db = panelDb();
   if (!db) return { status: "error", error: "O painel não tem banco ligado (DATABASE_URL), então não há onde cadastrar." };
@@ -29,7 +49,7 @@ export async function cadastrarPessoa(_prev: CadastroState, form: FormData): Pro
     ollama: cfg.SLM_OLLAMA_URL ? { url: cfg.SLM_OLLAMA_URL, model: cfg.SLM_MODEL, timeoutMs: 60_000 } : undefined,
   });
   try {
-    const r = await onboard({ orgId: gainsOrgId(me.orgId), name: f.name, role: f.role, ...(f.teamId ? { teamId: f.teamId } : {}), timezone: f.timezone, workHours: f.workHours, ...(f.resumeText ? { resumeText: f.resumeText } : {}), ...(f.photo ? { photo: f.photo } : {}) });
+    const r = await onboard({ orgId: gainsOrgId(me.orgId), actorId: personIdFor(me.id), name: f.name, role: f.role, ...(f.teamId ? { teamId: f.teamId } : {}), timezone: f.timezone, workHours: f.workHours, ...(f.resumeText ? { resumeText: f.resumeText } : {}), ...(f.photo ? { photo: f.photo } : {}) });
     const notes = [
       r.photo === "model"
         ? "Bonequinho feito a partir da foto. A foto não foi guardada."
@@ -50,6 +70,8 @@ export async function cadastrarPessoa(_prev: CadastroState, form: FormData): Pro
     revalidatePath("/");
     return { status: "done", personId: r.personId, name: f.name, avatar: r.avatar, ...r.profile, notes, saved: true };
   } catch (err) {
+    const { OnboardingLimitError, ONBOARDING_LIMIT } = await import("@echo/agents");
+    if (err instanceof OnboardingLimitError) return { status: "error", error: `A empresa chegou ao limite de ${ONBOARDING_LIMIT.perHour} cadastros por hora. Tente de novo mais tarde.` };
     console.error("cadastro falhou", err instanceof Error ? err.message : String(err));
     return { status: "error", error: "Não foi possível cadastrar agora. Tente de novo." };
   }

@@ -201,6 +201,8 @@ export {
   cleanProfile,
   cleanResume,
   EMPTY_PROFILE,
+  ONBOARDING_LIMIT,
+  OnboardingLimitError,
   onboardPerson,
   PHOTO_MAX_BYTES,
   PHOTO_TYPES,

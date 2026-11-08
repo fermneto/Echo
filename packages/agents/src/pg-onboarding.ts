@@ -1,13 +1,13 @@
 // Cadastro de pessoa e leitura do bonequinho, sempre em withOrg com filtro explícito de org_id.
 import { auditLog, type Database, people, withOrg } from "@echo/db";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, count, eq, gte, isNull } from "drizzle-orm";
 import type { OnboardingStore, ResumeProfile } from "./onboarding.ts";
 
 export function createPgOnboardingStore(db: Database): OnboardingStore {
   return {
     async createPerson(p) {
-      const [row] = await withOrg(db, p.orgId, (tx) =>
-        tx
+      return withOrg(db, p.orgId, async (tx) => {
+        const [row] = await tx
           .insert(people)
           .values({
             orgId: p.orgId,
@@ -22,10 +22,21 @@ export function createPgOnboardingStore(db: Database): OnboardingStore {
             languages: p.languages,
             avatar: { ...p.avatar },
           })
-          .returning({ id: people.id }),
+          .returning({ id: people.id });
+        if (!row) throw new Error("pessoa não criada");
+        await tx.insert(auditLog).values({ orgId: p.orgId, actor: `person:${p.actorId}`, action: "pessoa:cadastrar", target: `person:${row.id}` });
+        return row;
+      });
+    },
+
+    async recentCount(orgId, since) {
+      const [r] = await withOrg(db, orgId, (tx) =>
+        tx
+          .select({ n: count() })
+          .from(auditLog)
+          .where(and(eq(auditLog.orgId, orgId), eq(auditLog.action, "pessoa:cadastrar"), gte(auditLog.createdAt, since))),
       );
-      if (!row) throw new Error("pessoa não criada");
-      return row;
+      return r?.n ?? 0;
     },
   };
 }

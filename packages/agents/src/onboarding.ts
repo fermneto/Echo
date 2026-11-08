@@ -6,7 +6,7 @@
 //   O desenho sai por regra a partir dos traços, igual no painel e no Slack.
 // O modelo não grava nada: quem cria a pessoa é o código do fluxo, com o que passou pelos validadores.
 import type Anthropic from "@anthropic-ai/sdk";
-import { AVATAR_LISTS, type AvatarTraits, parseAvatarTraits, type PersonRole, traitsFromSeed } from "@echo/domain";
+import { AVATAR_LISTS, type AvatarTraits, type Clock, parseAvatarTraits, type PersonRole, systemClock, traitsFromSeed } from "@echo/domain";
 import type { RunRecorder } from "@echo/observability";
 import type { ModelCall } from "./answer.ts";
 import { modelCostUsd, type Usage } from "./cost.ts";
@@ -27,10 +27,25 @@ export interface NewPerson {
   areas: string[];
   languages: string[];
   avatar: AvatarTraits;
+  /** Quem cadastrou (id da pessoa no banco), para o `audit_log`. */
+  actorId: string;
 }
 
 export interface OnboardingStore {
+  /** Cria a pessoa e registra quem cadastrou em `audit_log`, na mesma transação. */
   createPerson(p: NewPerson): Promise<{ id: string }>;
+  /** Quantos cadastros a empresa fez desde `since` (pelo `audit_log`), para o limite por hora. */
+  recentCount(orgId: string, since: Date): Promise<number>;
+}
+
+/** Limite de cadastros por empresa: cada um pode chamar o Claude com visão e o modelo aberto. */
+export const ONBOARDING_LIMIT = { perHour: 20 } as const;
+
+/** Passou do limite por hora: nada é gravado e nenhum modelo é chamado. */
+export class OnboardingLimitError extends Error {
+  constructor() {
+    super(`limite de ${ONBOARDING_LIMIT.perHour} cadastros por hora`);
+  }
 }
 
 export interface OnboardingDeps {
@@ -41,10 +56,13 @@ export interface OnboardingDeps {
   vision?: ModelCall | null;
   recorder: RunRecorder;
   timeoutMs?: number;
+  clock?: Clock;
 }
 
 export interface OnboardingInput {
   orgId: string;
+  /** Quem cadastra (id da pessoa no banco). */
+  actorId: string;
   name: string;
   role?: PersonRole;
   timezone: string;
@@ -225,6 +243,12 @@ export function onboardPerson(deps: OnboardingDeps) {
     const flowStarted = Date.now();
     const name = input.name.trim();
     if (!name) throw new Error("nome obrigatório");
+    // Limite antes de qualquer modelo: passou dele, não gasta nada nem grava.
+    const now = (deps.clock ?? systemClock).now();
+    if ((await deps.store.recentCount(input.orgId, new Date(now.getTime() - 3_600_000))) >= ONBOARDING_LIMIT.perHour) {
+      await deps.recorder.record({ flow: "onboarding", orgId: input.orgId, durationMs: 0, result: "skipped", error: "limite de cadastros por hora" });
+      throw new OnboardingLimitError();
+    }
     const fallback = traitsFromSeed(`${input.orgId}:${name}`);
 
     // Currículo: só o perfil validado sai daqui; o texto morre com o pedido.
@@ -299,6 +323,7 @@ export function onboardPerson(deps: OnboardingDeps) {
       ...(input.teamId ? { teamId: input.teamId } : {}),
       ...profile,
       avatar,
+      actorId: input.actorId,
     });
     // Uma linha do cadastro inteiro, mesmo sem currículo nem foto.
     await deps.recorder.record({ flow: "onboarding", orgId: input.orgId, durationMs: Date.now() - flowStarted, result: resume === "fallback" || photo === "fallback" ? "fallback" : "ok" });

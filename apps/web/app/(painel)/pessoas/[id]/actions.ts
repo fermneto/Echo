@@ -8,7 +8,7 @@ import { askTwinDemo } from "@/lib/demo/twin";
 import { gainsOrgId } from "@/lib/gains";
 import { droppedCount, type PerfilState, parseProfileForm } from "@/lib/profile-form";
 import { teamScope } from "@/lib/scope";
-import { currentPersona } from "@/lib/session";
+import { currentPersona, isDemoSession } from "@/lib/session";
 import { loadTeam } from "@/lib/team-live";
 
 import { MAX_QUESTION, type AskState } from "@/lib/ask";
@@ -41,6 +41,7 @@ export async function perguntar(prev: AskState, formData: FormData): Promise<Ask
 
 /**
  * Editar perfil na ficha de quem foi cadastrado no painel: RH, liderança da equipe ou a própria pessoa.
+ * Na demonstração, não grava.
  * Passa pelo mesmo validador do currículo e fica registrado em `audit_log`.
  */
 export async function salvarPerfil(_prev: PerfilState, formData: FormData): Promise<PerfilState> {
@@ -49,6 +50,8 @@ export async function salvarPerfil(_prev: PerfilState, formData: FormData): Prom
   const target = await visibleTarget(me, String(formData.get("pessoa") ?? ""));
   if (!target || !target.registered) return { status: "error", error: "Pessoa não encontrada." };
   if (!canEditProfile(me, target)) return { status: "error", error: "Só o RH, a liderança da equipe ou a própria pessoa editam o perfil." };
+  // Persona da demonstração (escolhida em /entrar): pode abrir a edição, mas nada é gravado.
+  if (isDemoSession(me)) return { status: "error", error: "Demonstração: o perfil não é gravado." };
   const db = panelDb();
   if (!db) return { status: "error", error: "O painel não tem banco ligado (DATABASE_URL)." };
 
