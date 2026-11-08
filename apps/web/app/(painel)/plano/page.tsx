@@ -1,3 +1,4 @@
+import { scheduledKeys } from "@echo/domain";
 import { planFor, type PlanItem } from "@/lib/demo/plan";
 import { personIdFor } from "@/lib/agent";
 import { dayMonth } from "@/lib/daily-note";
@@ -8,8 +9,11 @@ import { gainsOrgId, isDemoOrg } from "@/lib/gains";
 import { loadMorningPlan, planDate } from "@/lib/pending-live";
 import { pendingPlans } from "@/lib/redistribution-server";
 import { requireAccess } from "@/lib/session";
-import { decidirCorrecao } from "./actions";
+import { loadAgenda } from "@/lib/work-planning";
+import { decidirCorrecao, moverTarefa } from "./actions";
+import { DaySchedule } from "./DaySchedule";
 import { PlanList } from "./PlanList";
+import "./agenda.css";
 
 export const metadata = { title: "Meu plano · Echo" };
 
@@ -30,21 +34,34 @@ export default async function PlanoPage({ searchParams }: { searchParams: Promis
     fixId: f.fixId,
   }));
 
+  const agenda = await loadAgenda(me);
+  const firstName = me.name.trim().split(/\s+/)[0];
+  const lead = agenda ? `O agente de ${firstName} organizou seus dias por prazo, dependências e carga. Você pode mudar o dia de qualquer tarefa. Só você vê este plano.` : null;
+  const schedule = agenda ? <DaySchedule today={agenda.today} schedule={agenda.schedule} move={moverTarefa} /> : null;
+  // O prazo de tarefa que já está na agenda não repete como pendência; o de tarefa fora dela continua.
+  const onAgenda = agenda ? scheduledKeys(agenda.schedule) : new Set<string>();
+  const notDue = (it: PlanItem) => {
+    const key = it.id.startsWith("due:") ? it.id.slice(4) : it.dueIso ? it.id.toUpperCase() : null;
+    return !key || !onAgenda.has(key);
+  };
+
   if (!isDemoOrg(me.orgId)) {
     // Empresa conectada: o plano da manhã gravado pelo fluxo F5. Sem plano no banco, estado vazio, nunca o inventado.
     // A correção pronta vem ao vivo de fix_runs (com Aprovar e Recusar); as do plano gravado saem, para não
     // repetir nem mostrar correção já decidida.
     const date = planDate((await searchParams).data, now, me.timezone);
     const morning = await loadMorningPlan(me, date);
-    const items = [...fromPlans, ...fromFixes, ...(morning ?? []).filter((it) => !(fixes && it.id.startsWith("fix:")))];
+    const items = [...fromPlans, ...fromFixes, ...(morning ?? []).filter((it) => !(fixes && it.id.startsWith("fix:")))].filter(notDue);
     return (
       <>
         <h1 className="hero-title hero-title--page">Meu plano, {dayMonth(date)}</h1>
-        <p className="lead">Só você vê este plano. A ordem é uma sugestão, por regra: primeiro quem está esperando, depois prazos, depois CI e achados da revisão.</p>
-        {morning === null && (
+        <p className="lead">{lead ?? "Só você vê este plano. A ordem é uma sugestão, por regra: primeiro quem está esperando, depois prazos, depois CI e achados da revisão."}</p>
+        {schedule}
+        {schedule && items.length > 0 && <h2 className="plan-pending-title">Esperam você</h2>}
+        {morning === null && !schedule && (
           <p className="note muted">O plano da manhã deste dia ainda não foi montado. Ele sai perto do começo do seu expediente, com as perguntas, revisões, correções e prazos que estiverem abertos.</p>
         )}
-        {(morning !== null || items.length > 0) && <PlanList initial={items} decideFix={decidirCorrecao} />}
+        {(items.length > 0 || (morning !== null && !schedule)) && <PlanList initial={items} decideFix={decidirCorrecao} />}
       </>
     );
   }
@@ -57,12 +74,14 @@ export default async function PlanoPage({ searchParams }: { searchParams: Promis
     ...planFor(me.id)
       .filter((it) => !(it.id in decisions) && !(plans && it.id === "ferias-bruno") && !(fixes && it.kind === "correção"))
       .map((it) => (it.dueIso ? { ...it, why: `O prazo ${dueLabel(it.dueIso, now, me.timezone)}.` } : it)),
-  ];
+  ].filter(notDue);
   return (
     <>
       <h1 className="hero-title hero-title--page">Meu plano, {new Intl.DateTimeFormat("pt-BR", { timeZone: me.timezone, day: "2-digit", month: "2-digit" }).format(new Date())}</h1>
-      <p className="lead">Só você vê este plano. A ordem é uma sugestão: primeiro quem está esperando, depois correções e prazos.</p>
-      <PlanList initial={items} decideFix={decidirCorrecao} />
+      <p className="lead">{lead ?? "Só você vê este plano. A ordem é uma sugestão: primeiro quem está esperando, depois correções e prazos."}</p>
+      {schedule}
+      {schedule && items.length > 0 && <h2 className="plan-pending-title">Esperam você</h2>}
+      {(!schedule || items.length > 0) && <PlanList initial={items} decideFix={decidirCorrecao} />}
     </>
   );
 }

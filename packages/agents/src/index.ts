@@ -151,6 +151,7 @@ export {
 } from "./night-review.ts";
 export { activityCounts, createDaySummary, summaryMessage, summaryRequest, SUMMARY_SYSTEM, type DailyArtifactStore, type DaySummary, type DaySummaryDeps, type StoredArtifact, type SummaryOutcome } from "./day-summary.ts";
 export { runTriage, triageRequest, validTriage, TRIAGE_SYSTEM, type TriageInput, type TriageModel, type TriageOutcome, type TriageRequest } from "./triage.ts";
+export { assignedMessage, createWorkPlanning, type AssignOutcome, type BoardPerson, type BoardTask, type MoveOutcome, type WorkBoard, type WorkPlanning, type WorkPlanningDeps, type WorkPlanningStore } from "./work-planning.ts";
 export { createMorningPlan, planMessage, type MorningPlan, type MorningPlanDeps, type PlanStore, type StoredPlan } from "./morning-plan.ts";
 export {
   createFix,

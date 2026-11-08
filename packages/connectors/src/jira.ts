@@ -6,7 +6,7 @@ import type { ExternalTask, NormalizedEvent } from "./normalized.ts";
 
 /** Campo dos story points: muda por site (o padrão do Jira Cloud é o "Story point estimate"). */
 export const DEFAULT_STORY_POINTS_FIELD = "customfield_10016";
-export const JIRA_FIELDS = ["summary", "status", "assignee", "duedate", "labels", "components", "updated", "resolutiondate"] as const;
+export const JIRA_FIELDS = ["summary", "status", "assignee", "duedate", "labels", "components", "updated", "resolutiondate", "issuelinks"] as const;
 
 /** Categoria do estado no Jira → estado do Echo. */
 export function jiraState(categoryKey: string | undefined, name = ""): TaskState {
@@ -47,6 +47,8 @@ export function jiraTask(issue: any, storyPointsField = DEFAULT_STORY_POINTS_FIE
     dueDate: f.duedate ?? undefined,
     size: typeof points === "number" ? points : undefined,
     labels: [...new Set(labels)],
+    // Vínculo "Blocks" com `inwardIssue`: esta tarefa "is blocked by" aquela.
+    blockedBy: Array.isArray(f.issuelinks) ? f.issuelinks.flatMap((l: { type?: { name?: string }; inwardIssue?: { key?: string } }) => (/^blocks$/i.test(l.type?.name ?? "") && l.inwardIssue?.key ? [l.inwardIssue.key] : [])) : undefined,
     updatedAt: new Date(f.updated ?? Date.now()),
     completedAt: f.resolutiondate ? new Date(f.resolutiondate) : undefined,
   };

@@ -745,7 +745,8 @@ _Gravado por um agente Claude — Painel · Relatórios · semana de 2/11 (Paine
 | Tela | Endereço | O que tem | Quem vê |
 |---|---|---|---|
 | Início | / | Retratos da equipe, Pergunte ao Echo e atalhos | Todos |
-| Meu plano | /plano | Plano do dia, correções a aprovar, achados e perguntas pendentes | A própria pessoa |
+| Meu plano | /plano | Agenda dos próximos dias, correções a aprovar, achados e perguntas pendentes | A própria pessoa |
+| Distribuir tarefas | /distribuir | Tarefas sem responsável e carga de cada pessoa | Liderança |
 | Nota do dia | /nota-do-dia | Conferir, editar e confirmar a nota, com liberado e reservado | A própria pessoa |
 | Notas | /notas · /notas/[id] · /notas/nova | Cérebros, histórico de versões, avisos do espelho e contradições | Equipe e liderança, nunca o RH |
 | Ficha da pessoa | /pessoas/[id] | Disponibilidade, contexto e Pergunte ao gêmeo; na própria ficha, "Seu agente" (estilo e delegação) | Todos, conforme permissão; "Seu agente" só a própria pessoa |

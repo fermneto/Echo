@@ -17,7 +17,7 @@ export class LinearApiError extends Error {
   }
 }
 
-const ISSUE_FIELDS = "id identifier title dueDate estimate updatedAt completedAt assignee { id } state { type name } labels(first: 20) { nodes { name } }";
+const ISSUE_FIELDS = "id identifier title dueDate estimate updatedAt completedAt assignee { id } state { type name } labels(first: 20) { nodes { name } } inverseRelations(first: 20) { nodes { type issue { identifier } } }";
 const CLOSED_TYPES = '["completed", "canceled", "duplicate"]';
 const ISSUE_QUERY = `query($id: String!) { issue(id: $id) { ${ISSUE_FIELDS} } }`;
 const OPEN_QUERY = `query($after: String) {
@@ -38,6 +38,8 @@ export function toTask(n: any): ExternalTask {
     dueDate: n.dueDate ?? undefined,
     size: typeof n.estimate === "number" ? n.estimate : undefined,
     labels: (n.labels?.nodes ?? []).map((l: { name: string }) => l.name),
+    // Relação "blocks" que aponta para esta tarefa: quem está em `issue` precisa terminar antes.
+    blockedBy: (n.inverseRelations?.nodes ?? []).flatMap((r: { type?: string; issue?: { identifier?: string } }) => (r.type === "blocks" && r.issue?.identifier ? [r.issue.identifier] : [])),
     updatedAt: new Date(n.updatedAt),
     completedAt: n.completedAt ? new Date(n.completedAt) : undefined,
   };

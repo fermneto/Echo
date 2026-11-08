@@ -1,10 +1,10 @@
 // Plano da manhã (etapa 9, F5). Sem modelo: as regras coletam, ordenam e escrevem o motivo de cada item.
 // Envio privado pelo outbox; em Meu plano, só a própria pessoa reordena e descarta.
 import type { OutboxAction } from "@echo/actions";
-import { applyPlanEdits, type Clock, DAY, MORNING_RULES, morningPlan, type PlanFinding, type PlanFix, type PlanItem, type PlanItemKind, type PlanQuestion, systemClock } from "@echo/domain";
+import { applyPlanEdits, type Clock, DAY, MORNING_RULES, morningPlan, type PersonSchedule, personSchedule, type PlanFinding, type PlanFix, type PlanItem, type PlanItemKind, type PlanQuestion, scheduledKeys, scheduleDayLabel, type SchedulePart, systemClock } from "@echo/domain";
 import type { AgentRun, RunRecorder } from "@echo/observability";
 import type { AgentData } from "./data.ts";
-import { actions, context, dayMonth, divider, DOT, esc, header, linkButton, section } from "./slack-format.ts";
+import { actions, columns, context, dayMonth, divider, DOT, esc, header, linkButton, section, statusTag } from "./slack-format.ts";
 
 /** Todos os itens, em ordem: a mensagem mostra os 7 primeiros, e o painel mostra o resto em "ver mais". */
 export interface StoredPlan {
@@ -24,6 +24,8 @@ export interface PlanStore {
   /** False se já existe plano da pessoa nessa data (chave única). */
   create(plan: StoredPlan): Promise<boolean>;
   updateItems(personId: string, date: string, items: PlanItem[]): Promise<boolean>;
+  /** Dias que a própria pessoa escolheu para as tarefas (Meu plano). */
+  schedulePins?(personId: string): Promise<Record<string, string>>;
   slackUserOf(personId: string): Promise<string | null>;
 }
 
@@ -50,22 +52,49 @@ const PLAN_DOT: Record<PlanItemKind, string> = {
   ci_failed: DOT.error,
 };
 
-export function planMessage(plan: StoredPlan, webUrl: string): { text: string; blocks: unknown[] } {
-  const shown = plan.items.slice(0, MORNING_RULES.maxItems);
-  const more = plan.items.length - shown.length;
+const PART_LABEL: Record<SchedulePart, string> = { inteira: "fazer", inicia: "começar", continua: "continuar", conclui: "terminar" };
+
+/**
+ * A mensagem da manhã é a agenda do dia: o que fazer hoje e por quê, quem espera a pessoa, os próximos dias e o que
+ * está parado por outra entrega. O prazo de tarefa que já está na agenda não repete como pendência.
+ */
+export function planMessage(plan: StoredPlan, webUrl: string, schedule?: PersonSchedule, agentName?: string): { text: string; blocks: unknown[] } {
+  const today = schedule?.days.find((d) => d.date === plan.date);
+  const next = (schedule?.days ?? []).filter((d) => d.date > plan.date).slice(0, 4);
+  const onAgenda = schedule ? scheduledKeys(schedule) : new Set<string>();
+  const pending = plan.items.filter((i) => !(i.id.startsWith("due:") && onAgenda.has(i.id.slice(4))));
+  const shown = pending.slice(0, MORNING_RULES.maxItems);
+  const more = pending.length - shown.length;
   const moreLine = more > 0 ? `E mais ${more} no painel.` : "";
-  const lines = ["*Seu plano de hoje*", ...shown.map((i) => `• *${esc(i.text)}* — ${esc(i.reason)}`), ...(moreLine ? [moreLine] : []), "Só você vê este plano."];
-  return {
-    text: lines.join("\n"),
-    blocks: [
-      header("Seu plano de hoje"),
-      context(`\`${dayMonth(plan.date)}\` · Só você vê este plano.`),
-      divider(),
-      ...shown.map((i) => section(`${PLAN_DOT[i.kind]} *${esc(i.text)}*\n${esc(i.reason)}`)),
-      ...(moreLine ? [context(moreLine)] : []),
-      actions(linkButton("abrir_plano", "Abrir Meu plano", `${webUrl.replace(/\/$/, "")}/plano?data=${plan.date}`, true)),
-    ],
-  };
+  const waitLine = (w: PersonSchedule["waiting"][number]) => `\`${esc(w.key)}\` espera ${w.waitingOn.map((b) => `\`${esc(b.key)}\`${b.owner ? ` de ${esc(b.owner)}` : ""}`).join(", ")}`;
+  const lines = [
+    "*Seu plano de hoje*",
+    ...(today?.entries ?? []).map((e) => `${PART_LABEL[e.part]} ${esc(e.key)}: ${esc(e.title)} (${esc(e.reason)})`),
+    ...shown.map((i) => `• *${esc(i.text)}* — ${esc(i.reason)}`),
+    ...(moreLine ? [moreLine] : []),
+    "Só você vê este plano.",
+  ];
+  const blocks: unknown[] = [
+    header("Seu plano de hoje"),
+    schedule ? statusTag(DOT.agent, "AGENDA DO DIA", `${agentName ? `${esc(agentName)} · ` : ""}\`${dayMonth(plan.date)}\` · só você vê`) : context(`\`${dayMonth(plan.date)}\` · Só você vê este plano.`),
+  ];
+  if (today?.entries.length) {
+    blocks.push(section("*Hoje, nesta ordem*"));
+    today.entries.forEach((e, i) => blocks.push(section(`${e.late ? `${DOT.error} ` : ""}*${i + 1}.* \`${esc(e.key)}\` *${esc(e.title)}*\n${PART_LABEL[e.part]} · ${esc(e.reason)}`)));
+  } else if (schedule) {
+    blocks.push(section("*Hoje*\nNenhuma tarefa na agenda."));
+  }
+  if (shown.length) {
+    blocks.push(divider(), section("*Esperam você*"), ...shown.map((i) => section(`${PLAN_DOT[i.kind]} *${esc(i.text)}*\n${esc(i.reason)}`)));
+    if (moreLine) blocks.push(context(moreLine));
+  }
+  if (next.length) {
+    blocks.push(divider(), columns(...next.map((d) => `*${scheduleDayLabel(d.date, plan.date)}*\n${d.entries.map((e) => `\`${esc(e.key)}\` ${PART_LABEL[e.part]}`).join("\n") || "Livre"}`)));
+  }
+  if (schedule?.waiting.length) blocks.push(divider(), section(`${DOT.wait} *Esperando outra entrega*\n${schedule.waiting.map((w) => `• ${waitLine(w)}`).join("\n")}`));
+  if (schedule?.later.length) blocks.push(context(`Mais ${schedule.later.length} depois dos próximos dias.`));
+  blocks.push(actions(linkButton("abrir_plano", "Abrir Meu plano", `${webUrl.replace(/\/$/, "")}/plano?data=${plan.date}`, true)));
+  return { text: lines.join("\n"), blocks };
 }
 
 export function createMorningPlan(deps: MorningPlanDeps) {
@@ -88,22 +117,27 @@ export function createMorningPlan(deps: MorningPlanDeps) {
       if (await store.get(personId, date)) return done({ status: "skipped", reason: "plano já existe nesta data" });
 
       const since = new Date(now.getTime() - 7 * DAY);
-      const [questions, findings, fixes, prs, tasks] = await Promise.all([
+      const [questions, findings, fixes, prs, tasks, openTasks, absences, pins] = await Promise.all([
         store.questionsForOwner(personId, since),
         store.findingsForAuthor(personId, new Date(now.getTime() - 2 * DAY)),
         store.fixesForAuthor(personId),
         data.pullRequests({ openOnly: true }),
         data.tasks({ assigneeId: personId, openOnly: true }),
+        data.tasks({ openOnly: true, all: true }),
+        data.absences(),
+        store.schedulePins?.(personId) ?? {},
       ]);
       const { all: items } = morningPlan({ person, people, now, questions, pullRequests: prs, tasks, findings, fixes });
       const plan: StoredPlan = { personId, date, items };
       if (!(await store.create(plan))) return done({ status: "skipped", reason: "plano já existe nesta data" });
 
-      // Sem item, o plano fica no painel e não há mensagem.
-      const slackUser = items.length ? await store.slackUserOf(personId) : null;
+      const schedule = personSchedule({ person, people, tasks: openTasks, absences, now, pins });
+      // Sem pendência e sem tarefa na agenda, o plano fica no painel e não há mensagem.
+      const hasWork = schedule.days.some((d) => d.entries.length > 0) || schedule.waiting.length > 0;
+      const slackUser = items.length || hasWork ? await store.slackUserOf(personId) : null;
       let dmQueued = false;
       if (slackUser) {
-        const msg = planMessage(plan, deps.webUrl);
+        const msg = planMessage(plan, deps.webUrl, schedule, `Agente de ${person.name.trim().split(/\s+/)[0]}`);
         const r = await deps.outbox(orgId).enqueue({ type: "slack.dm", target: `person:${personId}`, payload: { personId, text: msg.text, blocks: msg.blocks }, idempotencyKey: `morning_plan:${personId}:${date}` });
         dmQueued = !r.duplicate;
       }

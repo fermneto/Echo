@@ -13,12 +13,13 @@ export type RouteDef = { href: string; label: string; hint?: string; roles: read
 
 export const ROUTES = {
   inicio: { href: "/", label: "Início", roles: ALL },
-  plano: { href: "/plano", label: "Meu plano", hint: "O que chegou para você hoje, em ordem de prioridade.", roles: PEOPLE },
+  plano: { href: "/plano", label: "Meu plano", hint: "Sua agenda do dia e o que espera por você.", roles: PEOPLE },
   notaDoDia: { href: "/nota-do-dia", label: "Nota do dia", hint: "O rascunho do seu gêmeo para você conferir e publicar.", roles: PEOPLE },
   resumo: { href: "/resumos", label: "Resumo do dia", hint: "O seu dia em uma página, montado por um modelo aberto a partir de fatos.", roles: PEOPLE },
   notas: { href: "/notas", label: "Notas", hint: "O que cada gêmeo sabe, com versões e fontes.", roles: PEOPLE },
   equipe: { href: "/equipe", label: "Pessoas", hint: "Quem é quem, onde está e quando volta.", roles: ALL },
   pessoa: { href: "/pessoas", label: "Ficha da pessoa", roles: ALL },
+  distribuir: { href: "/distribuir", label: "Distribuir tarefas", hint: "Quem recebe o quê. O agente de cada pessoa encaixa na agenda dela.", roles: ["leader"] },
   redistribuicao: { href: "/redistribuicao", label: "Redistribuição", hint: "Ausências viram um plano. Nada muda sem você aprovar.", roles: ["leader"] },
   equipes: { href: "/equipes", label: "Visão das equipes", hint: "Entregas, ajudas e gêmeos por equipe, só em totais.", roles: ["hr"] },
   relatorios: { href: "/relatorios", label: "Relatórios", hint: "A sua semana, conferida por você antes de seguir ao RH.", roles: ALL },
@@ -33,7 +34,7 @@ export type RouteId = keyof typeof ROUTES;
 export const NAV_GROUPS: readonly { label: string; routes: readonly RouteId[] }[] = [
   { label: "Meu dia", routes: ["plano", "notaDoDia", "resumo"] },
   { label: "Equipe", routes: ["equipe", "notas"] },
-  { label: "Gestão", routes: ["redistribuicao", "equipes", "relatorios", "ganhos", "execucoes", "configuracao"] },
+  { label: "Gestão", routes: ["distribuir", "redistribuicao", "equipes", "relatorios", "ganhos", "execucoes", "configuracao"] },
 ];
 
 export function canSee(role: Role, route: RouteId, opts: { demo: boolean }): boolean {

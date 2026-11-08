@@ -53,6 +53,8 @@ export interface Task {
   area?: string | undefined;
   labels: string[];
   hasLinearId: boolean;
+  /** Chaves das tarefas que precisam terminar antes desta (relações do tracker). */
+  blockedBy?: readonly string[] | undefined;
 }
 
 export type PrState = "open" | "draft" | "merged" | "closed";

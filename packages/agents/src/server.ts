@@ -12,6 +12,8 @@ import { createEndOfDay, type EndOfDay } from "./daily-note.ts";
 import { createPgAgentData } from "./pg-data.ts";
 import { createPgDailyNoteStore } from "./pg-notes.ts";
 import { createMorningPlan, type MorningPlan } from "./morning-plan.ts";
+import { createPgWorkPlanningStore } from "./pg-work-planning.ts";
+import { createWorkPlanning, type WorkPlanning } from "./work-planning.ts";
 import { type BatchApi, createNightReview, type NightReview, type ReviewSource } from "./night-review.ts";
 import { createPgPlanStore, createPgReviewStore } from "./pg-night.ts";
 import { ollamaJson, ollamaTriage } from "./triage-ollama.ts";
@@ -168,6 +170,17 @@ export function serverDaySummary(db: Database, ollama?: { url: string; model: st
     webUrl,
     // A imagem (satori + resvg, binário nativo) é ligada só no worker, por @echo/agents/imagem: o painel não a empacota.
     ...(renderImage ? { renderImage } : {}),
+  });
+}
+
+/** Distribuição de tarefas e agenda da pessoa (painel). */
+export function serverWorkPlanning(db: Database, webUrl: string): WorkPlanning {
+  return createWorkPlanning({
+    data: (orgId) => createPgAgentData(db, orgId),
+    store: (orgId) => createPgWorkPlanningStore(db, orgId),
+    outbox: (orgId) => createPgOutbox(db, orgId),
+    recorder: createDbRunRecorder(db),
+    webUrl,
   });
 }
 

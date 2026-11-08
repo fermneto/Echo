@@ -69,6 +69,8 @@ _Bordas:_ Falha ao criar o lote: até 3 tentativas, 30 min de espera. Lote criad
 5. Até 7 itens, com "ver mais" no painel.
 6. Envio privado no Slack.
 7. Em Meu plano, a pessoa confere e aprova.
+8. A agenda dos próximos dias sai de `personSchedule` (`packages/domain`), sem modelo: prazo, dependências do Linear ou Jira (`tasks.blocked_by`) e 3 pontos por dia. Só a própria pessoa muda o dia (`people.schedule_pins`), e isso não vai ao tracker.
+9. Em Distribuir tarefas, a liderança atribui: a escrita sai pelo outbox com a aprovação dela, e a pessoa recebe o dia sugerido em privado.
 
 _Bordas:_ Sem modelo: mais barato e sem como inventar um dado.
 

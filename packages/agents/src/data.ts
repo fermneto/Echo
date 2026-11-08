@@ -19,7 +19,8 @@ export interface AgentData {
   absences(): Promise<Absence[]>;
   latestDailyNote(personId: string): Promise<DailyNote | null>;
   task(key: string): Promise<Task | null>;
-  tasks(filter: { assigneeId?: string; openOnly?: boolean }): Promise<Task[]>;
+  /** Sem `all`, até 100. Agenda e distribuição pedem `all`: tarefa fora da lista pareceria concluída. */
+  tasks(filter: { assigneeId?: string; openOnly?: boolean; all?: boolean }): Promise<Task[]>;
   pullRequests(filter: { number?: number; repository?: string; branch?: string; authorId?: string; openOnly?: boolean; taskKey?: string }): Promise<PullRequest[]>;
   /** Último commit visto na branch, pelos fatos do trabalho. */
   lastCommitAt(repository: string, branch: string): Promise<Date | null>;

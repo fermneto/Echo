@@ -1,4 +1,5 @@
 // Revisões e planos da manhã em Postgres. Toda consulta em withOrg com filtro explícito de org_id.
+import { createPgWorkPlanningStore } from "./pg-work-planning.ts";
 import { type Database, identities, morningPlans, pullRequests, questions, reviews, withOrg } from "@echo/db";
 import { type FindingSeverity, type PlanFinding, type PlanItem, type PlanQuestion, severityRank } from "@echo/domain";
 import { and, eq, gte, inArray, isNull, ne, or } from "drizzle-orm";
@@ -92,6 +93,7 @@ export function createPgPlanStore(db: Database, orgId: string): PlanStore {
       });
     },
     fixesForAuthor: (personId) => createPgFixStore(db, orgId).fixesForAuthor(personId),
+    schedulePins: (personId) => createPgWorkPlanningStore(db, orgId).pins(personId),
     async findingsForAuthor(personId, since) {
       const rows = await run((tx) =>
         tx
