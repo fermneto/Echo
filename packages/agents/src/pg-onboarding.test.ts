@@ -9,7 +9,7 @@ import { eq } from "drizzle-orm";
 import type pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { cleanProfile, onboardPerson } from "./onboarding.ts";
-import { createPgOnboardingStore, readAvatar, updateProfile } from "./pg-onboarding.ts";
+import { createPgAvatarStore, createPgOnboardingStore, readAvatar, updateProfile } from "./pg-onboarding.ts";
 
 const url = process.env.DATABASE_URL;
 const traits: AvatarTraits = { hair: "bun", hairColor: "teal", skin: "s4", eyewear: "none", facialHair: "none", top: "jacket", topColor: "orange", headwear: "none" };
@@ -67,5 +67,23 @@ describe.skipIf(!url)("cadastro pelo RH, em Postgres", () => {
     expect(row).toMatchObject({ jobTitle: "Analista de dados", skills: ["SQL"], areas: ["dados"], languages: ["inglês"] });
     const audit = await asSystem(createDb(admin), (tx) => tx.select().from(auditLog).where(eq(auditLog.target, `person:${id}`)));
     expect(audit.map((a) => [a.orgId, a.actor, a.action])).toEqual([[org, "person:rh-1", "perfil:editar"]]);
+  });
+
+  it("bonequinho trocado: grava os traços, registra quem trocou e conta só as refações pela foto", async () => {
+    const id = randomUUID();
+    await asSystem(createDb(admin), (tx) => tx.insert(people).values({ id, orgId: org, name: "Caio Teste", role: "member", timezone: "Europe/Lisbon", workHours: { days: [1], start: "09:00", end: "18:00" } }));
+    const avatars = createPgAvatarStore(db);
+    const seed = await avatars.current(org, id);
+    expect(seed).toBeDefined();
+    expect(await avatars.current(other, id)).toBeUndefined();
+
+    expect(await avatars.update(org, id, traits, "rh-1", "avatar:refazer")).toBe(true);
+    expect(await avatars.update(org, id, { ...traits, eyewear: "glasses" }, id, "avatar:ajustar")).toBe(true);
+    expect(await avatars.update(other, id, traits, "rh-1", "avatar:refazer")).toBe(false);
+    expect(await avatars.current(org, id)).toEqual({ ...traits, eyewear: "glasses" });
+
+    const audit = await asSystem(createDb(admin), (tx) => tx.select().from(auditLog).where(eq(auditLog.target, `person:${id}`)));
+    expect(audit.map((a) => a.action).sort()).toEqual(["avatar:ajustar", "avatar:refazer"]);
+    expect(await avatars.recentRedos(org, new Date(Date.now() - 3_600_000))).toBe(1);
   });
 });

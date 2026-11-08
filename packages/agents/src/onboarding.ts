@@ -191,7 +191,8 @@ const PHOTO_SCHEMA = {
   additionalProperties: false,
 };
 
-async function readPhoto(call: ModelCall, photo: NonNullable<OnboardingInput["photo"]>, fallback: AvatarTraits, timeoutMs: number) {
+/** Foto vira traços da lista fechada (Claude Haiku com visão). Campo fora da lista volta ao de `fallback`. Usado no cadastro e ao refazer o bonequinho. */
+export async function readPhoto(call: ModelCall, photo: NonNullable<OnboardingInput["photo"]>, fallback: AvatarTraits, timeoutMs: number) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {

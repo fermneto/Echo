@@ -220,3 +220,4 @@ export {
   type PhotoType,
   type ResumeProfile,
 } from "./onboarding.ts";
+export { adjustAvatar, type AvatarAction, type AvatarStore, REDO_LIMIT, redoAvatar, type RedoAvatarDeps, type RedoOutcome } from "./redo-avatar.ts";

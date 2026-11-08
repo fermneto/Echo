@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { canAskTwin, canEditProfile } from "@/lib/access";
 import { profileFor } from "@/lib/demo/profiles";
 import { suggestedQuestions } from "@/lib/demo/twin";
+import { lookFor } from "@/lib/demo/looks";
 import { latest } from "@/lib/demo/notes";
 import { currentNotes } from "@/lib/notes-store";
 import { teamScope } from "@/lib/scope";
@@ -14,7 +15,8 @@ import { AskPanel } from "@/components/AskPanel";
 import { PixelAvatar } from "@/components/PixelAvatar";
 import { HolderPanel, StatusChip } from "@/components/Status";
 import { RailTrack } from "@/components/TimeRail";
-import { perguntar, salvarPerfil } from "./actions";
+import { ajustarBonequinho, perguntar, refazerBonequinho, salvarPerfil } from "./actions";
+import { Bonequinho } from "./Bonequinho";
 import { EditarPerfil } from "./EditarPerfil";
 
 const DAYS = ["domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sábado"];
@@ -191,6 +193,7 @@ export default async function PessoaPage({ params }: { params: Promise<{ id: str
               open={emptyProfile}
             />
           )}
+          {editable && <Bonequinho redo={refazerBonequinho} adjust={ajustarBonequinho} personId={persona.id} name={persona.name} initial={persona.avatar ?? lookFor(persona.id)} />}
           <HolderPanel persona={persona} />
           <section className="card" aria-labelledby="como">
             <h2 id="como" className="card__title">
