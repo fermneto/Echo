@@ -622,7 +622,8 @@ export function buildDemo(now: Date): DemoData {
       const owner = owners[n % owners.length]!;
       const others = members.filter((p) => p.id !== owner.id);
       let answeredAt = ago((1 + vary(`${key}:hora`, 7)) * HOUR);
-      while (weekMonday(isoWeek(localDate(answeredAt, owner.timezone))) !== baseMonday) answeredAt = new Date(answeredAt.getTime() - HOUR);
+      // "Depois da base", e não "diferente": na segunda de manhã a resposta pode cair antes da base, e aí nunca a alcançaria.
+      while (weekMonday(isoWeek(localDate(answeredAt, owner.timezone)))! > baseMonday) answeredAt = new Date(answeredAt.getTime() - HOUR);
       twinAnswer(`demo:rh-hoje:${key}`, key, owner, others[vary(`${key}:quem`, others.length)]!, answeredAt);
     }
   }

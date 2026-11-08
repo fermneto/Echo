@@ -68,6 +68,15 @@ describe("empresa de demonstração", () => {
     expect(new Set(newest).size).toBe(1);
   });
 
+  it("as respostas de hoje também saem na segunda de manhã, quando os fusos ainda viram a semana", () => {
+    for (const at of ["2026-11-09T06:30:00Z", "2026-11-09T08:00:00Z"]) {
+      const t = new Date(at);
+      const today = buildDemo(t).questions.filter((q) => q.sourceRef?.startsWith("demo:rh-hoje:"));
+      expect(today, at).toHaveLength(12);
+      for (const q of today) expect(q.answeredAt!.getTime()).toBeLessThanOrEqual(t.getTime());
+    }
+  });
+
   it("visão do RH hoje: toda equipe tem concluídas e respostas dos gêmeos recentes, com donos fora das cenas", () => {
     const inScenes: string[] = [P.fernando, P.eduardo, P.yan, P.marina, P.carla, P.noah];
     for (const t of demo.teams) {
