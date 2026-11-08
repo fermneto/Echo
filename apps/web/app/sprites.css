@@ -1,9 +1,10 @@
-/* Bonequinhos em matriz de pontos, de uma cor só: a do estado. */
+/* Bonequinhos em pixel art, nas cores da pessoa. O estado vem por cima: brilho e varredura de holograma. */
 
 .sprite {
   display: block;
   overflow: visible;
   color: var(--color-signal-twin);
+  image-rendering: pixelated;
 }
 .sprite--person {
   color: var(--color-signal-on);
@@ -12,56 +13,45 @@
 .sprite--away {
   color: var(--color-signal-wait);
 }
-.sprite circle {
-  fill: currentColor;
-}
-/* A grade inteira aparece, bem fraca. */
-.sprite .dot-off,
-.sprite .dot-eye {
-  opacity: 0.16;
-}
-.sprite .dot-head,
-.sprite .dot-body {
-  opacity: 1;
-}
 
-/* No expediente: pisca (os olhos se fecham por um instante). */
-.sprite--person .dot-eye {
+/* No expediente: pisca (os olhos somem por um instante). */
+.sprite--person .px-eye {
   animation: sprite-blink 4.2s steps(1, end) infinite;
 }
 @keyframes sprite-blink {
   0%,
   94%,
   100% {
-    opacity: 0.16;
+    opacity: 1;
   }
   95% {
-    opacity: 1;
+    opacity: 0;
   }
 }
 
-/* Gêmeo no comando: uma varredura de brilho desce linha a linha, como um holograma. */
-.sprite--twin .dot-head,
-.sprite--twin .dot-body,
-.sprite--away .dot-head,
-.sprite--away .dot-body {
-  animation: sprite-scan 2.6s linear infinite;
-  animation-delay: calc(var(--row) * 0.08s);
+/* Gêmeo no comando: contorno aceso na cor do estado e uma faixa de holograma descendo. */
+.sprite--twin,
+.sprite--away {
+  /* A faixa do holograma não sai da caixa do bonequinho; o brilho do filtro, sim. */
+  overflow: hidden;
+  filter: drop-shadow(0 0 0.6px currentColor) drop-shadow(0 0 2px color-mix(in srgb, currentColor 55%, transparent));
 }
-.sprite--away .dot-head,
-.sprite--away .dot-body {
+.sprite__holo {
+  fill: currentColor;
+  opacity: 0.55;
+  mix-blend-mode: screen;
+  animation: sprite-scan 2.6s linear infinite;
+}
+.sprite--away .sprite__holo {
   animation-duration: 3.6s;
 }
 @keyframes sprite-scan {
-  0%,
+  0% {
+    transform: translateY(0);
+  }
+  70%,
   100% {
-    opacity: 1;
-  }
-  8% {
-    opacity: 0.6;
-  }
-  16% {
-    opacity: 1;
+    transform: translateY(28px);
   }
 }
 
@@ -87,7 +77,11 @@
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .sprite circle {
+  .sprite .px-eye,
+  .sprite__holo {
     animation: none !important;
+  }
+  .sprite__holo {
+    display: none;
   }
 }

@@ -224,7 +224,7 @@ const WORLD_POINTS: GlobePoint[] = WORLD.map((m) => {
     label: (
       <span className="globe__tag">
         <span className="globe__crew">
-          <PixelSprite look={{ hair: m.hair }} mode={mode} size={28} />
+          <PixelSprite look={lookFor(m.id)} mode={mode} size={28} />
         </span>
         <span className="globe__text">
           <span className="globe__who">{caption}</span>

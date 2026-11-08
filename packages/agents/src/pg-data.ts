@@ -16,6 +16,7 @@ import {
   workEvents,
 } from "@echo/db";
 import type { Absence, AbsenceKind, Contribution, ContributionKind, DailyNote, DailyNoteState, Person, PersonRole, PrState, PullRequest, Task, TaskState, WorkEvent, WorkEventType } from "@echo/domain";
+import { parseAvatarTraits, traitsFromSeed } from "@echo/domain";
 import { and, desc, eq, gte, inArray, isNull, sql, type SQL } from "drizzle-orm";
 import type { AgentData } from "./data.ts";
 
@@ -108,6 +109,7 @@ export function createPgAgentData(db: Database, orgId: string): AgentData {
           skills: r.skills,
           areas: r.areas,
           active: r.active,
+          avatar: r.avatar ? parseAvatarTraits(r.avatar, traitsFromSeed(r.id)).traits : undefined,
         }),
       );
     },

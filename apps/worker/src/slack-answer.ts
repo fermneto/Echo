@@ -3,7 +3,7 @@
 import type { AnswerRequest, AnswerResult } from "@echo/agents";
 import { answerBlocks, respondToInteraction, SLACK_ACTIONS, type ChatMessage, type ChatPlatform } from "@echo/connectors";
 import { absences, asSystem, identities, people, questions, withOrg, type Database } from "@echo/db";
-import { digestKind, digestLine, isAway, proposalCitation } from "@echo/domain";
+import { avatarKey, digestKind, digestLine, isAway, parseAvatarTraits, proposalCitation, SPRITE_VERSION, traitsFromSeed } from "@echo/domain";
 import type { Logger } from "@echo/observability";
 import { and, eq, gte, inArray, isNull, lt, or, sql } from "drizzle-orm";
 
@@ -19,23 +19,37 @@ export interface SlackAnswerDeps {
   now?: () => Date;
   /** Prazo do texto da pergunta, para o dono conferir (depois é apagado). */
   textTtlMs?: number;
+  /** Endereço público do painel, de onde o Slack busca o bonequinho de cada agente (só https). */
+  webUrl?: string;
 }
 
 export type SlackAnswerOutcome = "answered" | "silent" | "noted" | "duplicate" | "skipped";
 
-type Known = { id: string; name: string; timezone: string; workHours: { days: number[]; start: string; end: string } };
+type Known = { id: string; name: string; timezone: string; workHours: { days: number[]; start: string; end: string }; avatar?: Record<string, string> | null };
+
+/**
+ * Ícone da mensagem: o bonequinho do gêmeo (ou o do Echo), servido pelo painel. A chave dos traços vai no
+ * endereço, para o Slack buscar de novo quando o desenho muda. Sem https público, fica o ícone do app.
+ */
+export function agentIconUrl(webUrl: string | undefined, orgId: string, owner: Pick<Known, "id" | "avatar"> | undefined): string | undefined {
+  if (!webUrl?.startsWith("https://")) return undefined;
+  const base = webUrl.replace(/\/$/, "");
+  if (!owner) return `${base}/api/avatar/echo?v=${SPRITE_VERSION}`;
+  const traits = owner.avatar ? parseAvatarTraits(owner.avatar, traitsFromSeed(owner.id)).traits : traitsFromSeed(owner.id);
+  return `${base}/api/avatar/${orgId}/${owner.id}?v=${avatarKey(traits)}`;
+}
 
 /** Pessoas da empresa pelas contas do Slack. */
 async function bySlack(db: Database, orgId: string, slackIds: string[]) {
   if (!slackIds.length) return new Map<string, Known>();
   const rows = await withOrg(db, orgId, (tx) =>
     tx
-      .select({ slack: identities.externalId, id: people.id, name: people.name, active: people.active, timezone: people.timezone, workHours: people.workHours })
+      .select({ slack: identities.externalId, id: people.id, name: people.name, active: people.active, timezone: people.timezone, workHours: people.workHours, avatar: people.avatar })
       .from(identities)
       .innerJoin(people, eq(people.id, identities.personId))
       .where(and(eq(identities.orgId, orgId), eq(identities.platform, "slack"), inArray(identities.externalId, slackIds))),
   );
-  return new Map(rows.filter((r) => r.active).map((r) => [r.slack, { id: r.id, name: r.name, timezone: r.timezone, workHours: r.workHours }]));
+  return new Map(rows.filter((r) => r.active).map((r) => [r.slack, { id: r.id, name: r.name, timezone: r.timezone, workHours: r.workHours, avatar: r.avatar }]));
 }
 
 /** Sem o status do Slack, vale o expediente e as ausências cadastrados (regra isAway). */
@@ -136,13 +150,15 @@ export async function handleSlackMessage(d: SlackAnswerDeps, job: { orgId: strin
   const agentLabel = owner ? `Agente de ${owner.name.split(" ")[0]}` : "Echo";
   // Aviso temporário no tópico, apagado depois da resposta (mensagem efêmera não pode ser apagada pelo bot).
   const threadTs = m.threadTs ?? m.ts;
-  const notice = (await d.chat.postNotice?.({ channel: m.channel, threadTs, agentName: agentLabel, text: `_${agentLabel} consultando os registros…_` }).catch(() => null)) ?? null;
+  const iconUrl = agentIconUrl(d.webUrl, orgId, owner);
+  const icon = iconUrl ? { iconUrl } : {};
+  const notice = (await d.chat.postNotice?.({ channel: m.channel, threadTs, agentName: agentLabel, text: `_${agentLabel} consultando os registros…_`, ...icon }).catch(() => null)) ?? null;
 
   try {
     const r = await d.answer({ orgId, askerId: asker.id, ...(owner ? { ownerId: owner.id } : {}), text, channel: "slack" });
     const body = [r.text, ...r.warnings.map((w) => `_Aviso: ${w}_`)].join("\n\n");
     const blocks = answerBlocks({ text: body, sources: r.sources, questionId: claimed.id });
-    await d.chat.postAgentReply({ channel: m.channel, threadTs, agentName: r.agentName, text: body, ...(blocks ? { blocks } : {}) });
+    await d.chat.postAgentReply({ channel: m.channel, threadTs, agentName: r.agentName, text: body, ...(blocks ? { blocks } : {}), ...icon });
     await withOrg(d.db, orgId, (tx) =>
       tx
         .update(questions)

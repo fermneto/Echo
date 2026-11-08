@@ -11,6 +11,8 @@ export const MODELS = {
   fix: "claude-sonnet-5-5",
   report: "claude-sonnet-5-5",
   artifact: "claude-haiku-5-5",
+  /** Traços do bonequinho a partir da foto do cadastro. */
+  avatar: "claude-haiku-5-5",
 } as const;
 
 export const LIMITS = { maxRounds: 4, timeoutMs: 30_000, presenceTimeoutMs: 1_500 } as const;
@@ -195,3 +197,18 @@ export async function answer(req: AnswerRequest): Promise<AnswerResult> {
   const { defaultAnswer } = await import("./server.ts");
   return (await defaultAnswer())(req);
 }
+export {
+  cleanResume,
+  EMPTY_PROFILE,
+  onboardPerson,
+  PHOTO_MAX_BYTES,
+  PHOTO_TYPES,
+  RESUME_MAX_CHARS,
+  type NewPerson,
+  type OnboardingDeps,
+  type OnboardingInput,
+  type OnboardingOutcome,
+  type OnboardingStore,
+  type PhotoType,
+  type ResumeProfile,
+} from "./onboarding.ts";

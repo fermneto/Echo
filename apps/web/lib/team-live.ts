@@ -66,6 +66,7 @@ export function withLiveAvailability(team: readonly Persona[], people: Person[],
       ...(place ?? {}),
       timezone: row.timezone,
       workHours: row.workHours,
+      ...(row.avatar ? { avatar: row.avatar } : {}),
       availability: availabilityFrom(row, absences, now, city),
     };
   });

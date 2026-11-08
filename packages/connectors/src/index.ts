@@ -91,7 +91,7 @@ export interface ChatPlatform {
   /** Mensagem efêmera só para uma pessoa (ex.: aviso de pergunta perdida). O Slack não deixa o bot apagá-la. */
   postEphemeral(channel: string, userExternalId: string, text: string): Promise<void>;
   /** Aviso temporário no tópico ("consultando…"), apagado com deleteMessage depois da resposta. */
-  postNotice?(input: { channel: string; threadTs?: string; agentName: string; text: string }): Promise<{ channel: string; ts: string } | null>;
+  postNotice?(input: { channel: string; threadTs?: string; agentName: string; text: string; iconUrl?: string }): Promise<{ channel: string; ts: string } | null>;
   /** Apaga uma mensagem do próprio bot. */
   deleteMessage?(channel: string, ts: string): Promise<void>;
   /** Resposta do agente, identificada (ex.: "Agente de Fernando"). Blocos prontos em answerBlocks. */

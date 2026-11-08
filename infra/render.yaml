@@ -87,9 +87,15 @@ services:
         sync: false
       - key: DEMO_SLACK_TEAM_ID
         sync: false
-      # "Pergunte ao gêmeo" no painel. Sem ela, o painel responde só por regra.
+      # "Pergunte ao gêmeo" no painel e traços do bonequinho a partir da foto do cadastro. Sem ela, só regra.
       - key: ANTHROPIC_API_KEY
         sync: false
+      # Leitura do currículo no cadastro pelo modelo aberto do echo-triage (host:porta na rede privada).
+      - key: SLM_OLLAMA_URL
+        fromService:
+          type: pserv
+          name: echo-triage
+          property: hostport
       - fromGroup: echo-shared
 
   - type: worker
@@ -148,7 +154,7 @@ services:
 
   # Modelo aberto da triagem da revisão noturna e do resumo do dia: Ollama com Qwen3 4B Instruct (Apache 2.0)
   # embutido na imagem.
-  # Serviço privado: sem endereço público; só o worker chega nele. Plano pago (não há serviço privado gratuito):
+  # Serviço privado: sem endereço público; só o worker e o painel (currículo do cadastro) chegam nele. Plano pago (não há serviço privado gratuito):
   # pro = 2 CPU e 4 GB. Só reconstrói quando o Dockerfile dele muda (cada build baixa ~2,5 GB de modelo).
   - type: pserv
     name: echo-triage

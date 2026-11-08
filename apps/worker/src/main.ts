@@ -44,7 +44,7 @@ if (platforms.chat && answer) {
   const chat = platforms.chat;
   const workerId = `worker:${process.pid}`;
   await queue.work<SlackMessageJob>(QUEUES.slackMessage, async (job) => {
-    const outcome = await handleSlackMessage({ db, chat, answer, log, workerId, alwaysAway: cfg.DEMO_ALWAYS_AWAY }, job.data);
+    const outcome = await handleSlackMessage({ db, chat, answer, log, workerId, alwaysAway: cfg.DEMO_ALWAYS_AWAY, webUrl: cfg.WEB_URL }, job.data);
     log.info({ orgId: job.data.orgId, outcome }, "mensagem do Slack");
   });
   // Um só consumidor dos cliques; outros fluxos (ex.: Confirmar a nota do dia) entram com interactions.add.

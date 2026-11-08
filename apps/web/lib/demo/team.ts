@@ -54,7 +54,6 @@ const fromWorld: Persona[] = WORLD.map((m) =>
     availability: m.vacation ? { kind: "vacation", until: "14/11" } : { kind: "working" },
     location: m.location,
     simulated: true,
-    hair: m.hair,
   }),
 );
 
