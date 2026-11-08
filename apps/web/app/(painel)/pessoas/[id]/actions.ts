@@ -164,7 +164,7 @@ export async function refazerBonequinho(_prev: BonequinhoState, formData: FormDa
   if (r.status !== "saved") return { status: "error", error: REDO_ERRORS[r.status] };
   revalidatePath(`/pessoas/${ctx.target.id}`);
   revalidatePath("/equipe");
-  revalidatePath("/");
+  revalidatePath("/dashboard");
   return { status: "saved", traits: r.traits, note: r.kept.length ? "Bonequinho refeito. Alguns traços ficaram como estavam." : "Bonequinho refeito pela foto. A foto não foi guardada." };
 }
 
@@ -177,6 +177,6 @@ export async function ajustarBonequinho(_prev: BonequinhoState, formData: FormDa
   if (r.status !== "saved") return { status: "error", error: REDO_ERRORS[r.status] };
   revalidatePath(`/pessoas/${ctx.target.id}`);
   revalidatePath("/equipe");
-  revalidatePath("/");
+  revalidatePath("/dashboard");
   return { status: "saved", traits: r.traits, note: "Bonequinho ajustado." };
 }

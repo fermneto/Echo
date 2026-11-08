@@ -35,15 +35,30 @@ test("a primeira tecla Tab oferece pular para o conteúdo", async ({ page }) => 
   await expect(page).toHaveURL(/#conteudo$/);
 });
 
-test("a landing tem prévia de compartilhamento e só ela é aberta aos buscadores", async ({ page, request }) => {
+test("o endereço raiz é a landing, e o antigo /landing leva até ela", async ({ page }) => {
+  await page.goto("/");
+  await expect(page.getByRole("heading", { name: "A resposta não precisa esperar até amanhã." })).toBeVisible();
   await page.goto("/landing");
+  await expect(page).toHaveURL(/\/$/);
+});
+
+test("depois de entrar, o painel fica em /dashboard; sem sessão, vai para o login", async ({ page }) => {
+  await page.goto("/dashboard");
+  await expect(page).toHaveURL(/\/entrar$/);
+  await entrarComo(page, "fernando");
+  await expect(page).toHaveURL(/\/dashboard$/);
+  await expect(page.getByRole("link", { name: "Início", exact: true })).toHaveAttribute("aria-current", "page");
+});
+
+test("a landing tem prévia de compartilhamento e só ela é aberta aos buscadores", async ({ page, request }) => {
+  await page.goto("/");
   await expect(page.locator('meta[property="og:title"]')).toHaveAttribute("content", /A resposta não precisa esperar/);
   const imagem = await page.locator('meta[property="og:image"]').getAttribute("content");
-  expect(imagem).toMatch(/^https?:\/\/.+\/landing\/imagem-social$/);
-  const png = await request.get("/landing/imagem-social");
+  expect(imagem).toMatch(/^https?:\/\/.+\/imagem-social$/);
+  const png = await request.get("/imagem-social");
   expect(png.status()).toBe(200);
   expect(png.headers()["content-type"]).toContain("image/png");
   const robots = await (await request.get("/robots.txt")).text();
-  expect(robots).toContain("Allow: /landing");
-  expect(robots).toContain("Disallow: /");
+  expect(robots).toContain("Allow: /$");
+  expect(robots).toContain("Disallow: /dashboard");
 });

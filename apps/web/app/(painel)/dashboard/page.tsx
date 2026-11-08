@@ -126,7 +126,7 @@ export default async function InicioPage() {
       </p>
       <h1 className="hero-title">{counts.on > 0 ? "Quem está trabalhando agora" : "Ninguém no expediente agora"}</h1>
       <p className="muted">Você vê {scopeLabel(scope)}.</p>
-      <TeamPicker scope={scope} back="/" />
+      <TeamPicker scope={scope} back="/dashboard" />
 
       <ul className="crew-grid" role="list" aria-label="Equipe">
         {team.map((p) => (

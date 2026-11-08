@@ -18,7 +18,7 @@ export async function GET(req: NextRequest): Promise<Response> {
   const jar = await cookies();
   const attempt = readLoginAttempt(cfg.sessionSecret, jar.get(OIDC_COOKIE)?.value);
   jar.delete(OIDC_COOKIE);
-  const back = safeReturnPath(jar.get(RETURN_COOKIE)?.value) ?? "/";
+  const back = safeReturnPath(jar.get(RETURN_COOKIE)?.value) ?? "/dashboard";
   jar.delete(RETURN_COOKIE);
   const q = req.nextUrl.searchParams;
   if (q.get("error")) redirect("/entrar?erro=cancelado");

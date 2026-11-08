@@ -75,7 +75,7 @@ export async function cadastrarPessoa(_prev: CadastroState, form: FormData): Pro
       ...slackNote,
     ];
     revalidatePath("/equipe");
-    revalidatePath("/");
+    revalidatePath("/dashboard");
     return { status: "done", personId: r.personId, name: f.name, avatar: r.avatar, ...r.profile, notes, saved: true };
   } catch (err) {
     const { OnboardingLimitError, ONBOARDING_LIMIT } = await import("@echo/agents");
