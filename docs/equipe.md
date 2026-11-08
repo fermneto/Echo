@@ -2,7 +2,7 @@
 
 Quatro frentes em paralelo. Cada frente é dona de pastas próprias, para quase não haver conflito de merge. Os pontos de contato entre as frentes são os **contratos** em `packages/*/src/index.ts`. Mudar um contrato exige avisar o time antes.
 
-Situação em **8/11/2026**, com a `main` no merge do #77. O que bloqueia, o que configurar e o que testar está em [`pendencias.md`](pendencias.md).
+Situação em **8/11/2026**, com a `main` no merge do #78. O que bloqueia, o que configurar e o que testar está em [`pendencias.md`](pendencias.md).
 
 ## Prazos
 

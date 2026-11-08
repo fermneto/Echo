@@ -1,12 +1,12 @@
 # Pendências: bloqueios, configuração e validação
 
-Situação em **8/11/2026**, com a `main` no merge do #77. Aqui fica o que impede avançar, o que falta configurar e o que testar para dar o Echo como funcionando. O guia de cada integração (conta, variáveis, conferência e validação) está em [`integracoes/`](integracoes/README.md). Quem cuida de cada parte está em [`equipe.md`](equipe.md).
+Situação em **8/11/2026**, com a `main` no merge do #78. Aqui fica o que impede avançar, o que falta configurar e o que testar para dar o Echo como funcionando. O guia de cada integração (conta, variáveis, conferência e validação) está em [`integracoes/`](integracoes/README.md). Quem cuida de cada parte está em [`equipe.md`](equipe.md).
 
 **Prazo:** entrega no domingo, 8/11, às 13h. Demo Day às 16h.
 
 ## 1. Onde estamos
 
-**Na `main`** (último merge: #77, conector do Jira Cloud):
+**Na `main`** (último merge: #78, que conserta o teste das ações sem executor; antes dele, o #77, conector do Jira Cloud):
 
 | Etapa | O quê | Frente |
 |---|---|---|
@@ -142,7 +142,7 @@ Na ordem. Cada etapa só faz sentido com a anterior verde.
 
 - [x] `pnpm typecheck && pnpm test` com o banco migrado: 16 de 16 pacotes (7/11, no ramo do #50). Os testes de banco rodam com um papel comum do Postgres, então o RLS vale de verdade.
 - [x] `pnpm evals` com o modelo real: 18 de 18 (15 fixos e 3 de idioma), sem falha de segurança (7/11).
-- [ ] CI verde na `main` depois do último merge (#77), já com o `pnpm e2e`.
+- [ ] CI verde na `main` depois do último merge (#78), já com o `pnpm e2e`. O CI da `main` tinha falhado no merge do #75 por esse teste, e o deploy foi pulado.
 
 ### 4.2 Com as plataformas de teste (guias em [`integracoes/`](integracoes/README.md))
 
