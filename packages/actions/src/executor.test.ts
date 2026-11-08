@@ -382,6 +382,50 @@ describe.skipIf(!url)("executor do outbox (Postgres real)", () => {
     }
   });
 
+  it("depois da troca de tracker, a tarefa que ficou do outro não recebe escrita: o id do Jira não vai ao Linear, nem o contrário", async () => {
+    // A tabela tasks não guarda a origem; a tarefa antiga fica aberta com a mesma chave. O id denuncia de onde veio.
+    const [org] = await db.insert(orgs).values({ name: `Teste troca ${Math.random().toString(36).slice(2, 7)}` }).returning();
+    const o = org!.id;
+    try {
+      const wh = { days: [1, 2, 3, 4, 5], start: "09:00", end: "18:00" };
+      const [carla] = await db.insert(people).values({ orgId: o, name: "Carla", timezone: "America/Sao_Paulo", workHours: wh }).returning();
+      await db.insert(identities).values([
+        { orgId: o, personId: carla!.id, platform: "linear", externalId: "lin-carla" },
+        { orgId: o, personId: carla!.id, platform: "jira", externalId: "acc-carla" },
+      ]);
+      await db.insert(tasks).values([
+        // Ficou do Jira (id só de números) e outra veio do Linear (UUID).
+        { orgId: o, key: "PAG-7", linearId: "10007", title: "Conciliação", state: "todo" },
+        { orgId: o, key: "ECH-9", linearId: "5b3f0c1e-2a4d-4f6e-9b8a-1c2d3e4f5a6b", title: "Estorno", state: "todo" },
+      ]);
+      const calls: string[] = [];
+      const writer = (platform: "linear" | "jira"): IssueWriter => ({
+        platform,
+        assignIssue: async (issue, user) => void calls.push(`${platform}.assign ${issue} → ${user}`),
+        comment: async (issue, body) => (calls.push(`${platform}.comment ${issue}: ${body}`), { id: "c1" }),
+      });
+      const key = (k: string) => db.select().from(outboxActions).where(and(eq(outboxActions.orgId, o), eq(outboxActions.idempotencyKey, k)));
+
+      // Linear ligado: a tarefa do Jira falha com motivo e sem chamada; a do Linear segue.
+      await enqueueAction(app, o, { type: "linear.assign", target: "linear:PAG-7", idempotencyKey: "lin:pag7", payload: { taskKey: "PAG-7", toPersonId: carla!.id }, approvedBy: carla!.id });
+      await enqueueAction(app, o, { type: "linear.comment", target: "linear:PAG-7", idempotencyKey: "lin:pag7:c", payload: { taskKey: "PAG-7", body: "oi" }, approvedBy: carla!.id });
+      await enqueueAction(app, o, { type: "linear.assign", target: "linear:ECH-9", idempotencyKey: "lin:ech9", payload: { taskKey: "ECH-9", toPersonId: carla!.id }, approvedBy: carla!.id });
+      expect(await drainActions({ db: app, writers: async () => ({ issues: writer("linear") }) }, o)).toMatchObject({ done: 1, failed: 2 });
+      expect(calls).toEqual(["linear.assign 5b3f0c1e-2a4d-4f6e-9b8a-1c2d3e4f5a6b → lin-carla"]);
+      expect((await key("lin:pag7"))[0]).toMatchObject({ state: "failed", error: "tarefa PAG-7 é do Jira, e o tracker ligado é o Linear" });
+      expect((await key("lin:pag7:c"))[0]).toMatchObject({ state: "failed", error: "tarefa PAG-7 é do Jira, e o tracker ligado é o Linear" });
+
+      // Jira ligado: a tarefa do Linear falha do mesmo jeito.
+      calls.length = 0;
+      await enqueueAction(app, o, { type: "linear.assign", target: "jira:ECH-9", idempotencyKey: "jira:ech9", payload: { taskKey: "ECH-9", toPersonId: carla!.id }, approvedBy: carla!.id });
+      expect(await drainActions({ db: app, writers: async () => ({ issues: writer("jira") }) }, o)).toMatchObject({ done: 0, failed: 1 });
+      expect(calls).toEqual([]);
+      expect((await key("jira:ech9"))[0]).toMatchObject({ state: "failed", error: "tarefa ECH-9 é do Linear, e o tracker ligado é o Jira" });
+    } finally {
+      await db.delete(orgs).where(eq(orgs.id, o));
+    }
+  });
+
   it("EXECUTABLE_TYPES é exatamente a lista de casos do executor", async () => {
     // Empresa à parte, sem plataformas ligadas: cada ação falha, mas só as sem caso no switch caem no default.
     const [org] = await db.insert(orgs).values({ name: `Teste tipos ${Math.random().toString(36).slice(2, 7)}` }).returning();

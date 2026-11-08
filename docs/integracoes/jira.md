@@ -1,6 +1,12 @@
 # Jira Cloud
 
-Alternativa ao Linear (etapa 21) para empresas que usam Jira. A tarefa do Jira vira a mesma tarefa do Echo: redistribuição, relatório, "já terminou?" e plano da manhã funcionam igual. Uma empresa usa um tracker por vez: com o Linear também configurado, vale o Linear, e o Jira fica de fora (sem rota, importação, reconciliação ou escrita), para as tarefas dos dois não se sobrescreverem.
+Alternativa ao Linear (etapa 21) para empresas que usam Jira. A tarefa do Jira vira a mesma tarefa do Echo: redistribuição, relatório, "já terminou?" e plano da manhã funcionam igual. Uma empresa usa um tracker por vez: com o Linear também configurado, vale o Linear, e o Jira fica de fora (sem rota, importação, reconciliação ou escrita), para as tarefas dos dois não se sobrescreverem. A regra é uma só, `activeTracker` em `packages/connectors/src/platforms.ts`, usada pelas plataformas do worker, por `integracoes:ligar` (que tira a rota antiga do Jira), por `integracoes:simular` e pelo diagnóstico.
+
+## Um tracker por vez
+
+- **Webhook:** com o Linear ativo na empresa (a API não tem as credenciais do Linear e olha a rota: com a do Linear, vale o Linear), o aviso do Jira responde **200 com o corpo `ignored: linear ativo`**, vai para o log da API como `aviso recusado` e **não entra no inbox**. Sem rota do Jira (por exemplo, depois de `integracoes:ligar` com o Linear ligado), a resposta é `ignored: sem rota`, também registrada. É 200 e não 409 porque o Jira repete as entregas que recebem 408, 409, 425, 429 ou 5xx.
+- **Worker:** com o Linear configurado, um aviso do Jira que já esteja no inbox (rota gravada antes da regra) fica como `ignored` e não mexe em `tasks`.
+- **Tarefas antigas (limitação):** a tabela `tasks` não tem coluna de origem. Ao trocar de tracker, as tarefas do anterior **ficam abertas** no Echo, sem atualização nem reconciliação. A chave (`PROJ-123`) é igual nos dois; o que diferencia a tarefa do Jira é o id em `tasks.linear_id`, que é só número (ex.: `10042`), enquanto o do Linear é UUID. Com isso, o executor recusa a escrita na tarefa do outro tracker ("tarefa PAG-7 é do Jira, e o tracker ligado é o Linear"), em vez de mandar ao Linear o id do Jira. A migração com a origem está em [`pendencias.md`](../pendencias.md) (B17); até lá, apague as tarefas antigas da empresa à mão depois da troca.
 
 ## O que o Echo faz
 
@@ -53,7 +59,9 @@ pnpm integracoes:ligar         # liga o site à empresa e importa as tarefas abe
 |---|---|
 | `/webhooks/jira` responde 503 | `JIRA_WEBHOOK_SECRET` ausente no `.env` da API |
 | 401 em todo aviso | Segredo diferente do cadastrado no webhook, ou webhook sem segredo |
-| Aviso chega mas nada muda | Site não ligado: confira `DEMO_JIRA_SITE` e rode `pnpm integracoes:ligar` |
+| Aviso chega mas nada muda | Site não ligado: confira `DEMO_JIRA_SITE` e rode `pnpm integracoes:ligar`. A resposta do webhook diz `ignored: sem rota` |
+| Webhook responde `ignored: linear ativo` | A empresa tem a rota do Linear: vale o Linear, e o aviso do Jira é recusado de propósito |
+| Ação falha com "tarefa … é do Jira, e o tracker ligado é o Linear" | Tarefa que ficou do tracker anterior depois da troca (B17 em `pendencias.md`) |
 | `Jira 401` no diagnóstico | E-mail e token não combinam, ou o token foi revogado |
 | `Jira 410` | Alguma chamada à busca antiga; esta versão usa só `/search/jql` |
 | Diagnóstico diz "Jira desligado nesta empresa" | O Linear também está configurado. Vale um tracker por vez: com os dois, vale o Linear, e o Jira fica sem rota, importação e reconciliação. Para usar o Jira, tire as variáveis `LINEAR_*` |
