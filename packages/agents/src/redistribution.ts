@@ -23,7 +23,7 @@ import {
 } from "@echo/domain";
 import type { AgentRun, RunRecorder } from "@echo/observability";
 import type { AgentData } from "./data.ts";
-import { actions, context, dayMonth, DOT, esc, header, linkButton, section, sectionsOf, statusTag } from "./slack-format.ts";
+import { actions, context as contextBlock, dayMonth, DOT, esc, header, linkButton, section, sectionsOf, statusTag } from "./slack-format.ts";
 
 // ---------- Portas
 
@@ -441,7 +441,7 @@ export function createRedistribution(deps: RedistributionDeps) {
           payload: {
             personId: plan.approvedBy,
             text: [`Plano aprovado por ${firstName(ctx.people, plan.approvedBy)} executado.`, ...lines].join(" "),
-            blocks: [header("Plano executado"), context(`Aprovado por ${esc(firstName(ctx.people, plan.approvedBy))}`), ...sectionsOf(lines.map((l) => `• ${esc(l)}`))],
+            blocks: [header("Plano executado"), contextBlock(`Aprovado por ${esc(firstName(ctx.people, plan.approvedBy))}`), ...sectionsOf(lines.map((l) => `• ${esc(l)}`))],
           },
           idempotencyKey: `redistribution_done:${plan.id}:${plan.items.map((i) => i.state[0]).join("")}`,
         });
