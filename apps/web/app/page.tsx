@@ -548,11 +548,6 @@ export default function LandingPage() {
             </div>
           </nav>
         </div>
-
-        <p className="lp-footer__legal">
-          Pessoas e conversas desta página são ilustrativas. GitHub, Linear, Jira, Slack e Claude são marcas de seus donos.
-          <span className="lp-mono">Powered by Claude</span>
-        </p>
       </footer>
     </div>
   );
