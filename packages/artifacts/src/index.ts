@@ -47,6 +47,8 @@ export interface DayFacts {
   /** AAAA-MM-DD no fuso da pessoa. */
   date: string;
   facts: Fact[];
+  /** Itens que ficaram de fora dos cartões (só os primeiros viram fatos). Quem mostra o resumo diz quantos faltaram. */
+  omitted?: Partial<Record<"tarefa" | "pr", number>>;
 }
 
 /** Que fatos cada componente da nota aceita. */
@@ -292,5 +294,8 @@ export function buildDayFacts(input: DayInput): DayFacts {
   for (const a of input.atividade ?? []) if (a.value > 0) facts.push({ id: `atividade:${a.tipo}`, kind: "atividade", label: a.label, value: a.value });
   for (const m of input.liberado) facts.push({ id: `liberado:${m.branch}`, kind: "liberado", label: m.branch, ...(m.detail ? { detail: m.detail } : {}) });
   for (const m of input.reservado) facts.push({ id: `reservado:${m.branch}`, kind: "reservado", label: m.branch, ...(m.detail ? { detail: m.detail } : {}) });
-  return { pessoa: input.pessoa, date: input.date, facts };
+  const omitted: NonNullable<DayFacts["omitted"]> = {};
+  if ((input.tarefas?.length ?? 0) > MAX_CARDS) omitted.tarefa = input.tarefas!.length - MAX_CARDS;
+  if ((input.prs?.length ?? 0) > MAX_CARDS) omitted.pr = input.prs!.length - MAX_CARDS;
+  return { pessoa: input.pessoa, date: input.date, facts, ...(Object.keys(omitted).length ? { omitted } : {}) };
 }

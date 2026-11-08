@@ -5,7 +5,7 @@ import { readFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import type { Fact } from "@echo/artifacts";
 import { Resvg } from "@resvg/resvg-js";
-import satori from "satori";
+import satori, { type SatoriNode } from "satori";
 import type { StoredArtifact } from "./day-summary.ts";
 
 // Cores de apps/web/app/tokens.css
@@ -40,12 +40,17 @@ const loadFonts = () =>
 
 type Node = { type: string; props: { style?: Record<string, unknown>; children?: unknown } };
 const h = (style: Record<string, unknown>, ...children: unknown[]): Node => ({ type: "div", props: { style: { display: "flex", boxSizing: "border-box", ...style }, children: children.filter((c) => c !== null && c !== undefined && c !== false) } });
-const text = (style: Record<string, unknown>, value: string): Node => ({ type: "div", props: { style: { display: "flex", boxSizing: "border-box", ...style }, children: value } });
+// Texto sempre quebra linha, inclusive palavra sem espaço (branch, chave, URL): nada sai da largura do cartão.
+const text = (style: Record<string, unknown>, value: string): Node => ({ type: "div", props: { style: { display: "flex", boxSizing: "border-box", wordBreak: "break-word", ...style }, children: value } });
 
 const WIDTH = 1200;
 const PAD = 48;
 const GAP = 16;
 const BLOCK_PAD = 28;
+/** Itens por bloco na imagem. O que passar disso aparece como "+ N itens", nunca some calado. */
+export const MAX_ITEMS_PER_BLOCK = 12;
+/** Altura máxima do PNG em pixels. Acima disso o zoom cai abaixo de 2x, mas a imagem inteira continua lá. */
+const MAX_PNG_HEIGHT = 16_000;
 
 const LABELS: Record<string, { label: string; color: string }> = {
   destaque: { label: "ONDE PAROU", color: C.twinText },
@@ -148,61 +153,46 @@ function body(component: string, facts: Fact[]): Node {
   }
 }
 
-/** Altura aproximada do conteúdo, para o canvas (o Satori precisa de altura; sobra é cortada pelo fundo). */
-function estimateHeight(a: StoredArtifact): number {
-  const byId = new Map(a.facts.facts.map((f) => [f.id, f]));
-  let h = 230;
-  const blocks = a.spec.blocks;
-  for (let i = 0; i < blocks.length; i++) {
-    const b = blocks[i]!;
-    const n = b.factIds.filter((id) => byId.has(id)).length;
-    if (!n) continue;
-    const headH = 50 + (b.title ? 36 : 0) + (b.text ? 26 : 0);
-    let bodyH = 0;
-    if (b.component === "destaque") bodyH = n * 52;
-    else if (b.component === "lista_pendencias") bodyH = n * 64;
-    else if (b.component === "linha_do_dia") bodyH = Math.ceil(n / (n >= 3 ? 3 : 2)) * 120;
-    else if (b.component === "cartao_tarefa" || b.component === "cartao_pr") bodyH = Math.ceil(n / 3) * 130;
-    else if (b.component === "quadro_liberado_reservado") bodyH = 60 + Math.max(1, n) * 86;
-    const blockH = headH + bodyH + BLOCK_PAD * 2 + GAP;
-    // Dois blocos de meia largura seguidos dividem a linha.
-    if (HALF.has(b.component) && HALF.has(blocks[i + 1]?.component ?? "")) {
-      const nb = blocks[i + 1]!;
-      const n2 = nb.factIds.filter((id) => byId.has(id)).length;
-      const other = 50 + (nb.title ? 36 : 0) + (nb.text ? 26 : 0) + (nb.component === "lista_pendencias" ? n2 * 64 : Math.ceil(n2 / 3) * 120) + BLOCK_PAD * 2 + GAP;
-      h += Math.max(blockH, other);
-      i++;
-    } else h += blockH;
-  }
-  return Math.min(Math.max(h, 600), 4000);
-}
-
 const modelName = (tag: string) => (tag.startsWith("qwen3:4b") ? "Qwen3 4B" : tag.startsWith("qwen2.5-coder:1.5b") ? "Qwen2.5-Coder 1.5B" : tag);
 
-/** PNG do resumo (2x para ficar nítido no Slack). Lança se o render falhar; quem chama manda a versão em texto. */
-export async function renderSummaryPng(a: StoredArtifact, opts: { stateLabel?: string } = {}): Promise<Buffer> {
+/** Monta o SVG do resumo. A altura sai do conteúdo (o Satori mede o texto com as fontes embutidas), nunca de uma estimativa. */
+export async function renderSummarySvg(a: StoredArtifact, opts: { stateLabel?: string; onNode?: (n: SatoriNode) => void } = {}): Promise<{ svg: string; width: number; height: number }> {
   const byId = new Map(a.facts.facts.map((f) => [f.id, f]));
   const dd = `${a.facts.date.slice(8, 10)}/${a.facts.date.slice(5, 7)}`;
   const by = a.state === "rendered" && a.model ? `Layout por ${modelName(a.model)} · modelo aberto` : "Layout padrão, por regra";
 
   const rows: Node[] = [];
   const blocks = a.spec.blocks.map((b) => ({ ...b, facts: b.factIds.map((id) => byId.get(id)).filter((f): f is Fact => !!f) })).filter((b) => b.facts.length);
-  const make = (b: (typeof blocks)[number], half: boolean) =>
-    blockBox(half, [head(b.component, b.title, b.text, b.component === "lista_pendencias" || b.component.startsWith("cartao_") ? b.facts.length : undefined), body(b.component, b.facts)], b.component === "destaque" ? "twin" : b.component === "lista_pendencias" ? "wait" : undefined);
+  const make = (b: (typeof blocks)[number], half: boolean) => {
+    const shown = b.facts.slice(0, MAX_ITEMS_PER_BLOCK);
+    // Cartões que já ficaram de fora dos fatos (buildDayFacts guarda só os primeiros) também entram na conta.
+    const upstream = b.component === "cartao_tarefa" ? (a.facts.omitted?.tarefa ?? 0) : b.component === "cartao_pr" ? (a.facts.omitted?.pr ?? 0) : 0;
+    const left = b.facts.length - shown.length + upstream;
+    return blockBox(
+      half,
+      [
+        head(b.component, b.title, b.text, b.component === "lista_pendencias" || b.component.startsWith("cartao_") ? b.facts.length + upstream : undefined),
+        body(b.component, shown),
+        left > 0 ? text({ fontFamily: "Inter", fontSize: 16, color: C.wait, marginTop: 6 }, `+ ${left} ${left === 1 ? "item ficou" : "itens ficaram"} de fora desta imagem.`) : null,
+      ].filter((n): n is Node => !!n),
+      b.component === "destaque" ? "twin" : b.component === "lista_pendencias" ? "wait" : undefined,
+    );
+  };
   for (let i = 0; i < blocks.length; i++) {
     const b = blocks[i]!;
     const next = blocks[i + 1];
     if (HALF.has(b.component) && next && HALF.has(next.component)) {
-      rows.push(h({ width: "100%", alignItems: "stretch", marginBottom: GAP }, make(b, true), h({ width: GAP }), make(next, true)));
+      rows.push(h({ width: "100%", alignItems: "stretch", marginBottom: GAP }, make(b, true), h({ width: GAP, flexShrink: 0 }), make(next, true)));
       i++;
     } else rows.push(h({ width: "100%", marginBottom: GAP }, make(b, false)));
   }
 
+  // Sem altura fixa: a raiz cresce com o conteúdo e o canvas acompanha.
   const tree = h(
-    { flexDirection: "column", width: "100%", height: "100%", padding: PAD, backgroundColor: C.canvas },
+    { flexDirection: "column", width: "100%", padding: PAD, backgroundColor: C.canvas },
     h(
-      { alignItems: "flex-end", justifyContent: "space-between", marginBottom: 14 },
-      text({ fontFamily: "Geist", fontSize: 52, color: C.cloud, letterSpacing: -1 }, `Resumo do dia, ${dd}`),
+      { alignItems: "flex-end", justifyContent: "space-between", flexWrap: "wrap", marginBottom: 14 },
+      text({ fontFamily: "Geist", fontSize: 52, color: C.cloud, letterSpacing: -1, marginRight: 16 }, `Resumo do dia, ${dd}`),
       h(
         { alignItems: "center", marginBottom: 12 },
         opts.stateLabel ? h({ marginRight: 10 }, pill(opts.stateLabel, C.wait)) : null,
@@ -213,8 +203,16 @@ export async function renderSummaryPng(a: StoredArtifact, opts: { stateLabel?: s
     ...rows,
   );
 
-  const height = estimateHeight(a);
-  const svg = await satori(tree as never, { width: WIDTH, height, fonts: loadFonts() });
-  const png = new Resvg(svg, { fitTo: { mode: "zoom", value: 2 }, background: C.canvas }).render().asPng();
+  const svg = await satori(tree as never, { width: WIDTH, fonts: loadFonts(), ...(opts.onNode ? { onNodeDetected: opts.onNode } : {}) });
+  const height = Number(/^<svg[^>]*\sheight="([\d.]+)"/.exec(svg)?.[1]);
+  if (!Number.isFinite(height) || height <= 0) throw new Error("SVG do resumo sem altura");
+  return { svg, width: WIDTH, height };
+}
+
+/** PNG do resumo (2x para ficar nítido no Slack). Lança se o render falhar; quem chama manda a versão em texto. */
+export async function renderSummaryPng(a: StoredArtifact, opts: { stateLabel?: string } = {}): Promise<Buffer> {
+  const { svg, height } = await renderSummarySvg(a, opts);
+  const zoom = Math.min(2, MAX_PNG_HEIGHT / height);
+  const png = new Resvg(svg, { fitTo: { mode: "zoom", value: zoom }, background: C.canvas }).render().asPng();
   return Buffer.from(png);
 }

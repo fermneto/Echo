@@ -21,6 +21,22 @@ describe("buildDayFacts", () => {
     expect(day.facts.map((f) => f.id)).toEqual(["parou:0", "travou:0", "travou:1", "tarefa:ECH-128", "pr:44", "atividade:commits", "liberado:ech-131-api-v2"]);
     expect(day.facts.find((f) => f.id === "travou:0")!.label).toBe("PR 44 aguarda revisão");
     expect(day.facts.find((f) => f.id === "pr:44")).toMatchObject({ detail: "PR 44 · ech-128-tempo-limite", status: "aberto" });
+    expect(day.omitted).toBeUndefined();
+  });
+
+  it("cartões além do limite viram contagem, não somem calados", () => {
+    const many = buildDayFacts({
+      pessoa: "Fernando",
+      date: "2026-11-06",
+      parou: [],
+      travou: [],
+      tarefas: Array.from({ length: 9 }, (_, i) => ({ chave: `ECH-${i}`, titulo: `Tarefa ${i}`, estado: "a fazer" })),
+      prs: Array.from({ length: 6 }, (_, i) => ({ numero: i, titulo: `PR ${i}`, branch: `b-${i}`, rascunho: false })),
+      liberado: [],
+      reservado: [],
+    });
+    expect(many.facts.filter((f) => f.kind === "tarefa")).toHaveLength(6);
+    expect(many.omitted).toEqual({ tarefa: 3 });
   });
 });
 
