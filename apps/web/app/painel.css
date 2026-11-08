@@ -604,6 +604,13 @@
 .entrar__note {
   font-size: 11px;
 }
+/* Dica da demonstração: usuários e senha públicos, para quem chega de fora. */
+.entrar__hint {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--color-ash);
+}
 
 /* Números tabulares em horas e contagens */
 .num,
