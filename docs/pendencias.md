@@ -163,7 +163,7 @@ As cinco cenas, em 3 minutos: a pergunta que esperaria um dia, a manhã de Ferna
 | Revisão visual do card "Seu agente" (`/pessoas/[id]`) e dos botões Aprovar e Recusar da correção em Meu plano, que usam os componentes que já existiam, sem revisão de design. Os arquivos são `apps/web/components/AgentProfileForm.tsx`, `apps/web/app/(painel)/plano/PlanList.tsx` e o bloco "Seu agente" em `apps/web/app/painel.css` | Web (Frente 3) |
 | Render com o reviewer (B7), `pnpm e2e` (B12), vídeo, README e lista de ferramentas | Avaliador |
 | Ok na proposta da regra 1 (B11) e revisão do #50 | Todas |
-| Juiz da delegação com o Qwen3 de verdade: ver a nota no #50 | Funções |
-| SSLM do roteador com o Qwen3 0.6B de verdade: acerto nas perguntas da avaliação e tempo por pergunta em CPU (a regra e o caminho sem SSLM já estão testados) | Funções |
-| Reconstruir o echo-triage na Render com a imagem nova (baixa também o Qwen3 0.6B, ~520 MB) | Avaliador |
+| ~~Juiz da delegação com o Qwen3 de verdade~~: feito em 7/11, 6 de 6 com o Qwen3 4B Instruct local (10 a 30 s por decisão em CPU), inclusive recusando o texto que manda responder cabe=true | Funções |
+| SSLM do roteador: o Qwen3 0.6B e o 4B não passaram na checagem (ver engenharia, "Por que o SSLM ficou desligado"); fica só a regra. Testar outro modelo pequeno só se passar na mesma checagem | Funções |
+| Reconstruir o echo-triage na Render quando der: a imagem agora tenta de novo o download do modelo (antes, uma queda de rede perdia o build inteiro) | Avaliador |
 | Site e painel em inglês: hoje só existe a versão em português (`<html lang="pt-BR">` fixo, sem rotas `/en`). O agente já responde em português, inglês e espanhol; faltam os textos do site, do painel e das mensagens privadas do Echo | Web (Frente 3) |

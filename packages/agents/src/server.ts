@@ -81,13 +81,13 @@ export function serverAnswerDeps(db: Database, apiKey: string | undefined): Answ
 }
 
 /**
- * Roteador de custo da resposta: a regra sempre; com SLM_OLLAMA_URL, o SSLM (SSLM_MODEL, padrão qwen3:0.6b) decide
- * o que a regra não reconhece. ANSWER_ROUTER=false manda toda pergunta ao modelo, como antes.
+ * Roteador de custo da resposta: a regra sempre. O SSLM só entra com SSLM_MODEL definido (e SLM_OLLAMA_URL): os
+ * modelos testados erraram demais (docs/engenharia.md). ANSWER_ROUTER=false manda toda pergunta ao modelo, como antes.
  */
 export function answerRouter(env: NodeJS.ProcessEnv = process.env): AnswerDeps["router"] {
   if (env.ANSWER_ROUTER === "false") return undefined;
   const timeoutMs = Number(env.SSLM_TIMEOUT_MS) > 0 ? Number(env.SSLM_TIMEOUT_MS) : undefined;
-  const sslm = env.SLM_OLLAMA_URL ? ollamaJson({ baseUrl: env.SLM_OLLAMA_URL, model: env.SSLM_MODEL || "qwen3:0.6b", think: false }) : null;
+  const sslm = env.SLM_OLLAMA_URL && env.SSLM_MODEL ? ollamaJson({ baseUrl: env.SLM_OLLAMA_URL, model: env.SSLM_MODEL, think: false }) : null;
   return { sslm, ...(timeoutMs ? { timeoutMs } : {}) };
 }
 

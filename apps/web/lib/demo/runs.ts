@@ -52,7 +52,7 @@ const EXTRA_FLOWS: Record<string, string> = {
   night_review: "Revisão de PR",
   night_review_batch: "Revisão de PR",
   night_triage: "Triagem de PR (modelo aberto)",
-  answer_route: "Roteador da resposta (regra e SSLM)",
+  answer_route: "Roteador da resposta (sem Sonnet)",
   gains_baseline: "Ganhos",
   help_confirm: "Ajuda",
   redistribution_done: "Redistribuição",
