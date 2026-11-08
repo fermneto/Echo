@@ -123,7 +123,7 @@ Toda variável é validada em `packages/config`, e o serviço falha cedo, com me
 | `SLACK_BOT_TOKEN` | | | ✔ | App do Slack → Bot User OAuth Token (`xoxb-…`) |
 | `GITHUB_APP_ID`, `GITHUB_PRIVATE_KEY` | | ✔ | ✔ | GitHub App (chave `.pem` numa linha, com `\n`) |
 | `LINEAR_CLIENT_ID`, `LINEAR_CLIENT_SECRET` ou `LINEAR_API_KEY` | | | ✔ | App OAuth do Linear, ou chave pessoal para testes |
-| `JIRA_BASE_URL`, `JIRA_EMAIL`, `JIRA_API_TOKEN` (e, opcionais, `JIRA_STORY_POINTS_FIELD` e `JIRA_JQL`) | | | ✔ | Site do Jira e token de API de uma conta de serviço. Com o Linear ligado, vale o Linear |
+| `JIRA_BASE_URL`, `JIRA_EMAIL`, `JIRA_API_TOKEN` (e, opcionais, `JIRA_STORY_POINTS_FIELD` e `JIRA_JQL`) | | | ✔ | Site do Jira e token de API de uma conta de serviço. Pode ficar junto com o Linear, com prefixos de projeto diferentes |
 | `ANTHROPIC_API_KEY` | | ✔ | ✔ | Anthropic. Sem ela, o agente responde só por regra e não há correção |
 | `SLM_OLLAMA_URL`, `SLM_MODEL`, `TRIAGE_TIMEOUT_MS` | | ✔ | ✔ | `echo-triage` (Qwen3 4B). No worker: triagem, resumo do dia e juiz da delegação. No painel: currículo do cadastro. `TRIAGE_TIMEOUT_MS` só no worker |
 | `FIX_AGENT_ID`, `FIX_ENVIRONMENT_ID` | | | ✔ | `pnpm --filter @echo/reviewer provision` |

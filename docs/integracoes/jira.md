@@ -1,6 +1,6 @@
 # Jira Cloud
 
-Alternativa ao Linear (etapa 21) para empresas que usam Jira. A tarefa do Jira vira a mesma tarefa do Echo: redistribuição, relatório, "já terminou?" e plano da manhã funcionam igual. Uma empresa usa um tracker por vez: com o Linear também configurado, vale o Linear, e o Jira fica de fora (sem rota, importação, reconciliação ou escrita), para as tarefas dos dois não se sobrescreverem.
+Tracker de tarefas (etapa 21) para empresas que usam Jira, sozinho ou junto com o Linear. A tarefa do Jira vira a mesma tarefa do Echo: redistribuição, relatório, "já terminou?" e plano da manhã funcionam igual. Com os dois ligados, cada tarefa guarda de onde veio (`tasks.source`), e a mudança de responsável e o comentário aprovados vão para o tracker dela. A chave da tarefa (`PAG-12`) é única na empresa, então **o Linear e o Jira precisam de prefixos de projeto diferentes**: uma tarefa do Jira com uma chave que já é do Linear (ou o contrário) não é importada, e o motivo aparece em `pnpm integracoes:ligar` e no diagnóstico.
 
 ## O que o Echo faz
 
@@ -56,6 +56,6 @@ pnpm integracoes:ligar         # liga o site à empresa e importa as tarefas abe
 | Aviso chega mas nada muda | Site não ligado: confira `DEMO_JIRA_SITE` e rode `pnpm integracoes:ligar` |
 | `Jira 401` no diagnóstico | E-mail e token não combinam, ou o token foi revogado |
 | `Jira 410` | Alguma chamada à busca antiga; esta versão usa só `/search/jql` |
-| Diagnóstico diz "Jira desligado nesta empresa" | O Linear também está configurado. Vale um tracker por vez: com os dois, vale o Linear, e o Jira fica sem rota, importação e reconciliação. Para usar o Jira, tire as variáveis `LINEAR_*` |
+| Diagnóstico avisa "prefixos diferentes do Linear" | O Linear e o Jira têm projetos com o mesmo prefixo (ex.: `ECH` nos dois). As tarefas do Jira com uma chave que já é do Linear não entram no Echo. Use outro prefixo no projeto do Jira ou limite os projetos importados com `JIRA_JQL` |
 | `pessoa sem conta no Jira` | Faltou `"jira"` dessa pessoa em `DEMO_IDENTITIES` |
 | Tamanho vazio nas tarefas | O campo de story points do site não é o `customfield_10016`: ajuste `JIRA_STORY_POINTS_FIELD` |

@@ -114,6 +114,7 @@ describe.skipIf(!url)("reconciliação (Postgres real)", () => {
 
   const task = (key: string, over: Partial<ExternalTask> = {}): ExternalTask => ({
     key,
+    source: "linear",
     linearId: `lin-${key}`,
     title: key,
     assignee: { platform: "linear", externalId: "lin-user-fer" },

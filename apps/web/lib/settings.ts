@@ -10,7 +10,7 @@ export const CONNECTIONS: readonly { kind: ConnectionKind; label: string; use: s
   { kind: "github", label: "GitHub", use: "PRs, commits e a revisão da noite" },
   { kind: "slack", label: "Slack", use: "Perguntas aos agentes, avisos e login no painel" },
   { kind: "linear", label: "Linear", use: "Tarefas e redistribuição aprovada" },
-  { kind: "jira", label: "Jira", use: "Tarefas e redistribuição aprovada, no lugar do Linear" },
+  { kind: "jira", label: "Jira", use: "Tarefas e redistribuição aprovada, sozinho ou junto com o Linear" },
   { kind: "google", label: "Google Agenda", use: "Ausências e expediente sugerido" },
   { kind: "microsoft", label: "Microsoft 365", use: "Ausências e expediente sugerido" },
   { kind: "vercel", label: "Vercel", use: "Deploys das entregas no relatório" },

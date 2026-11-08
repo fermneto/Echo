@@ -31,6 +31,7 @@ const MAX_PAGES = 10;
 export function toTask(n: any): ExternalTask {
   return {
     key: n.identifier,
+    source: "linear",
     linearId: n.id,
     title: n.title,
     assignee: n.assignee?.id ? { platform: "linear", externalId: n.assignee.id } : undefined,

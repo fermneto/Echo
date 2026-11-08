@@ -144,12 +144,16 @@ export const workEvents = pgTable("work_events", {
   createdAt: createdAt(),
 }, (t) => [uniqueIndex("work_events_src").on(t.orgId, t.source, t.sourceRef), index("work_events_person").on(t.orgId, t.personId, t.occurredAt)]);
 
-/** Espelho do Linear. */
+/**
+ * Espelho do tracker de tarefas. A empresa pode usar o Linear e o Jira juntos: `source` diz de qual
+ * veio cada tarefa. A chave continua única na empresa, então os dois precisam de prefixos diferentes.
+ */
 export const tasks = pgTable("tasks", {
   id: id(),
   orgId: orgId(),
   key: text("key").notNull(), // ECH-128
-  linearId: text("linear_id"),
+  source: text("source").notNull().default("linear"), // linear | jira
+  linearId: text("linear_id"), // id da tarefa no tracker de `source` (UUID no Linear, número no Jira)
   title: text("title").notNull(),
   assigneeId: uuid("assignee_id").references(() => people.id),
   state: text("state").notNull(), // backlog | todo | in_progress | in_review | done | canceled

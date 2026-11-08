@@ -72,7 +72,7 @@ describe.skipIf(!url)("executor do outbox (Postgres real)", () => {
   } as unknown as ChatPlatform;
   let fileScopeMissing = false;
   // Montado na hora do uso: a conexão `app` só existe depois do beforeAll.
-  const deps = () => ({ db: app, writers: async () => ({ issues, code, chat }) });
+  const deps = () => ({ db: app, writers: async () => ({ linear: issues, code, chat }) });
 
   beforeAll(async () => {
     appPool = createPool(await appRoleUrl(pool, url!), 2, { defaultScope: "none" });
@@ -348,8 +348,8 @@ describe.skipIf(!url)("executor do outbox (Postgres real)", () => {
     expect((await get(other!.id)).state).toBe("failed");
   });
 
-  it("com o Jira ligado, a tarefa vai para a conta da pessoa no Jira; sem conta lá, falha com motivo", async () => {
-    // Empresa à parte que usa Jira em vez de Linear: o mesmo "linear.assign" vale para o tracker ligado.
+  it("Linear e Jira juntos: cada tarefa vai para o tracker de onde veio; sem conta lá, falha com motivo", async () => {
+    // Empresa à parte com os dois trackers: o mesmo "linear.assign" vale para o tracker da tarefa.
     const [org] = await db.insert(orgs).values({ name: `Teste Jira ${Math.random().toString(36).slice(2, 7)}` }).returning();
     const o = org!.id;
     try {
@@ -361,20 +361,30 @@ describe.skipIf(!url)("executor do outbox (Postgres real)", () => {
         // Conta só no Linear não serve para tarefa do Jira.
         { orgId: o, personId: yan!.id, platform: "linear", externalId: "lin-yan" },
       ]);
-      await db.insert(tasks).values({ orgId: o, key: "PAG-7", linearId: "10007", title: "Conciliação", state: "todo" });
+      // Linear e Jira ligados juntos: cada tarefa vai para o tracker de onde veio.
+      await db.insert(tasks).values([
+        { orgId: o, key: "PAG-7", source: "jira", linearId: "10007", title: "Conciliação", state: "todo" },
+        { orgId: o, key: "ECH-9", source: "linear", linearId: "lin-ech-9", title: "Webhook", state: "todo" },
+      ]);
+      await db.insert(identities).values({ orgId: o, personId: carla!.id, platform: "linear", externalId: "lin-carla" });
       const jiraCalls: string[] = [];
       const jira: IssueWriter = {
         platform: "jira",
         assignIssue: async (issue, user) => void jiraCalls.push(`jira.assign ${issue} → ${user}`),
         comment: async (issue, body) => (jiraCalls.push(`jira.comment ${issue}: ${body}`), { id: "c1" }),
       };
-      const jiraDeps = { db: app, writers: async () => ({ issues: jira }) };
+      const linear: IssueWriter = {
+        assignIssue: async (issue, user) => void jiraCalls.push(`linear.assign ${issue} → ${user}`),
+        comment: async (issue, body) => (jiraCalls.push(`linear.comment ${issue}: ${body}`), { id: "c2" }),
+      };
+      const jiraDeps = { db: app, writers: async () => ({ linear, jira }) };
 
       await enqueueAction(app, o, { type: "linear.assign", target: "jira:PAG-7", idempotencyKey: "jira:carla", payload: { taskKey: "PAG-7", toPersonId: carla!.id }, approvedBy: carla!.id });
       await enqueueAction(app, o, { type: "linear.comment", target: "jira:PAG-7", idempotencyKey: "jira:comentario", payload: { taskKey: "PAG-7", body: "Plano aprovado." }, approvedBy: carla!.id });
       await enqueueAction(app, o, { type: "linear.assign", target: "jira:PAG-7", idempotencyKey: "jira:yan", payload: { taskKey: "PAG-7", toPersonId: yan!.id }, approvedBy: carla!.id });
-      expect(await drainActions(jiraDeps, o)).toMatchObject({ done: 2, failed: 1 });
-      expect(jiraCalls.sort()).toEqual(["jira.assign 10007 → acc-carla", "jira.comment 10007: Plano aprovado."]);
+      await enqueueAction(app, o, { type: "linear.assign", target: "linear:ECH-9", idempotencyKey: "linear:carla", payload: { taskKey: "ECH-9", toPersonId: carla!.id }, approvedBy: carla!.id });
+      expect(await drainActions(jiraDeps, o)).toMatchObject({ done: 3, failed: 1 });
+      expect(jiraCalls.sort()).toEqual(["jira.assign 10007 → acc-carla", "jira.comment 10007: Plano aprovado.", "linear.assign lin-ech-9 → lin-carla"]);
       const [failed] = await db.select().from(outboxActions).where(and(eq(outboxActions.orgId, o), eq(outboxActions.idempotencyKey, "jira:yan")));
       expect(failed).toMatchObject({ state: "failed", error: "pessoa sem conta no Jira" });
     } finally {

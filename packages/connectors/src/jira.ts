@@ -40,6 +40,7 @@ export function jiraTask(issue: any, storyPointsField = DEFAULT_STORY_POINTS_FIE
   const labels = [...((f.labels as string[] | undefined) ?? []), ...((f.components as { name?: string }[] | undefined) ?? []).flatMap((c) => (c?.name ? [c.name] : []))];
   return {
     key: issue.key,
+    source: "jira",
     linearId: String(issue.id),
     title: f.summary ?? issue.key,
     assignee: f.assignee?.accountId ? { platform: "jira", externalId: f.assignee.accountId } : undefined,

@@ -136,7 +136,12 @@ async function upsertPullRequest(tx: Tx, orgId: string, pr: ExternalPullRequest)
     });
 }
 
-async function upsertTask(tx: Tx, orgId: string, t: ExternalTask): Promise<void> {
+/**
+ * A empresa pode usar o Linear e o Jira juntos, e a chave da tarefa é única na empresa: os dois
+ * precisam de prefixos diferentes. Uma chave que já é do outro tracker não sobrescreve a tarefa
+ * de lá; volta o motivo, que o ingest registra como ignorado.
+ */
+async function upsertTask(tx: Tx, orgId: string, t: ExternalTask): Promise<string | undefined> {
   const resolve = await resolvePeople(tx, orgId, [t.assignee]);
   const values = {
     linearId: t.linearId,
@@ -149,15 +154,23 @@ async function upsertTask(tx: Tx, orgId: string, t: ExternalTask): Promise<void>
     externalUpdatedAt: t.updatedAt,
     updatedAt: new Date(),
   };
-  await tx
+  const written = await tx
     .insert(tasks)
-    .values({ orgId, key: t.key, ...values })
+    .values({ orgId, key: t.key, source: t.source, ...values })
     .onConflictDoUpdate({
       target: [tasks.orgId, tasks.key],
       set: values,
-      where: sql`${tasks.externalUpdatedAt} is null or ${tasks.externalUpdatedAt} <= ${t.updatedAt.toISOString()}::timestamptz`,
-    });
+      where: sql`${tasks.source} = ${t.source} and (${tasks.externalUpdatedAt} is null or ${tasks.externalUpdatedAt} <= ${t.updatedAt.toISOString()}::timestamptz)`,
+    })
+    .returning({ id: tasks.id });
+  if (written.length > 0) return undefined;
+  // Nada gravado: ou o aviso é mais velho que o espelho (normal), ou a chave é do outro tracker.
+  const [current] = await tx.select({ source: tasks.source }).from(tasks).where(and(eq(tasks.orgId, orgId), eq(tasks.key, t.key)));
+  if (current && current.source !== t.source) return `tarefa ${t.key} do ${TRACKER_LABEL[t.source]} ignorada: a chave já é de uma tarefa do ${TRACKER_LABEL[current.source as ExternalTask["source"]] ?? current.source} (use prefixos diferentes nos dois trackers)`;
+  return undefined;
 }
+
+const TRACKER_LABEL: Record<ExternalTask["source"], string> = { linear: "Linear", jira: "Jira" };
 
 /** Reação de ajuda: quem reagiu foi ajudado pelo autor da mensagem. Só a referência, nunca o texto. */
 async function recordReaction(tx: Tx, orgId: string, r: Extract<NormalizedEvent, { kind: "reaction" }>): Promise<void> {
@@ -230,9 +243,14 @@ export async function ingest(db: Database, orgId: string, events: NormalizedEven
         case "pr_upsert":
           await upsertPullRequest(tx, orgId, ev.pr);
           break;
-        case "task_upsert":
-          await upsertTask(tx, orgId, ev.task);
+        case "task_upsert": {
+          const refused = await upsertTask(tx, orgId, ev.task);
+          if (refused) {
+            result.ignored.push(refused);
+            continue;
+          }
           break;
+        }
         case "reaction":
           await recordReaction(tx, orgId, ev);
           break;

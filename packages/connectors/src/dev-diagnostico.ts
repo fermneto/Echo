@@ -8,6 +8,7 @@ import { JiraTracker } from "./jira-client.ts";
 import { LinearTracker } from "./linear-client.ts";
 import { platformsFromEnv } from "./platforms.ts";
 import { SlackChat } from "./slack-client.ts";
+import { sharedKeyPrefixes } from "./task-keys.ts";
 
 type Status = "ok" | "falta" | "erro" | "aviso";
 interface Item {
@@ -143,7 +144,8 @@ if (api) {
   add("GitHub", "pessoas com login do GitHub", (idCount.get("github") ?? 0) > 0 ? "ok" : "falta", String(idCount.get("github") ?? 0), "github.md");
 }
 
-// Linear
+// Linear (as chaves das tarefas abertas servem para conferir os prefixos com o Jira)
+let linearKeys: string[] | null = null;
 {
   if (!env.LINEAR_WEBHOOK_SECRET) add("Linear", "LINEAR_WEBHOOK_SECRET", "falta", undefined, "linear.md");
   const linear = env.LINEAR_API_KEY ? new LinearTracker({ token: env.LINEAR_API_KEY }) : has("LINEAR_CLIENT_ID", "LINEAR_CLIENT_SECRET") ? new LinearTracker({ clientId: env.LINEAR_CLIENT_ID!, clientSecret: env.LINEAR_CLIENT_SECRET! }) : null;
@@ -152,6 +154,7 @@ if (api) {
       const o = await linear.organization();
       add("Linear", "credencial aceita", "ok", o.name);
       routeCheck("Linear", "linear", "DEMO_LINEAR_ORG_ID", o.id, "linear.md");
+      linearKeys = (await linear.listOpenTasks()).tasks.map((t) => t.key);
     } catch (err) {
       add("Linear", "credencial", "erro", msg(err), "linear.md");
     }
@@ -161,8 +164,7 @@ if (api) {
   add("Linear", "pessoas com conta do Linear", (idCount.get("linear") ?? 0) > 0 ? "ok" : "falta", String(idCount.get("linear") ?? 0), "linear.md");
 }
 
-// Jira Cloud (opcional, no lugar do Linear: com os dois configurados, vale o Linear)
-const linearConfigured = Boolean(env.LINEAR_API_KEY || (env.LINEAR_CLIENT_ID && env.LINEAR_CLIENT_SECRET));
+// Jira Cloud (opcional; pode ficar ligado junto com o Linear, com prefixos de projeto diferentes)
 if (has("JIRA_BASE_URL") || has("JIRA_API_TOKEN")) {
   if (!has("JIRA_BASE_URL", "JIRA_EMAIL", "JIRA_API_TOKEN")) add("Jira", "JIRA_BASE_URL, JIRA_EMAIL e JIRA_API_TOKEN", "falta", undefined, "jira.md");
   else {
@@ -170,16 +172,18 @@ if (has("JIRA_BASE_URL") || has("JIRA_API_TOKEN")) {
     try {
       const { tasks, truncated } = await jira.listOpenTasks();
       add("Jira", "credencial aceita", "ok", `${tasks.length}${truncated ? "+" : ""} tarefas abertas`);
-      if (linearConfigured) add("Jira", "Jira desligado nesta empresa", "aviso", "o Linear está ligado, e vale um tracker por vez (vale o Linear)", "jira.md");
-      else routeCheck("Jira", "jira", "DEMO_JIRA_SITE", jira.site, "jira.md");
+      routeCheck("Jira", "jira", "DEMO_JIRA_SITE", jira.site, "jira.md");
+      if (linearKeys) {
+        const shared = sharedKeyPrefixes(linearKeys, tasks.map((t) => t.key));
+        if (shared.length) add("Jira", "prefixos diferentes do Linear", "aviso", `${shared.join(", ")} nos dois: essas tarefas do Jira não entram enquanto a chave for do Linear`, "jira.md");
+        else add("Jira", "prefixos diferentes do Linear", "ok");
+      }
     } catch (err) {
       add("Jira", "credencial", "erro", msg(err), "jira.md");
     }
   }
-  if (!linearConfigured) {
-    if (!env.JIRA_WEBHOOK_SECRET) add("Jira", "JIRA_WEBHOOK_SECRET", "falta", "sem ele, /webhooks/jira responde 503", "jira.md");
-    add("Jira", "pessoas com conta do Jira", (idCount.get("jira") ?? 0) > 0 ? "ok" : "falta", String(idCount.get("jira") ?? 0), "jira.md");
-  }
+  if (!env.JIRA_WEBHOOK_SECRET) add("Jira", "JIRA_WEBHOOK_SECRET", "falta", "sem ele, /webhooks/jira responde 503", "jira.md");
+  add("Jira", "pessoas com conta do Jira", (idCount.get("jira") ?? 0) > 0 ? "ok" : "falta", String(idCount.get("jira") ?? 0), "jira.md");
 }
 
 // Anthropic (só o formato: conferir de verdade gasta, e isso é o teste A2)

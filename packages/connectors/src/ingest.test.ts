@@ -5,6 +5,8 @@ import { appRoleUrl } from "@echo/db/testing";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { ghPr, ghPush, ghReview, linearIssue, slackEnvelope } from "./fixtures.ts";
 import { processInbox, receive, type InboxJob } from "./inbox.ts";
+import { ingest } from "./ingest.ts";
+import { jiraTask } from "./jira.ts";
 
 const url = process.env.DATABASE_URL;
 
@@ -157,6 +159,19 @@ describe.skipIf(!url)("ingest e caixa de entrada (Postgres real)", () => {
     expect(t).toMatchObject({ title: "Conciliação diária", assigneeId: ids.car, state: "done", size: 2, labels: ["pagamentos"] });
     const doneEvents = await db.select().from(workEvents).where(and(eq(workEvents.orgId, orgId), eq(workEvents.taskKey, "PAG-12")));
     expect(doneEvents).toMatchObject([{ type: "task_done", personId: ids.car, source: "jira" }]);
+    expect(t?.source).toBe("jira");
+  });
+
+  it("Linear e Jira juntos: cada tarefa guarda a origem, e chave repetida do outro tracker não sobrescreve", async () => {
+    await run("linear", undefined, linearIssue({ updatedAt: "2026-11-07T08:00:00Z" }), "lj1");
+    // Jira com o mesmo prefixo do Linear e uma atualização mais nova: não pode tomar a ECH-128.
+    const clash = jiraTask({ id: "77001", key: "ECH-128", fields: { summary: "Outra tarefa do Jira", status: { name: "A fazer", statusCategory: { key: "new" } }, labels: [], updated: "2026-11-08T08:00:00.000Z" } });
+    const r = await ingest(app, orgId, [{ kind: "task_upsert", task: clash }]);
+    expect(r.applied).toBe(0);
+    expect(r.ignored).toEqual(["tarefa ECH-128 do Jira ignorada: a chave já é de uma tarefa do Linear (use prefixos diferentes nos dois trackers)"]);
+    const [t] = await db.select().from(tasks).where(and(eq(tasks.orgId, orgId), eq(tasks.key, "ECH-128")));
+    expect(t).toMatchObject({ source: "linear", title: "Tempo limite nos pagamentos" });
+    expect(t?.linearId).not.toBe("77001");
   });
 
   it("reação de ajuda registra só a referência; mensagem segue para o F2 e o texto não fica guardado", async () => {

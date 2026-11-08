@@ -22,7 +22,7 @@ export function normalizeLinear(body: any): NormalizedEvent[] {
   if (body.action === "remove") {
     return [{
       kind: "task_upsert",
-      task: { key: d.identifier, linearId: d.id, title: d.title, state: "canceled", labels: [], updatedAt: new Date(d.updatedAt ?? body.createdAt) },
+      task: { key: d.identifier, source: "linear", linearId: d.id, title: d.title, state: "canceled", labels: [], updatedAt: new Date(d.updatedAt ?? body.createdAt) },
     }];
   }
   const state = linearState(d.state?.type ?? "backlog", d.state?.name);
@@ -31,6 +31,7 @@ export function normalizeLinear(body: any): NormalizedEvent[] {
     kind: "task_upsert",
     task: {
       key: d.identifier,
+      source: "linear",
       linearId: d.id,
       title: d.title,
       assignee: d.assigneeId ? { platform: "linear", externalId: d.assigneeId } : undefined,

@@ -28,7 +28,9 @@ export interface ExternalWorkEvent {
 
 export interface ExternalTask {
   key: string;
-  /** Id da tarefa no tracker (Linear ou Jira); o nome ficou do primeiro tracker. */
+  /** Tracker de onde veio a tarefa. A empresa pode usar os dois juntos. */
+  source: "linear" | "jira";
+  /** Id da tarefa no tracker de `source` (Linear ou Jira); o nome ficou do primeiro tracker. */
   linearId: string;
   title: string;
   assignee?: ExternalActor | undefined;

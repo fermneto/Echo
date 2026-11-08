@@ -1,7 +1,8 @@
 // Jira Cloud (etapa 21): webhook, estados, assinatura e cliente REST, sem rede (fetch falso).
 import { describe, expect, it } from "vitest";
 import { adfText, JiraApiError, JiraTracker } from "./jira-client.ts";
-import { jiraRouteKey, jiraState, normalizeJira } from "./jira.ts";
+import { jiraRouteKey, jiraState, jiraTask, normalizeJira } from "./jira.ts";
+import { keyPrefix, sharedKeyPrefixes } from "./task-keys.ts";
 import { platformsFromEnv } from "./platforms.ts";
 import { sign, verifyJira } from "./signatures.ts";
 
@@ -142,16 +143,24 @@ describe("JiraTracker", () => {
   });
 });
 
-describe("um tracker por vez", () => {
+describe("Linear e Jira juntos", () => {
   const jiraEnv = { JIRA_BASE_URL: "https://acme.atlassian.net", JIRA_EMAIL: "echo@acme.test", JIRA_API_TOKEN: "token-de-teste" };
   it("só o Jira configurado: o Jira é o tracker", () => {
     const p = platformsFromEnv(jiraEnv);
     expect(p.jira?.site).toBe("acme.atlassian.net");
     expect(p.linear).toBeUndefined();
   });
-  it("Linear e Jira configurados: vale o Linear, e o Jira fica de fora", () => {
+  it("Linear e Jira configurados: os dois ficam ligados", () => {
     const p = platformsFromEnv({ ...jiraEnv, LINEAR_API_KEY: "lin_api_teste" });
     expect(p.linear).toBeDefined();
-    expect(p.jira).toBeUndefined();
+    expect(p.jira?.site).toBe("acme.atlassian.net");
+  });
+  it("a tarefa do Jira diz de onde veio", () => {
+    expect(jiraTask({ id: "10042", key: "PAG-1", fields: { summary: "x", labels: [] } }).source).toBe("jira");
+  });
+  it("prefixos repetidos nos dois trackers aparecem no diagnóstico", () => {
+    expect(sharedKeyPrefixes(["ECH-1", "ECH-2", "WEB-3"], ["PAG-1", "ech-9", "OPS-2"])).toEqual(["ECH"]);
+    expect(sharedKeyPrefixes(["ECH-1"], ["PAG-1"])).toEqual([]);
+    expect(keyPrefix("MEU-PROJ-12")).toBe("MEU-PROJ");
   });
 });
