@@ -107,6 +107,12 @@ test("cena 4: o RH não vê nota nem ranking", async ({ page }) => {
   // Uma pessoa por vez: nenhuma tabela de números lado a lado para comparar.
   await expect(main.locator("table")).toHaveCount(0);
   await expect(main).not.toContainText(/pontuação|nota de desempenho|posição/i);
+
+  // Visão das equipes: só totais, sem tabela de equipes lado a lado e sem o motivo de quem está fora.
+  await page.goto("/equipes");
+  await expect(main).toContainText("Sem número por pessoa, sem ranking");
+  await expect(main.locator("table")).toHaveCount(0);
+  await expect(main).not.toContainText(/férias|licença|pontuação|posição/i);
 });
 
 test("cena 5: custo, rastro e ganhos (Marina)", async ({ page }) => {

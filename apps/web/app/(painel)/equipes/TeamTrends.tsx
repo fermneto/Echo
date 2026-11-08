@@ -13,16 +13,16 @@ const METRICS: { key: TrendMetric; label: string; one: string; many: string }[] 
   { key: "twins", label: "Gêmeos", one: "resposta do gêmeo", many: "respostas dos gêmeos" },
 ];
 
-/** Teto da escala comum: múltiplo de 5 acima do maior valor, para comparar as equipes pela mesma régua. */
+/** Teto da escala de cada equipe: múltiplo de 5 acima do maior valor dela. Cada equipe tem a própria régua, para
+ * mostrar a evolução dela e não virar comparação entre equipes ("quem rende mais"). */
 const ceil = (v: number) => Math.max(5, Math.ceil(v / 5) * 5);
 
-/** Evolução por equipe em múltiplos pequenos, com a mesma escala, a semana em destaque e a tabela alternativa. */
+/** Evolução de cada equipe frente a ela mesma, com a semana em destaque. Sem tabela de equipes lado a lado. */
 export function TeamTrends({ weeks, focus, teams }: { weeks: TrendWeek[]; focus: string; teams: TrendTeam[] }) {
   const [metric, setMetric] = useState<TrendMetric>("deliveries");
   const [hover, setHover] = useState<{ team: string; i: number } | null>(null);
   const def = METRICS.find((m) => m.key === metric)!;
   const fromReports = metric !== "twins";
-  const max = ceil(Math.max(0, ...teams.flatMap((t) => t.values[metric])));
   const count = (v: number) => `${v} ${v === 1 ? def.one : def.many}`;
 
   return (
@@ -43,6 +43,7 @@ export function TeamTrends({ weeks, focus, teams }: { weeks: TrendWeek[]; focus:
       <div className="hr-multiples">
         {teams.map((t) => {
           const vals = t.values[metric];
+          const max = ceil(Math.max(0, ...vals));
           const fi = weeks.findIndex((w) => w.week === focus);
           const shown = hover?.team === t.id ? hover.i : fi;
           const sw = weeks[shown];
@@ -94,38 +95,7 @@ export function TeamTrends({ weeks, focus, teams }: { weeks: TrendWeek[]; focus:
         })}
       </div>
 
-      <details className="hr-table">
-        <summary>Ver em tabela</summary>
-        <div className="hr-table__scroll">
-          <table>
-            <caption className="sr-only">
-              {def.label} por equipe e semana
-            </caption>
-            <thead>
-              <tr>
-                <th scope="col">Equipe</th>
-                {weeks.map((w) => (
-                  <th key={w.week} scope="col" className="mono">
-                    {w.short}
-                  </th>
-                ))}
-              </tr>
-            </thead>
-            <tbody>
-              {teams.map((t) => (
-                <tr key={t.id}>
-                  <th scope="row">{t.name}</th>
-                  {weeks.map((w, i) => (
-                    <td key={w.week} className="mono">
-                      {w.open && fromReports ? "—" : (t.values[metric][i] ?? 0)}
-                    </td>
-                  ))}
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </details>
+      <p className="mono muted">Cada equipe na própria escala: o gráfico mostra a evolução dela, não serve para comparar equipes.</p>
     </section>
   );
 }

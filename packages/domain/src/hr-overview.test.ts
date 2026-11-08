@@ -45,7 +45,9 @@ describe("visão das equipes", () => {
     });
     expect(v.focus).toBe("2026-W44");
     const [p, d] = v.teams;
-    expect(p).toMatchObject({ status: "ok", people: 3, away: [{ name: "B", kind: "vacation" }] });
+    expect(p).toMatchObject({ status: "ok", people: 3, away: [{ name: "B", until: new Date("2026-11-14T00:00:00Z") }] });
+    // O motivo da ausência (férias, licença) nunca chega ao RH.
+    expect(JSON.stringify(p)).not.toContain("vacation");
     if (p?.status !== "ok") throw new Error("esperava totais");
     expect(p.weeks).toEqual([
       { week: "2026-W44", monday: "2026-10-26", deliveries: 3, reviews: 4, helps: 1, twins: 1, sent: 2 },
