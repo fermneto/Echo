@@ -8,6 +8,7 @@ import { CardStack } from "@/components/landing/CardStack";
 import { MOMENTS } from "@/components/landing/moments";
 import { IntegrationsCarousel } from "@/components/landing/integrations";
 import { LandingMotion } from "@/components/landing/LandingMotion";
+import { StartButton } from "@/components/landing/StartButton";
 import { WaitRace } from "@/components/landing/WaitRace";
 import { PixelSprite, type SpriteMode } from "@/components/PixelSprite";
 import { lookFor } from "@/lib/demo/looks";
@@ -295,9 +296,7 @@ export default function LandingPage() {
           <Link href="/entrar" className="lp-btn lp-btn--outline lp-btn--sm">
             Entrar
           </Link>
-          <Link href="/entrar" className="lp-btn lp-btn--paper lp-btn--sm">
-            Começar
-          </Link>
+          <StartButton small />
         </div>
       </header>
 
@@ -313,9 +312,7 @@ export default function LandingPage() {
               O Echo dá a cada pessoa um agente que conhece o trabalho dela. Ele responde aos colegas na ausência dela, adianta revisões à noite, organiza o dia de cada um e ajuda a liderança a distribuir tarefas sem sobrecarregar ninguém.
             </p>
             <div className="lp-actions">
-              <Link href="/entrar" className="lp-btn lp-btn--paper">
-                Começar
-              </Link>
+              <StartButton />
               <a href="#como-funciona" className="lp-btn lp-btn--ghost">
                 Ver como funciona
               </a>
@@ -495,9 +492,7 @@ export default function LandingPage() {
             </h2>
             <p className="lp-lead">Conecte o GitHub, o Slack e o Linear ou o Jira. Cada pessoa ganha um agente que conhece o trabalho dela.</p>
           </div>
-          <Link href="/entrar" className="lp-btn lp-btn--paper">
-            Começar
-          </Link>
+          <StartButton />
         </section>
       </main>
 
