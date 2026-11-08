@@ -125,7 +125,7 @@ Toda variável é validada em `packages/config`, e o serviço falha cedo, com me
 | `LINEAR_CLIENT_ID`, `LINEAR_CLIENT_SECRET` ou `LINEAR_API_KEY` | | | ✔ | App OAuth do Linear, ou chave pessoal para testes |
 | `JIRA_BASE_URL`, `JIRA_EMAIL`, `JIRA_API_TOKEN` (e, opcionais, `JIRA_STORY_POINTS_FIELD` e `JIRA_JQL`) | | | ✔ | Site do Jira e token de API de uma conta de serviço. Com o Linear ligado, vale o Linear |
 | `ANTHROPIC_API_KEY` | | ✔ | ✔ | Anthropic. Sem ela, o agente responde só por regra e não há correção |
-| `SLM_OLLAMA_URL`, `SLM_MODEL`, `TRIAGE_TIMEOUT_MS` | | ✔ | ✔ | `echo-triage` (Qwen3 4B). No worker: triagem, resumo do dia e juiz da delegação. No painel: currículo do cadastro. `TRIAGE_TIMEOUT_MS` só no worker |
+| `SLM_OLLAMA_URL`, `SLM_MODEL`, `TRIAGE_TIMEOUT_MS` | | | ✔ | `echo-triage` (Qwen3 4B): triagem, resumo do dia e juiz da delegação. O currículo do cadastro saiu para o Claude Haiku (`ANTHROPIC_API_KEY` no painel) |
 | `FIX_AGENT_ID`, `FIX_ENVIRONMENT_ID` | | | ✔ | `pnpm --filter @echo/reviewer provision` |
 | `GOOGLE_SERVICE_ACCOUNT_EMAIL`, `GOOGLE_SERVICE_ACCOUNT_KEY` | | | ✔ | Conta de serviço do Google, com delegação no domínio |
 | `MICROSOFT_CLIENT_ID`, `MICROSOFT_CLIENT_SECRET` | | | ✔ | App multi-tenant no Microsoft Entra |

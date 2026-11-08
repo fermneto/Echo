@@ -168,7 +168,7 @@ _Bordas:_ Se o modelo falhar ou passar do teto de custo, a página sai com o lay
 |---|---|---|
 | `api` | Recebe avisos de Slack, GitHub e Linear | As plataformas tentam de novo por um tempo limitado |
 | `worker` | Respostas, notas, planos, relatórios, agenda e correções de código | Os trabalhos esperam na fila |
-| `echo-triage` | Modelo aberto: triagem da noite, resumo do dia, juiz da delegação e currículo do cadastro | Vale a regra; nenhuma correção é unida pela delegação |
+| `echo-triage` | Modelo aberto: triagem da noite, resumo do dia e juiz da delegação | Vale a regra; nenhuma correção é unida pela delegação |
 | Postgres | Guarda o estado | Sistema fora do ar |
 | `web` | Painel | Painel indisponível, Slack e agentes funcionando |
 
@@ -444,7 +444,7 @@ _IA e custos_
 | Correção | Managed Agents | Claude Sonnet 5.5 | Médio |
 | Relatório | Tempo real | Claude Sonnet 5.5 | Baixo |
 | Contradições entre notas | Uma vez por dia | Claude Haiku 5.5 | Baixo |
-| Cadastro: currículo | Durante o pedido, na nossa infraestrutura (Ollama, CPU) | Qwen3 4B Instruct (modelo aberto, o mesmo da triagem) | — |
+| Cadastro: currículo | Durante o pedido, perfil fechado (saída estruturada), até 20 s | Claude Haiku 5.5 | Baixo |
 | Cadastro: foto vira bonequinho | Durante o pedido, traços de lista fechada | Claude Haiku 5.5 | Baixo |
 | Resumo do dia interativo | Depois do rascunho da nota, no worker (Ollama, CPU) | Qwen3 4B Instruct (modelo aberto) | — |
 | Roteiro e gravação do vídeo da entrega | Managed Agents com navegador | Claude Sonnet 5.5 | Médio |
@@ -595,7 +595,9 @@ Dados mantidos por 365 dias (`RETENTION_DAYS`, provisório). Login sai dos event
 
 **Currículo e foto**
 
-Só na memória do pedido. Foto vira traços de lista fechada, sem gênero, idade ou origem.
+Só na memória do pedido. Foto vira traços de lista fechada, sem gênero, idade ou origem. O currículo vira só cargo, habilidades, áreas e idiomas; `cleanResume` descarta em código qualquer dado pessoal que o modelo trouxer.
+
+_Por que o currículo saiu do modelo aberto (08/11)._ Em produção (CPU, 2 vCPU), o Qwen3 4B passou dos 60 s no primeiro cadastro com currículo, e o perfil ficou vazio, com o RH esperando na tela. O Claude Haiku 5.5 responde em poucos segundos, por ~US$ 0,0003 a 0,0006 por currículo (até 12 mil caracteres). O texto passa a ir para a API da Anthropic, como a foto já ia; nada dele é gravado nem vai para log.
 
 **Auditoria**
 
@@ -1365,7 +1367,7 @@ O Jira (etapa 21) entrou sem app OAuth: usa o token de API de uma conta de servi
 | DEMO_ALWAYS_AWAY | api, worker | Opcional, para ensaiar de dia |
 | FIX_AGENT_ID | worker | Provision |
 | FIX_ENVIRONMENT_ID | worker | Provision |
-| SLM_OLLAMA_URL | web, worker | echo-triage (host:porta) |
+| SLM_OLLAMA_URL | worker | echo-triage (host:porta) |
 | LANGFUSE_PUBLIC_KEY | api, worker | Langfuse |
 | LANGFUSE_SECRET_KEY | api, worker | Langfuse |
 | LANGFUSE_BASE_URL | api, worker | Langfuse, opcional |
