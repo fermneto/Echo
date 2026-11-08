@@ -54,10 +54,7 @@ export async function cadastrarPessoa(_prev: CadastroState, form: FormData): Pro
   if (!db) return { status: "error", error: "O painel não tem banco ligado (DATABASE_URL), então não há onde cadastrar." };
   const cfg = loadConfig("web");
   const { AccountConflictError, serverOnboarding } = await import("@echo/agents/server");
-  const onboard = serverOnboarding(db, {
-    apiKey: cfg.ANTHROPIC_API_KEY,
-    ollama: cfg.SLM_OLLAMA_URL ? { url: cfg.SLM_OLLAMA_URL, model: cfg.SLM_MODEL, timeoutMs: 60_000 } : undefined,
-  });
+  const onboard = serverOnboarding(db, { apiKey: cfg.ANTHROPIC_API_KEY });
   try {
     const r = await onboard({ orgId: gainsOrgId(me.orgId), actorId: personIdFor(me.id), name: f.name, role: f.role, ...(f.teamId ? { teamId: f.teamId } : {}), timezone: f.timezone, workHours: f.workHours, ...(f.resumeText ? { resumeText: f.resumeText } : {}), ...(f.photo ? { photo: f.photo } : {}), accounts: accounts.links });
     const notes = [
@@ -69,12 +66,12 @@ export async function cadastrarPessoa(_prev: CadastroState, form: FormData): Pro
             ? "Não deu para ler a foto agora: o bonequinho saiu de traços padrão."
             : "Leitura da foto desligada neste ambiente (sem ANTHROPIC_API_KEY): o bonequinho saiu de traços padrão.",
       r.resume === "model"
-        ? "Contexto lido do currículo pelo modelo aberto. O currículo não foi guardado."
+        ? "Contexto lido do currículo. O currículo não foi guardado."
         : r.resume === "absent"
           ? "Sem currículo: cargo e habilidades ficam para preencher na ficha."
-          : cfg.SLM_OLLAMA_URL
-            ? "O modelo aberto não respondeu: cargo e habilidades ficam para preencher na ficha."
-            : "Leitura do currículo desligada neste ambiente (sem SLM_OLLAMA_URL): cargo e habilidades ficam para preencher na ficha.",
+          : cfg.ANTHROPIC_API_KEY
+            ? "Não deu para ler o currículo agora: cargo e habilidades ficam para preencher na ficha."
+            : "Leitura do currículo desligada neste ambiente (sem ANTHROPIC_API_KEY): cargo e habilidades ficam para preencher na ficha.",
       ...slackNote,
     ];
     revalidatePath("/equipe");

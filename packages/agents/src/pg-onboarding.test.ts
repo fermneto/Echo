@@ -8,7 +8,7 @@ import { LogRunRecorder } from "@echo/observability";
 import { eq } from "drizzle-orm";
 import type pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { cleanProfile, onboardPerson } from "./onboarding.ts";
+import { cleanProfile, onboardPerson, RESUME_SYSTEM } from "./onboarding.ts";
 import { createPgAvatarStore, createPgOnboardingStore, readAvatar, updateProfile } from "./pg-onboarding.ts";
 
 const url = process.env.DATABASE_URL;
@@ -38,8 +38,14 @@ describe.skipIf(!url)("cadastro pelo RH, em Postgres", () => {
     const flow = onboardPerson({
       store: createPgOnboardingStore(db),
       recorder: new LogRunRecorder(),
-      slm: { model: "qwen3:4b-instruct", json: async () => ({ raw: { cargo: "Designer", habilidades: ["Figma"], areas: ["mobile"], idiomas: ["inglês"] } }) },
-      vision: async () => ({ model: "claude-haiku-5-5", stop_reason: "end_turn", usage: { input_tokens: 1, output_tokens: 1 }, content: [{ type: "text", text: JSON.stringify(traits) }] }) as never,
+      // Currículo e foto no mesmo Haiku: a resposta segue as instruções de cada leitura.
+      claude: async (params) =>
+        ({
+          model: "claude-haiku-5-5",
+          stop_reason: "end_turn",
+          usage: { input_tokens: 1, output_tokens: 1 },
+          content: [{ type: "text", text: JSON.stringify(params.system === RESUME_SYSTEM ? { cargo: "Designer", habilidades: ["Figma"], areas: ["mobile"], idiomas: ["inglês"] } : traits) }],
+        }) as never,
     });
     const actor = randomUUID();
     const r = await flow({ orgId: org, actorId: actor, name: "Ana Teste", timezone: "America/Sao_Paulo", workHours: { days: [1, 2, 3, 4, 5], start: "09:00", end: "18:00" }, resumeText: "Figma", photo: { mediaType: "image/png", base64: "AA==" } });

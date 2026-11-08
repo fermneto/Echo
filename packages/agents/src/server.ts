@@ -351,14 +351,12 @@ function delegationJudge(m: { model: string; json: (r: { system: string; user: s
   return { model: m.model, classify: (request, signal) => m.json(request, signal) };
 }
 
-/** Cadastro pelo RH: currículo no modelo aberto (se houver Ollama) e foto no Claude (se houver chave). */
-export function serverOnboarding(db: Database, opts: { apiKey?: string | undefined; ollama?: { url: string; model: string; timeoutMs: number } | undefined }) {
+/** Cadastro pelo RH: currículo e foto no Claude Haiku (se houver chave). */
+export function serverOnboarding(db: Database, opts: { apiKey?: string | undefined }) {
   return onboardPerson({
     store: createPgOnboardingStore(db),
-    slm: opts.ollama ? ollamaJson({ baseUrl: opts.ollama.url, model: opts.ollama.model }) : null,
-    vision: opts.apiKey ? anthropicModelCall(opts.apiKey) : null,
+    claude: opts.apiKey ? anthropicModelCall(opts.apiKey) : null,
     recorder: createDbRunRecorder(db),
-    ...(opts.ollama ? { timeoutMs: opts.ollama.timeoutMs } : {}),
   });
 }
 

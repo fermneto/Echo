@@ -1,7 +1,8 @@
 // Cadastro de pessoa pelo RH (etapa 15): o currículo vira o contexto inicial do gêmeo e a foto vira o
 // bonequinho. Currículo e foto ficam só na memória do pedido: nada deles é gravado nem vai para log.
-// - Currículo: modelo aberto pequeno (Qwen3 4B no Ollama, na nossa infraestrutura) extrai cargo, habilidades,
-//   áreas e idiomas, num esquema fechado. Campos pessoais são descartados em código, mesmo se o modelo os trouxer.
+// - Currículo: Claude Haiku extrai cargo, habilidades, áreas e idiomas, num esquema fechado (saída estruturada).
+//   Campos pessoais são descartados em código, mesmo se o modelo os trouxer. Era o modelo aberto do echo-triage,
+//   mas em CPU ele passava de 60 s com o RH esperando na tela; o Haiku responde em poucos segundos.
 // - Foto: Claude Haiku com visão escolhe traços de uma lista fechada (avatar.ts), sem gênero, idade ou origem.
 //   O desenho sai por regra a partir dos traços, igual no painel e no Slack.
 // O modelo não grava nada: quem cria a pessoa é o código do fluxo, com o que passou pelos validadores.
@@ -11,7 +12,6 @@ import type { RunRecorder } from "@echo/observability";
 import type { ModelCall } from "./answer.ts";
 import { modelCostUsd, type Usage } from "./cost.ts";
 import { MODELS } from "./index.ts";
-import type { JsonModel } from "./triage-ollama.ts";
 
 // ---------- Portas
 
@@ -40,7 +40,7 @@ export interface OnboardingStore {
   recentCount(orgId: string, since: Date): Promise<number>;
 }
 
-/** Limite de cadastros por empresa: cada um pode chamar o Claude com visão e o modelo aberto. */
+/** Limite de cadastros por empresa: cada um pode chamar o Claude duas vezes (currículo e foto). */
 export const ONBOARDING_LIMIT = { perHour: 20 } as const;
 
 /** Passou do limite por hora: nada é gravado e nenhum modelo é chamado. */
@@ -52,11 +52,10 @@ export class OnboardingLimitError extends Error {
 
 export interface OnboardingDeps {
   store: OnboardingStore;
-  /** Modelo aberto para o currículo. Sem ele, o RH preenche cargo e habilidades depois. */
-  slm?: JsonModel | null;
-  /** Claude para a foto. Sem chave, traços estáveis a partir do nome. */
-  vision?: ModelCall | null;
+  /** Claude para o currículo e a foto. Sem chave, o RH preenche cargo e habilidades depois e os traços saem do nome. */
+  claude?: ModelCall | null;
   recorder: RunRecorder;
+  /** Tempo máximo de cada leitura (currículo e foto), com o RH esperando na tela. */
   timeoutMs?: number;
   clock?: Clock;
 }
@@ -79,7 +78,7 @@ export interface OnboardingInput {
 
 export type PhotoType = "image/png" | "image/jpeg" | "image/webp";
 export const PHOTO_TYPES: readonly PhotoType[] = ["image/png", "image/jpeg", "image/webp"];
-/** Limites de entrada: o currículo vai inteiro para um modelo de 8k de contexto; a foto, para a API. */
+/** Limites de entrada do currículo (texto) e da foto. */
 export const RESUME_MAX_CHARS = 12_000;
 export const PHOTO_MAX_BYTES = 4 * 1024 * 1024;
 
@@ -92,7 +91,7 @@ export interface OnboardingOutcome {
   photo: "model" | "fallback" | "absent";
 }
 
-// ---------- Currículo (modelo aberto)
+// ---------- Currículo (Claude)
 
 export interface ResumeProfile {
   jobTitle: string | null;
@@ -115,12 +114,13 @@ Nunca devolva nome, e-mail, telefone, endereço, data de nascimento, idade, docu
 export const RESUME_SCHEMA = {
   type: "object",
   properties: {
-    cargo: { type: ["string", "null"] },
+    cargo: { anyOf: [{ type: "string" }, { type: "null" }] },
     habilidades: { type: "array", items: { type: "string" } },
     areas: { type: "array", items: { type: "string" } },
     idiomas: { type: "array", items: { type: "string" } },
   },
   required: ["cargo", "habilidades", "areas", "idiomas"],
+  additionalProperties: false,
 } as const;
 
 // E-mail, telefone, documento, link, data, endereço com número: nada disso fica no perfil.
@@ -167,13 +167,36 @@ export function cleanProfile(p: ResumeProfile): ResumeProfile {
   return cleanResume({ cargo: p.jobTitle, habilidades: p.skills, areas: p.areas, idiomas: p.languages });
 }
 
-async function readResume(slm: JsonModel, text: string, timeoutMs: number): Promise<{ profile: ResumeProfile; inputTokens?: number; outputTokens?: number }> {
+/** Currículo vira o perfil fechado (Claude Haiku, saída estruturada), sempre passando por `cleanResume`. */
+export async function readResume(call: ModelCall, text: string, timeoutMs: number) {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
-    const res = await slm.json({ system: RESUME_SYSTEM, user: `<curriculo>\n${text.slice(0, RESUME_MAX_CHARS)}\n</curriculo>`, schema: RESUME_SCHEMA }, controller.signal);
-    if (res.raw === null || typeof res.raw !== "object") throw new Error("saída do currículo sem JSON");
-    return { profile: cleanResume(res.raw), ...(res.inputTokens !== undefined ? { inputTokens: res.inputTokens } : {}), ...(res.outputTokens !== undefined ? { outputTokens: res.outputTokens } : {}) };
+    const res = await call(
+      {
+        model: MODELS.resume,
+        max_tokens: 1024,
+        system: RESUME_SYSTEM,
+        messages: [{ role: "user", content: `<curriculo>\n${text.slice(0, RESUME_MAX_CHARS)}\n</curriculo>` }],
+        output_config: { effort: "low", format: { type: "json_schema", schema: RESUME_SCHEMA } },
+      },
+      { signal: controller.signal, timeout: Math.max(Math.floor(timeoutMs), 1) },
+    );
+    const u = res.usage;
+    const usage: Usage = { input: u.input_tokens, output: u.output_tokens, cacheWrite: u.cache_creation_input_tokens ?? 0, cacheRead: u.cache_read_input_tokens ?? 0 };
+    const stats = { costUsd: modelCostUsd(res.model, usage), model: res.model, inputTokens: usage.input, outputTokens: usage.output };
+    if (res.stop_reason === "refusal") return { ...stats, profile: EMPTY_PROFILE, refused: true };
+    const out = res.content
+      .filter((b): b is Anthropic.Beta.Messages.BetaTextBlock => b.type === "text")
+      .map((b) => b.text)
+      .join("");
+    let raw: unknown;
+    try {
+      raw = JSON.parse(out);
+    } catch {
+      throw new Error("saída do currículo sem JSON");
+    }
+    return { ...stats, profile: cleanResume(raw), refused: false };
   } finally {
     clearTimeout(timer);
   }
@@ -243,7 +266,7 @@ export async function readPhoto(call: ModelCall, photo: NonNullable<OnboardingIn
 const message = (err: unknown) => (err instanceof Error ? err.message : String(err)).slice(0, 200);
 
 export function onboardPerson(deps: OnboardingDeps) {
-  const timeoutMs = deps.timeoutMs ?? 30_000;
+  const timeoutMs = deps.timeoutMs ?? 20_000;
   return async (input: OnboardingInput): Promise<OnboardingOutcome> => {
     const flowStarted = Date.now();
     const name = input.name.trim();
@@ -262,27 +285,28 @@ export function onboardPerson(deps: OnboardingDeps) {
     const resumeText = input.resumeText?.trim();
     if (resumeText) {
       const started = Date.now();
-      if (!deps.slm) {
+      if (!deps.claude) {
         resume = "fallback";
-        await deps.recorder.record({ flow: "onboarding_resume", orgId: input.orgId, durationMs: 0, result: "skipped", error: "sem modelo aberto (SLM_OLLAMA_URL)" });
+        await deps.recorder.record({ flow: "onboarding_resume", orgId: input.orgId, durationMs: 0, result: "skipped", error: "sem chave da Anthropic" });
       } else {
         try {
-          const r = await readResume(deps.slm, resumeText, timeoutMs);
+          const r = await readResume(deps.claude, resumeText, timeoutMs);
           profile = r.profile;
-          resume = "model";
+          resume = r.refused ? "fallback" : "model";
           await deps.recorder.record({
             flow: "onboarding_resume",
             orgId: input.orgId,
-            model: deps.slm.model,
-            ...(r.inputTokens !== undefined ? { inputTokens: r.inputTokens } : {}),
-            ...(r.outputTokens !== undefined ? { outputTokens: r.outputTokens } : {}),
-            costUsd: 0,
+            model: r.model,
+            inputTokens: r.inputTokens,
+            outputTokens: r.outputTokens,
+            costUsd: r.costUsd,
             durationMs: Date.now() - started,
-            result: "ok",
+            result: r.refused ? "refused" : "ok",
+            ...(r.refused ? { error: "o modelo recusou ler o currículo" } : {}),
           });
         } catch (err) {
           resume = "fallback";
-          await deps.recorder.record({ flow: "onboarding_resume", orgId: input.orgId, model: deps.slm.model, durationMs: Date.now() - started, result: "failed", error: message(err) });
+          await deps.recorder.record({ flow: "onboarding_resume", orgId: input.orgId, model: MODELS.resume, durationMs: Date.now() - started, result: "failed", error: message(err) });
         }
       }
     }
@@ -292,12 +316,12 @@ export function onboardPerson(deps: OnboardingDeps) {
     let photo: OnboardingOutcome["photo"] = "absent";
     if (input.photo) {
       const started = Date.now();
-      if (!deps.vision) {
+      if (!deps.claude) {
         photo = "fallback";
         await deps.recorder.record({ flow: "onboarding_avatar", orgId: input.orgId, durationMs: 0, result: "skipped", error: "sem chave da Anthropic" });
       } else {
         try {
-          const r = await readPhoto(deps.vision, input.photo, fallback, timeoutMs);
+          const r = await readPhoto(deps.claude, input.photo, fallback, timeoutMs);
           avatar = r.traits;
           const refused = r.rejected.includes("recusa");
           photo = refused || r.rejected.length === Object.keys(AVATAR_LISTS).length ? "fallback" : "model";

@@ -14,6 +14,8 @@ export const MODELS = {
   artifact: "claude-haiku-5-5",
   /** Traços do bonequinho a partir da foto do cadastro. */
   avatar: "claude-haiku-5-5",
+  /** Perfil fechado (cargo, habilidades, áreas, idiomas) a partir do currículo do cadastro. */
+  resume: "claude-haiku-5-5",
   /** Roteiro de um trecho de tela do vídeo da semana (saída estruturada, esforço baixo). */
   videoScript: "claude-sonnet-5-5",
   /** Frases do vídeo da semana da equipe (saída estruturada, esforço baixo). */
