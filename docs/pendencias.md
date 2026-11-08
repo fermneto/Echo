@@ -133,7 +133,7 @@ Toda variável é validada em `packages/config`, e o serviço falha cedo, com me
 | `SLACK_CLIENT_ID`, `SLACK_CLIENT_SECRET` | | ✔ | | App do Slack → Basic Information (login no painel) |
 | `SESSION_SECRET` | | ✔ | | Gerado pelo Blueprint; local: `openssl rand -hex 32` |
 | `PANEL_URL` | | ✔ | | Endereço público do painel |
-| `DEMO_MODE` | ✔ | ✔ | ✔ | `true` no evento: login por usuário e senha (`echo` para todos) e simulador |
+| `DEMO_MODE` | ✔ | ✔ | ✔ | `true` no evento: login por usuário e senha (`echo` para todos) |
 | `LANGFUSE_*` | opcional | opcional | opcional | Langfuse |
 
 **Para ligar a empresa de teste** (`pnpm integracoes:ligar`): `DEMO_ORG_NAME`, `DEMO_SLACK_TEAM_ID`, `DEMO_GITHUB_INSTALLATION_ID`, `DEMO_LINEAR_ORG_ID`, `DEMO_JIRA_SITE`, `DEMO_GOOGLE_DOMAIN`, `DEMO_MICROSOFT_TENANT_ID`, `DEMO_VERCEL_TEAM_ID` e `DEMO_IDENTITIES`, que lista as pessoas e as contas de cada uma. `pnpm integracoes:conferir` mostra os ids que vão nessas variáveis.

@@ -25,7 +25,6 @@ export const ROUTES = {
   ganhos: { href: "/ganhos", label: "Ganhos", hint: "Espera evitada e revisões, só em totais.", roles: ["leader", "hr"] },
   execucoes: { href: "/execucoes", label: "Custo e execuções", hint: "Quanto custou cada fluxo e o rastro de cada execução.", roles: ["leader"] },
   configuracao: { href: "/configuracao", label: "Configuração", hint: "Conexões, pessoas, RH e limite de custo.", roles: ["leader", "hr"] },
-  simulador: { href: "/simulador", label: "Simulador", hint: "Converse pelo mesmo fluxo do Slack.", roles: ALL, demoOnly: true },
 } as const satisfies Record<string, RouteDef>;
 
 export type RouteId = keyof typeof ROUTES;
@@ -35,7 +34,6 @@ export const NAV_GROUPS: readonly { label: string; routes: readonly RouteId[] }[
   { label: "Meu dia", routes: ["plano", "notaDoDia", "resumo"] },
   { label: "Equipe", routes: ["equipe", "notas"] },
   { label: "Gestão", routes: ["redistribuicao", "equipes", "relatorios", "ganhos", "execucoes", "configuracao"] },
-  { label: "Demo", routes: ["simulador"] },
 ];
 
 export function canSee(role: Role, route: RouteId, opts: { demo: boolean }): boolean {
