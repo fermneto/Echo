@@ -9,13 +9,15 @@ export interface OllamaOptions {
   /** Tag do modelo no Ollama, ex.: qwen3:4b-instruct. */
   model: string;
   fetch?: typeof fetch;
+  /** Modelos híbridos (Qwen3 0.6B): false desliga o bloco de raciocínio. Ausente, o Ollama decide. */
+  think?: boolean;
 }
 
 /** Chamada com saída JSON restrita: devolve o JSON lido (ou null) e os tokens que o servidor informa. */
 export interface JsonModel {
   readonly model: string;
   /** `format: "json"`: JSON livre (o esquema vai só no texto do pedido); padrão: saída restrita ao esquema. */
-  json(request: { system: string; user: string; schema: object; format?: "schema" | "json"; maxTokens?: number }, signal: AbortSignal): Promise<{ raw: unknown; inputTokens?: number; outputTokens?: number }>;
+  json(request: { system: string; user: string; schema: object; format?: "schema" | "json"; maxTokens?: number; numCtx?: number }, signal: AbortSignal): Promise<{ raw: unknown; inputTokens?: number; outputTokens?: number }>;
 }
 
 interface OllamaChatResponse {
@@ -43,11 +45,12 @@ export function ollamaJson(opts: OllamaOptions): JsonModel {
         body: JSON.stringify({
           model: opts.model,
           stream: false,
+          ...(opts.think !== undefined ? { think: opts.think } : {}),
           format: request.format === "json" ? "json" : request.schema,
           // Mantém o modelo carregado entre as chamadas seguidas (PRs da noite, notas do fim do expediente).
           keep_alive: "30m",
           // Teto de saída: modelo pequeno às vezes entra em repetição dentro do JSON.
-          options: { temperature: 0, num_ctx: 8192, num_predict: request.maxTokens ?? 512 },
+          options: { temperature: 0, num_ctx: request.numCtx ?? 8192, num_predict: request.maxTokens ?? 512 },
           messages: [
             { role: "system", content: request.system },
             { role: "user", content: request.user },

@@ -21,7 +21,8 @@ import { createPgAvatarStore, createPgOnboardingStore } from "./pg-onboarding.ts
 import { adjustAvatar, redoAvatar } from "./redo-avatar.ts";
 import { createFix, type Fix, type FixCodeHost } from "./fix.ts";
 import { createManagedFixSandbox, fixAgentParams, fixEnvironmentParams } from "./managed-fix.ts";
-import { createPgFixStore } from "./pg-fix.ts";
+import { createPgFixStore, pgDelegationOf } from "./pg-fix.ts";
+import type { DelegationModel } from "./delegation.ts";
 import { createRedistribution, type Redistribution } from "./redistribution.ts";
 import { createPgRedistributionStore } from "./pg-redistribution.ts";
 import { createWeeklyReport, type WeeklyReport } from "./report.ts";
@@ -79,7 +80,19 @@ export function serverAnswerDeps(db: Database, apiKey: string | undefined): Answ
     recorder: createDbRunRecorder(db),
     // Só para ensaiar a demonstração de dia: o dono da pergunta é tratado como ausente.
     alwaysAway: process.env.DEMO_ALWAYS_AWAY === "true",
+    router: answerRouter(),
   };
+}
+
+/**
+ * Roteador de custo da resposta: a regra sempre. O SSLM só entra com SSLM_MODEL definido (e SLM_OLLAMA_URL): os
+ * modelos testados erraram demais (docs/engenharia.md). ANSWER_ROUTER=false manda toda pergunta ao modelo, como antes.
+ */
+export function answerRouter(env: NodeJS.ProcessEnv = process.env): AnswerDeps["router"] {
+  if (env.ANSWER_ROUTER === "false") return undefined;
+  const timeoutMs = Number(env.SSLM_TIMEOUT_MS) > 0 ? Number(env.SSLM_TIMEOUT_MS) : undefined;
+  const sslm = env.SLM_OLLAMA_URL && env.SSLM_MODEL ? ollamaJson({ baseUrl: env.SLM_OLLAMA_URL, model: env.SSLM_MODEL, think: false }) : null;
+  return { sslm, ...(timeoutMs ? { timeoutMs } : {}) };
 }
 
 /** Fluxo do fim do expediente com Postgres, outbox e a chave da empresa (sem chave, "onde parou" por regra). */
@@ -162,7 +175,7 @@ export function serverMorningPlan(db: Database, webUrl: string): MorningPlan {
  * FIX_ENVIRONMENT_ID, não há ambiente; sem a porta do GitHub (Integrações), não há correção. `decide` (Meu plano)
  * só precisa da porta do GitHub.
  */
-export function serverFix(db: Database, opts: { apiKey?: string | undefined; agentId?: string | undefined; environmentId?: string | undefined; timeoutMs?: number; codeHost: (orgId: string) => FixCodeHost | null | Promise<FixCodeHost | null> }): Fix {
+export function serverFix(db: Database, opts: { apiKey?: string | undefined; agentId?: string | undefined; environmentId?: string | undefined; timeoutMs?: number; codeHost: (orgId: string) => FixCodeHost | null | Promise<FixCodeHost | null>; judge?: { url: string; model: string; timeoutMs: number } | undefined }): Fix {
   const sandbox =
     opts.apiKey && opts.agentId && opts.environmentId
       ? createManagedFixSandbox(new Anthropic({ apiKey: opts.apiKey, maxRetries: 2 }), { agentId: opts.agentId, environmentId: opts.environmentId, ...(opts.timeoutMs ? { timeoutMs: opts.timeoutMs } : {}) })
@@ -175,6 +188,8 @@ export function serverFix(db: Database, opts: { apiKey?: string | undefined; age
     sandbox,
     outbox: (orgId) => createPgOutbox(db, orgId),
     recorder: createDbRunRecorder(db),
+    // Com o Ollama (o mesmo da triagem), a delegação escrita pela pessoa pode unir a correção por ela.
+    delegation: opts.judge ? { judge: delegationJudge(ollamaJson({ baseUrl: opts.judge.url, model: opts.judge.model })), timeoutMs: opts.judge.timeoutMs, of: pgDelegationOf(db) } : null,
   });
 }
 
@@ -274,15 +289,20 @@ export async function allOrgIds(db: Database): Promise<string[]> {
   return (await asSystem(db, (tx) => tx.select({ id: orgs.id }).from(orgs))).map((o) => o.id);
 }
 
-/** Quem está perto do início do expediente agora, em todas as empresas (plano da manhã). */
+/**
+ * Quem está perto do início do expediente agora e ainda não tem o plano da data, em todas as empresas.
+ * Quem já tem plano fica fora: a `singletonKey` não segura o job depois de concluído (pg-boss, fila padrão),
+ * e sem este filtro a agenda poria um job por passada na janela, cada um com uma linha "pulado" em agent_runs.
+ */
 export async function dueMorning(db: Database, now: Date): Promise<{ orgId: string; personId: string; date: string }[]> {
   const due: { orgId: string; personId: string; date: string }[] = [];
   for (const orgId of await allOrgIds(db)) {
     const data = createPgAgentData(db, orgId);
+    const plans = createPgPlanStore(db, orgId);
     const [people, absences] = await Promise.all([data.people(), data.absences()]);
     for (const person of people) {
       const d = morningDue(person, absences, now);
-      if (d) due.push({ orgId, personId: person.id, date: d.date });
+      if (d && !(await plans.get(person.id, d.date))) due.push({ orgId, personId: person.id, date: d.date });
     }
   }
   return due;
@@ -313,6 +333,11 @@ export async function defaultAnswer(): Promise<(req: AnswerRequest) => Promise<A
   const db = createDb(createPool(url, 4, { defaultScope: "none" }));
   cached = createAnswer(serverAnswerDeps(db, process.env.ANTHROPIC_API_KEY || undefined));
   return cached;
+}
+
+/** O juiz da delegação sobre o cliente JSON do Ollama (saída restrita ao esquema). */
+function delegationJudge(m: { model: string; json: (r: { system: string; user: string; schema: object }, s: AbortSignal) => Promise<{ raw: unknown; inputTokens?: number; outputTokens?: number }> }): DelegationModel {
+  return { model: m.model, classify: (request, signal) => m.json(request, signal) };
 }
 
 /** Cadastro pelo RH: currículo no modelo aberto (se houver Ollama) e foto no Claude (se houver chave). */

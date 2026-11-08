@@ -143,11 +143,15 @@ export const severityRank = (s: FindingSeverity) => SEVERITY_ORDER[s];
 
 // ---------- Agenda da manhã
 
-/** Data local de hoje se agora está entre 30 min antes do expediente e 2 h depois do início. Férias: nada. */
+/**
+ * Data local do expediente se agora está entre 30 min antes do início e 2 h depois dele. Férias: nada.
+ * Olha ontem, hoje e amanhã no fuso: o expediente que começa perto da meia-noite tem a janela em dois dias.
+ */
 export function morningDue(person: Person, absences: Absence[], now: Date): { date: string; startsAt: Date } | null {
   if (!person.active || person.role === "hr") return null;
   const tz = person.timezone;
-  for (const date of [localDate(now, tz), localDate(new Date(now.getTime() + DAY), tz)]) {
+  const today = localDate(now, tz);
+  for (const date of [addDays(today, -1), today, addDays(today, 1)]) {
     if (!person.workHours.days.includes(weekdayOf(date))) continue;
     const startsAt = zonedTime(date, person.workHours.start, tz);
     const from = startsAt.getTime() - MORNING_RULES.leadMinutes * MINUTE;
@@ -184,6 +188,8 @@ export interface PlanFix {
   readyAt: Date;
   /** Resultado dos testes relatado pelo agente; a CI do rascunho é quem confirma. */
   tests: "passou" | "falhou" | "nao_rodou";
+  /** Por que a delegação escrita da pessoa não cobriu esta correção ("Ficou com você: …"), quando ela tem delegação. */
+  delegationNote?: string | undefined;
 }
 
 export type PlanItemKind = "fix_ready" | "question" | "review_request" | "task_due" | "task_overdue" | "finding" | "ci_failed" | "own_pr_waiting";
@@ -239,7 +245,7 @@ export function morningPlan(input: MorningPlanInput): { items: PlanItem[]; more:
     ranked.push({
       group: 0,
       key: f.readyAt.getTime() - 1e15,
-      item: { id: `fix:${f.fixId}`, kind: "fix_ready", text: `Correção pronta no seu PR ${f.pr.number}, aguardando sua aprovação`, reason: `${tests}; a CI do rascunho ${f.draftPrNumber} confirma`, ref: `fix:${f.fixId}` },
+      item: { id: `fix:${f.fixId}`, kind: "fix_ready", text: `Correção pronta no seu PR ${f.pr.number}, aguardando sua aprovação`, reason: `${tests}; a CI do rascunho ${f.draftPrNumber} confirma${f.delegationNote ? `. ${f.delegationNote}` : ""}`, ref: `fix:${f.fixId}` },
     });
   }
   for (const q of input.questions) {

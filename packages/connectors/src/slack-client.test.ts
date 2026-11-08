@@ -129,6 +129,19 @@ describe("authTest, listUsers e response_url", () => {
   });
 });
 
+describe("answerBlocks no idioma da conversa", () => {
+  it("fontes e botões em inglês e espanhol; português por padrão", () => {
+    const en = JSON.stringify(answerBlocks({ text: "ok", sources: [{ label: "PR 42" }], questionId: "q1", lang: "en" }));
+    expect(en).toContain("Sources: PR 42");
+    expect(en).toContain("Solved it");
+    expect(en).toContain("Didn't solve it");
+    const es = JSON.stringify(answerBlocks({ text: "ok", sources: [{ label: "PR 42" }], questionId: "q1", lang: "es" }));
+    expect(es).toContain("Fuentes: PR 42");
+    expect(es).toContain("No lo resolvió");
+    expect(JSON.stringify(answerBlocks({ text: "ok", sources: [{ label: "PR 42" }], questionId: "q1" }))).toContain("Não resolveu");
+  });
+});
+
 describe("sendDmFile", () => {
   it("abre a conversa, pede a URL, envia os bytes e completa o upload na conversa privada, com comentário", async () => {
     const seen: { url: string; ct: string; body: unknown }[] = [];

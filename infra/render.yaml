@@ -90,6 +90,11 @@ services:
       # "Pergunte ao gêmeo" no painel e traços do bonequinho a partir da foto do cadastro. Sem ela, só regra.
       - key: ANTHROPIC_API_KEY
         sync: false
+      # Meu plano confere o rascunho da correção no GitHub antes de aprovar (o mesmo app do worker).
+      - key: GITHUB_APP_ID
+        sync: false
+      - key: GITHUB_PRIVATE_KEY
+        sync: false
       # Leitura do currículo no cadastro pelo modelo aberto do echo-triage (host:porta na rede privada).
       - key: SLM_OLLAMA_URL
         fromService:

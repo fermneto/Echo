@@ -4,7 +4,9 @@
 import { FileChangedError, GithubApiError, SlackApiError, type ChatPlatform, type CodeWriter, type IssueWriter } from "@echo/connectors";
 import { asSystem, auditLog, brainNotes, identities, outboxActions, people, planItems, tasks, withOrg, type Database, type Tx } from "@echo/db";
 import { isMirrorExportable, PatchConflictError, soleTeam } from "@echo/domain";
-import { and, asc, eq, inArray, lt, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, lt, or, sql } from "drizzle-orm";
+import { approvalAudit, draftPrRefusal, type ApprovalSource, type DraftPrPayload } from "./guards.ts";
+import { insertAction } from "./pg.ts";
 import { REQUIRES_APPROVAL, type ActionType, type OutboxAction } from "./index.ts";
 
 export const MAX_ATTEMPTS = 3;
@@ -16,11 +18,12 @@ export interface ActionPayloads {
   "linear.comment": { taskKey: string; body: string };
   "github.comment": { repo: string; number: number; body: string };
   "github.set_reviewers": { repo: string; number: number; personIds: string[]; planItemId?: string };
-  "github.draft_pr": { repo: string; prNumber: number; base: string; baseSha: string; branch: string; title: string; body: string; patch: string; draft?: boolean };
+  "github.draft_pr": DraftPrPayload;
   "github.merge_fix": { repo: string; number: number; sha: string; base: string; prNumber: number };
   "github.mirror_write": { repo: string; noteId: string; path: string; content: string; previousSha?: string };
   "github.mirror_delete": { repo: string; noteId: string; path: string; sha: string };
-  "slack.post": { channel: string; text: string; threadTs?: string; agentName?: string };
+  /** `ownerId`: a pessoa cujo gêmeo fala ("Agente de Fernando"); a mensagem sai com o bonequinho dela. */
+  "slack.post": { channel: string; text: string; threadTs?: string; agentName?: string; ownerId?: string };
   "slack.dm": { personId: string; text: string; blocks?: unknown[] };
   /** Imagem na conversa privada; sem permissão de arquivo no Slack, manda o texto e os blocos de reserva. */
   "slack.dm_image": { personId: string; filename: string; title: string; comment: string; altText?: string; pngBase64: string; text: string; blocks?: unknown[] };
@@ -39,6 +42,11 @@ export interface ExecutorDeps {
   /** Escritores da empresa. Ausente = a plataforma não está ligada e a ação falha com esse motivo. */
   writers: (orgId: string) => Promise<{ code?: CodeWriter; issues?: IssueWriter; chat?: ChatPlatform }>;
   now?: () => Date;
+  /**
+   * Endereço do bonequinho para a mensagem no Slack: o do gêmeo de `ownerId` ou, sem dono, o do Echo.
+   * Sem a função ou sem endereço (painel sem https), a mensagem sai com o ícone do app.
+   */
+  agentIcon?: (orgId: string, ownerId?: string) => Promise<string | undefined>;
 }
 
 type Row = typeof outboxActions.$inferSelect;
@@ -46,31 +54,11 @@ type Row = typeof outboxActions.$inferSelect;
 /** Coloca uma ação no outbox. A mesma chave não cria uma segunda ação. */
 export async function enqueueAction<T extends ActionType>(db: Database, orgId: string, action: OutboxAction<ActionPayloads[T]> & { type: T }): Promise<{ id: string; duplicate: boolean }> {
   // Sem aprovação, a ação que exige aprovação fica "pending" até approveAction.
-  return withOrg(db, orgId, async (tx) => {
-  const [row] = await tx
-    .insert(outboxActions)
-    .values({
-      orgId,
-      type: action.type,
-      target: action.target,
-      payload: action.payload,
-      idempotencyKey: action.idempotencyKey,
-      approvedBy: action.approvedBy ?? null,
-      state: action.approvedBy || !REQUIRES_APPROVAL[action.type] ? "approved" : "pending",
-    })
-    .onConflictDoNothing()
-    .returning({ id: outboxActions.id });
-  if (row) return { id: row.id, duplicate: false };
-  const [existing] = await tx
-    .select({ id: outboxActions.id })
-    .from(outboxActions)
-    .where(and(eq(outboxActions.orgId, orgId), eq(outboxActions.idempotencyKey, action.idempotencyKey)));
-  return { id: existing!.id, duplicate: true };
-  });
+  return withOrg(db, orgId, (tx) => insertAction(tx, orgId, action));
 }
 
 /** Aprovação registrada: quem aprovou fica na ação e na auditoria. */
-export async function approveAction(db: Database, orgId: string, actionId: string, approverId: string): Promise<boolean> {
+export async function approveAction(db: Database, orgId: string, actionId: string, approverId: string, source?: ApprovalSource): Promise<boolean> {
   return withOrg(db, orgId, async (tx) => {
     const [row] = await tx
       .update(outboxActions)
@@ -78,7 +66,7 @@ export async function approveAction(db: Database, orgId: string, actionId: strin
       .where(and(eq(outboxActions.orgId, orgId), eq(outboxActions.id, actionId), eq(outboxActions.state, "pending")))
       .returning({ type: outboxActions.type, target: outboxActions.target });
     if (!row) return false;
-    await tx.insert(auditLog).values({ orgId, actor: `person:${approverId}`, action: `approve:${row.type}`, target: row.target });
+    await tx.insert(auditLog).values(approvalAudit({ orgId, approverId, type: row.type, target: row.target, ...(source ? { source } : {}) }));
     return true;
   });
 }
@@ -98,6 +86,27 @@ async function taskLinearId(tx: Tx, orgId: string, taskKey: string): Promise<{ i
   if (!t?.linearId) throw new PermanentActionError(`tarefa ${taskKey} sem id no Linear`);
   return { id: t.id, linearId: t.linearId };
 }
+
+/**
+ * Tipos que têm executor em `run()`. Mantenha junto do `switch`: o teste do executor falha se um caso
+ * do `switch` faltar aqui, ou se um tipo daqui cair no `default`.
+ */
+export const EXECUTABLE_TYPES: readonly ActionType[] = [
+  "linear.assign",
+  "linear.comment",
+  "github.comment",
+  "github.draft_pr",
+  "github.merge_fix",
+  "github.set_reviewers",
+  "github.mirror_write",
+  "github.mirror_delete",
+  "slack.post",
+  "slack.dm",
+  "slack.dm_image",
+];
+
+/** Erro gravado quando um worker sem o executor do tipo pega a ação. */
+export const noExecutorError = (type: string) => `ação ${type} ainda não tem executor`;
 
 /** Executa a ação. O que devolve fica em `outbox_actions.result` (ex.: número e versão do rascunho). */
 async function run(deps: ExecutorDeps, row: Row): Promise<unknown> {
@@ -133,6 +142,9 @@ async function run(deps: ExecutorDeps, row: Row): Promise<unknown> {
     }
     case "github.draft_pr": {
       const p = row.payload as ActionPayloads["github.draft_pr"];
+      // Sem aprovação e com escrita forçada na branch: confere branch e diff de novo antes de qualquer chamada.
+      const refusal = draftPrRefusal(p);
+      if (refusal) throw new PermanentActionError(refusal);
       try {
         return await need("code", "GitHub").createFixDraft({ repo: p.repo, base: p.base, baseSha: p.baseSha, branch: p.branch, title: p.title, body: p.body, patch: p.patch });
       } catch (err) {
@@ -193,7 +205,9 @@ async function run(deps: ExecutorDeps, row: Row): Promise<unknown> {
     }
     case "slack.post": {
       const p = row.payload as ActionPayloads["slack.post"];
-      await need("chat", "Slack").postAgentReply({ channel: p.channel, text: p.text, agentName: p.agentName ?? "Echo", ...(p.threadTs ? { threadTs: p.threadTs } : {}) });
+      // O ícone é enfeite: se a busca falhar, a mensagem sai com o ícone do app em vez de não sair.
+      const iconUrl = await deps.agentIcon?.(orgId, p.ownerId).catch(() => undefined);
+      await need("chat", "Slack").postAgentReply({ channel: p.channel, text: p.text, agentName: p.agentName ?? "Echo", ...(p.threadTs ? { threadTs: p.threadTs } : {}), ...(iconUrl ? { iconUrl } : {}) });
       return;
     }
     case "slack.dm": {
@@ -229,7 +243,7 @@ async function run(deps: ExecutorDeps, row: Row): Promise<unknown> {
       return;
     }
     default:
-      throw new PermanentActionError(`ação ${row.type} ainda não tem executor`);
+      throw new PermanentActionError(noExecutorError(row.type));
   }
 }
 
@@ -305,6 +319,37 @@ export async function releaseStuckActions(db: Database, olderThanMs = 10 * 60_00
   return rows.length;
 }
 
+/**
+ * Ações que falharam só porque um worker antigo ainda não tinha o executor do tipo voltam para a fila
+ * quando o executor passa a existir. Sem isso, a chave de idempotência impede que a ação seja criada de novo.
+ * Volta aprovada se já tinha aprovação ou se o tipo não exige; senão volta pendente, à espera de aprovação.
+ * Falha por qualquer outro motivo nunca é recolocada.
+ */
+export async function retryActionsWithoutExecutor(db: Database): Promise<number> {
+  const noApproval = EXECUTABLE_TYPES.filter((t) => !REQUIRES_APPROVAL[t]);
+  const approvedState = or(isNotNull(outboxActions.approvedBy), noApproval.length ? inArray(outboxActions.type, noApproval) : sql`false`);
+  // Rotina de sistema: percorre todas as empresas.
+  return asSystem(db, async (tx) => {
+    const rows = await tx
+      .update(outboxActions)
+      .set({ state: sql`case when ${approvedState} then 'approved' else 'pending' end`, attempts: 0, error: null })
+      .where(
+        and(
+          eq(outboxActions.state, "failed"),
+          or(...EXECUTABLE_TYPES.map((t) => and(eq(outboxActions.type, t), eq(outboxActions.error, noExecutorError(t))))),
+        ),
+      )
+      .returning({ orgId: outboxActions.orgId, type: outboxActions.type, target: outboxActions.target, state: outboxActions.state, payload: outboxActions.payload });
+    for (const row of rows) {
+      // O item do plano tinha ido para "failed" junto com a ação; volta para "approved" enquanto ela espera a fila.
+      const planItemId = (row.payload as { planItemId?: string } | null)?.planItemId;
+      if (planItemId && row.state === "approved")
+        await tx.update(planItems).set({ state: "approved" }).where(and(eq(planItems.orgId, row.orgId), eq(planItems.id, planItemId), eq(planItems.state, "failed")));
+      await tx.insert(auditLog).values({ orgId: row.orgId, actor: "echo:actions", action: `requeue:${row.type}`, target: row.target });
+    }
+    return rows.length;
+  });
+}
 
 /** Confere de novo, na hora de escrever, se a nota ainda pode ir para o repositório (regra de packages/domain). */
 async function stillExportable(db: Database, orgId: string, noteId: string): Promise<boolean> {

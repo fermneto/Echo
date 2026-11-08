@@ -80,6 +80,22 @@ function setup() {
 }
 
 describe("redistribuição", () => {
+  it("empresa sem equipes: a liderança recebe o plano e consegue aprovar; nada vai para quem está ausente", async () => {
+    const { flow, people, plans, outbox } = setup();
+    for (const p of people) delete (p as { teamId?: string }).teamId;
+    const r = await flow.propose("org", "a1");
+    expect(r.status).toBe("created");
+    expect(outbox.map((a) => a.target)).toEqual(["person:marina"]);
+    expect(await flow.approve("org", "carla", plans[0]!.id)).toEqual({ status: "denied" });
+    const a = await flow.approve("org", "marina", plans[0]!.id);
+    expect(a.status).toBe("ok");
+    const assign = outbox.filter((x) => x.type === "linear.assign");
+    expect(assign.length).toBeGreaterThan(0);
+    expect(assign.every((x) => x.approvedBy === "marina" && (x.payload as { planItemId?: string }).planItemId)).toBe(true);
+    // Regra 7: nenhuma mensagem para quem está de férias.
+    expect(outbox.some((x) => x.target === "person:bruno")).toBe(false);
+  });
+
   it("ausência → plano por regra, só para a liderança, sem mudar nada", async () => {
     const { flow, outbox, runs, plans } = setup();
     const r = await flow.propose("org", "a1");
@@ -96,7 +112,7 @@ describe("redistribuição", () => {
     expect(text).toContain("• ECH-133 → Carla.");
     expect(text).toContain("• Revisão do PR 36 → Marina.");
     expect(text).toContain("Nada muda até você aprovar.");
-    expect(text).toContain(`https://echo.test/redistribuicao/${plan.id}`);
+    expect(text).toContain(`https://echo.test/redistribuicao#plano-${plan.id}`);
 
     expect(await flow.propose("org", "a1")).toEqual({ status: "skipped", reason: "ausência já tem plano" });
     expect(runs.map((x) => [x.flow, x.result])).toEqual([["redistribution_plan", "ok"], ["redistribution_plan", "skipped"]]);

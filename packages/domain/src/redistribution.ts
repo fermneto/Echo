@@ -19,15 +19,21 @@ export function absenceRange(startDate: string, endDate: string, timezone: strin
   return Number.isNaN(startsAt.getTime()) || Number.isNaN(endsAt.getTime()) ? null : { startsAt, endsAt };
 }
 
+/**
+ * Mesma equipe. Empresa sem equipes (ou pessoa sem equipe): a liderança também sem equipe responde por ela, como
+ * no aviso do plano, que vai para a liderança com a mesma equipe de quem se ausenta.
+ */
+const sameTeam = (a: Person, b: Person) => (a.teamId ?? null) === (b.teamId ?? null);
+
 /** Quem registra ausência no painel: a própria pessoa, ou a liderança da equipe dela. */
 export function canRegisterAbsence(by: Person, person: Person): boolean {
-  return by.active && (by.id === person.id || (by.role === "leader" && by.teamId !== undefined && by.teamId === person.teamId));
+  return by.active && (by.id === person.id || (by.role === "leader" && sameTeam(by, person)));
 }
 
 /** Quem aprova o plano: a liderança da equipe de quem se ausenta, nunca a própria pessoa ausente. */
 export function canApprovePlan(by: Person, absent: Person, teamLeaderId?: string): boolean {
   if (!by.active || by.id === absent.id || by.role !== "leader") return false;
-  return by.id === teamLeaderId || (by.teamId !== undefined && by.teamId === absent.teamId);
+  return by.id === teamLeaderId || sameTeam(by, absent);
 }
 
 /**

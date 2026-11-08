@@ -132,7 +132,7 @@ export { linearRouteKey, linearState, normalizeLinear } from "./linear.ts";
 export { HELP_REACTIONS, isWhoKnows, normalizeSlack, slackShouldKeep, type SlackEntryContext } from "./slack.ts";
 export { ingest, type IngestResult } from "./ingest.ts";
 export { processInbox, receive, routeOrg, slackBotUserIdOf, type Delivery, type InboxJob, type InboxSource, type ProcessOptions } from "./inbox.ts";
-export { answerBlocks, dailyNoteDraftBlocks, fitText, respondToInteraction, SLACK_ACTIONS, SlackApiError, SlackChat, sourcesLine, type SlackClientOptions } from "./slack-client.ts";
+export { answerBlocks, dailyNoteDraftBlocks, fitText, REPLY_TEXT, respondToInteraction, SLACK_ACTIONS, SlackApiError, SlackChat, sourcesLine, type ReplyLang, type SlackClientOptions } from "./slack-client.ts";
 export { RefreshingToken } from "./tokens.ts";
 export { appJwt, GithubApiError, GithubApp, GithubCodeHost, normalizePem, selectDeliveriesToRetry, type GithubAppOptions, type PullRequestHistory, type WebhookDelivery } from "./github-client.ts";
 export { LinearApiError, LinearTracker, toTask, type LinearOptions } from "./linear-client.ts";

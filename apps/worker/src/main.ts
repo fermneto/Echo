@@ -1,11 +1,10 @@
-import { randomUUID } from "node:crypto";
 import { renderSummaryPng } from "@echo/agents/imagem";
-import { allOrgIds, createGithubGainsHistory, serverFix, dueAwayDigests, dueEndOfDay, dueMorning, needsGainsBaseline, serverAwayDigest, serverDaySummary, serverEndOfDay, serverGains, serverMorningPlan, serverNightReview, serverRedistribution, serverWeeklyReport, dueWeeklyReports } from "@echo/agents/server";
+import { allOrgIds, createGithubGainsHistory, serverFix, dueAwayDigests, dueEndOfDay, dueMorning, needsGainsBaseline, serverAwayDigest, serverDaySummary, serverEndOfDay, serverGains, serverMorningPlan, serverNightReview, serverRedistribution, serverWeeklyReport, dueWeeklyReports, readAvatar } from "@echo/agents/server";
 import { ensureProductNote } from "@echo/brain/pg";
 import { loadConfig } from "@echo/config";
 import { createDb, createPool } from "@echo/db";
-import { PgBossQueue, QUEUES, type PingMessage } from "@echo/jobs";
-import { createLogger, initTracing, LogRunRecorder } from "@echo/observability";
+import { PgBossQueue, QUEUES } from "@echo/jobs";
+import { createLogger, initTracing } from "@echo/observability";
 import { writersFromEnv } from "@echo/actions";
 import * as agents from "@echo/agents";
 import type { AnswerRequest, AnswerResult } from "@echo/agents";
@@ -13,12 +12,13 @@ import { giveUpStaleQuestions, handleSlackInteraction, handleSlackMessage } from
 import { createInteractionRouter } from "./slack-interactions.ts";
 import type { SlackMessageJob } from "./inbox.ts";
 import { registerActions } from "./actions.ts";
+import { outboxAgentIcon } from "./agent-icon.ts";
 import { registerInbox } from "./inbox.ts";
 import { registerMirror } from "./mirror.ts";
+import { createWorkerRunRecorder } from "./runs.ts";
 import { scheduleReconcile } from "./reconcile.ts";
-import { githubForOrg, platformsFromEnv, respondToInteraction } from "@echo/connectors";
-import { FIX_DECISION_TEXT } from "@echo/agents";
-import { registerFix } from "./fix.ts";
+import { githubForOrg, platformsFromEnv } from "@echo/connectors";
+import { fixInteractionHandler, registerFix } from "./fix.ts";
 import { registerEndOfDay } from "./end-of-day.ts";
 import { registerNight } from "./night.ts";
 import { registerRedistribution } from "./redistribution.ts";
@@ -34,10 +34,11 @@ const pool = createPool(cfg.DATABASE_URL);
 const db = createDb(pool);
 
 await queue.start();
-// Até a gravação em agent_runs estar ligada (frente Funções), as execuções vão para o log.
-const runs = new LogRunRecorder(log);
+// Ingestão, outbox, espelho e reconciliação: execuções no log e em agent_runs (as rodadas sem efeito ficam de fora).
+const runs = createWorkerRunRecorder(db, log);
 await registerInbox(db, queue, runs, { brainsRepository: cfg.BRAINS_REPOSITORY });
-const stopActions = await registerActions({ db, writers: writersFromEnv(db, cfg) }, queue, runs, log);
+// O que sai pelo outbox em nome de um gêmeo leva o bonequinho dele, como as respostas ao vivo.
+const stopActions = await registerActions({ db, writers: writersFromEnv(db, cfg), agentIcon: outboxAgentIcon(cfg.WEB_URL, (orgId, personId) => readAvatar(db, orgId, personId)) }, queue, runs, log);
 // F2: resposta no Slack com o fluxo da frente Funções (answer de @echo/agents).
 const interactions = createInteractionRouter(log);
 let giveUp: ReturnType<typeof setInterval> | undefined;
@@ -86,19 +87,10 @@ const fix = serverFix(db, {
   environmentId: cfg.FIX_ENVIRONMENT_ID,
   timeoutMs: cfg.FIX_TIMEOUT_MS,
   codeHost: async (orgId) => (await githubForOrg(db, platforms, orgId)) ?? null,
+  // Juiz da delegação da correção: o mesmo modelo aberto da triagem. Sem ele, nenhuma correção é unida pela delegação.
+  judge: cfg.SLM_OLLAMA_URL ? { url: cfg.SLM_OLLAMA_URL, model: cfg.SLM_MODEL, timeoutMs: cfg.TRIAGE_TIMEOUT_MS } : undefined,
 });
-interactions.add("correcao", async (job) => {
-  const r = await fix.decideFromSlack(job.orgId, job.payload);
-  if (!r) return "ignored";
-  const url = (job.payload as { response_url?: unknown })?.response_url;
-  const final = r.status === "approved" || r.status === "declined";
-  if (typeof url === "string") {
-    await respondToInteraction(url, final ? { replace_original: true, text: FIX_DECISION_TEXT[r.status] } : { replace_original: false, response_type: "ephemeral", text: FIX_DECISION_TEXT[r.status] }).catch((err) =>
-      log.warn({ err: String(err) }, "falha ao responder o clique da correção"),
-    );
-  }
-  return r.status;
-});
+interactions.add("correcao", fixInteractionHandler({ fix, log }));
 const fixing = await registerFix(queue, { fix, orgIds: () => allOrgIds(db), timeoutMs: cfg.FIX_TIMEOUT_MS });
 const runFix = () =>
   fixing.tick().then(
@@ -187,10 +179,6 @@ const runGains = () =>
   );
 void runGains();
 const gainsTimer = setInterval(() => void runGains(), cfg.END_OF_DAY_SCAN_MS);
-
-// Confirma, a cada início, que a fila chega ao reviewer.
-await queue.work<PingMessage>(QUEUES.reviewerPong, async (job) => log.info({ nonce: job.data.nonce }, "reviewer respondeu ao ping"));
-await queue.send<PingMessage>(QUEUES.reviewerPing, { from: "worker", sentAt: new Date().toISOString(), nonce: randomUUID() });
 
 const heartbeat = setInterval(() => log.info({ uptimeS: Math.round(process.uptime()) }, "heartbeat"), cfg.HEARTBEAT_INTERVAL_MS);
 

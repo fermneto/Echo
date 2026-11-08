@@ -139,7 +139,7 @@ export function planText(title: string, items: StoredPlanItem[], l: Lookup, webU
   const lines = items.map((i) =>
     i.toId ? `• ${itemLabel(i, l)} → ${firstName(l.people, i.toId)}. ${i.reason}` : `• ${itemLabel(i, l)} sem responsável. ${i.reason}`,
   );
-  return [`*${title}*`, ...lines, "Nada muda até você aprovar.", `Abrir no painel: ${webUrl.replace(/\/$/, "")}/redistribuicao/${planId}`].join("\n");
+  return [`*${title}*`, ...lines, "Nada muda até você aprovar.", `Abrir no painel: ${webUrl.replace(/\/$/, "")}/redistribuicao#plano-${planId}`].join("\n");
 }
 
 // ---------- Fluxo

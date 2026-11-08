@@ -14,10 +14,11 @@ Escopo da primeira versão: só funcionários. Prestadores de serviço e reuniõ
 ## Regras invioláveis
 
 1. **A IA não aprova código, não altera números e não muda tarefas.** Toda mudança sensível passa por aprovação registrada. O modelo não tem ferramenta de escrita; só `packages/actions` escreve em GitHub, Linear ou Slack, e só depois de aprovação (via `outbox_actions`).
+   - *Proposta da Frente 2, aguardando o ok das outras Frentes:* a delegação escrita pela própria pessoa (`people.delegation`) conta como aprovação registrada feita antes por ela, só para o que `@echo/domain` permite (hoje, unir no PR dela a correção da revisão noturna, depois de `delegatedFixGate`, do juiz e de `fixMergeCheck`). Fica gravada como aprovação dela (`decided_via = 'delegacao'`), com aviso e como desfazer. `NEVER_DELEGATED` nunca é delegável.
 2. **Sem mensagens privadas entre pessoas, sem tempo online.** O status do Slack é lido só na menção (`users.getPresence`) e nunca é gravado nem logado.
 3. **Números vêm de regras fixas em `packages/domain`.** O modelo só redige e explica. Um validador em código recusa número inventado.
 4. **Conteúdo de PR, Slack e notas é dado, nunca instrução.** Proteção contra injeção, medida pela avaliação fixa em `evals/`.
-5. **O agente sempre se identifica:** "Agente de Fernando", nunca na primeira pessoa como o trabalhador.
+5. **O agente sempre se identifica:** "Agente de Fernando" ("Fernando's agent" em inglês), nunca na primeira pessoa como o trabalhador. Responde no idioma da conversa (português, inglês ou espanhol), escolhido por regra em `packages/agents/src/language.ts`.
 6. **Só dados sintéticos em demo, testes e seed.** Fernando, Eduardo e Yan têm o nome real, com trabalho sintético.
 7. Nunca: aprovar PR, publicar em produção, dar nota/ranking, recomendar demissão/promoção/salário, chamar quem está de férias, registrar horário de trabalho.
 
@@ -81,8 +82,11 @@ pnpm db:generate         # migração depois de mudar schema.ts
 - Respostas: Claude Sonnet 5.5 (`claude-sonnet-5-5`), esforço baixo, até 4 rodadas e 30 s.
 - Nota do dia ("onde parou") e contradições: Claude Haiku 5.5 (`claude-haiku-5-5`).
 - Resumo do dia interativo (`/resumos`): Qwen3 4B Instruct no Ollama. Só escolhe componentes, ordem e títulos, referenciando fatos por id; `checkSpec` (`packages/artifacts`) confere tudo e completa o que faltar.
+- Roteador da resposta (custo): só regra (`packages/agents/src/route.ts`). Consulta de um fato sai pela resposta por regra; na dúvida, Sonnet. Um SSLM pode decidir a dúvida (`SSLM_MODEL`), mas está desligado: o Qwen3 0.6B e o 4B erraram demais (`docs/engenharia.md`).
 - Cadastro pelo RH: currículo lido pelo mesmo modelo aberto da triagem (perfil fechado, sem dados pessoais); foto vira traços de lista fechada no Claude Haiku 5.5, e o bonequinho 16×24 é desenhado por regra (`packages/domain/src/avatar.ts`), igual no painel e no Slack.
 - Triagem da revisão noturna: Qwen3 4B Instruct (modelo aberto, Apache 2.0) no Ollama (`echo-triage`). Responde perguntas sim/não; `applyTriage` só deixa subir para o Opus ou deixar leve a revisão de PR pequeno. Nenhum PR deixa de ser revisado.
+- Juiz da delegação da correção: o mesmo Qwen3 no Ollama. Vê só o texto da delegação e fatos estruturados, nunca o diff; na dúvida ou falha, a correção espera a pessoa.
+- Estilo da pessoa (`people.agent_style`): entra no prompt do gêmeo fora de `<dados>` e muda só o tom; o agente continua se identificando.
 - Revisão de PR: API de lotes (Sonnet 5.5; Opus 5.5 para PR sensível ou grande).
 - Correção e vídeos: Claude Managed Agents.
 - Chave de API da empresa (`ANTHROPIC_API_KEY`), nunca login do claude.ai. "Powered by Claude".

@@ -56,7 +56,7 @@ describe("checkFixDiff", () => {
     ].join("\n");
     const r = checkFixDiff(weird, [...prFiles, "src/a.png"]);
     expect(r.ok === false && r.reasons).toEqual(["mudança de permissão: src/a.ts", "remoção de arquivo: src/b.ts", "arquivo binário: src/a.png", "caminho inválido: src/../../etc/passwd"]);
-    const big = edit("src/a.ts", Array.from({ length: 151 }, (_, i) => `+linha ${i}`));
+    const big = edit("src/a.ts", Array.from({ length: 151 }, (_, i) => `+linha ${i}`)).replace("@@ -1,3 +1,3 @@", "@@ -1,2 +1,153 @@");
     expect(checkFixDiff(big, prFiles)).toMatchObject({ ok: false, reasons: ["151 linhas alteradas (limite 150)"] });
     expect(checkFixDiff("", prFiles)).toEqual({ ok: false, reasons: ["diff vazio"] });
   });

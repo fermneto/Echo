@@ -7,9 +7,10 @@ export type Database = ReturnType<typeof drizzle<typeof schema>>;
 export interface PoolOptions {
   /**
    * Escopo de uma consulta feita fora de withOrg/asSystem.
-   * - "system" (padrão por enquanto): passa pelo RLS, como antes da migração 0003. Mantém funcionando
-   *   o código que ainda não usa withOrg. Vira "none" quando todas as frentes tiverem migrado.
-   * - "none": fora de withOrg/asSystem, as tabelas de negócio não devolvem nada.
+   * - "none" (padrão): fora de withOrg/asSystem, as tabelas de negócio não devolvem nada nem aceitam escrita.
+   *   Todos os serviços (api, worker, reviewer, painel) já usam withOrg ou asSystem.
+   * - "system": passa pelo RLS na conexão inteira. Só para ferramentas de sistema rodadas à mão: seed,
+   *   scripts `dev-*`, reconciliação manual e a leitura da empresa de demonstração pelo evals.
    */
   defaultScope?: "system" | "none";
   /** Tempo para abrir uma conexão (padrão 5 s). Comandos rodados de fora da Render precisam de mais. */
@@ -17,7 +18,7 @@ export interface PoolOptions {
 }
 
 export function createPool(url: string, max = 10, opts: PoolOptions = {}): pg.Pool {
-  const system = (opts.defaultScope ?? "system") === "system";
+  const system = opts.defaultScope === "system";
   // Valor da sessão, definido na abertura da conexão (sem consulta extra): withOrg e asSystem trocam só
   // dentro da própria transação (set_config local).
   return new pg.Pool({ connectionString: url, max, connectionTimeoutMillis: opts.connectTimeoutMs ?? 5_000, ...(system ? { options: "-c app.bypass_rls=on" } : {}) });

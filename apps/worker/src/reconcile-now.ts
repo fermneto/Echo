@@ -8,7 +8,7 @@ import { reconcileOnce } from "./reconcile.ts";
 
 const cfg = loadConfig("worker");
 const log = createLogger("reconcile", cfg.LOG_LEVEL);
-const pool = createPool(cfg.DATABASE_URL, 3);
+const pool = createPool(cfg.DATABASE_URL, 3, { defaultScope: "system" });
 const runs = new LogRunRecorder();
 const platforms = platformsFromEnv(cfg);
 if (!platforms.github && !platforms.linear) console.log("Nem GitHub nem Linear configurados no .env: nada a reconciliar (ver docs/teste-integracoes.md).");

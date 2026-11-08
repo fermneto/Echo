@@ -62,6 +62,12 @@ export const people = pgTable("people", {
   areas: jsonb("areas").$type<string[]>().notNull().default([]),
   languages: jsonb("languages").$type<string[]>().notNull().default([]),
   awayInstructions: text("away_instructions"),
+  /** Como a pessoa quer que o agente dela responda e como ela costuma atuar. Escrito só por ela; muda o tom, nunca as regras. */
+  agentStyle: text("agent_style"),
+  /** Até onde o agente pode decidir por ela, em texto livre. Só vale dentro das travas fixas de `@echo/domain` (delegation). */
+  delegation: text("delegation"),
+  /** Quando a pessoa salvou a delegação atual: a decisão tomada por ela cita essa versão. */
+  delegationUpdatedAt: ts("delegation_updated_at"),
   /** Traços do bonequinho (lista fechada de packages/domain, conferida na leitura), lidos da foto no cadastro. A foto não é guardada. */
   avatar: jsonb("avatar").$type<Record<string, string>>(),
   /** Expediente sugerido pela agenda; vale só depois que a pessoa confirma no painel. */
@@ -294,6 +300,10 @@ export const fixRuns = pgTable("fix_runs", {
   error: text("error"),
   decidedBy: uuid("decided_by").references(() => people.id),
   decidedAt: ts("decided_at"),
+  /** pessoa (decidiu no painel) | delegacao (o agente decidiu pela delegação escrita da pessoa) */
+  decidedVia: text("decided_via"),
+  /** Por que a delegação cobriu (ou não) esta correção: travas e juiz, para a pessoa conferir. */
+  delegationNote: text("delegation_note"),
   createdAt: createdAt(),
 }, (t) => [uniqueIndex("fix_runs_review").on(t.orgId, t.reviewId)]);
 

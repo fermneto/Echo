@@ -2,7 +2,7 @@
 // Pronto quando: um erro plantado gera uma correção aprovável, unida pela aprovação do autor.
 import { randomUUID } from "node:crypto";
 import { createPgOutbox } from "@echo/actions/pg";
-import { agentRuns, asSystem, createDb, createPool, type Database, fixRuns, orgs, outboxActions, people, pullRequests, reviews, teams } from "@echo/db";
+import { agentRuns, asSystem, auditLog, createDb, createPool, type Database, fixRuns, orgs, outboxActions, people, pullRequests, reviews, teams } from "@echo/db";
 import { FixedClock, type PullHead } from "@echo/domain";
 import { and, eq } from "drizzle-orm";
 import type pg from "pg";
@@ -107,6 +107,9 @@ describe.skipIf(!url)("correção em Postgres", () => {
     const merge = await asSystem(db, (tx) => tx.select().from(outboxActions).where(and(eq(outboxActions.orgId, org), eq(outboxActions.type, "github.merge_fix"))));
     expect(merge).toHaveLength(1);
     expect(merge[0]).toMatchObject({ state: "approved", approvedBy: fernando, payload: { number: 45, sha: "d45", base: "ech-128-filtro" } });
+    // A aprovação fica no audit_log com a pessoa e a origem, gravada junto com a união.
+    const audit = await asSystem(db, (tx) => tx.select().from(auditLog).where(and(eq(auditLog.orgId, org), eq(auditLog.action, "approve:github.merge_fix:painel"))));
+    expect(audit).toMatchObject([{ actor: `person:${fernando}`, target: "github:teste/app#45" }]);
 
     await asSystem(db, (tx) => tx.update(outboxActions).set({ state: "done" }).where(eq(outboxActions.id, merge[0]!.id)));
     expect(await fix.sync(org)).toEqual({ ready: 0, applied: 1, failed: 0 });

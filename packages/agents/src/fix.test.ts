@@ -5,7 +5,8 @@ import { FixedClock, type FixTarget, type PullHead } from "@echo/domain";
 import { LogRunRecorder } from "@echo/observability";
 import { describe, expect, it } from "vitest";
 import type { AgentData } from "./data.ts";
-import { createFix, draftBody, FIX_APPROVE_ACTION_ID, FIX_DECLINE_ACTION_ID, fixClick, type FixCandidate, type FixCodeHost, type FixSandboxInput, type FixSandboxResult, type FixState, type FixStore, type StoredFix, validFixReport } from "./fix.ts";
+import type { DelegationModel } from "./delegation.ts";
+import { createFix, draftBody, FIX_APPROVE_ACTION_ID, FIX_DECLINE_ACTION_ID, fixClick, type FixCandidate, type FixDecidedVia, type FixDelegationDeps, type FixCodeHost, type FixSandboxInput, type FixSandboxResult, type FixState, type FixStore, type StoredFix, validFixReport } from "./fix.ts";
 import type { Finding } from "./night-review.ts";
 
 const NOW = new Date("2026-11-09T06:00:00Z");
@@ -13,11 +14,11 @@ const finding: Finding = { arquivo: "src/filtros.ts", linha: 4, gravidade: "alta
 const PATCH = ["diff --git a/src/filtros.ts b/src/filtros.ts", "--- a/src/filtros.ts", "+++ b/src/filtros.ts", "@@ -3,3 +3,3 @@", " export async function listar(db, filtro) {", "-  return db.query(`SELECT * FROM itens WHERE nome = '${filtro}'`);", "+  return db.query('SELECT * FROM itens WHERE nome = $1', [filtro]);", " }"].join("\n");
 const REPORT = { resumo: "Consulta parametrizada no filtro.", testes: { comando: "pnpm test", resultado: "passou" } };
 
-function setup(opts: { sandbox?: Partial<FixSandboxResult>; target?: Partial<FixTarget>; findings?: Finding[]; spent?: number; personSpent?: number; host?: boolean } = {}) {
+function setup(opts: { sandbox?: Partial<FixSandboxResult>; target?: Partial<FixTarget>; findings?: Finding[]; spent?: number; personSpent?: number; host?: boolean; delegation?: FixDelegationDeps } = {}) {
   const candidates = new Map<string, FixCandidate>([
     ["rv1", { reviewId: "rv1", prId: "p44", pr: { repository: "org/app", number: 44, title: "Filtro da listagem", branch: "ech-128-filtro", authorId: "fernando" }, headSha: "sha44", files: ["src/filtros.ts"], findings: opts.findings ?? [finding] }],
   ]);
-  const fixes = new Map<string, StoredFix & { reviewId: string; error?: string; decidedBy?: string }>();
+  const fixes = new Map<string, StoredFix & { reviewId: string; error?: string; decidedBy?: string; via?: FixDecidedVia; note?: string }>();
   const skipped: string[] = [];
   const outboxRows = new Map<string, { state: string; result: unknown; error?: string }>();
   const outbox: OutboxAction[] = [];
@@ -51,7 +52,8 @@ function setup(opts: { sandbox?: Partial<FixSandboxResult>; target?: Partial<Fix
     outboxResult: async (key) => outboxRows.get(key) ?? null,
     markReady: async (id, d) => moveFix(id, ["draft_queued"], { state: "ready", draftPrNumber: d.number, draftHeadSha: d.headSha }),
     markFailed: async (id, from, error) => moveFix(id, [from], { state: "failed", error } as Partial<StoredFix>),
-    decide: async (id, by, to) => moveFix(id, ["ready"], { state: to, decidedBy: by } as Partial<StoredFix>),
+    decide: async (id, by, to, _at, via) => moveFix(id, ["ready"], { state: to, decidedBy: by, ...(via ? { via } : {}) } as Partial<StoredFix>),
+    noteDelegation: async (id, note) => void Object.assign(fixes.get(id)!, { note }),
     markApplied: async (id) => moveFix(id, ["approved"], { state: "applied" }),
   };
   const host: FixCodeHost = {
@@ -64,6 +66,7 @@ function setup(opts: { sandbox?: Partial<FixSandboxResult>; target?: Partial<Fix
     data: () => data,
     fixes: () => store,
     codeHost: () => (opts.host === false ? null : host),
+    personBySlackUser: async (_o, slackUserId) => (slackUserId === "UFER" ? "fernando" : null),
     sandbox: {
       run: async (input) => {
         sandboxCalls.push(input);
@@ -80,6 +83,7 @@ function setup(opts: { sandbox?: Partial<FixSandboxResult>; target?: Partial<Fix
     }),
     recorder,
     clock: new FixedClock(NOW),
+    ...(opts.delegation ? { delegation: opts.delegation } : {}),
   });
   return { flow, fixes, skipped, outbox, outboxRows, sandboxCalls, pulls, runs: recorder.runs };
 }
@@ -110,13 +114,19 @@ describe("correção", () => {
     // Rascunho pronto: o autor recebe Aplicar/Recusar no privado (sem aprovação: é só aviso).
     expect(s.outbox[1]).toMatchObject({ type: "slack.dm", idempotencyKey: "fix_ready_dm:fix1", payload: { personId: "fernando" } });
     expect(JSON.stringify(s.outbox[1]!.payload)).toContain("não é uma aprovação");
-    expect(s.outbox[2]).toMatchObject({ type: "github.merge_fix", approvedBy: "fernando", idempotencyKey: "fix_merge:fix1", payload: { repo: "org/app", number: 45, sha: "d45", base: "ech-128-filtro" } });
-    expect(await s.flow.decide("org", "fernando", "fix1", "approve")).toMatchObject({ status: "refused", reason: "nao_esta_pronta" });
+    expect(s.outbox[2]).toMatchObject({ type: "github.merge_fix", approvedBy: "fernando", approvalSource: "painel", idempotencyKey: "fix_merge:fix1", payload: { repo: "org/app", number: 45, sha: "d45", base: "ech-128-filtro" } });
+    // Segundo clique: já decidida (não "o rascunho mudou"), sem outra união.
+    expect(await s.flow.decide("org", "fernando", "fix1", "approve")).toEqual({ status: "conflict" });
 
     s.outboxRows.set("fix_merge:fix1", { state: "done", result: { merged: true } });
     expect(await s.flow.sync("org")).toEqual({ ready: 0, applied: 1, failed: 0 });
     expect(s.fixes.get("fix1")!.state).toBe("applied");
-    expect(s.runs.map((x) => x.flow)).toEqual(["fix", "fix_ready", "fix_decision", "fix_decision", "fix_decision", "fix_applied"]);
+    // Clique atrasado depois de aplicada, em Aplicar ou em Recusar: continua já decidida.
+    expect(await s.flow.decide("org", "fernando", "fix1", "approve")).toEqual({ status: "conflict" });
+    expect(await s.flow.decide("org", "fernando", "fix1", "decline")).toEqual({ status: "conflict" });
+    expect(s.fixes.get("fix1")!.state).toBe("applied");
+    expect(s.outbox.filter((a) => a.type === "github.merge_fix")).toHaveLength(1);
+    expect(s.runs.map((x) => x.flow)).toEqual(["fix", "fix_ready", "fix_decision", "fix_decision", "fix_decision", "fix_applied", "fix_decision", "fix_decision"]);
   });
 
   it("rascunho que mudou depois de pronto não é unido", async () => {
@@ -138,6 +148,25 @@ describe("correção", () => {
     expect(fixClick(click(FIX_DECLINE_ACTION_ID, id))?.decision).toBe("decline");
     expect(fixClick(click("confirmar_nota", id))).toBeNull();
     expect(fixClick(click(FIX_APPROVE_ACTION_ID, "não é id"))).toBeNull();
+  });
+
+  it("Aplicar no Slack: a união leva a pessoa e a origem para o audit_log; conta sem pessoa é recusada e registrada", async () => {
+    const s = setup();
+    await s.flow.run("org", "rv1");
+    // O rascunho leva os arquivos do PR: o executor confere o diff de novo antes de escrever.
+    expect(s.outbox[0]!.payload).toMatchObject({ prFiles: ["src/filtros.ts"], branch: "echo/fix-pr-44" });
+    s.outboxRows.set("fix_draft:fix1", { state: "done", result: { number: 45, headSha: "d45" } });
+    await s.flow.sync("org");
+    s.pulls.set(45, { state: "open", headSha: "d45" });
+    const click = (user: string) => ({ type: "block_actions", user: { id: user }, actions: [{ action_id: FIX_APPROVE_ACTION_ID, value: "00000000-0000-4000-8000-000000000001" }] });
+
+    const before = s.runs.length;
+    expect(await s.flow.decideFromSlack("org", click("UOUTRO"))).toEqual({ status: "denied" });
+    expect(s.runs.slice(before)).toMatchObject([{ flow: "fix_decision", result: "refused", error: "conta do Slack sem pessoa no Echo" }]);
+
+    // O id do botão é um uuid; o store falso usa "fix1", então a decisão vai direto pelo fluxo com a origem Slack.
+    expect(await s.flow.decide("org", "fernando", "fix1", "approve", { via: "pessoa" }, "slack")).toEqual({ status: "approved" });
+    expect(s.outbox.find((a) => a.type === "github.merge_fix")).toMatchObject({ approvedBy: "fernando", approvalSource: "slack" });
   });
 
   it("diff com arquivo fora do PR ou de CI é recusado, sem rascunho", async () => {
@@ -191,5 +220,85 @@ describe("fix.json e texto do rascunho", () => {
     expect(body).toContain("Testes relatados pelo agente: não foram rodados. A CI deste rascunho confirma o resultado.");
     expect(body).toContain("versão abcdef1. Powered by Claude.");
     expect(body).not.toMatch(/agente de|resumo/i);
+  });
+});
+
+describe("correção pela delegação escrita do autor", () => {
+  const judge = (raw: unknown, seen: string[] = []): DelegationModel => ({
+    model: "qwen3:4b-instruct",
+    classify: async (req) => {
+      seen.push(req.user);
+      if (raw instanceof Error) throw raw;
+      return { raw, inputTokens: 300, outputTokens: 20 };
+    },
+  });
+  const deleg = (model: DelegationModel, text: string | null = "Pode unir correções pequenas da revisão noturna no meu PR quando os testes passarem."): FixDelegationDeps => ({
+    judge: model,
+    timeoutMs: 1000,
+    of: async (_org, id) => (id === "fernando" ? { name: "Fernando", text, updatedAt: new Date("2026-11-08T12:00:00Z") } : null),
+  });
+  async function ready(s: ReturnType<typeof setup>) {
+    await s.flow.run("org", "rv1");
+    s.outboxRows.set("fix_draft:fix1", { state: "done", result: { number: 45, headSha: "d45" } });
+    s.pulls.set(45, { state: "open", headSha: "d45" });
+    return s.flow.sync("org");
+  }
+
+  it("cabe na delegação: une pela mesma conferência, registra como do autor pela delegação e avisa com o motivo", async () => {
+    const seen: string[] = [];
+    const s = setup({ delegation: deleg(judge({ cabe: true, motivo: "A delegação libera correção pequena com testes passando." }, seen)) });
+    await ready(s);
+    expect(s.fixes.get("fix1")).toMatchObject({ state: "approved", decidedBy: "fernando", via: { via: "delegacao", note: "Unida pela sua delegação de 2026-11-08: A delegação libera correção pequena com testes passando." } });
+    expect(s.outbox.find((a) => a.type === "github.merge_fix")).toMatchObject({ approvedBy: "fernando", approvalSource: "delegacao", payload: { number: 45, sha: "d45" } });
+    // Unida pela delegação: nada de Aplicar/Recusar para uma correção já unida.
+    expect(s.outbox.some((a) => a.idempotencyKey === "fix_ready_dm:fix1")).toBe(false);
+    const dm = s.outbox.find((a) => a.type === "slack.dm")!;
+    expect(dm).toMatchObject({ idempotencyKey: "fix_delegated:fix1", payload: { personId: "fernando" } });
+    expect((dm.payload as { text: string }).text).toMatch(/^Agente de Fernando: a correção do PR #44 \(org\/app\) foi unida pela sua delegação de 2026-11-08\..*Para desfazer/);
+    expect(s.runs.find((r) => r.flow === "fix_delegation")).toMatchObject({ result: "ok", model: "qwen3:4b-instruct", costUsd: 0, inputTokens: 300 });
+    // O juiz vê só a delegação e fatos estruturados: nada do diff nem dos achados.
+    expect(seen[0]).toContain("Pode unir correções pequenas");
+    expect(seen[0]).toContain('"arquivos":["src/filtros.ts"]');
+    expect(seen[0]).not.toContain("SELECT");
+  });
+
+  it("não cabe, juiz fora ou saída inválida: fica com o autor, com a nota do porquê", async () => {
+    for (const [raw, note] of [
+      [{ cabe: false, motivo: "A delegação pede para ser consultada em mudanças de consulta ao banco." }, "Ficou com você: A delegação pede para ser consultada"],
+      [new Error("ollama 503: erro"), "Ficou com você: o juiz não respondeu (ollama 503: erro)"],
+      [{ cabe: "sim" }, "Ficou com você: o juiz não respondeu (saída fora do formato)"],
+    ] as const) {
+      const s = setup({ delegation: deleg(judge(raw)) });
+      await ready(s);
+      expect(s.fixes.get("fix1")!.state).toBe("ready");
+      expect(s.fixes.get("fix1")!.note).toContain(note);
+      expect(s.outbox.some((a) => a.type === "github.merge_fix" || a.idempotencyKey === "fix_delegated:fix1")).toBe(false);
+      // Ficou com o autor: ele recebe o Aplicar/Recusar de sempre.
+      expect(s.outbox.some((a) => a.idempotencyKey === "fix_ready_dm:fix1")).toBe(true);
+    }
+  });
+
+  it("travas antes do juiz: teste que não passou não chega ao modelo; sem delegação escrita, nada acontece", async () => {
+    const seen: string[] = [];
+    const s = setup({ delegation: deleg(judge({ cabe: true, motivo: "ok" }, seen)), sandbox: { fixJson: { ...REPORT, testes: { comando: "pnpm test", resultado: "falhou" } } } });
+    await ready(s);
+    expect(seen).toEqual([]);
+    expect(s.fixes.get("fix1")).toMatchObject({ state: "ready", note: "Ficou com você: testes falharam." });
+
+    const none = setup({ delegation: deleg(judge({ cabe: true, motivo: "ok" }, seen), null) });
+    await ready(none);
+    expect(none.fixes.get("fix1")!.state).toBe("ready");
+    expect(none.fixes.get("fix1")!.note).toBeUndefined();
+    expect(none.runs.some((r) => r.flow === "fix_delegation")).toBe(false);
+  });
+
+  it("delegação cobre, mas o rascunho mudou: a conferência do painel recusa e fica com o autor", async () => {
+    const s = setup({ delegation: deleg(judge({ cabe: true, motivo: "ok" })) });
+    await s.flow.run("org", "rv1");
+    s.outboxRows.set("fix_draft:fix1", { state: "done", result: { number: 45, headSha: "d45" } });
+    s.pulls.set(45, { state: "open", headSha: "outro" });
+    await s.flow.sync("org");
+    expect(s.fixes.get("fix1")).toMatchObject({ state: "ready" });
+    expect(s.fixes.get("fix1")!.note).toContain("conferência do rascunho recusou (rascunho_mudou)");
   });
 });
