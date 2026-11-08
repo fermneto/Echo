@@ -74,6 +74,25 @@ describe("GitHub App", () => {
     expect(calls.at(-1)!.auth).toBe("Bearer ghs_1");
   });
 
+  it("diff do PR para a revisão noturna: head, arquivos paginados, renomeado e arquivo sem patch", async () => {
+    const page1 = Array.from({ length: 100 }, (_, i) => ({ filename: `f${i}.ts`, additions: 1, deletions: 0, patch: "@@ -0,0 +1 @@\n+x" }));
+    const f = fakeFetch({
+      "POST /app/installations/9/access_tokens": () => Response.json({ token: "t", expires_at: new Date(NOW + 3600_000).toISOString() }),
+      "GET /repos/a/b/pulls/5": () => Response.json({ head: { sha: "abc123" } }),
+      "GET /repos/a/b/pulls/5/files*": ({ path }) =>
+        Response.json(/[?&]page=1$/.test(path) ? page1 : [{ filename: "src/novo.ts", previous_filename: "src/velho.ts", additions: 2, deletions: 1, patch: "@@ -1 +1,2 @@\n-a\n+b\n+c" }, { filename: "logo.png", additions: 0, deletions: 0 }]),
+    });
+    const gh = new GithubApp({ appId: "1", privateKey, fetch: f.fetch, now: () => NOW }).forInstallation("9");
+    const diff = await gh.getPullRequestDiff("a/b", 5);
+    expect(diff!.headSha).toBe("abc123");
+    expect(diff!.files).toHaveLength(102);
+    expect(diff!.files[100]).toEqual({ path: "src/novo.ts", additions: 2, deletions: 1 });
+    expect(diff!.patch).toContain("diff --git a/src/velho.ts b/src/novo.ts\n--- a/src/velho.ts\n+++ b/src/novo.ts\n@@ -1 +1,2 @@\n-a\n+b\n+c\n");
+    expect(diff!.patch).toContain("+++ b/logo.png\n(diff não disponível");
+    expect(diff!.totalChars).toBe(diff!.patch.length);
+    expect(await gh.getPullRequestDiff("a/b", 6)).toBeNull();
+  });
+
   it("404 vira null; último commit e PR pela branch", async () => {
     const { gh } = setup();
     expect(await gh.getPullRequest("org-teste/app", 7)).toBeNull();

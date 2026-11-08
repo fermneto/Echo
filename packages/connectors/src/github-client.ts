@@ -176,6 +176,14 @@ export interface PullRequestHistory {
   reviews: { login: string; isBot: boolean; at: Date }[];
 }
 
+/** Diff de um PR (mesma forma de `PrDiff` em @echo/agents). */
+export interface PullRequestDiff {
+  headSha: string;
+  files: { path: string; additions: number; deletions: number }[];
+  totalChars: number;
+  patch: string;
+}
+
 /** PRs com até 3.000 arquivos: acima disso o GitHub corta e a análise automática não roda. */
 const MAX_FILE_PAGES = 30;
 
@@ -210,6 +218,33 @@ export class GithubCodeHost implements CodeHost, CodeWriter, RepoFiles {
     }
     // mergeable pode vir nulo enquanto o GitHub calcula: o agente diz "ainda em cálculo", sem afirmar.
     return { ...toPr(repo, pr), files, mergeable: typeof pr.mergeable === "boolean" ? pr.mergeable : null };
+  }
+
+  /**
+   * Diff do PR para a revisão noturna: versão (head), arquivos com linhas mudadas e o diff unificado montado
+   * a partir de cada arquivo. Arquivo sem `patch` (binário ou grande demais para o GitHub) entra só com o
+   * cabeçalho. `totalChars` é o tamanho sem cortar: o filtro de tamanho da revisão decide com ele.
+   */
+  async getPullRequestDiff(repo: string, number: number): Promise<PullRequestDiff | null> {
+    const pr = await this.getOrNull<{ head?: { sha?: string } }>(`/repos/${repo}/pulls/${number}`);
+    const headSha = pr?.head?.sha;
+    if (!headSha) return null;
+    const files: PullRequestDiff["files"] = [];
+    const parts: string[] = [];
+    for (let page = 1; page <= MAX_FILE_PAGES; page++) {
+      const { data } = await this.get<{ filename: string; previous_filename?: string; additions: number; deletions: number; patch?: string }[]>(
+        `/repos/${repo}/pulls/${number}/files?per_page=100&page=${page}`,
+      );
+      for (const f of data) {
+        files.push({ path: f.filename, additions: f.additions ?? 0, deletions: f.deletions ?? 0 });
+        const from = f.previous_filename ?? f.filename;
+        const header = `diff --git a/${from} b/${f.filename}\n--- a/${from}\n+++ b/${f.filename}\n`;
+        parts.push(header + (f.patch !== undefined ? `${f.patch}\n` : "(diff não disponível: arquivo binário ou grande demais)\n"));
+      }
+      if (data.length < 100) break;
+    }
+    const patch = parts.join("");
+    return { headSha, files, totalChars: patch.length, patch };
   }
 
   async findPullRequestByBranch(repo: string, branch: string): Promise<ExternalPullRequest | null> {
