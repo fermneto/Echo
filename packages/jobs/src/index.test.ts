@@ -41,4 +41,26 @@ describe.skipIf(!url)("PgBossQueue (Postgres real)", () => {
     await queue.send<PingMessage>(QUEUES.reviewerPing, { from: "teste", sentAt: new Date().toISOString(), nonce });
     await expect(received).resolves.toMatchObject({ from: "teste", nonce });
   }, 20_000);
+
+  it("singletonKey sozinha não recusa repetida; com singletonSeconds, a janela recusa até de outro processo e depois de terminar", async () => {
+    const name = `teste.singleton.${randomUUID().slice(0, 8)}`;
+    const key = randomUUID();
+    expect(await queue.send(name, {}, { singletonKey: key })).not.toBeNull();
+    expect(await queue.send(name, {}, { singletonKey: key })).not.toBeNull();
+
+    const other = new PgBossQueue(url!, { pollingIntervalSeconds: 0.5 });
+    await other.start();
+    try {
+      const day = { singletonKey: `${key}:dia`, singletonSeconds: 86_400 };
+      const ids = await Promise.all([queue.send(name, {}, day), other.send(name, {}, day)]);
+      expect(ids.filter(Boolean)).toHaveLength(1);
+      const done = new Promise<void>((resolve) => void other.work(name, async () => resolve()));
+      await done;
+      await new Promise((r) => setTimeout(r, 500));
+      expect(await queue.send(name, {}, day)).toBeNull();
+      expect(await queue.send(name, {}, { singletonKey: `${key}:outra`, singletonSeconds: 86_400 })).not.toBeNull();
+    } finally {
+      await other.stop();
+    }
+  }, 30_000);
 });

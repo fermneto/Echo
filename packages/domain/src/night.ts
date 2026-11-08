@@ -1,5 +1,6 @@
 // Regras da noite e da manhã (etapa 9, F4 e F5). Puras: recebem `now`, sem relógio, rede nem modelo.
 // O filtro decide quais PRs vão para o lote; o plano da manhã sai inteiro daqui, com motivo escrito por regra.
+import { FIX_RULES } from "./fix.ts";
 import { isAway } from "./rules.ts";
 import { addDays, DAY, HOUR, localDate, MINUTE, weekdayOf, zonedTime } from "./time.ts";
 import type { Absence, Person, PullRequest, Task } from "./types.ts";
@@ -37,15 +38,24 @@ export interface PrDiffSummary {
 
 export type ReviewDecision =
   | { action: "review"; model: "sonnet" | "opus"; reason: string }
-  | { action: "skip"; reason: "rascunho" | "fechado" | "sem_mudanca" | "ja_revisado" }
+  | { action: "skip"; reason: "rascunho" | "correcao_do_echo" | "fechado" | "sem_mudanca" | "ja_revisado" }
   | { action: "too_large"; reason: string };
 
 /**
- * Pula rascunho, PR fechado, PR sem mudança e versão (head) já revisada. PR grande demais não vai para o
- * lote: recebe o aviso de que não houve análise. Sensível (caminhos de risco) ou grande vai para o Opus.
+ * PR de correção aberto pelo próprio Echo (branch `echo/fix-pr-N`). Não passa pela revisão noturna: é o código
+ * que o Echo escreveu a partir dos próprios achados, e o modelo não revisa o que gerou. Depois que o autor
+ * aprova, a correção entra na branch do PR original, que muda de versão e é revisado de novo.
  */
-export function reviewDecision(pr: Pick<PullRequest, "state">, diff: PrDiffSummary, reviewedShas: readonly string[]): ReviewDecision {
+export const isEchoFixBranch = (branch: string | undefined) => Boolean(branch?.startsWith(FIX_RULES.branchPrefix));
+
+/**
+ * Pula rascunho, correção do Echo, PR fechado, PR sem mudança e versão (head) já revisada. PR grande demais
+ * não vai para o lote: recebe o aviso de que não houve análise. Sensível (caminhos de risco) ou grande vai
+ * para o Opus.
+ */
+export function reviewDecision(pr: Pick<PullRequest, "state"> & { branch?: string | undefined }, diff: PrDiffSummary, reviewedShas: readonly string[]): ReviewDecision {
   if (pr.state === "draft") return { action: "skip", reason: "rascunho" };
+  if (isEchoFixBranch(pr.branch)) return { action: "skip", reason: "correcao_do_echo" };
   if (pr.state !== "open") return { action: "skip", reason: "fechado" };
   if (reviewedShas.includes(diff.headSha)) return { action: "skip", reason: "ja_revisado" };
   const changed = diff.files.reduce((s, f) => s + f.additions + f.deletions, 0);

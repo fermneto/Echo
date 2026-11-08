@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyPlanEdits, applyTriage, instructionInPatch, morningDue, morningPlan, type PrDiffSummary, reviewDecision, type TriageAnswers, triageLevel } from "./night.ts";
+import { applyPlanEdits, applyTriage, instructionInPatch, isEchoFixBranch, morningDue, morningPlan, type PrDiffSummary, reviewDecision, type TriageAnswers, triageLevel } from "./night.ts";
 import { DAY, HOUR } from "./time.ts";
 import type { Person, PullRequest, Task } from "./types.ts";
 
@@ -14,6 +14,15 @@ describe("reviewDecision", () => {
     expect(reviewDecision({ state: "open" }, diff([]), [])).toEqual({ action: "skip", reason: "sem_mudanca" });
     expect(reviewDecision({ state: "open" }, diff([["a.ts", 0]]), [])).toEqual({ action: "skip", reason: "sem_mudanca" });
     expect(reviewDecision({ state: "open" }, diff([["a.ts", 3]]), ["abc"])).toEqual({ action: "skip", reason: "ja_revisado" });
+  });
+
+  it("pula a correção que o próprio Echo abriu, mesmo fora de rascunho", () => {
+    expect(reviewDecision({ state: "open", branch: "echo/fix-pr-1" }, diff([["src/a.ts", 3]]), [])).toEqual({ action: "skip", reason: "correcao_do_echo" });
+    expect(reviewDecision({ state: "draft", branch: "echo/fix-pr-1" }, diff([["src/a.ts", 3]]), [])).toEqual({ action: "skip", reason: "rascunho" });
+    // Só o prefixo exato da branch de correção: branch de pessoa com "echo" no nome segue revisada.
+    expect(reviewDecision({ state: "open", branch: "fix/echo-pr-1" }, diff([["src/a.ts", 3]]), [])).toMatchObject({ action: "review" });
+    expect(reviewDecision({ state: "open", branch: "feat/echo/fix-pr-1" }, diff([["src/a.ts", 3]]), [])).toMatchObject({ action: "review" });
+    expect([isEchoFixBranch("echo/fix-pr-12"), isEchoFixBranch(undefined), isEchoFixBranch("echo/fix")]).toEqual([true, false, false]);
   });
 
   it("grande demais: arquivos, linhas ou tamanho do diff", () => {
