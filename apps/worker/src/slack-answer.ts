@@ -1,7 +1,7 @@
 // F2 no Slack: da mensagem que entrou pelo webhook até a resposta no tópico.
 // O status do Slack é lido só na menção e nunca gravado; a pergunta é reservada para não sair duas vezes.
-import type { AnswerRequest, AnswerResult } from "@echo/agents";
-import { answerBlocks, respondToInteraction, SLACK_ACTIONS, type ChatMessage, type ChatPlatform } from "@echo/connectors";
+import { agentLabel as labelFor, detectLanguage, type AnswerRequest, type AnswerResult, type Lang } from "@echo/agents";
+import { answerBlocks, REPLY_TEXT, respondToInteraction, SLACK_ACTIONS, type ChatMessage, type ChatPlatform } from "@echo/connectors";
 import { absences, asSystem, identities, people, questions, withOrg, type Database } from "@echo/db";
 import { avatarKey, digestKind, digestLine, isAway, parseAvatarTraits, proposalCitation, SPRITE_VERSION, traitsFromSeed } from "@echo/domain";
 import type { Logger } from "@echo/observability";
@@ -147,17 +147,20 @@ export async function handleSlackMessage(d: SlackAnswerDeps, job: { orgId: strin
   );
   if (!claimed) return "duplicate";
 
-  const agentLabel = owner ? `Agente de ${owner.name.split(" ")[0]}` : "Echo";
+  // Idioma da pergunta, só para o aviso de espera; a resposta traz o idioma que o agente usou.
+  const asked = detectLanguage(text).lang;
+  const agentLabel = labelFor(owner ? owner.name.split(" ")[0] : undefined, asked);
   // Aviso temporário no tópico, apagado depois da resposta (mensagem efêmera não pode ser apagada pelo bot).
   const threadTs = m.threadTs ?? m.ts;
   const iconUrl = agentIconUrl(d.webUrl, orgId, owner);
   const icon = iconUrl ? { iconUrl } : {};
-  const notice = (await d.chat.postNotice?.({ channel: m.channel, threadTs, agentName: agentLabel, text: `_${agentLabel} consultando os registros…_`, ...icon }).catch(() => null)) ?? null;
+  const notice = (await d.chat.postNotice?.({ channel: m.channel, threadTs, agentName: agentLabel, text: `_${REPLY_TEXT[asked].looking(agentLabel)}_`, ...icon }).catch(() => null)) ?? null;
 
   try {
     const r = await d.answer({ orgId, askerId: asker.id, ...(owner ? { ownerId: owner.id } : {}), text, channel: "slack" });
-    const body = [r.text, ...r.warnings.map((w) => `_Aviso: ${w}_`)].join("\n\n");
-    const blocks = answerBlocks({ text: body, sources: r.sources, questionId: claimed.id });
+    const lang = r.language ?? asked;
+    const body = [r.text, ...r.warnings.map((w) => `_${REPLY_TEXT[lang].warning}: ${w}_`)].join("\n\n");
+    const blocks = answerBlocks({ text: body, sources: r.sources, questionId: claimed.id, lang });
     await d.chat.postAgentReply({ channel: m.channel, threadTs, agentName: r.agentName, text: body, ...(blocks ? { blocks } : {}), ...icon });
     await withOrg(d.db, orgId, (tx) =>
       tx
@@ -228,10 +231,22 @@ export async function giveUpStaleQuestions(d: { db: Database; chat: ChatPlatform
 }
 
 /** A mensagem original sem os botões, com a avaliação no rodapé. */
-function ratedBlocks(original: unknown, helpful: boolean): unknown[] {
+function ratedBlocks(original: unknown, helpful: boolean, lang: Lang): unknown[] {
+  const t = REPLY_TEXT[lang];
   const blocks = Array.isArray(original) ? original.filter((b) => (b as { type?: string })?.type !== "actions") : [];
-  return [...blocks, { type: "context", elements: [{ type: "mrkdwn", text: `Avaliada por quem perguntou: *${helpful ? "Resolveu" : "Não resolveu"}*` }] }];
+  return [...blocks, { type: "context", elements: [{ type: "mrkdwn", text: `${t.rated}: *${helpful ? t.helpful : t.notHelpful}*` }] }];
 }
+
+/** Idioma da resposta avaliada, pelo rótulo do botão clicado (os botões saem no idioma da conversa). */
+function clickedLang(label: unknown): Lang {
+  for (const l of ["en", "es"] as const) if (label === REPLY_TEXT[l].helpful || label === REPLY_TEXT[l].notHelpful) return l;
+  return "pt";
+}
+const CLICK_TEXT: Record<Lang, { notAsker: string; recorded: string; already: string }> = {
+  pt: { notAsker: "Só quem perguntou pode avaliar esta resposta.", recorded: "Avaliação registrada. Obrigado.", already: "Esta resposta já foi avaliada." },
+  en: { notAsker: "Only the person who asked can rate this answer.", recorded: "Rating recorded. Thank you.", already: "This answer has already been rated." },
+  es: { notAsker: "Solo quien preguntó puede evaluar esta respuesta.", recorded: "Evaluación registrada. Gracias.", already: "Esta respuesta ya fue evaluada." },
+};
 
 /**
  * Botões Resolveu / Não resolveu: só quem perguntou avalia, e uma vez só.
@@ -268,11 +283,13 @@ export async function handleSlackInteraction(
   const outcome = rows.length > 0 ? "recorded" : isAsker ? "already_rated" : "not_asker";
   const url = job.payload.response_url;
   if (typeof url === "string") {
+    const lang = clickedLang(action?.text?.text);
+    const said = CLICK_TEXT[lang];
     const final = outcome === "recorded" ? helpful : (q?.resolved ?? null);
     const body =
       outcome !== "not_asker" && final !== null && Array.isArray(job.payload.message?.blocks)
-        ? { replace_original: true, text: job.payload.message.text ?? "", blocks: ratedBlocks(job.payload.message.blocks, final) }
-        : { replace_original: false, response_type: "ephemeral", text: outcome === "not_asker" ? "Só quem perguntou pode avaliar esta resposta." : outcome === "recorded" ? "Avaliação registrada. Obrigado." : "Esta resposta já foi avaliada." };
+        ? { replace_original: true, text: job.payload.message.text ?? "", blocks: ratedBlocks(job.payload.message.blocks, final, lang) }
+        : { replace_original: false, response_type: "ephemeral", text: outcome === "not_asker" ? said.notAsker : outcome === "recorded" ? said.recorded : said.already };
     await (d.respond ?? respondToInteraction)(url, body).catch((err) => d.log.warn({ err: String(err) }, "falha ao responder o clique"));
   }
   return outcome;

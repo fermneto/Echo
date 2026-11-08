@@ -10,8 +10,10 @@ import type { AgentRun, RunRecorder } from "@echo/observability";
 import { modelCostUsd, type Usage } from "./cost.ts";
 import type { AgentData } from "./data.ts";
 import { type AnswerOutput, answerOutputSchema, type AnswerRequest, type AnswerResult, LIMITS, MODELS, type ValidationIssue } from "./index.ts";
+import { agentLabel, detectLanguage, type Lang, LOCALE } from "./language.ts";
 import { ANSWER_OUTPUT_JSON_SCHEMA, ANSWER_SYSTEM, questionMessage } from "./prompt.ts";
-import { ECHO_PAUSED, forbiddenRequest, ruleAnswer } from "./rule-answer.ts";
+import { type RouterModel, routeQuestion } from "./route.ts";
+import { echoPaused, forbiddenRequest, ruleAnswer } from "./rule-answer.ts";
 import { firstName, newRunState, runTool, type ToolContext, toolsFor } from "./tools.ts";
 import { validateAnswer } from "./validator.ts";
 import { isWhoKnowsQuestion, modelTerms, topicPhrase, whoKnowsOutput } from "./who-knows.ts";
@@ -33,7 +35,15 @@ export interface AnswerDeps {
   limits?: Partial<{ maxRounds: number; timeoutMs: number }>;
   /** Ensaio de dia (DEMO_ALWAYS_AWAY): o dono é tratado como ausente, com a volta no próximo expediente. */
   alwaysAway?: boolean;
+  /**
+   * Roteador de custo: consulta simples ao gêmeo sai por regra, sem o Sonnet. Sem `sslm`, só a regra decide.
+   * Sem `router`, toda pergunta vai ao modelo (como antes).
+   */
+  router?: { sslm?: RouterModel | null; timeoutMs?: number };
 }
+
+/** Tempo máximo do SSLM do roteador; passou disso, a pergunta segue para o Sonnet. */
+export const ROUTER_TIMEOUT_MS = 8_000;
 
 /** No expediente, a volta "de ensaio" é o próximo início de expediente depois do fim de hoje. */
 function rehearsalAway(owner: Parameters<typeof isAway>[0], absences: Parameters<typeof isAway>[1], now: Date): AwayResult {
@@ -42,6 +52,63 @@ function rehearsalAway(owner: Parameters<typeof isAway>[0], absences: Parameters
     if (later.away) return { away: true, reason: "off_hours", ...(later.returnsAt ? { returnsAt: later.returnsAt } : {}) };
   }
   return { away: true, reason: "off_hours" };
+}
+
+/**
+ * Idioma da conversa: o da pergunta; sem sinal na pergunta ("ech-131?"), o da conversa anterior; senão, português.
+ */
+export function conversationLanguage(req: Pick<AnswerRequest, "text" | "thread">): Lang {
+  const own = detectLanguage(req.text);
+  if (own.lang !== "pt" || own.confident) return own.lang;
+  const before = detectLanguage((req.thread ?? []).slice(-4).map((m) => m.text).join("\n"));
+  return before.confident ? before.lang : own.lang;
+}
+
+/** Avisos que o código acrescenta, no idioma da conversa. */
+const WARN: Record<Lang, { unconfirmed: (date: string, owner: string) => string; rule: (why: string) => string; why: Record<"model" | "limit", string>; paused: string; terms: string }> = {
+  pt: {
+    unconfirmed: (d, o) => `nota do dia de ${d} não confirmada por ${o}`,
+    rule: (w) => `resposta por regra: ${w}`,
+    why: { model: "modelo indisponível", limit: "limite de custo do mês" },
+    paused: "perguntas livres pausadas pelo limite de custo",
+    terms: "termos de busca por regra: modelo indisponível",
+  },
+  en: {
+    unconfirmed: (d, o) => `daily note from ${d} not confirmed by ${o}`,
+    rule: (w) => `rule-based answer: ${w}`,
+    why: { model: "model unavailable", limit: "monthly cost limit" },
+    paused: "free questions paused by the cost limit",
+    terms: "rule-based search terms: model unavailable",
+  },
+  es: {
+    unconfirmed: (d, o) => `nota del día de ${d} no confirmada por ${o}`,
+    rule: (w) => `respuesta por regla: ${w}`,
+    why: { model: "modelo no disponible", limit: "límite de costo del mes" },
+    paused: "preguntas libres pausadas por el límite de costo",
+    terms: "términos de búsqueda por regla: modelo no disponible",
+  },
+};
+
+/** Rótulos das fontes (escritos em português pelas ferramentas) no idioma da conversa. */
+const SOURCE_LABEL: { re: RegExp; en: (...m: string[]) => string; es: (...m: string[]) => string }[] = [
+  { re: /^nota do dia de (.+), (\S+) \(confirmada\)$/, en: (n, d) => `${n}'s daily note, ${d} (confirmed)`, es: (n, d) => `nota del día de ${n}, ${d} (confirmada)` },
+  { re: /^nota do dia de (.+), (\S+) \(publicada sem conferência\)$/, en: (n, d) => `${n}'s daily note, ${d} (published without review)`, es: (n, d) => `nota del día de ${n}, ${d} (publicada sin revisión)` },
+  { re: /^tarefa (.+)$/, en: (k) => `task ${k}`, es: (k) => `tarea ${k}` },
+  { re: /^nota (.+)$/, en: (p) => `note ${p}`, es: (p) => `nota ${p}` },
+  { re: /^cadastro da equipe$/, en: () => "team roster", es: () => "registro del equipo" },
+  { re: /^fatos do trabalho de (.+) \(últimos (\d+) dias\)$/, en: (n, d) => `${n}'s work facts (last ${d} days)`, es: (n, d) => `hechos del trabajo de ${n} (últimos ${d} días)` },
+  { re: /^fatos do trabalho \(últimos (\d+) dias\)$/, en: (d) => `work facts (last ${d} days)`, es: (d) => `hechos del trabajo (últimos ${d} días)` },
+  { re: /^métricas da semana de (.+) \(regra\)$/, en: (n) => `${n}'s weekly metrics (rule)`, es: (n) => `métricas de la semana de ${n} (regla)` },
+  { re: /^carga da equipe \(regra\)$/, en: () => "team load (rule)", es: () => "carga del equipo (regla)" },
+  { re: /^cartões de capacidade \(regra\)$/, en: () => "capacity cards (rule)", es: () => "tarjetas de capacidad (regla)" },
+];
+export function sourceLabel(label: string, lang: Lang): string {
+  if (lang === "pt") return label;
+  for (const r of SOURCE_LABEL) {
+    const m = r.re.exec(label);
+    if (m) return r[lang](...m.slice(1));
+  }
+  return label;
 }
 
 /** Recusa por política com reencaminhamento automático no servidor (refusals-and-fallback). */
@@ -88,28 +155,30 @@ export function createAnswer(deps: AnswerDeps): (req: AnswerRequest) => Promise<
       if (req.ownerId && !owner) throw new Error("dono do agente não pertence a esta empresa");
 
       const ownerName = owner ? firstName(owner) : undefined;
+      const lang = conversationLanguage(req);
+      const warn = WARN[lang];
       const real: AwayResult | undefined = owner ? isAway(owner, absences, now) : undefined;
       const away: AwayResult | undefined = owner && real && !real.away && deps.alwaysAway ? rehearsalAway(owner, absences, now) : real;
       const ownerNote = owner ? await data.latestDailyNote(owner.id) : null;
       const ctx: ToolContext = { data, brain: deps.brain(req.orgId), now, asker, owner, settings, people, absences, state };
 
       const warnings: string[] = [];
-      if (ownerNote && ownerNote.state !== "confirmed") warnings.push(`nota do dia de ${ownerNote.date} não confirmada por ${ownerName}`);
+      if (ownerNote && ownerNote.state !== "confirmed") warnings.push(warn.unconfirmed(ownerNote.date, ownerName!));
 
       // Teto de custo: 100% pausa a pergunta livre e quem está disponível; 200% tira a IA de todos.
       const monthStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
       const level = costLevel(await data.spentUsdSince(monthStart), settings.monthlyLimitUsd);
       let ruleReason: string | undefined;
-      if (!deps.model) ruleReason = "modelo indisponível";
-      else if (level === "hard_limit") ruleReason = "limite de custo do mês";
-      else if (level === "rules_only" && !(away?.away ?? false)) ruleReason = "limite de custo do mês";
+      if (!deps.model) ruleReason = warn.why.model;
+      else if (level === "hard_limit") ruleReason = warn.why.limit;
+      else if (level === "rules_only" && !(away?.away ?? false)) ruleReason = warn.why.limit;
 
       const finish = async (out: AnswerOutput, usedModel: boolean, result: AgentRun["result"], extraWarning?: string, error?: string): Promise<AnswerResult> => {
         if (extraWarning) warnings.push(extraWarning);
         const kind = flow === "quem_sabe" ? "quem_sabe" : owner ? "gemeo" : "livre";
         // Acima do dobro do limite, a resposta por regra não conta nos ganhos: sem a volta gravada.
         const countsForGains = !(ruleReason && level === "hard_limit");
-        const final = compose({ out, agentName: owner ? `Agente de ${ownerName}` : "Echo", ownerName, away, countsForGains, askerTz: asker.timezone, ctx, usedModel, warnings, kind, question: req.text });
+        const final = compose({ out, agentName: agentLabel(ownerName, lang), ownerName, away, countsForGains, askerTz: asker.timezone, ctx, usedModel, warnings, kind, question: req.text, lang });
         await record({
           result,
           ...(usedModel || stats.usage.input > 0
@@ -121,7 +190,7 @@ export function createAnswer(deps: AnswerDeps): (req: AnswerRequest) => Promise<
       };
 
       // Aprovar, publicar ou avaliar pessoas: recusa fixa, sem modelo.
-      const forbidden = forbiddenRequest(req.text, ownerName);
+      const forbidden = forbiddenRequest(req.text, ownerName, lang);
       if (forbidden) return finish(forbidden, false, "refused");
 
       // Quem sabe (F9): o modelo só gera termos de busca; pessoas e texto saem das regras e do código.
@@ -146,12 +215,39 @@ export function createAnswer(deps: AnswerDeps): (req: AnswerRequest) => Promise<
         }
         const out = await whoKnowsOutput(ctx, [...new Set(terms)], phrase ?? "esse tema");
         if (usedModel) return finish(out, true, "ok");
-        return finish(out, false, "fallback", failure ? "termos de busca por regra: modelo indisponível" : undefined, failure);
+        return finish(out, false, "fallback", failure ? warn.terms : undefined, failure);
       }
 
       if (ruleReason) {
-        if (level === "rules_only" && !owner && deps.model) return finish(ECHO_PAUSED, false, "fallback", "perguntas livres pausadas pelo limite de custo");
-        return finish(await ruleAnswer(ctx, req.text), false, "fallback", `resposta por regra: ${ruleReason}`);
+        if (level === "rules_only" && !owner && deps.model) return finish(echoPaused(lang), false, "fallback", warn.paused);
+        return finish(await ruleAnswer(ctx, req.text, lang), false, "fallback", warn.rule(ruleReason));
+      }
+
+      // Roteador de custo: consulta de um fato ao gêmeo sai por regra. Se a regra não tiver o fato (não sei)
+      // ou recusar, a pergunta segue para o modelo como sempre, sem as fontes que a regra consultou.
+      if (deps.router) {
+        const t0 = performance.now();
+        const d = await routeQuestion(req, lang, deps.router.sslm, deps.router.timeoutMs ?? ROUTER_TIMEOUT_MS);
+        let routed: AnswerOutput | null = null;
+        if (d.route === "regra") {
+          const before = new Set(state.sources.keys());
+          const out = await ruleAnswer(ctx, req.text, lang);
+          if (out.status === "respondido") routed = out;
+          else for (const k of [...state.sources.keys()]) if (!before.has(k)) state.sources.delete(k);
+        }
+        if (d.route === "regra" || d.by === "sslm") {
+          await deps.recorder.record({
+            flow: "answer_route",
+            orgId: req.orgId,
+            durationMs: Math.round(performance.now() - t0),
+            tools: [d.by],
+            ...(d.by === "sslm" && deps.router.sslm ? { model: deps.router.sslm.model, inputTokens: d.inputTokens ?? 0, outputTokens: d.outputTokens ?? 0, costUsd: 0 } : {}),
+            // ok: o Sonnet não foi chamado; skipped: a pergunta seguiu para o Sonnet, com o motivo.
+            result: routed ? "ok" : "skipped",
+            ...(routed ? {} : { error: d.route === "regra" ? `${d.why}; a regra não tem o fato` : d.why }),
+          });
+        }
+        if (routed) return finish(routed, false, "ok");
       }
 
       const outcome = await modelLoop({
@@ -161,17 +257,18 @@ export function createAnswer(deps: AnswerDeps): (req: AnswerRequest) => Promise<
         ownerName,
         ownerAway: away?.away ?? false,
         today: localDate(now, asker.timezone),
+        lang,
         maxRounds,
         deadline: started + timeoutMs,
         stats,
       });
       if (outcome.kind === "ok") return finish(outcome.out, true, "ok");
-      const fallback = await ruleAnswer(ctx, req.text);
+      const fallback = await ruleAnswer(ctx, req.text, lang);
       if (outcome.kind === "refused") {
         const detail = outcome.issues?.map((i) => `${i.code}: ${i.detail}`).join("; ");
-        return finish(fallback, false, "refused", `resposta por regra: ${outcome.reason}`, detail ?? outcome.reason);
+        return finish(fallback, false, "refused", warn.rule(lang === "pt" ? outcome.reason : outcome.reason === "o modelo recusou a pergunta" ? (lang === "en" ? "the model declined" : "el modelo se negó") : lang === "en" ? "the answer did not pass the safety checks" : "la respuesta no pasó las verificaciones"), detail ?? outcome.reason);
       }
-      return finish(fallback, false, "fallback", "resposta por regra: modelo indisponível", outcome.error);
+      return finish(fallback, false, "fallback", warn.rule(warn.why.model), outcome.error);
     } catch (err) {
       await record({ result: "failed", error: err instanceof Error ? err.message : String(err) });
       throw err;
@@ -186,6 +283,7 @@ async function modelLoop(input: {
   ownerName: string | undefined;
   ownerAway: boolean;
   today: string;
+  lang: Lang;
   maxRounds: number;
   deadline: number;
   stats: LoopStats;
@@ -195,7 +293,7 @@ async function modelLoop(input: {
   const messages: MessageParam[] = [
     {
       role: "user",
-      content: questionMessage({ req: input.req, askerName: firstName(ctx.asker), askerRole: ctx.asker.role, ownerName: input.ownerName, ownerAway: input.ownerAway, today: input.today }),
+      content: questionMessage({ req: input.req, askerName: firstName(ctx.asker), askerRole: ctx.asker.role, ownerName: input.ownerName, ownerAway: input.ownerAway, ownerStyle: ctx.owner?.agentStyle, today: input.today, language: input.lang }),
     },
   ];
   const controller = new AbortController();
@@ -272,6 +370,7 @@ async function modelLoop(input: {
         sourcesThisRun: [...ctx.state.sources.keys()],
         releasedTargets: [...ctx.state.released],
         allowedNumbers: [...ctx.state.numbers],
+        language: input.lang,
       });
       if (issues.length === 0) return { kind: "ok", out: parsed };
       lastIssues = issues;
@@ -311,15 +410,21 @@ function compose(input: {
   /** False acima do dobro do limite: a volta não é gravada e a resposta não entra na espera evitada. */
   countsForGains: boolean;
   question: string;
+  lang: Lang;
 }): AnswerResult {
-  const { out, away, ownerName } = input;
+  const { out, away, ownerName, lang } = input;
   let text = out.texto.trim();
   if (ownerName && away?.away) {
-    text += away.returnsAt ? `\n\n${ownerName} volta ${formatReturn(away.returnsAt, input.askerTz)} (no seu fuso).` : `\n\n${ownerName} está ausente, sem data de volta registrada.`;
+    const when = away.returnsAt ? formatReturn(away.returnsAt, input.askerTz, lang) : null;
+    const line: Record<Lang, string> = when
+      ? { pt: `${ownerName} volta ${when} (no seu fuso).`, en: `${ownerName} is back ${when} (your time zone).`, es: `${ownerName} vuelve ${when} (en tu zona horaria).` }
+      : { pt: `${ownerName} está ausente, sem data de volta registrada.`, en: `${ownerName} is away, with no return date on record.`, es: `${ownerName} está ausente, sin fecha de regreso registrada.` };
+    text += `\n\n${line[lang]}`;
   }
-  const sources = [...new Set(out.fontes)].map((ref) => input.ctx.state.sources.get(ref)).filter((s) => s !== undefined);
+  const sources = [...new Set(out.fontes)].map((ref) => input.ctx.state.sources.get(ref)).filter((s) => s !== undefined).map((s) => ({ ...s, label: sourceLabel(s.label, lang) }));
   return {
     agentName: input.agentName,
+    language: lang,
     text,
     sources,
     needsOwner: out.precisa_do_dono || (out.status === "nao_sei" && !!ownerName),
@@ -332,9 +437,12 @@ function compose(input: {
   };
 }
 
-/** "segunda-feira, 09/11, às 09:00" no fuso de quem pergunta. */
-export function formatReturn(at: Date, timeZone: string): string {
-  const parts = new Intl.DateTimeFormat("pt-BR", { timeZone, weekday: "long", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(at);
+/** "segunda-feira, 09/11, às 09:00" ("on Monday, 11/09, at 09:00"; "el lunes, 09/11, a las 09:00") no fuso de quem pergunta. */
+export function formatReturn(at: Date, timeZone: string, lang: Lang = "pt"): string {
+  const parts = new Intl.DateTimeFormat(LOCALE[lang], { timeZone, weekday: "long", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(at);
   const get = (t: Intl.DateTimeFormatPartTypes) => parts.find((p) => p.type === t)?.value ?? "";
-  return `${get("weekday")}, ${get("day")}/${get("month")}, às ${get("hour")}:${get("minute")}`;
+  const [w, d, m, h, min] = [get("weekday"), get("day"), get("month"), get("hour"), get("minute")];
+  if (lang === "en") return `on ${w}, ${m}/${d}, at ${h}:${min}`;
+  if (lang === "es") return `el ${w}, ${d}/${m}, a las ${h}:${min}`;
+  return `${w}, ${d}/${m}, às ${h}:${min}`;
 }

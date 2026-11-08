@@ -70,7 +70,9 @@ describe("loadConfig", () => {
   });
   it("triagem: URL ou host:porta da Render, modelo e tempo com padrão", () => {
     const base = { DATABASE_URL: DB };
-    expect(loadConfig("worker", base)).toMatchObject({ SLM_MODEL: "qwen3:4b-instruct", TRIAGE_TIMEOUT_MS: 120_000 });
+    expect(loadConfig("worker", base)).toMatchObject({ SLM_MODEL: "qwen3:4b-instruct", TRIAGE_TIMEOUT_MS: 120_000, SSLM_TIMEOUT_MS: 8_000, ANSWER_ROUTER: true });
+    expect(loadConfig("worker", base).SSLM_MODEL).toBeUndefined();
+    expect(loadConfig("worker", { ...base, ANSWER_ROUTER: "false" }).ANSWER_ROUTER).toBe(false);
     expect(loadConfig("worker", base).SLM_OLLAMA_URL).toBeUndefined();
     expect(loadConfig("worker", { ...base, SLM_OLLAMA_URL: "echo-triage-ab12:11434" }).SLM_OLLAMA_URL).toBe("echo-triage-ab12:11434");
     expect(loadConfig("worker", { ...base, SLM_OLLAMA_URL: "http://localhost:11434" }).SLM_OLLAMA_URL).toBe("http://localhost:11434");

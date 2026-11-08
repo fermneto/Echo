@@ -22,7 +22,7 @@ const fail = (m: string): never => {
 if (!env.DATABASE_URL) fail("DATABASE_URL ausente no .env.");
 if (!env.ENCRYPTION_KEY) fail("ENCRYPTION_KEY ausente no .env (openssl rand -hex 32; a mesma da API).");
 const cipher = new TokenCipher(env.ENCRYPTION_KEY!);
-const pool = createPool(env.DATABASE_URL!, 2);
+const pool = createPool(env.DATABASE_URL!, 2, { defaultScope: "system" });
 const db = createDb(pool);
 const [org] = await asSystem(db, (tx) => tx.select().from(orgs).where(eq(orgs.name, env.DEMO_ORG_NAME ?? "Empresa de teste (integrações)")));
 if (!org) fail("Empresa de teste não encontrada: rode antes pnpm integracoes:ligar.");

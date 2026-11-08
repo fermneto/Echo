@@ -86,6 +86,8 @@ const fix = serverFix(db, {
   environmentId: cfg.FIX_ENVIRONMENT_ID,
   timeoutMs: cfg.FIX_TIMEOUT_MS,
   codeHost: async (orgId) => (await githubForOrg(db, platforms, orgId)) ?? null,
+  // Juiz da delegação da correção: o mesmo modelo aberto da triagem. Sem ele, nenhuma correção é unida pela delegação.
+  judge: cfg.SLM_OLLAMA_URL ? { url: cfg.SLM_OLLAMA_URL, model: cfg.SLM_MODEL, timeoutMs: cfg.TRIAGE_TIMEOUT_MS } : undefined,
 });
 interactions.add("correcao", async (job) => {
   const r = await fix.decideFromSlack(job.orgId, job.payload);

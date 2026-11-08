@@ -15,7 +15,11 @@ import { AskPanel } from "@/components/AskPanel";
 import { PixelAvatar } from "@/components/PixelAvatar";
 import { HolderPanel, StatusChip } from "@/components/Status";
 import { RailTrack } from "@/components/TimeRail";
-import { ajustarBonequinho, perguntar, refazerBonequinho, salvarPerfil } from "./actions";
+import { AgentProfileForm } from "@/components/AgentProfileForm";
+import { AGENT_PROFILE_RULES, NEVER_DELEGATED } from "@echo/domain";
+import { loadOwnAgent } from "@/lib/agent-profile-store";
+import { panelDb } from "@/lib/db";
+import { ajustarBonequinho, perguntar, refazerBonequinho, salvarPerfil, salvarPerfilDoAgente } from "./actions";
 import { Bonequinho } from "./Bonequinho";
 import { EditarPerfil } from "./EditarPerfil";
 
@@ -73,6 +77,7 @@ export default async function PessoaPage({ params }: { params: Promise<{ id: str
   const isMe = me.id === persona.id;
   const away = persona.availability.kind !== "working";
   const seesWork = canAskTwin(me.role);
+  const own = isMe ? await loadOwnAgent(me, panelDb()) : null;
   // Só quem foi cadastrado no painel tem o perfil no banco; as personas da demo seguem com o perfil sintético.
   const editable = Boolean(persona.registered) && canEditProfile(me, persona);
   const emptyProfile = Boolean(persona.registered && !persona.jobTitle && persona.skills.length === 0);
@@ -158,6 +163,28 @@ export default async function PessoaPage({ params }: { params: Promise<{ id: str
                 empty={`Pergunte sobre uma branch, uma tarefa ou quando ${persona.name} volta. O agente responde com o que ${persona.name} deixou registrado.`}
                 placeholder={`Por exemplo: onde ${persona.name} parou?`}
                 suggestions={suggestedQuestions(persona)}
+              />
+            </section>
+          )}
+
+          {own && (
+            <section className="card" aria-labelledby="seu-agente">
+              <h2 id="seu-agente" className="card__title">
+                Seu agente
+              </h2>
+              <AgentProfileForm
+                save={salvarPerfilDoAgente}
+                personId={me.id}
+                firstName={persona.name.split(" ")[0] ?? persona.name}
+                style={own.style}
+                delegation={own.delegation}
+                delegationSince={own.delegationAt ? own.delegationAt.toLocaleDateString("pt-BR", { timeZone: persona.timezone }) : null}
+                decisions={own.decisions}
+                timezone={persona.timezone}
+                maxChars={AGENT_PROFILE_RULES.maxChars}
+                never={NEVER_DELEGATED}
+                fixRules={`Mesmo com a delegação, a correção só é unida sozinha com testes passando, até ${AGENT_PROFILE_RULES.delegatedFixMaxFiles} arquivos, fora de autenticação, pagamentos, migrações e infraestrutura, e se o rascunho não mudou. Você recebe o aviso com o motivo e pode desfazer.`}
+                demo={own.demo}
               />
             </section>
           )}

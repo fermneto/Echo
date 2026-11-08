@@ -3207,6 +3207,107 @@ select.field option {
 .search-filter__empty {
   margin: var(--space-xl) 0 0;
   font-size: 14px;
+
+/* Seu agente: estilo e delegação em texto livre (página da própria pessoa) */
+.agent-profile {
+  display: grid;
+  gap: 20px;
+}
+.agent-profile__field {
+  display: grid;
+  gap: 6px;
+}
+.agent-profile__hint {
+  font-size: 13px;
+  line-height: 1.5;
+}
+.agent-profile textarea {
+  width: 100%;
+  min-height: 96px;
+  resize: vertical;
+  padding: 10px 12px;
+  border: 1px solid var(--color-edge);
+  border-radius: var(--rounded-md);
+  background: var(--color-charcoal);
+  color: var(--color-paper);
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.5;
+}
+.agent-profile textarea:focus-visible {
+  outline: 2px solid var(--color-signal-twin);
+  outline-offset: 1px;
+  border-color: transparent;
+}
+.agent-profile textarea:disabled {
+  opacity: 0.6;
+}
+.agent-profile__limits {
+  display: grid;
+  gap: 6px;
+  padding: 12px 14px;
+  border: 1px solid var(--color-line);
+  border-radius: var(--rounded-md);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.agent-profile__limits ul {
+  margin: 0;
+  padding-left: 18px;
+}
+.agent-profile__foot {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+.agent-profile__decisions {
+  display: grid;
+  gap: 8px;
+  padding-top: 16px;
+  border-top: 1px solid var(--color-line);
+}
+.agent-decisions {
+  display: grid;
+  gap: 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.agent-decision {
+  display: grid;
+  gap: 4px;
+  padding: 10px 12px;
+  border: 1px solid var(--color-line);
+  border-left: 2px solid var(--color-iron);
+  border-radius: var(--rounded-md);
+  font-size: 14px;
+  line-height: 1.5;
+}
+.agent-decision.is-unida {
+  border-left-color: var(--color-signal-twin);
+}
+.agent-decision.is-com_voce {
+  border-left-color: var(--color-signal-wait);
+}
+.agent-decision__head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 8px;
+}
+.agent-decision__tag.is-unida {
+  color: var(--color-signal-twin-text);
+}
+.agent-decision__tag.is-com_voce {
+  color: var(--color-signal-wait);
+}
+.agent-decision__when {
+  margin-left: auto;
+  font-size: 12px;
+}
+.agent-decision__state {
+  font-size: 12px;
 }
 
 /* Ficha: editar o perfil de quem foi cadastrado no painel. */
