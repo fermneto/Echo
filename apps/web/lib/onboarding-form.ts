@@ -1,35 +1,13 @@
-import type { AvatarTraits, PersonRole } from "@echo/domain";
+import type { PersonRole } from "@echo/domain";
 import { extractText } from "unpdf";
+import { ROLE_OPTIONS } from "./onboarding-options";
+import { ZONES } from "./zones";
 
 /**
  * Formulário de cadastro do RH (Configuração): validação dos campos e dos arquivos antes do fluxo
  * `onboardPerson`. Currículo e foto ficam só na memória do pedido.
  */
 
-export const ZONES: readonly { tz: string; label: string }[] = [
-  { tz: "America/Sao_Paulo", label: "São Paulo (UTC−3)" },
-  { tz: "America/Fortaleza", label: "Fortaleza (UTC−3)" },
-  { tz: "America/Manaus", label: "Manaus (UTC−4)" },
-  { tz: "America/Mexico_City", label: "Cidade do México (UTC−6)" },
-  { tz: "America/New_York", label: "Nova York (UTC−5)" },
-  { tz: "Europe/Lisbon", label: "Lisboa (UTC+0)" },
-  { tz: "Europe/Berlin", label: "Berlim (UTC+1)" },
-  { tz: "Africa/Lagos", label: "Lagos (UTC+1)" },
-  { tz: "Africa/Johannesburg", label: "Joanesburgo (UTC+2)" },
-  { tz: "Asia/Kolkata", label: "Bangalore (UTC+5:30)" },
-  { tz: "Asia/Singapore", label: "Singapura (UTC+8)" },
-  { tz: "Asia/Tokyo", label: "Tóquio (UTC+9)" },
-  { tz: "Australia/Sydney", label: "Sydney (UTC+10)" },
-];
-
-export const ROLE_OPTIONS: readonly { value: PersonRole; label: string }[] = [
-  { value: "member", label: "Pessoa da equipe" },
-  { value: "leader", label: "Liderança" },
-  { value: "hr", label: "RH" },
-];
-
-export const PHOTO_ACCEPT = "image/png,image/jpeg,image/webp";
-export const RESUME_ACCEPT = ".pdf,.txt,.md,application/pdf,text/plain,text/markdown";
 const PHOTO_TYPES = ["image/png", "image/jpeg", "image/webp"] as const;
 const PHOTO_MAX = 4 * 1024 * 1024;
 const RESUME_MAX = 200 * 1024;
@@ -40,27 +18,12 @@ const HOUR = /^([01]\d|2[0-3]):[0-5]\d$/;
 export type OnboardingFields = {
   name: string;
   role: PersonRole;
+  teamId?: string;
   timezone: string;
   workHours: { days: number[]; start: string; end: string };
   resumeText?: string;
   photo?: { mediaType: (typeof PHOTO_TYPES)[number]; base64: string };
 };
-
-export type CadastroState =
-  | { status: "idle" }
-  | { status: "error"; error: string }
-  | {
-      status: "done";
-      name: string;
-      avatar: AvatarTraits;
-      jobTitle: string | null;
-      skills: string[];
-      areas: string[];
-      languages: string[];
-      /** Frases curtas sobre o que veio do modelo e o que ficou por regra. */
-      notes: string[];
-      saved: boolean;
-    };
 
 const isFile = (v: FormDataEntryValue | null): v is File => typeof v === "object" && v !== null && "arrayBuffer" in v && v.size > 0;
 
@@ -77,14 +40,21 @@ async function pdfText(file: File): Promise<string | null> {
   }
 }
 
-/** Lê e confere o formulário. Devolve o erro em português para a tela, ou os campos prontos para o fluxo. */
-export async function parseOnboardingForm(form: FormData): Promise<{ ok: true; fields: OnboardingFields } | { ok: false; error: string }> {
+/**
+ * Lê e confere o formulário. Devolve o erro em português para a tela, ou os campos prontos para o fluxo.
+ * `teamIds` são as equipes da empresa: quem não é do RH precisa de uma, senão não aparece para ninguém.
+ */
+export async function parseOnboardingForm(form: FormData, teamIds: readonly string[] = []): Promise<{ ok: true; fields: OnboardingFields } | { ok: false; error: string }> {
   const name = String(form.get("nome") ?? "").replace(/\s+/g, " ").trim();
   if (!name) return { ok: false, error: "Escreva o nome da pessoa." };
   if (name.length > 80) return { ok: false, error: "Nome com mais de 80 caracteres." };
 
   const role = String(form.get("papel") ?? "member") as PersonRole;
   if (!ROLE_OPTIONS.some((r) => r.value === role)) return { ok: false, error: "Papel desconhecido." };
+
+  const teamId = String(form.get("equipe") ?? "");
+  if (teamId && !teamIds.includes(teamId)) return { ok: false, error: "Equipe desconhecida." };
+  if (!teamId && role !== "hr" && teamIds.length) return { ok: false, error: "Escolha a equipe da pessoa." };
 
   const timezone = String(form.get("fuso") ?? "");
   if (!ZONES.some((z) => z.tz === timezone)) return { ok: false, error: "Escolha o fuso da pessoa." };
@@ -98,7 +68,7 @@ export async function parseOnboardingForm(form: FormData): Promise<{ ok: true; f
     .filter((d) => Number.isInteger(d) && d >= 0 && d <= 6);
   if (!days.length) return { ok: false, error: "Marque pelo menos um dia de expediente." };
 
-  const fields: OnboardingFields = { name, role, timezone, workHours: { days: [...new Set(days)].sort(), start, end } };
+  const fields: OnboardingFields = { name, role, ...(teamId ? { teamId } : {}), timezone, workHours: { days: [...new Set(days)].sort(), start, end } };
 
   const pasted = String(form.get("curriculo_texto") ?? "").trim();
   const resumeFile = form.get("curriculo");

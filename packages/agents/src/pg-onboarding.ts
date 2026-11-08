@@ -1,7 +1,7 @@
 // Cadastro de pessoa e leitura do bonequinho, sempre em withOrg com filtro explícito de org_id.
-import { type Database, people, withOrg } from "@echo/db";
-import { and, eq } from "drizzle-orm";
-import type { OnboardingStore } from "./onboarding.ts";
+import { auditLog, type Database, people, withOrg } from "@echo/db";
+import { and, eq, isNull } from "drizzle-orm";
+import type { OnboardingStore, ResumeProfile } from "./onboarding.ts";
 
 export function createPgOnboardingStore(db: Database): OnboardingStore {
   return {
@@ -34,4 +34,21 @@ export function createPgOnboardingStore(db: Database): OnboardingStore {
 export async function readAvatar(db: Database, orgId: string, personId: string): Promise<Record<string, string> | null | undefined> {
   const [row] = await withOrg(db, orgId, (tx) => tx.select({ avatar: people.avatar }).from(people).where(and(eq(people.orgId, orgId), eq(people.id, personId))));
   return row ? row.avatar : undefined;
+}
+
+/**
+ * Perfil editado à mão na ficha (cargo, habilidades, áreas e idiomas), já validado por `cleanProfile`.
+ * Grava quem editou em `audit_log`. Devolve false se a pessoa não é da empresa ou está desligada.
+ */
+export async function updateProfile(db: Database, orgId: string, personId: string, profile: ResumeProfile, actorId: string): Promise<boolean> {
+  return withOrg(db, orgId, async (tx) => {
+    const done = await tx
+      .update(people)
+      .set({ jobTitle: profile.jobTitle, skills: profile.skills, areas: profile.areas, languages: profile.languages })
+      .where(and(eq(people.orgId, orgId), eq(people.id, personId), isNull(people.offboardedAt)))
+      .returning({ id: people.id });
+    if (!done.length) return false;
+    await tx.insert(auditLog).values({ orgId, actor: `person:${actorId}`, action: "perfil:editar", target: `person:${personId}` });
+    return true;
+  });
 }

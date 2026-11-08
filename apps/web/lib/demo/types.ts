@@ -26,6 +26,8 @@ export type Persona = Person & {
   location?: [number, number];
   /** Persona fictícia (só Fernando, Eduardo e Yan são pessoas reais, com trabalho sintético). */
   simulated?: boolean;
+  /** Cadastrada pelo RH no painel: não é persona da demo, e o perfil da ficha vem do banco. */
+  registered?: boolean;
   /** Traços do bonequinho, quando vêm do cadastro (foto enviada pelo RH); sem eles, looks.ts. */
   avatar?: AvatarTraits;
 };

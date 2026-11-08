@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canAskTwin, canSee, canSeePerson, navFor, ROUTES, visibleTeamIds, type RouteId } from "./access";
+import { canAskTwin, canEditProfile, canSee, canSeePerson, navFor, ROUTES, visibleTeamIds, type RouteId } from "./access";
 import { TEAM } from "./demo/team";
 import { TEAMS } from "./demo/teams";
 
@@ -105,5 +105,19 @@ describe("equipes visíveis", () => {
       else expect(p.teamId).toBeTruthy();
       expect(p.workHours.days).toEqual([0, 1, 3, 4, 5, 6]);
     }
+  });
+});
+
+describe("quem edita o perfil na ficha", () => {
+  const target = { id: "p", teamId: "t1" };
+  it("RH, liderança da equipe e a própria pessoa", () => {
+    expect(canEditProfile({ id: "rh", role: "hr" }, target)).toBe(true);
+    expect(canEditProfile({ id: "l", role: "leader", teamId: "t1" }, target)).toBe(true);
+    expect(canEditProfile({ id: "p", role: "member", teamId: "t1" }, target)).toBe(true);
+  });
+  it("liderança de outra equipe ou colega, não", () => {
+    expect(canEditProfile({ id: "l", role: "leader", teamId: "t2" }, target)).toBe(false);
+    expect(canEditProfile({ id: "l", role: "leader" }, { id: "p" })).toBe(false);
+    expect(canEditProfile({ id: "c", role: "member", teamId: "t1" }, target)).toBe(false);
   });
 });

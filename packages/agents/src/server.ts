@@ -35,7 +35,7 @@ export { createPgDailyNoteStore } from "./pg-notes.ts";
 export { createPgPlanStore, createPgReviewStore } from "./pg-night.ts";
 export { ollamaBaseUrl, ollamaJson, ollamaTriage } from "./triage-ollama.ts";
 export { createPgArtifactStore } from "./pg-artifacts.ts";
-export { createPgOnboardingStore, readAvatar } from "./pg-onboarding.ts";
+export { createPgOnboardingStore, readAvatar, updateProfile } from "./pg-onboarding.ts";
 export { createPgFixStore } from "./pg-fix.ts";
 export { createPgRedistributionStore } from "./pg-redistribution.ts";
 export { createPgReportStore } from "./pg-report.ts";
