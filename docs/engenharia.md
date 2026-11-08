@@ -1007,7 +1007,7 @@ Simulador, simular a noite, custo na tela e roteiro
 
 **Passos:**
 
-1. Login por persona com `DEMO_MODE=true`, só para a empresa de demonstração (`rehearsalAllowed`).
+1. Login por usuário e senha com `DEMO_MODE=true` (o usuário é o nome da persona e a senha é `echo` para todos), só para a empresa de demonstração (`rehearsalAllowed`).
 2. Simulador de conversa e "Pergunte ao gêmeo" pelo mesmo fluxo do Slack.
 3. Simular a noite, recriar a demonstração e simular o envio automático do relatório.
 4. Custo e execuções a partir de `agent_runs`.
@@ -1491,7 +1491,7 @@ A demo roda na Render com dados sintéticos. Para clientes, o mesmo código vai 
 
 ### Configuração de produção
 
-- `DEMO_MODE=false`, para desligar login por persona, simulador e controles de ensaio.
+- `DEMO_MODE=false`, para desligar o login por senha da demo, o simulador e os controles de ensaio.
 - Novo `SESSION_SECRET` e `ENCRYPTION_KEY` guardada no gerenciador de segredos, com plano de rotação. Trocar a chave invalida as credenciais guardadas.
 - Login só com a conta da empresa. Remover `PANEL_ACCESS_CODE`.
 - Limites de custo por empresa definidos antes do primeiro uso.
