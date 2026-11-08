@@ -2,9 +2,8 @@
 // pessoa, o que espera por ela e o plano da manhã gravado. Só leitura, sempre dentro da empresa (withOrg).
 // As regras de quem espera por quem são as do plano da manhã (packages/domain → morningPlan).
 import { type Database, teams, withOrg } from "@echo/db";
-import { addDays, DAY, type DailyNote, type DailyNoteState, localDate, morningPlan, noteStateAt, type PlanItem, type PullRequest, type Task } from "@echo/domain";
+import { DAY, type DailyNote, localDate, morningPlan, noteAwaitingConfirmation, type PlanItem, type PullRequest, type Task } from "@echo/domain";
 import { eq } from "drizzle-orm";
-import type { StoredDailyNote } from "./daily-note.ts";
 import { createPgAgentData } from "./pg-data.ts";
 import { createPgPlanStore } from "./pg-night.ts";
 import { createPgDailyNoteStore } from "./pg-notes.ts";
@@ -56,19 +55,6 @@ export interface WaitingItem {
 }
 
 const WAITING_KINDS: ReadonlySet<PlanItem["kind"]> = new Set(["fix_ready", "question", "review_request"]);
-/** A nota do dia anterior continua pedindo confirmação por até 3 dias. */
-const NOTE_PENDING_DAYS = 3;
-
-/**
- * Nota do dia que espera a confirmação da dona: a de hoje ou, sem nota hoje, a última que vale, se não for de
- * mais de 3 dias. Pura.
- */
-export function noteAwaitingConfirmation(note: (Pick<StoredDailyNote, "date" | "state" | "createdAt">) | null, now: Date, today: string): { date: string; state: Exclude<DailyNoteState, "confirmed"> } | null {
-  if (!note || note.date < addDays(today, -NOTE_PENDING_DAYS)) return null;
-  const state = noteStateAt(note, now);
-  return state === "confirmed" ? null : { date: note.date, state };
-}
-
 const dayMonth = (date: string) => `${date.slice(8, 10)}/${date.slice(5, 7)}`;
 
 /**

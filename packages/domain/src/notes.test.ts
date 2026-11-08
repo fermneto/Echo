@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canConfirmNote, carriedMarks, endOfDayDue, hasRecentActivity, noteBlockers, noteStateAt } from "./notes.ts";
+import { canConfirmNote, carriedMarks, endOfDayDue, hasRecentActivity, noteAwaitingConfirmation, noteBlockers, noteStateAt } from "./notes.ts";
 import { branchStatus } from "./rules.ts";
 import { DAY, HOUR, MINUTE } from "./time.ts";
 import type { DailyNote, Person, PullRequest, Task, WorkEvent } from "./types.ts";
@@ -124,5 +124,18 @@ describe("estados da nota", () => {
     expect(canConfirmNote({ personId: "fernando", state: "auto_unreviewed" }, "fernando")).toBe(true);
     expect(canConfirmNote({ personId: "fernando", state: "draft" }, "eduardo")).toBe(false);
     expect(canConfirmNote({ personId: "fernando", state: "confirmed" }, "fernando")).toBe(false);
+  });
+});
+
+describe("nota do dia a confirmar (Início do painel)", () => {
+  const now = new Date("2026-11-07T15:00:00Z");
+  const today = "2026-11-07";
+  it("rascunho de hoje e nota enviada sem revisão esperam a dona; confirmada e antiga, não", () => {
+    expect(noteAwaitingConfirmation({ date: today, state: "draft", createdAt: new Date("2026-11-07T14:30:00Z") }, now, today)).toEqual({ date: today, state: "draft" });
+    // Rascunho com mais de 2 h vira "enviada sem revisão", pela regra do domínio.
+    expect(noteAwaitingConfirmation({ date: "2026-11-06", state: "draft", createdAt: new Date("2026-11-06T21:00:00Z") }, now, today)).toEqual({ date: "2026-11-06", state: "auto_unreviewed" });
+    expect(noteAwaitingConfirmation({ date: today, state: "confirmed", createdAt: now }, now, today)).toBeNull();
+    expect(noteAwaitingConfirmation({ date: "2026-11-03", state: "auto_unreviewed", createdAt: new Date("2026-11-03T21:00:00Z") }, now, today)).toBeNull();
+    expect(noteAwaitingConfirmation(null, now, today)).toBeNull();
   });
 });

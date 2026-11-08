@@ -87,10 +87,11 @@ describe("equipe com o banco", () => {
     expect(await loadTeam(NOW, { orgId: "demo", hasDb: false })).toBe(TEAM);
   });
 
-  it("equipes da empresa conectada; com falha, nenhuma", async () => {
+  it("equipes da empresa conectada; com falha, null (não é o mesmo que empresa sem equipes)", async () => {
     expect(await loadTeams("org-real", { read: async () => [{ id: "t1", name: "Plataforma" }] })).toEqual([{ id: "t1", name: "Plataforma" }]);
     const err = vi.spyOn(console, "error").mockImplementation(() => {});
-    expect(await loadTeams("org-real", { read: () => Promise.reject(new Error("fora do ar")) })).toEqual([]);
+    expect(await loadTeams("org-real", { read: () => Promise.reject(new Error("fora do ar")) })).toBeNull();
+    expect(await loadTeams("org-real", { read: async () => [] })).toEqual([]);
     err.mockRestore();
   });
 

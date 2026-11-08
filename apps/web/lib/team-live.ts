@@ -134,17 +134,20 @@ export async function loadTeam(now: Date, deps: { orgId?: string; hasDb?: boolea
 
 export type PanelTeam = { id: string; name: string };
 
-/** Equipes da empresa conectada, do banco. Com falha na leitura, nenhuma. */
-export async function loadTeams(orgId: string, deps: { read?: (orgId: string) => Promise<PanelTeam[]> } = {}): Promise<PanelTeam[]> {
+/**
+ * Equipes da empresa conectada, do banco. `[]` é empresa sem equipes; `null` é leitura que falhou (ou sem banco),
+ * e quem usa não pode tratar como "sem equipes": não se sabe quem é de qual equipe.
+ */
+export async function loadTeams(orgId: string, deps: { read?: (orgId: string) => Promise<PanelTeam[]> } = {}): Promise<PanelTeam[] | null> {
   try {
     if (deps.read) return await deps.read(orgId);
     const db = panelDb();
-    if (!db) return [];
+    if (!db) return null;
     const { readTeams } = await import("@echo/agents/painel");
     return (await readTeams(db, orgId)).map((t) => ({ id: t.id, name: t.name }));
   } catch (err) {
     console.error("equipes do banco indisponíveis", err instanceof Error ? err.message : String(err));
-    return [];
+    return null;
   }
 }
 

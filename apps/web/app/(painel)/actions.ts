@@ -4,6 +4,7 @@ import { MAX_QUESTION, type AskState } from "@/lib/ask";
 import { canAskTwin } from "@/lib/access";
 import { askAgent, panelRequest, recordIn } from "@/lib/agent";
 import { panelDb } from "@/lib/db";
+import { isDemoOrg } from "@/lib/gains";
 import { askEchoDemo, isAvailabilityQuestion } from "@/lib/demo/echo";
 import { teamScope } from "@/lib/scope";
 import { currentNotes } from "@/lib/notes-store";
@@ -24,7 +25,7 @@ export async function perguntarEcho(prev: AskState, formData: FormData): Promise
   if (!db || isAvailabilityQuestion(question)) {
     const { people } = await teamScope(me, await loadTeam(new Date(), { orgId: me.orgId }));
     if (!db) await new Promise((r) => setTimeout(r, 900));
-    return { turns: [...prev.turns, { question, reply: askEchoDemo(question, people, await currentNotes()) }] };
+    return { turns: [...prev.turns, { question, reply: askEchoDemo(question, people, isDemoOrg(me.orgId) ? await currentNotes() : []) }] };
   }
   const r = await askAgent(panelRequest({ orgId: me.orgId, askerId: me.id, question }), { record: recordIn(db) });
   return r.ok ? { turns: [...prev.turns, { question, reply: r.reply }] } : { ...prev, error: r.error };

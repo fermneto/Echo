@@ -76,7 +76,7 @@ export default async function ConfiguracaoPage() {
             </h2>
             <span className="mono muted">Foto e currículo ficam só neste pedido</span>
           </div>
-          <CadastroPessoa action={cadastrarPessoa} teams={teams} />
+          <CadastroPessoa action={cadastrarPessoa} teams={teams ?? []} />
           <p className="card__foot">
             O currículo é lido por um modelo aberto na nossa infraestrutura e vira cargo, habilidades, áreas e idiomas, sem dados pessoais. A foto vira traços de uma lista fechada (cabelo, pele, óculos, roupa), sem gênero, idade ou origem.
           </p>

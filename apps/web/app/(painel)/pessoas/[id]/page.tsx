@@ -57,7 +57,8 @@ function List({ items }: { items: string[] }) {
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
   const id = (await params).id;
   const me = await currentPersona();
-  const p = me ? (await loadTeam(new Date(), { orgId: me.orgId })).find((x) => x.id === id) : undefined;
+  // O título só leva o nome de quem a pessoa logada pode ver: o id na URL não revela ninguém de outra equipe.
+  const p = me ? (await teamScope(me, await loadTeam(new Date(), { orgId: me.orgId }))).people.find((x) => x.id === id) : undefined;
   return { title: p ? `${p.name} · Echo` : "Pessoa · Echo" };
 }
 
