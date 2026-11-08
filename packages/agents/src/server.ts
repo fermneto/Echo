@@ -3,7 +3,8 @@ import Anthropic from "@anthropic-ai/sdk";
 import { createPgBrainStore } from "@echo/brain/pg";
 import { createPgOutbox } from "@echo/actions/pg";
 import { agentRuns, asSystem, createDb, createPool, type Database, orgs, withOrg } from "@echo/db";
-import { awayDigestDue, digestPurgeBefore, endOfDayDue, morningDue, parseGainsBaseline, reportsDue } from "@echo/domain";
+import { eq } from "drizzle-orm";
+import { awayDigestDue, digestPurgeBefore, parseSlackChannelId, endOfDayDue, morningDue, parseGainsBaseline, reportsDue } from "@echo/domain";
 import type { AgentRun, RunRecorder } from "@echo/observability";
 import { type AnswerDeps, createAnswer, type ModelCall } from "./answer.ts";
 import type { AnswerRequest, AnswerResult } from "./index.ts";
@@ -21,7 +22,7 @@ import { createPgAvatarStore, createPgOnboardingStore } from "./pg-onboarding.ts
 import { adjustAvatar, redoAvatar } from "./redo-avatar.ts";
 import { createManagedVideoSandbox, downloadVideoFile, filesDeleter, videoAgentParams, videoEnvironmentParams } from "./managed-video.ts";
 import { createPgTeamVideoStore } from "./pg-video.ts";
-import { createVideo, type Video } from "./video.ts";
+import { createVideo, teamVideoPostAction, type Video } from "./video.ts";
 import { createFix, type Fix, type FixCodeHost } from "./fix.ts";
 import { createManagedFixSandbox, fixAgentParams, fixEnvironmentParams } from "./managed-fix.ts";
 import { createPgFixStore, pgDelegationOf } from "./pg-fix.ts";
@@ -40,7 +41,7 @@ export { createPgDailyNoteStore } from "./pg-notes.ts";
 export { createPgPlanStore, createPgReviewStore } from "./pg-night.ts";
 export { ollamaBaseUrl, ollamaJson, ollamaTriage } from "./triage-ollama.ts";
 export { createPgArtifactStore } from "./pg-artifacts.ts";
-export { expireTeamVideos, failStuckTeamVideos, latestTeamVideos, queuedTeamVideos, queueTeamVideos, teamVideoForStream, type TeamVideoView } from "./pg-video.ts";
+export { expireTeamVideos, failStuckTeamVideos, latestTeamVideos, queuedTeamVideos, queueTeamVideos, readVideoChannels, saveVideoChannel, teamVideoForStream, type TeamVideoView, type VideoChannelsView } from "./pg-video.ts";
 export { videoAgentParams, videoEnvironmentParams, VIDEO_RUNNER } from "./managed-video.ts";
 export { createPgAvatarStore, createPgOnboardingStore, readAvatar, updateProfile } from "./pg-onboarding.ts";
 export { AccountConflictError, type PersonAccounts, readAccounts, saveAccounts, type SaveAccountsResult } from "./pg-accounts.ts";
@@ -91,13 +92,17 @@ export function serverAnswerDeps(db: Database, apiKey: string | undefined): Answ
 }
 
 /**
- * Roteador de custo da resposta: a regra sempre. O SSLM só entra com SSLM_MODEL definido (e SLM_OLLAMA_URL): os
- * modelos testados erraram demais (docs/engenharia.md). ANSWER_ROUTER=false manda toda pergunta ao modelo, como antes.
+ * Roteador de custo da resposta: a regra sempre; na dúvida dela, o Sonnet. O SSLM fica desligado por padrão (o 0.6B
+ * e o 4B não passaram na checagem, ver docs/engenharia.md): só liga com um modelo explícito em SSLM_MODEL e o
+ * Ollama de SLM_OLLAMA_URL. SSLM_MODEL vazio ou "off" desliga; SLM_MODEL (triagem e resumo) não vale aqui.
+ * ANSWER_ROUTER=false manda toda pergunta ao modelo, como antes.
  */
 export function answerRouter(env: NodeJS.ProcessEnv = process.env): AnswerDeps["router"] {
   if (env.ANSWER_ROUTER === "false") return undefined;
   const timeoutMs = Number(env.SSLM_TIMEOUT_MS) > 0 ? Number(env.SSLM_TIMEOUT_MS) : undefined;
-  const sslm = env.SLM_OLLAMA_URL && env.SSLM_MODEL ? ollamaJson({ baseUrl: env.SLM_OLLAMA_URL, model: env.SSLM_MODEL, think: false }) : null;
+  const model = env.SSLM_MODEL?.trim() ?? "";
+  const url = env.SLM_OLLAMA_URL;
+  const sslm = url && model && model.toLowerCase() !== "off" ? ollamaJson({ baseUrl: url, model, think: false }) : null;
   return { sslm, ...(timeoutMs ? { timeoutMs } : {}) };
 }
 
@@ -367,7 +372,7 @@ export function serverAvatar(db: Database, apiKey: string | undefined) {
  * Vídeo da semana da equipe (etapa 27). Desligado sem chave ou sem VIDEO_AGENT_ID e VIDEO_ENVIRONMENT_ID: os
  * relatórios seguem iguais, sem vídeo.
  */
-export function serverVideo(db: Database, opts: { apiKey?: string | undefined; agentId?: string | undefined; environmentId?: string | undefined; timeoutMs?: number }): Video & { deleteFile: (id: string) => Promise<void> } {
+export function serverVideo(db: Database, opts: { apiKey?: string | undefined; agentId?: string | undefined; environmentId?: string | undefined; timeoutMs?: number; webUrl?: string | undefined }): Video & { deleteFile: (id: string) => Promise<void> } {
   const client = opts.apiKey ? new Anthropic({ apiKey: opts.apiKey, maxRetries: 2 }) : null;
   const sandbox = client && opts.agentId && opts.environmentId ? createManagedVideoSandbox(client, { agentId: opts.agentId, environmentId: opts.environmentId, ...(opts.timeoutMs ? { timeoutMs: opts.timeoutMs } : {}) }) : null;
   // Apagar só precisa da chave: o painel descarta vídeos sem as IDs do ambiente.
@@ -378,6 +383,9 @@ export function serverVideo(db: Database, opts: { apiKey?: string | undefined; a
     deleteFile,
     model: opts.apiKey ? anthropicModelCall(opts.apiKey) : null,
     recorder: createDbRunRecorder(db),
+    // Pronto, o vídeo sai também no canal da equipe no Slack (slack.post_video, sem bytes no outbox), se houver canal.
+    outbox: (orgId) => createPgOutbox(db, orgId),
+    webUrl: opts.webUrl,
   });
   return { ...video, deleteFile: async (id) => void (await deleteFile?.(id)) };
 }
@@ -385,6 +393,41 @@ export function serverVideo(db: Database, opts: { apiKey?: string | undefined; a
 /** Resposta com o mp4 guardado na Files API (o painel confere o link assinado antes). */
 export async function videoFile(apiKey: string, fileId: string): Promise<Response> {
   return downloadVideoFile(new Anthropic({ apiKey, maxRetries: 1 }), fileId);
+}
+
+/**
+ * Leitura do mp4 para o executor do outbox (slack.post_video), na hora do envio. `null`: o arquivo não existe mais
+ * na Files API (vencido ou apagado), e repetir não adianta.
+ */
+export function videoBytesReader(apiKey: string): (orgId: string, storageKey: string) => Promise<Uint8Array | null> {
+  const client = new Anthropic({ apiKey, maxRetries: 2 });
+  return async (_orgId, storageKey) => {
+    try {
+      return new Uint8Array(await (await downloadVideoFile(client, storageKey)).arrayBuffer());
+    } catch (err) {
+      if (err instanceof Anthropic.NotFoundError) return null;
+      throw err;
+    }
+  };
+}
+
+/**
+ * Teste de ponta a ponta (`pnpm video:agora --canal [C…]`): acha a empresa de teste e o canal antes de gravar, para
+ * não gastar a sessão à toa. Vale o canal pedido; sem ele, o de reserva configurado na empresa.
+ */
+export async function testVideoChannel(db: Database, orgName: string, wanted?: string): Promise<{ orgId: string; channel: string }> {
+  const [org] = await asSystem(db, (tx) => tx.select({ id: orgs.id, channel: orgs.slackChannelId }).from(orgs).where(eq(orgs.name, orgName)));
+  if (!org) throw new Error(`empresa "${orgName}" não encontrada`);
+  const channel = wanted ? parseSlackChannelId(wanted) : parseSlackChannelId(org.channel);
+  if (wanted && !channel) throw new Error(`"${wanted}" não é um id de canal público do Slack (C…)`);
+  if (!channel) throw new Error(`"${orgName}" não tem canal do vídeo configurado: passe --canal C…`);
+  return { orgId: org.id, channel };
+}
+
+/** Põe na outbox da empresa de teste o slack.post_video do vídeo gravado; o worker posta com a mesma chave. */
+export async function enqueueTestTeamVideoPost(db: Database, to: { orgId: string; channel: string }, input: { storageKey: string; teamName: string; weekLabel: string; week: string; webUrl?: string | undefined }): Promise<{ id: string; duplicate: boolean }> {
+  const action = teamVideoPostAction({ videoId: `teste:${input.storageKey}`, channel: to.channel, storageKey: input.storageKey, teamName: input.teamName, weekLabel: input.weekLabel, week: input.week, webUrl: input.webUrl });
+  return createPgOutbox(db, to.orgId).enqueue(action);
 }
 
 /**

@@ -106,6 +106,8 @@ export interface ChatPlatform {
   sendDm(userExternalId: string, input: { text: string; blocks?: unknown[] }): Promise<void>;
   /** Arquivo (ex.: imagem do resumo do dia) na conversa privada. Precisa do escopo files:write. */
   sendDmFile?(userExternalId: string, input: { filename: string; data: Uint8Array; title: string; comment: string; altText?: string }): Promise<void>;
+  /** Arquivo num canal em que o bot está (ex.: o vídeo da semana da equipe). Precisa do escopo files:write. */
+  sendChannelFile?(channel: string, input: { filename: string; data: Uint8Array; title: string; comment: string; altText?: string }): Promise<void>;
 }
 
 export interface HrAbsenceEvent {

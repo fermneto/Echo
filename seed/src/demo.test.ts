@@ -1,3 +1,4 @@
+import { type Person, reportsDue } from "@echo/domain";
 import { describe, expect, it } from "vitest";
 import { buildDemo, DEMO_IDS, localDate } from "./demo.ts";
 
@@ -33,6 +34,33 @@ describe("empresa de demonstração", () => {
     const names = demo.absences.map((a) => demo.people.find((p) => p.id === a.personId)?.name).sort();
     expect(names).toEqual(["Noah", "Yan"]);
     for (const a of demo.absences) expect(a.endsAt.getTime()).toBeGreaterThan(now.getTime());
+  });
+
+  it("relatórios enviados só das semanas anteriores, nunca do RH, sem aviso e fora da janela do vídeo", () => {
+    expect(demo.weeklyReports.length).toBeGreaterThan(50);
+    // 7 semanas por pessoa, contadas no fuso dela: entre fusos, a janela pode cobrir até 8 semanas ISO.
+    expect(new Set(demo.weeklyReports.map((r) => r.week)).size).toBeGreaterThanOrEqual(7);
+    expect(new Set(demo.weeklyReports.map((r) => r.week)).size).toBeLessThanOrEqual(8);
+    expect(demo.weeklyReports.some((r) => r.personId === P.rita)).toBe(false);
+    for (const r of demo.weeklyReports) {
+      expect(r.state).toBe("sent");
+      expect(r.noticeAt).toBeUndefined();
+      expect(r.sentAt!.getTime()).toBeLessThan(now.getTime() - 7 * 24 * 3_600_000);
+      expect(new Date(r.coveredPeriod.to).getTime()).toBeLessThanOrEqual(now.getTime());
+    }
+  });
+
+  it("nunca ocupa a semana que o fluxo dá como pendente: o relatório dela sai para a pessoa conferir (cena 4)", () => {
+    // Domingo e segunda em UTC, com fusos de -5 a +10 no mapa: a semana anterior de cada um muda em horas diferentes.
+    for (const at of ["2026-11-08T06:00:00Z", "2026-11-08T22:00:00Z", "2026-11-09T02:00:00Z", "2026-11-11T12:00:00Z", "2026-11-14T23:30:00Z"]) {
+      const t = new Date(at);
+      const d = buildDemo(t);
+      for (const p of d.people) {
+        const due = reportsDue({ ...p, active: true, role: p.role ?? "member" } as Person, t).map((x) => x.week);
+        const seeded = d.weeklyReports.filter((r) => r.personId === p.id).map((r) => r.week);
+        expect(seeded.filter((w) => due.includes(w)), `${p.name} em ${at}`).toEqual([]);
+      }
+    }
   });
 
   it("dá um papel por persona: Marina lidera, Rita é do RH", () => {

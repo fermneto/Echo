@@ -1,5 +1,6 @@
 // Vídeo da semana da equipe: textos conferidos (com regra de reserva), trechos com roteiro conferido, gravação
 // conferida fora do ambiente, falhas sem travar nada e uma linha por etapa em agent_runs.
+import type { OutboxAction } from "@echo/actions";
 import type { AvatarTraits, TeamWeekFacts, VideoCandidate } from "@echo/domain";
 import { LogRunRecorder } from "@echo/observability";
 import { describe, expect, it } from "vitest";
@@ -60,7 +61,22 @@ function model(opts: { texts?: unknown; script?: unknown; fail?: boolean } = {})
   return { call, calls };
 }
 
-function store(row: Partial<TeamVideoRow> = {}, budget = { spentUsd: 1, monthlyLimitUsd: 50 }, withFacts = true) {
+/** Outbox falso com a chave única, como o de packages/actions. */
+function outbox() {
+  const actions: OutboxAction[] = [];
+  return {
+    actions,
+    port: () => ({
+      enqueue: async (a: OutboxAction) => {
+        const dup = actions.some((x) => x.idempotencyKey === a.idempotencyKey);
+        if (!dup) actions.push(a);
+        return { id: a.idempotencyKey, duplicate: dup };
+      },
+    }),
+  };
+}
+
+function store(row: Partial<TeamVideoRow> = {}, budget = { spentUsd: 1, monthlyLimitUsd: 50 }, withFacts = true, channels: { team: string | null; org: string | null } = { team: "C0PRODUTO1", org: "C0EMPRESA1" }) {
   const r: TeamVideoRow = { id: "v1", orgId: "org", teamId: "t1", week: "2026-W45", state: "queued", attempts: 0, storageKey: null, ...row };
   const patches: { from: TeamVideoState; to: TeamVideoState; patch: TeamVideoPatch }[] = [];
   const s: TeamVideoStore = {
@@ -73,6 +89,7 @@ function store(row: Partial<TeamVideoRow> = {}, budget = { spentUsd: 1, monthlyL
       return true;
     },
     budget: async () => budget,
+    channels: async () => channels,
   };
   return { s, patches };
 }
@@ -141,6 +158,59 @@ describe("gravação do vídeo da semana", () => {
     expect(recorder.runs.at(-1)).toMatchObject({ flow: "team_video", result: "ok", costUsd: 0.3 });
   });
 
+  it("pronto: uma postagem no canal da equipe, com o texto por regra; o mesmo vídeo de novo não posta outra vez", async () => {
+    const ob = outbox();
+    const recorder = new LogRunRecorder();
+    const deps = { store: store().s, sandbox: sandbox().sb, model: model().call, recorder, outbox: ob.port, webUrl: "https://echo.exemplo.com/", clock: { now: () => new Date("2026-11-07T12:00:00Z") } };
+    expect(await createVideo(deps).process("org", "v1")).toEqual({ status: "ready", id: "v1" });
+    expect(ob.actions).toHaveLength(1);
+    expect(ob.actions[0]).toMatchObject({ type: "slack.post_video", target: "slack:C0PRODUTO1", idempotencyKey: "team_video:v1:canal" });
+    expect(ob.actions[0]!.payload).toEqual({
+      channel: "C0PRODUTO1",
+      videoId: "v1",
+      storageKey: "file_mp4",
+      filename: "video-da-semana-2026-W45.mp4",
+      title: "Vídeo da semana · Produto · 2 a 6/11",
+      comment: "*Vídeo da semana da equipe Produto* · 2 a 6/11\nResumo animado da semana, gravado por um agente Claude (Powered by Claude). Comentem aqui na thread. Também está no painel do Echo, em <https://echo.exemplo.com/relatorios|Relatórios>.",
+      text: "*Vídeo da semana da equipe Produto* · 2 a 6/11\nResumo animado da semana, gravado por um agente Claude (Powered by Claude). Assista no painel do Echo, em <https://echo.exemplo.com/relatorios|Relatórios> e comentem aqui na thread.",
+    });
+    expect(JSON.stringify(ob.actions)).not.toMatch(/personId|person:/);
+    expect(recorder.runs.at(-1)).toMatchObject({ flow: "team_video", result: "ok", tools: ["slack.post_video"] });
+    // O mesmo vídeo de novo (job repetido): nenhuma postagem a mais.
+    expect(await createVideo({ ...deps, store: store().s }).process("org", "v1")).toEqual({ status: "ready", id: "v1" });
+    expect(ob.actions).toHaveLength(1);
+    expect(recorder.runs.at(-1)!.tools ?? []).toEqual([]);
+  });
+
+  it("equipe sem canal usa o da empresa; sem nenhum canal, fica só no painel e nada vai para o privado", async () => {
+    const ob = outbox();
+    await createVideo({ store: store({}, undefined, true, { team: null, org: "C0EMPRESA1" }).s, sandbox: sandbox().sb, model: model().call, recorder: new LogRunRecorder(), outbox: ob.port }).process("org", "v1");
+    expect(ob.actions.map((a) => a.target)).toEqual(["slack:C0EMPRESA1"]);
+    const none = outbox();
+    const recorder = new LogRunRecorder();
+    expect(await createVideo({ store: store({}, undefined, true, { team: null, org: null }).s, sandbox: sandbox().sb, model: model().call, recorder, outbox: none.port }).process("org", "v1")).toMatchObject({ status: "ready" });
+    expect(none.actions).toEqual([]);
+    expect(recorder.runs.at(-1)).toMatchObject({ flow: "team_video", result: "ok" });
+    expect(recorder.runs.at(-1)!.tools ?? []).toEqual([]);
+  });
+
+  it("sem outbox, o vídeo fica só no painel; envio que falha não desfaz o vídeo pronto", async () => {
+    const recorder = new LogRunRecorder();
+    expect(await createVideo({ store: store().s, sandbox: sandbox().sb, model: model().call, recorder }).process("org", "v1")).toMatchObject({ status: "ready" });
+    const broken = () => ({ enqueue: async () => Promise.reject(new Error("banco fora do ar")) });
+    const st = store();
+    expect(await createVideo({ store: st.s, sandbox: sandbox().sb, model: model().call, recorder, outbox: broken }).process("org", "v1")).toMatchObject({ status: "ready" });
+    expect(st.patches.at(-1)!.to).toBe("ready");
+    expect(recorder.runs.at(-1)).toMatchObject({ flow: "team_video", result: "ok", error: "envio no Slack: banco fora do ar" });
+  });
+
+  it("vídeo recusado ou que falhou não vai para o Slack", async () => {
+    const ob = outbox();
+    await createVideo({ store: store().s, sandbox: sandbox({ video: { fileId: "f_curto", bytes: mp4(5) } }).sb, model: model().call, recorder: new LogRunRecorder(), outbox: ob.port }).process("org", "v1");
+    await createVideo({ store: store().s, sandbox: sandbox({ outcome: "timeout", video: null }).sb, model: model().call, recorder: new LogRunRecorder(), outbox: ob.port }).process("org", "v1");
+    expect(ob.actions).toEqual([]);
+  });
+
   it("vídeo curto demais ou que saiu do preview: recusado e o arquivo sai do armazenamento", async () => {
     for (const result of [{ video: { fileId: "f_curto", bytes: mp4(5) } }, { meta: { visited: ["https://evil.example"] } }]) {
       const st = store();
@@ -168,6 +238,34 @@ describe("gravação do vídeo da semana", () => {
     expect(await createVideo({ store: store({ attempts: 3 }).s, sandbox: sb.sb, model: m.call, recorder: new LogRunRecorder() }).process("org", "v1")).toMatchObject({ status: "failed", reason: "limite de gravações" });
     expect(sb.inputs).toHaveLength(0);
     expect(m.calls).toHaveLength(0);
+  });
+});
+
+describe("pausa por custo", () => {
+  it("paused segue o limite do mês: em 80% pausa, abaixo libera; o processo grava um skipped só para o job já posto", async () => {
+    const recorder = new LogRunRecorder();
+    const v = createVideo({ store: store({}, { spentUsd: 40, monthlyLimitUsd: 50 }).s, sandbox: sandbox().sb, model: model().call, recorder });
+    expect(await v.paused("org")).toBe(true);
+    expect(await createVideo({ store: store({}, { spentUsd: 39, monthlyLimitUsd: 50 }).s, recorder }).paused("org")).toBe(false);
+    expect(await v.process("org", "v1")).toMatchObject({ status: "skipped" });
+    expect(recorder.runs.map((r) => [r.flow, r.result])).toEqual([["team_video", "skipped"]]);
+  });
+});
+
+describe("cards de entrega", () => {
+  it("mostram só a referência e o título, sem nome nem bonequinho do autor; as ajudas seguem com os nomes", async () => {
+    const two: TeamWeekFacts = { ...facts, deliveries: [{ ref: "ECH-128", title: "Tempo limite", personId: "fer" }, { ref: "echo/app#63", title: "Bonequinho", personId: "fer" }] };
+    const p = await prepareTeamVideo(model().call, two, [], new LogRunRecorder());
+    const cards = [...p.html.matchAll(/<li class="card"[^]*?<\/li>/g)].map((m) => m[0]);
+    expect(cards).toHaveLength(2);
+    expect(cards[0]).toContain("Tempo limite");
+    expect(cards[1]).toContain("Bonequinho");
+    for (const c of cards) {
+      expect(c).not.toContain("Fernando");
+      expect(c).not.toContain("card__by");
+      expect(c).not.toContain("<svg");
+    }
+    expect(p.html).toContain("<b>Carla</b> ajudou <b>Fernando</b>");
   });
 });
 

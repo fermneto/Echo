@@ -1,7 +1,7 @@
 // Relatório semanal (etapa 12): semana e corte no fuso da pessoa, período coberto encadeado, registro atrasado,
 // atraso com causa, prazos de aviso e envio, observação literal e quem vê.
 import { describe, expect, it } from "vitest";
-import { canConfirmHelp, canViewReport, coveredPeriod, isoWeek, observationEntry, reportAllowedNumbers, reportStep, reportsDue, weekCutoff, weekMonday } from "./report.ts";
+import { canConfirmHelp, canViewReport, coveredPeriod, isoWeek, observationEntry, reportAllowedNumbers, reportReleased, reportStep, reportsDue, weekCutoff, weekMonday } from "./report.ts";
 import { weeklyMetrics } from "./rules.ts";
 import type { Absence, Contribution, Person, PullRequest, Task, WorkEvent } from "./types.ts";
 
@@ -115,5 +115,12 @@ describe("prazos, observação e acesso", () => {
     expect(canConfirmHelp(person("bruno"), carla)).toBe(true);
     expect(canConfirmHelp(carla, carla)).toBe(false);
     expect(canConfirmHelp(rita, carla)).toBe(false);
+  });
+});
+
+describe("liberação do relatório", () => {
+  it("só enviado ao RH (com ou sem aviso) conta como liberado", () => {
+    expect(["sent", "sent_without_notice"].map(reportReleased)).toEqual([true, true]);
+    expect(["draft", "awaiting_owner", "commented", "x"].map(reportReleased)).toEqual([false, false, false, false]);
   });
 });

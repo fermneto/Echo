@@ -4,8 +4,10 @@ import { loadConfig } from "@echo/config";
 import { revalidatePath } from "next/cache";
 import { panelDb } from "@/lib/db";
 import { gainsOrgId } from "@/lib/gains";
-import { conflictMessage, parseAccountsForm } from "@/lib/accounts-form";
-import { slackMembers } from "@/lib/accounts-server";
+import { linkablePlatforms } from "@/lib/access";
+import { conflictMessage, parseAccountsForm, SLACK_FORMAT_ONLY_NOTE } from "@/lib/accounts-form";
+import { slackDirectory } from "@/lib/accounts-server";
+import { membersOf, slackDirectoryFor } from "@/lib/slack-directory";
 import { parseOnboardingForm } from "@/lib/onboarding-form";
 import type { CadastroState } from "@/lib/onboarding-options";
 import { personIdFor } from "@/lib/agent";
@@ -27,10 +29,15 @@ export async function cadastrarPessoa(_prev: CadastroState, form: FormData): Pro
   if (me.role === "leader" && f.role === "hr") return { status: "error", error: "A liderança cadastra pessoas da equipe; o papel de RH só o RH dá." };
   if (me.role === "leader" && f.teamId !== me.teamId) return { status: "error", error: "A liderança só cadastra pessoas na própria equipe." };
   const db = panelDb();
-  const accounts = parseAccountsForm(form, db ? await slackMembers(db, gainsOrgId(me.orgId)) : null);
+  // Conferido aqui, não só escondido na tela: a liderança não liga o Slack de ninguém.
+  const platforms = linkablePlatforms(me, { id: "", role: f.role, teamId: f.teamId });
+  // Na demonstração, o Slack real nunca é lido (nem users.list).
+  const slack = await slackDirectoryFor({ demo: isDemoSession(me), canLinkSlack: Boolean(db) && platforms.includes("slack"), read: () => slackDirectory(db!, gainsOrgId(me.orgId)) });
+  const accounts = parseAccountsForm(form, membersOf(slack), platforms);
   if (!accounts.ok) return { status: "error", error: accounts.error };
   const { NO_SLACK_NOTE } = await import("@echo/domain");
-  const slackNote = accounts.links.some((l) => l.platform === "slack") ? [] : [NO_SLACK_NOTE];
+  const hasSlack = accounts.links.some((l) => l.platform === "slack");
+  const slackNote = hasSlack ? (slack.status === "failed" ? [SLACK_FORMAT_ONLY_NOTE] : []) : [NO_SLACK_NOTE];
 
   if (isDemoSession(me)) {
     const { traitsFromSeed } = await import("@echo/domain");
@@ -83,4 +90,32 @@ export async function cadastrarPessoa(_prev: CadastroState, form: FormData): Pro
     console.error("cadastro falhou", err instanceof Error ? err.message : String(err));
     return { status: "error", error: "Não foi possível cadastrar agora. Tente de novo." };
   }
+}
+
+export type CanalVideoState = { status: "idle" } | { status: "done"; channel: string | null; message: string } | { status: "error"; error: string };
+
+/**
+ * Canal do Slack onde sai o vídeo da semana (da equipe, ou o de reserva da empresa). Liderança e RH, pela regra de
+ * `editableVideoChannels`. O id é conferido (C…); campo vazio tira o canal e o vídeo fica só no painel.
+ * Na demonstração, nada é gravado.
+ */
+export async function salvarCanalVideo(_prev: CanalVideoState, form: FormData): Promise<CanalVideoState> {
+  const me = await currentPersona();
+  if (!me || (me.role !== "hr" && me.role !== "leader")) return { status: "error", error: "Só o RH e a liderança mudam o canal do vídeo." };
+  const target = String(form.get("alvo") ?? "");
+  const raw = String(form.get("canal") ?? "").trim();
+  const { parseSlackChannelId } = await import("@echo/domain");
+  const channel = raw ? parseSlackChannelId(raw) : null;
+  if (raw && !channel) return { status: "error", error: "Use o id do canal público, como C0123ABCD45 (no Slack: detalhes do canal, no fim da aba Sobre)." };
+  if (isDemoSession(me)) return { status: "done", channel, message: "Demonstração: nada foi gravado." };
+  const db = panelDb();
+  if (!db) return { status: "error", error: "O painel não tem banco ligado (DATABASE_URL), então não há onde gravar." };
+  const { readVideoChannels, saveVideoChannel } = await import("@echo/agents/server");
+  const { canEditVideoChannel, ORG_TARGET } = await import("@/lib/video-channel");
+  const orgId = gainsOrgId(me.orgId);
+  if (!canEditVideoChannel(me, await readVideoChannels(db, orgId), target)) return { status: "error", error: "Esse canal não é seu para mudar." };
+  const ok = await saveVideoChannel(db, orgId, { teamId: target === ORG_TARGET ? null : target, channel, actorId: personIdFor(me.id) });
+  if (!ok) return { status: "error", error: "Não foi possível gravar agora. Tente de novo." };
+  revalidatePath("/configuracao");
+  return { status: "done", channel, message: channel ? `Gravado. O próximo vídeo sai em ${channel}; convide o Echo para o canal, se ainda não estiver lá.` : "Canal tirado. O vídeo fica só no painel." };
 }

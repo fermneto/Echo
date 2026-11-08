@@ -199,14 +199,28 @@ export class SlackChat implements ChatPlatform {
    */
   async sendDmFile(userExternalId: string, input: { filename: string; data: Uint8Array; title: string; comment: string; altText?: string }): Promise<void> {
     const im = await this.call<{ channel: { id: string } }>("conversations.open", { users: userExternalId });
+    await this.uploadTo(im.channel.id, input);
+  }
+
+  /**
+   * Arquivo num canal (ex.: o vídeo da semana da equipe), com um comentário. O bot precisa estar no canal
+   * (senão o Slack devolve `not_in_channel`; o Echo não entra sozinho) e ter o escopo files:write.
+   */
+  async sendChannelFile(channel: string, input: { filename: string; data: Uint8Array; title: string; comment: string; altText?: string }): Promise<void> {
+    await this.uploadTo(channel, input);
+  }
+
+  /** Upload externo em três passos: URL de upload, bytes e conclusão no canal com o comentário. */
+  private async uploadTo(channelId: string, input: { filename: string; data: Uint8Array; title: string; comment: string; altText?: string }): Promise<void> {
     const up = await this.call<{ upload_url: string; file_id: string }>("files.getUploadURLExternal", {
       filename: input.filename,
       length: input.data.byteLength,
       ...(input.altText ? { alt_txt: input.altText.slice(0, 1000) } : {}),
     });
-    const res = await this.fetch(up.upload_url, { method: "POST", headers: { "content-type": "application/octet-stream" }, body: input.data as unknown as RequestInit["body"], signal: AbortSignal.timeout(30_000) });
+    // Vídeos passam de alguns MB: mais tempo que uma chamada comum.
+    const res = await this.fetch(up.upload_url, { method: "POST", headers: { "content-type": "application/octet-stream" }, body: input.data as unknown as RequestInit["body"], signal: AbortSignal.timeout(input.data.byteLength > 5_000_000 ? 120_000 : 30_000) });
     if (!res.ok) throw new SlackApiError("files.upload", `http_${res.status}`);
-    await this.call("files.completeUploadExternal", { files: JSON.stringify([{ id: up.file_id, title: input.title }]), channel_id: im.channel.id, initial_comment: fitText(input.comment) }, 30_000);
+    await this.call("files.completeUploadExternal", { files: JSON.stringify([{ id: up.file_id, title: input.title }]), channel_id: channelId, initial_comment: fitText(input.comment) }, 30_000);
   }
 
   /** Apaga uma mensagem do próprio bot (por exemplo, um aviso que deixou de valer). */

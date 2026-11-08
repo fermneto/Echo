@@ -1,8 +1,10 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { notFound } from "next/navigation";
-import { canAskTwin, canEditProfile, canLinkAccounts } from "@/lib/access";
-import { slackMembers } from "@/lib/accounts-server";
+import { canAskTwin, canEditProfile, linkablePlatforms } from "@/lib/access";
+import { accountValues } from "@/lib/accounts-form";
+import { slackDirectory } from "@/lib/accounts-server";
+import { membersOf, slackDirectoryFor } from "@/lib/slack-directory";
 import { gainsOrgId } from "@/lib/gains";
 import { lookFor } from "@/lib/demo/looks";
 import { loadProfile } from "@/lib/person-live";
@@ -127,7 +129,7 @@ export default async function PessoaPage({ params }: { params: Promise<{ id: str
                   ))}
                 </ul>
               ) : (
-                <p className="muted">{persona.registered ? "Nenhuma tarefa nem PR aberto no GitHub ou no Linear." : "Nada registrado no GitHub ou no Linear para esta pessoa na demo."}</p>
+                <p className="muted">{persona.registered ? "Nenhuma tarefa nem PR aberto." : "Nada registrado no GitHub ou no Linear para esta pessoa na demo."}</p>
               )}
               {profile.activity && <p className="card__foot mono">{profile.activity}</p>}
             </section>
@@ -170,7 +172,16 @@ export default async function PessoaPage({ params }: { params: Promise<{ id: str
             </section>
           )}
 
-          {own && (
+          {own?.status === "indisponivel" && (
+            <section className="card" aria-labelledby="seu-agente">
+              <h2 id="seu-agente" className="card__title">
+                Seu agente
+              </h2>
+              <p className="muted">Não foi possível carregar o seu agente agora. O que você já salvou continua valendo; tente de novo em alguns minutos.</p>
+            </section>
+          )}
+
+          {own?.status === "ok" && (
             <section className="card" aria-labelledby="seu-agente">
               <h2 id="seu-agente" className="card__title">
                 Seu agente
@@ -179,15 +190,15 @@ export default async function PessoaPage({ params }: { params: Promise<{ id: str
                 save={salvarPerfilDoAgente}
                 personId={me.id}
                 firstName={persona.name.split(" ")[0] ?? persona.name}
-                style={own.style}
-                delegation={own.delegation}
-                delegationSince={own.delegationAt ? own.delegationAt.toLocaleDateString("pt-BR", { timeZone: persona.timezone }) : null}
-                decisions={own.decisions}
+                style={own.agent.style}
+                delegation={own.agent.delegation}
+                delegationSince={own.agent.delegationAt ? own.agent.delegationAt.toLocaleDateString("pt-BR", { timeZone: persona.timezone }) : null}
+                decisions={own.agent.decisions}
                 timezone={persona.timezone}
                 maxChars={AGENT_PROFILE_RULES.maxChars}
                 never={NEVER_DELEGATED}
                 fixRules={`Mesmo com a delegação, a correção só é unida sozinha com testes passando, até ${AGENT_PROFILE_RULES.delegatedFixMaxFiles} arquivos, fora de autenticação, pagamentos, migrações e infraestrutura, e se o rascunho não mudou. Você recebe o aviso com o motivo e pode desfazer.`}
-                demo={own.demo}
+                demo={own.agent.demo}
               />
             </section>
           )}
@@ -223,7 +234,7 @@ export default async function PessoaPage({ params }: { params: Promise<{ id: str
               open={emptyProfile}
             />
           )}
-          {accounts && <ContasPessoa action={salvarContas} personId={persona.id} name={persona.name} initial={accounts.values} slackMembers={accounts.members} />}
+          {accounts && <ContasPessoa action={salvarContas} personId={persona.id} name={persona.name} initial={accounts.values} slackMembers={accounts.members} platforms={accounts.platforms} slackFailed={accounts.slackFailed} />}
           {editable && <Bonequinho redo={refazerBonequinho} adjust={ajustarBonequinho} personId={persona.id} name={persona.name} initial={persona.avatar ?? lookFor(persona.id)} />}
           <HolderPanel persona={persona} />
           <section className="card" aria-labelledby="como">
@@ -300,15 +311,20 @@ export default async function PessoaPage({ params }: { params: Promise<{ id: str
   );
 }
 
-/** Contas da pessoa para a seção da ficha: só para quem pode ligar, com banco e fora da demonstração. */
+/**
+ * Contas da pessoa para a seção da ficha: só para quem liga ao menos uma plataforma, com banco e fora da
+ * demonstração. A demonstração nunca lê o Slack real; a liderança, que não liga o Slack, também não.
+ */
 async function loadAccounts(me: Awaited<ReturnType<typeof requireAccess>>, persona: { id: string; role?: "member" | "leader" | "hr" | undefined; teamId?: string | undefined; registered?: boolean | undefined }) {
+  const demo = isDemoSession(me);
+  const platforms = linkablePlatforms(me, persona);
   const db = panelDb();
-  if (!db || !persona.registered || !canLinkAccounts(me, persona) || isDemoSession(me)) return null;
+  if (demo || !db || !persona.registered || !platforms.length) return null;
   const orgId = gainsOrgId(me.orgId);
   const { readAccounts } = await import("@echo/agents/server");
-  const [current, members] = await Promise.all([readAccounts(db, orgId, persona.id), slackMembers(db, orgId)]);
-  return {
-    members,
-    values: { ...(current.slack ? { slack: current.slack.externalId } : {}), ...(current.github ? { github: current.github.login ?? current.github.externalId.replace(/^login:/, "") } : {}), ...(current.linear ? { linear: current.linear.externalId } : {}) },
-  };
+  const [current, slack] = await Promise.all([
+    readAccounts(db, orgId, persona.id),
+    slackDirectoryFor({ demo, canLinkSlack: platforms.includes("slack"), read: () => slackDirectory(db, orgId) }),
+  ]);
+  return { members: membersOf(slack), slackFailed: slack.status === "failed", platforms, values: accountValues(current) };
 }

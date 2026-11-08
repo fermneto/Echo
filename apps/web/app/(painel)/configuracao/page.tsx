@@ -1,12 +1,16 @@
 import { panelDb } from "@/lib/db";
 import { BUDGET, formatUsd } from "@/lib/demo/runs";
 import { gainsOrgId } from "@/lib/gains";
-import { slackMembers } from "@/lib/accounts-server";
+import { linkablePlatforms } from "@/lib/access";
+import { slackDirectory } from "@/lib/accounts-server";
+import { membersOf, slackDirectoryFor } from "@/lib/slack-directory";
 import { teamsFor } from "@/lib/scope";
-import { requireAccess } from "@/lib/session";
+import { isDemoSession, requireAccess } from "@/lib/session";
 import { accessMatrix, CONNECTIONS, type ConnectionKind, connectionRows, costSteps, ROLE_LABEL, ROLES } from "@/lib/settings";
-import { cadastrarPessoa } from "./actions";
+import { editableVideoChannels, type VideoChannelRow } from "@/lib/video-channel";
+import { cadastrarPessoa, salvarCanalVideo } from "./actions";
 import { CadastroPessoa } from "./CadastroPessoa";
+import { CanalVideo } from "./CanalVideo";
 import "./configuracao.css";
 
 export const metadata = { title: "Configuração · Echo" };
@@ -27,16 +31,27 @@ async function load(orgId: string): Promise<Loaded> {
   return { routes, limitUsd: settings?.monthlyLimitUsd ?? BUDGET.monthlyLimitUsd, roles: settings?.roles ?? null, orgName: settings?.name ?? null };
 }
 
-/** Configuração (etapa 15): conexões, limite de custo e quem vê o quê. Liderança e RH, só leitura. */
+/** Canais do vídeo e sugestões (canais onde o Echo já respondeu). Falha na leitura: a seção some, a página segue. */
+async function loadVideoChannels(db: NonNullable<ReturnType<typeof panelDb>>, orgId: string) {
+  const { readVideoChannels } = await import("@echo/agents/server");
+  return readVideoChannels(db, orgId).catch(() => null);
+}
+
+/** Configuração (etapa 15): conexões, cadastro, canal do vídeo da semana, limite de custo e quem vê o quê. Liderança e RH. */
 export default async function ConfiguracaoPage() {
   const persona = await requireAccess("configuracao");
   const canRegister = persona.role === "hr" || persona.role === "leader";
   const db = panelDb();
-  const [{ routes, limitUsd, roles, orgName }, teams, members] = await Promise.all([
+  // Pessoa nova da equipe de quem cadastra: a liderança liga GitHub e Linear; o Slack, só o RH.
+  const platforms = canRegister ? linkablePlatforms(persona, { id: "", role: "member", teamId: persona.teamId }) : [];
+  const [{ routes, limitUsd, roles, orgName }, teams, slack, channels] = await Promise.all([
     load(persona.orgId),
     teamsFor(persona),
-    canRegister && db ? slackMembers(db, gainsOrgId(persona.orgId)) : Promise.resolve(null),
+    // Na demonstração, o Slack real nunca é lido (nem users.list).
+    slackDirectoryFor({ demo: isDemoSession(persona), canLinkSlack: Boolean(db) && platforms.includes("slack"), read: () => slackDirectory(db!, gainsOrgId(persona.orgId)) }),
+    canRegister && db ? loadVideoChannels(db, gainsOrgId(persona.orgId)) : Promise.resolve(null),
   ]);
+  const channelRows: VideoChannelRow[] = channels ? editableVideoChannels(persona, channels) : [];
   const rows = connectionRows(routes);
   const on = rows.filter((r) => r.state === "on").length;
 
@@ -83,9 +98,24 @@ export default async function ConfiguracaoPage() {
             </h2>
             <span className="mono muted">Foto e currículo ficam só neste pedido</span>
           </div>
-          <CadastroPessoa action={cadastrarPessoa} teams={teams ?? []} slackMembers={members} />
+          <CadastroPessoa action={cadastrarPessoa} teams={teams ?? []} slackMembers={membersOf(slack)} platforms={platforms} slackFailed={slack.status === "failed"} />
           <p className="card__foot">
             O currículo é lido por um modelo aberto na nossa infraestrutura e vira cargo, habilidades, áreas e idiomas, sem dados pessoais. A foto vira traços de uma lista fechada (cabelo, pele, óculos, roupa), sem gênero, idade ou origem.
+          </p>
+        </section>
+      ) : null}
+
+      {channelRows.length ? (
+        <section className="card settings-card settings-grid" aria-labelledby="canal-video">
+          <div className="settings-card__head">
+            <h2 id="canal-video" className="card__title">
+              Canal do vídeo da semana
+            </h2>
+            <span className="mono muted">Uma postagem por vídeo, no Slack</span>
+          </div>
+          <CanalVideo action={salvarCanalVideo} rows={channelRows} suggestions={channels?.suggestions ?? []} />
+          <p className="card__foot">
+            Quando o vídeo da semana fica pronto, o Echo posta no canal da equipe (sem canal, no da empresa) para a equipe assistir e comentar na thread. Sem nenhum canal, o vídeo fica só em Relatórios. Cole o id do canal público (C…) e convide o Echo para o canal: ele não entra sozinho.
           </p>
         </section>
       ) : null}

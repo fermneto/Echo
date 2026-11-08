@@ -41,7 +41,8 @@ export function AgentProfileForm({
   maxChars: number;
   never: readonly string[];
   fixRules: string;
-  decisions: DecisionView[];
+  /** `null`: a leitura das decisões falhou; o resto do formulário continua valendo. */
+  decisions: DecisionView[] | null;
   timezone: string;
   /** Demonstração sem banco: o texto fica só neste navegador e as decisões são de exemplo. */
   demo: boolean;
@@ -89,23 +90,25 @@ export function AgentProfileForm({
         <p id="decisoes-do-agente" className="field-row__k mono">
           Decisões do seu agente
         </p>
-        {decisions.length === 0 ? (
+        {decisions === null ? (
+          <p className="muted agent-profile__hint">Não foi possível carregar as decisões agora. O seu texto acima continua valendo e pode ser salvo.</p>
+        ) : decisions.length === 0 ? (
           <p className="muted agent-profile__hint">Nenhuma ainda. Quando uma correção da revisão noturna ficar pronta, aparece aqui se o agente uniu pela sua delegação ou deixou com você, e por quê.</p>
         ) : (
           <ul role="list" className="agent-decisions">
             {decisions.map((d) => (
               <li key={d.fixId} className={`agent-decision is-${d.outcome}`}>
                 <p className="agent-decision__head">
-                  <span className={`status-tag mono agent-decision__tag is-${d.outcome}`}>{d.outcome === "unida" ? "Decidiu por você" : "Ficou com você"}</span>
+                  <span className={`status-tag mono agent-decision__tag is-${d.outcome}`}>{d.outcome === "unida" ? "Decidiu por você" : d.outcome === "esperando_ci" ? "Esperando o CI" : "Ficou com você"}</span>
                   <span>
                     PR {d.prNumber} <span className="muted">({d.repository})</span>
                   </span>
                   <span className="mono muted agent-decision__when">{when(d.atIso)}</span>
                 </p>
-                <p className="agent-decision__note">{d.note || (d.outcome === "unida" ? "Unida pela sua delegação." : "A delegação não cobriu esta correção.")}</p>
+                <p className="agent-decision__note">{d.note || (d.outcome === "unida" ? "Unida pela sua delegação." : d.outcome === "esperando_ci" ? "Esperando o CI do rascunho para decidir pela sua delegação." : "A delegação não cobriu esta correção.")}</p>
                 <p className="mono muted agent-decision__state">
                   {STATE_LABEL[d.state] ?? d.state}
-                  {d.outcome === "unida" ? ` · para desfazer, reverta o commit da união no PR ${d.prNumber}` : d.state === "ready" ? ` · aprove ou recuse a correção (rascunho ${d.draftPrNumber ?? "—"}) em Meu plano` : ""}
+                  {d.outcome === "unida" ? ` · para desfazer, reverta o commit da união no PR ${d.prNumber}` : d.outcome === "esperando_ci" ? " · une sozinho se o CI do rascunho ficar verde; você também pode decidir em Meu plano" : d.state === "ready" ? ` · aprove ou recuse a correção (rascunho ${d.draftPrNumber ?? "—"}) em Meu plano` : ""}
                 </p>
               </li>
             ))}

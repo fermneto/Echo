@@ -1,8 +1,8 @@
-// Vídeo da semana da equipe no Postgres, sempre em withOrg com filtro explícito de org_id. Os fatos saem dos
-// relatórios semanais já gerados (os mesmos números que cada pessoa conferiu); só o código do fluxo escreve.
-import { agentRuns, type Database, deployments, orgs, people, pullRequests, questions, tasks, teams, teamVideos, weeklyReports, withOrg } from "@echo/db";
-import { type AvatarTraits, localDate, parseAvatarTraits, pickVideoDeliveries, type PrState, type PullRequest, traitsFromSeed, type TeamWeekFacts, type VideoCandidate, type WeeklyMetrics } from "@echo/domain";
-import { and, eq, gte, inArray, isNotNull, lt, sql } from "drizzle-orm";
+// Vídeo da semana da equipe no Postgres, sempre em withOrg com filtro explícito de org_id. Os fatos saem só dos
+// relatórios semanais já liberados ao RH (conferidos pela pessoa ou passado o prazo); só o código do fluxo escreve.
+import { agentRuns, auditLog, type Database, deployments, orgs, people, pullRequests, questions, tasks, teams, teamVideos, weeklyReports, withOrg } from "@echo/db";
+import { type AvatarTraits, localDate, parseSlackChannelId, RELEASED_REPORT_STATES, teamVideoDue, parseAvatarTraits, pickVideoDeliveries, type PrState, type PullRequest, traitsFromSeed, type TeamWeekFacts, type VideoCandidate, type WeeklyMetrics } from "@echo/domain";
+import { and, eq, gte, inArray, isNotNull, like, lt, sql } from "drizzle-orm";
 import type { TeamVideoPatch, TeamVideoRow, TeamVideoState, TeamVideoStore, TeamVideoStory } from "./video.ts";
 
 type PrRow = typeof pullRequests.$inferSelect;
@@ -43,8 +43,13 @@ export function createPgTeamVideoStore(db: Database): TeamVideoStore {
           .where(and(eq(people.orgId, orgId), eq(people.teamId, teamId), eq(people.active, true)));
         if (!members.length) return null;
         const ids = members.map((m) => m.id);
-        const reports = await tx.select().from(weeklyReports).where(and(eq(weeklyReports.orgId, orgId), eq(weeklyReports.week, week), inArray(weeklyReports.personId, ids)));
+        // Só relatórios liberados ao RH: o que ainda está em conferência não entra (nem entregas, nem ajudas).
+        const reports = await tx
+          .select()
+          .from(weeklyReports)
+          .where(and(eq(weeklyReports.orgId, orgId), eq(weeklyReports.week, week), inArray(weeklyReports.personId, ids), inArray(weeklyReports.state, [...RELEASED_REPORT_STATES])));
         if (!reports.length) return null;
+        const releasedIds = [...new Set(reports.map((r) => r.personId))];
         const from = new Date(Math.min(...reports.map((r) => Date.parse(r.coveredPeriod.from))));
         const to = new Date(Math.max(...reports.map((r) => Date.parse(r.coveredPeriod.to))));
 
@@ -81,7 +86,7 @@ export function createPgTeamVideoStore(db: Database): TeamVideoStore {
           : [];
         const prs = prRows.map(toPr);
         const previews = deps.map((d) => ({ repository: d.repository ?? undefined, sha: d.sha ?? undefined, environment: d.environment, state: d.state, url: d.url ?? undefined }));
-        const candidates: VideoCandidate[] = ids
+        const candidates: VideoCandidate[] = releasedIds
           .flatMap((id) => pickVideoDeliveries(id, prs, previews, { from, to }))
           .sort((a, b) => (b.pr.mergedAt?.getTime() ?? 0) - (a.pr.mergedAt?.getTime() ?? 0))
           .slice(0, 3);
@@ -97,6 +102,14 @@ export function createPgTeamVideoStore(db: Database): TeamVideoStore {
           clips: [],
         };
         return { facts, candidates };
+      });
+    },
+
+    async channels(orgId, teamId) {
+      return withOrg(db, orgId, async (tx) => {
+        const [team] = await tx.select({ channel: teams.slackChannelId }).from(teams).where(and(eq(teams.orgId, orgId), eq(teams.id, teamId)));
+        const [org] = await tx.select({ channel: orgs.slackChannelId }).from(orgs).where(eq(orgs.id, orgId));
+        return { team: team?.channel ?? null, org: org?.channel ?? null };
       });
     },
 
@@ -143,32 +156,31 @@ function toRow(v: typeof teamVideos.$inferSelect): TeamVideoRow {
 // ---------- Agenda (worker)
 
 /**
- * Equipes com relatórios da semana já gerados e sem vídeo: entram na fila quando todos da equipe têm relatório ou
- * quando o primeiro saiu há mais de 24 h (fusos diferentes não seguram o vídeo para sempre).
+ * Equipes com relatórios da semana já liberados ao RH e sem vídeo. A decisão é a regra pura `teamVideoDue`
+ * (packages/domain): a mesma liberação do relatório (conferência da pessoa e 3 dias, ou sem aviso em 7), com todos
+ * da equipe liberados ou 24 h depois do primeiro liberado.
  */
 export async function queueTeamVideos(db: Database, orgId: string, now: Date): Promise<number> {
   return withOrg(db, orgId, async (tx) => {
     const recent = await tx
-      .select({ teamId: people.teamId, week: weeklyReports.week, noticeAt: weeklyReports.noticeAt })
+      .select({ teamId: people.teamId, week: weeklyReports.week, state: weeklyReports.state, sentAt: weeklyReports.sentAt })
       .from(weeklyReports)
       .innerJoin(people, eq(people.id, weeklyReports.personId))
-      .where(and(eq(weeklyReports.orgId, orgId), isNotNull(people.teamId), gte(weeklyReports.noticeAt, new Date(now.getTime() - 7 * 86_400_000))));
+      .where(and(eq(weeklyReports.orgId, orgId), isNotNull(people.teamId), inArray(weeklyReports.state, [...RELEASED_REPORT_STATES]), gte(weeklyReports.sentAt, new Date(now.getTime() - 7 * 86_400_000))));
     const existing = await tx.select({ teamId: teamVideos.teamId, week: teamVideos.week }).from(teamVideos).where(eq(teamVideos.orgId, orgId));
     const done = new Set(existing.map((e) => `${e.teamId}:${e.week}`));
-    const groups = new Map<string, { teamId: string; week: string; reports: number; first: number }>();
+    const groups = new Map<string, { teamId: string; week: string; reports: { state: string; sentAt: Date | null }[] }>();
     for (const r of recent) {
       const key = `${r.teamId}:${r.week}`;
       if (done.has(key)) continue;
-      const g = groups.get(key) ?? { teamId: r.teamId!, week: r.week, reports: 0, first: Infinity };
-      g.reports++;
-      g.first = Math.min(g.first, r.noticeAt?.getTime() ?? Infinity);
+      const g = groups.get(key) ?? { teamId: r.teamId!, week: r.week, reports: [] };
+      g.reports.push({ state: r.state, sentAt: r.sentAt });
       groups.set(key, g);
     }
     let n = 0;
     for (const g of groups.values()) {
       const [count] = await tx.select({ members: sql<number>`count(*)` }).from(people).where(and(eq(people.orgId, orgId), eq(people.teamId, g.teamId), eq(people.active, true)));
-      const ready = g.reports >= Number(count?.members ?? 0) || now.getTime() - g.first > 24 * 3_600_000;
-      if (!ready) continue;
+      if (!teamVideoDue(Number(count?.members ?? 0), g.reports, now)) continue;
       const rows = await tx.insert(teamVideos).values({ orgId, teamId: g.teamId, week: g.week }).onConflictDoNothing().returning({ id: teamVideos.id });
       n += rows.length;
     }
@@ -253,4 +265,44 @@ export async function latestTeamVideos(db: Database, orgId: string, teamIds: rea
 export async function teamVideoForStream(db: Database, orgId: string, id: string): Promise<{ storageKey: string; teamId: string } | null> {
   const [r] = await withOrg(db, orgId, (tx) => tx.select({ key: teamVideos.storageKey, teamId: teamVideos.teamId, state: teamVideos.state }).from(teamVideos).where(and(eq(teamVideos.orgId, orgId), eq(teamVideos.id, id))));
   return r?.key && r.state === "ready" ? { storageKey: r.key, teamId: r.teamId } : null;
+}
+
+// ---------- Canal do vídeo no Slack (Configuração)
+
+export interface VideoChannelsView {
+  /** Canal de reserva da empresa (equipe sem canal e empresa sem equipes). */
+  org: string | null;
+  teams: { id: string; name: string; channel: string | null }[];
+  /**
+   * Canais em que o Echo já respondeu perguntas (`questions.channel`), como sugestão: o bot está neles e não precisa
+   * de escopo para listar canais. Só ids `C…`.
+   */
+  suggestions: string[];
+}
+
+export async function readVideoChannels(db: Database, orgId: string): Promise<VideoChannelsView> {
+  return withOrg(db, orgId, async (tx) => {
+    const [org] = await tx.select({ channel: orgs.slackChannelId }).from(orgs).where(eq(orgs.id, orgId));
+    const rows = await tx.select({ id: teams.id, name: teams.name, channel: teams.slackChannelId }).from(teams).where(eq(teams.orgId, orgId)).orderBy(teams.name);
+    const asked = await tx.selectDistinct({ channel: questions.channel }).from(questions).where(and(eq(questions.orgId, orgId), like(questions.channel, "slack:C%")));
+    const suggestions = [...new Set(asked.map((q) => parseSlackChannelId(q.channel.slice("slack:".length))).filter((c): c is string => Boolean(c)))].sort();
+    return { org: org?.channel ?? null, teams: rows, suggestions };
+  });
+}
+
+/**
+ * Grava o canal do vídeo (da equipe, ou o de reserva da empresa com `teamId` nulo). `channel` nulo tira o canal.
+ * Recusa id fora do formato. Fica no audit_log com quem mudou.
+ */
+export async function saveVideoChannel(db: Database, orgId: string, input: { teamId: string | null; channel: string | null; actorId: string }): Promise<boolean> {
+  const channel = input.channel === null ? null : parseSlackChannelId(input.channel);
+  if (input.channel !== null && !channel) return false;
+  return withOrg(db, orgId, async (tx) => {
+    const done = input.teamId
+      ? await tx.update(teams).set({ slackChannelId: channel }).where(and(eq(teams.orgId, orgId), eq(teams.id, input.teamId))).returning({ id: teams.id })
+      : await tx.update(orgs).set({ slackChannelId: channel }).where(eq(orgs.id, orgId)).returning({ id: orgs.id });
+    if (!done.length) return false;
+    await tx.insert(auditLog).values({ orgId, actor: `person:${input.actorId}`, action: "config:video_channel", target: input.teamId ? `team:${input.teamId}` : `org:${orgId}` });
+    return true;
+  });
 }

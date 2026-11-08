@@ -2,6 +2,7 @@
 // com trabalho inventado; as demais personas são simuladas.
 // Datas são relativas ao `now` recebido, para a história valer em qualquer dia da apresentação.
 import type { schema } from "@echo/db";
+import { addDays, isoWeek, weekMonday } from "@echo/domain";
 
 type Row<T extends { $inferInsert: unknown }> = T["$inferInsert"];
 
@@ -61,6 +62,8 @@ export interface DemoData {
   agentRuns: Row<typeof schema.agentRuns>[];
   /** Férias que o mapa mostra (Yan e Noah), para as respostas saberem quem está fora. */
   absences: Row<typeof schema.absences>[];
+  /** Relatórios já enviados ao RH das semanas anteriores, para a Visão das equipes ter histórico. */
+  weeklyReports: Row<typeof schema.weeklyReports>[];
 }
 
 const HOUR = 3_600_000;
@@ -240,6 +243,48 @@ export function buildDemo(now: Date): DemoData {
     ...extra,
   });
 
+  // Progresso das equipes na visão do RH: concluídas recentes (sem prazo, para não virar atraso) e o trabalho em
+  // andamento das duas equipes do mapa. Carla fica sem concluída (cena 4) e Noah, de férias, só tem concluídas.
+  const progressTasks = (): DemoData["tasks"] => {
+    const done = (key: string, title: string, who: PersonaKey, size: number, daysAgo: number, area: string) =>
+      task(key, title, { assigneeId: P[who], state: "done", size, area, labels: [area], externalUpdatedAt: ago(daysAgo * DAY) });
+    const open = (key: string, title: string, who: PersonaKey, state: "todo" | "in_progress" | "in_review" | "backlog", size: number, area: string) =>
+      task(key, title, { assigneeId: P[who], state, size, area, labels: [area] });
+    return [
+      // Produto
+      done("ECH-118", "Paginação da listagem de pedidos", "eduardo", 2, 3, "api"),
+      done("ECH-121", "Recibo em PDF no checkout", "fernando", 3, 5, "pagamentos"),
+      done("ECH-123", "Estado vazio do histórico", "yan", 1, 6, "web"),
+      done("ECH-125", "Retentativa no webhook do gateway", "bruno", 3, 9, "pagamentos"),
+      done("ECH-126", "Cabeçalhos de cache na API de pedidos", "eduardo", 2, 11, "api"),
+      done("ECH-127", "Acessibilidade do formulário de pagamento", "yan", 2, 12, "web"),
+      // Dados e plataforma
+      done("DAD-41", "Modelo dbt de pedidos por dia", "ana", 3, 2, "dados"),
+      done("DAD-42", "Alerta de atraso na carga noturna", "amara", 2, 4, "dados"),
+      done("DAD-43", "Rotação das chaves do banco de leitura", "omar", 3, 5, "seguranca"),
+      done("DAD-44", "Job Spark de eventos do app", "wei", 5, 8, "dados"),
+      done("DAD-45", "Réplica de leitura do Postgres", "jonas", 3, 10, "infra"),
+      done("DAD-46", "Teste de qualidade nas tabelas de pagamento", "ana", 2, 13, "dados"),
+      open("DAD-47", "Painel de custo do cluster", "jonas", "in_review", 2, "infra"),
+      open("DAD-48", "Particionar a tabela de eventos", "wei", "in_progress", 3, "dados"),
+      open("DAD-49", "Varredura de segredos no CI", "omar", "in_progress", 2, "seguranca"),
+      open("DAD-50", "Documentar o dicionário de dados", "amara", "todo", 2, "dados"),
+      open("DAD-51", "Backup testado do banco principal", "jonas", "todo", 3, "infra"),
+      // Aplicativo e qualidade
+      done("APP-71", "Tema escuro no aplicativo", "jiwoo", 3, 3, "app"),
+      done("APP-72", "Testes de ponta a ponta do checkout", "ines", 3, 6, "qualidade"),
+      done("APP-73", "Componente de lista virtualizada", "noah", 2, 9, "web"),
+      done("APP-74", "Limite de requisições na API pública", "priya", 2, 11, "api"),
+      open("APP-75", "Notificações push do pedido", "olivia", "in_review", 3, "app"),
+      open("APP-76", "Endpoint de preferências do usuário", "lucia", "in_progress", 3, "api"),
+      open("APP-77", "Cache offline do histórico", "jiwoo", "in_progress", 5, "app"),
+      open("APP-78", "Fila de e-mails transacionais", "priya", "in_progress", 3, "api"),
+      open("APP-79", "Testes visuais das telas principais", "ines", "todo", 3, "qualidade"),
+      open("APP-80", "Login com biometria", "olivia", "todo", 3, "app"),
+      open("APP-81", "Migrar a API de busca para v2", "lucia", "backlog", 5, "api"),
+    ];
+  };
+
   const tasks: DemoData["tasks"] = [
     task("ECH-128", "Tratar o tempo limite na confirmação de pagamento", {
       assigneeId: P.fernando, state: "in_progress", size: 3, area: "pagamentos", labels: ["pagamentos"],
@@ -259,6 +304,7 @@ export function buildDemo(now: Date): DemoData {
     task("ECH-139", "Estorno parcial no checkout", { assigneeId: P.bruno, state: "todo", size: 3, area: "pagamentos", labels: ["pagamentos"] }),
     task("ECH-135", "Webhook de confirmação do gateway", { assigneeId: P.carla, state: "in_progress", size: 2, area: "pagamentos", labels: ["pagamentos"] }),
     task("ECH-160", "Página de status da integração", { state: "todo", size: 2, area: "web", labels: ["web"] }),
+    ...progressTasks(),
   ];
 
   const pr = (number: number, extra: Partial<Row<typeof schema.pullRequests>> & Pick<Row<typeof schema.pullRequests>, "title" | "branch" | "state">): Row<typeof schema.pullRequests> => ({
@@ -475,8 +521,43 @@ export function buildDemo(now: Date): DemoData {
   });
   const absences: DemoData["absences"] = [vacation("yan", nextMonday(now, "Asia/Tokyo")), vacation("noah", new Date("2026-11-14T23:59:00-05:00"))];
 
+  // Relatórios enviados de 7 semanas, da 8ª à 2ª antes da atual no fuso de cada pessoa. A semana anterior fica
+  // vazia: é a que `reportsDue` dá como pendente, e o fluxo de verdade (ou `pnpm relatorio:agora`, no e2e) gera o
+  // relatório dela para a pessoa conferir. Números sintéticos e estáveis por pessoa e semana. Nenhum envio cai nos últimos 7 dias nem tem aviso gravado: o vídeo da semana entra na fila
+  // por relatório liberado há menos de 7 dias, e o seed não pode disparar gravação (cada uma custa).
+  const vary = (key: string, n: number) => {
+    let h = 2166136261;
+    for (let i = 0; i < key.length; i++) h = Math.imul(h ^ key.charCodeAt(i), 16777619);
+    // Mistura final (fmix32): chaves quase iguais não dão números quase iguais.
+    h = Math.imul(h ^ (h >>> 16), 0x85ebca6b);
+    h = Math.imul(h ^ (h >>> 13), 0xc2b2ae35);
+    return ((h ^ (h >>> 16)) >>> 0) % n;
+  };
+  const reporters = people.filter((p) => p.role !== "hr");
+  const plural = (v: number, one: string, many: string) => `${v} ${v === 1 ? one : many}`;
+  const weeklyReports: DemoData["weeklyReports"] = [];
+  for (const p of reporters) {
+    const thisMonday = weekMonday(isoWeek(localDate(now, p.timezone)))!;
+    for (let back = 8; back >= 2; back--) {
+      const monday = addDays(thisMonday, -7 * back);
+      const week = isoWeek(monday);
+      if (vary(`${p.id}:${week}:envio`, 12) === 0) continue; // de vez em quando alguém não tem relatório
+      const deliveries = vary(`${p.id}:${week}:e`, 4);
+      const commits = 2 + vary(`${p.id}:${week}:c`, 9);
+      const reviews = vary(`${p.id}:${week}:r`, 5);
+      const helps = vary(`${p.id}:${week}:a`, 3);
+      weeklyReports.push({
+        orgId: org, personId: p.id!, week, state: "sent",
+        metrics: { deliveries, commits, reviews, helps, delays: [], deliveryRefs: [], helped: [] },
+        text: `${p.name} registrou na semana ${plural(deliveries, "entrega", "entregas")}, ${plural(commits, "commit", "commits")} e ${plural(reviews, "revisão", "revisões")}, e ${plural(helps, "ajuda confirmada", "ajudas confirmadas")} a colegas.`,
+        coveredPeriod: { from: `${monday}T00:00:00.000Z`, to: `${addDays(monday, 7)}T00:00:00.000Z` },
+        sentAt: new Date(Math.min(new Date(`${addDays(monday, 10)}T12:00:00.000Z`).getTime(), now.getTime() - 8 * DAY)),
+      });
+    }
+  }
+
   return {
     orgs, teams, people, identities, tasks, pullRequests, dailyNotes,
-    brainNotes, workEvents, contributions, questions, agentRuns, absences,
+    brainNotes, workEvents, contributions, questions, agentRuns, absences, weeklyReports,
   };
 }

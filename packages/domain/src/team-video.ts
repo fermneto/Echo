@@ -2,6 +2,7 @@
 // podem aparecer e o que o texto não pode dizer. Os números saem dos relatórios conferidos (regras); o modelo
 // só escreve frases curtas. Sem nota, sem ranking, sem comparar pessoas: a semana é da equipe.
 import type { AvatarTraits } from "./avatar.ts";
+import { reportReleased } from "./report.ts";
 
 export const TEAM_VIDEO_RULES = {
   maxSeconds: 90,
@@ -13,7 +14,23 @@ export const TEAM_VIDEO_RULES = {
   maxTextChars: 90,
   /** Dias até o vídeo sair do armazenamento. */
   retentionDays: 30,
+  /** Horas, contadas do primeiro relatório liberado da equipe, até o vídeo sair sem esperar os demais. */
+  waitForTeamHours: 24,
 } as const;
+
+/**
+ * O vídeo da semana entra na fila quando os relatórios da equipe já foram liberados ao RH (a mesma condição:
+ * conferência da pessoa e prazo de 3 dias, ou sem aviso em 7). Sai quando todos da equipe têm relatório liberado,
+ * ou 24 h depois do primeiro liberado (fusos e prazos diferentes não seguram o vídeo para sempre). Relatório ainda
+ * em conferência não conta.
+ */
+export function teamVideoDue(members: number, reports: readonly { state: string; sentAt: Date | null | undefined }[], now: Date): boolean {
+  const released = reports.filter((r) => reportReleased(r.state) && r.sentAt);
+  if (!released.length) return false;
+  if (members > 0 && released.length >= members) return true;
+  const first = Math.min(...released.map((r) => r.sentAt!.getTime()));
+  return now.getTime() - first >= TEAM_VIDEO_RULES.waitForTeamHours * 3_600_000;
+}
 
 export interface TeamWeekFacts {
   teamName: string;
@@ -105,7 +122,9 @@ export function scenesSeconds(scenes: readonly Scene[]): number {
   return last ? last.at + last.seconds : 0;
 }
 
-const RANKING = /\b(melhor(es)?|pior(es)?|mais produtiv\w*|menos produtiv\w*|destaque\w*|campe[ãa]o|campeã|ranking|top \d|vencedor\w*|nota|primeiro lugar|quem mais|recordista|mvp)\b/i;
+// `\b` não enxerga letra acentuada ("campeã" passava): começo e fim de palavra com `(?<!\p{L})` e `(?!\p{L})`.
+const RANKING =
+  /(?<!\p{L})(melhor(es)?|pior(es)?|mais produtiv\p{L}*|menos produtiv\p{L}*|destaque\p{L}*|campe[ãa]o|campeã|campeões|campeãs|ranking|top \d+|vencedor\p{L}*|nota|primeiro lugar|quem mais|(o|a) que mais (entreg|ajud|fe[zc]|fech|resolv|produz|trabalh|contribu)\p{L}*|recordista|mvp)(?!\p{L})/iu;
 const FIRST_PERSON = /\b(eu|meu|minha|nós|nosso|nossa)\b/i;
 const DIGITS = /\d+([.,]\d+)?/g;
 

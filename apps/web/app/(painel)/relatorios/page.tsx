@@ -19,7 +19,7 @@ export const dynamic = "force-dynamic";
 const HR_TITLE = "Relatórios enviados";
 const HR_LEAD = "O que cada pessoa conferiu e enviou nesta semana. Sem nota, sem ranking e sem acesso às notas de ninguém.";
 const MY_TITLE = "Meus relatórios";
-const MY_LEAD = "O Echo resume a sua semana a partir do GitHub e do Linear, com crédito por cada ajuda. Você confere e comenta; três dias depois do aviso, ele segue ao RH.";
+const MY_LEAD = "O Echo resume a sua semana a partir do GitHub e das tarefas, com crédito por cada ajuda. Você confere e comenta; três dias depois do aviso, ele segue ao RH.";
 
 type HrItem = { id: string; persona: Persona; week: string };
 

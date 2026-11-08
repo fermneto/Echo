@@ -98,8 +98,8 @@ const slm = {
   /** Tempo máximo da triagem de um PR e do juiz da delegação (CPU, ~15 a 30 s; a primeira chamada também carrega o modelo). */
   TRIAGE_TIMEOUT_MS: z.coerce.number().int().min(1000).max(300_000).default(120_000),
   /**
-   * SSLM do roteador de custo da resposta (mesmo Ollama), para a dúvida da regra. Vazio = desligado (padrão): o
-   * Qwen3 0.6B e o 4B erraram demais na checagem (docs/engenharia.md). O modelo precisa estar no Ollama.
+   * SSLM do roteador de custo da resposta (mesmo Ollama), para a dúvida da regra. Vazio ou `off` = desligado
+   * (padrão): o Qwen3 0.6B e o 4B erraram demais na checagem (docs/engenharia.md). O modelo precisa estar no Ollama.
    */
   SSLM_MODEL: optionalString,
   /** Tempo máximo do SSLM; passou disso, a pergunta segue para o Sonnet. */

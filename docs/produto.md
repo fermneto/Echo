@@ -723,21 +723,22 @@ _Reordenar e aprovar na página — Painel · /resumos/plano-2026-11-07 (Painel)
 - Aprovar a correção passa pelo `actions`, como no Meu plano.
 - A barra de carga vem de `capacityCard`, não do modelo.
 
-### Vídeos e resumos interativos · Vídeo da entrega no relatório
+### Vídeos e resumos interativos · Vídeo da semana da equipe
 
 _Gravado por um agente Claude — Painel · Relatórios · semana de 2/11 (Painel)_
 
-> **Echo** (sex 18:05): **Seu relatório da semana está pronto**, com 1 vídeo da entrega ECH-131. Assista e aprove antes do envio ao RH. — Ver relatório
->
-> _(página interativa)_ ▶Agente do Echo: a nova versão da API de pagamentos responde em JSON v20:48 **0:00** Abre o preview do commit**0:12** Cria um pagamento de teste**0:31** Mostra a resposta no formato v2**0:44** Erro tratado com mensagem clara Aprovar vídeoGravar de novoDescartar
+> _(página interativa)_ ▶ **Vídeo da semana · Produto · 2 a 6/11** 0:41 **0:00** Abertura **0:05** A semana em números **0:11** Entregas **0:18** Uma das telas novas **0:28** Ajudas entre colegas **0:35** Gêmeos em ação **0:38** Encerramento
 >
 
 **Por trás:**
 
-- Regras escolhem a entrega: PR unido com mudança de tela e preview.
-- O Claude escreve o roteiro e, no Managed Agents, dirige um navegador sem interface no preview. Playwright grava, ffmpeg legenda.
-- Só domínio de preview, até 90 s, dados sintéticos, legendas em terceira pessoa.
-- O vídeo mostra a feature, nunca a pessoa. Sem aprovação ou com falha, o relatório segue sem ele.
+- Sai só depois que os relatórios da equipe foram liberados ao RH, pela mesma regra do envio: a pessoa conferiu e passaram os 3 dias, ou não houve aviso em 7. Todos liberados, ou 24 h depois do primeiro.
+- Mostra só o que está nos relatórios liberados: totais da equipe, entregas (referência e título, sem o autor), ajudas entre colegas ("X ajudou Y") e respostas dos gêmeos. Sem nota, sem ranking, sem comparar pessoas.
+- Trechos das telas novas: regras escolhem PR unido com mudança de tela e preview. O Claude escreve o roteiro e, no Managed Agents, um navegador sem interface grava no preview. Só domínio de preview, até 90 s, dados sintéticos.
+- Quem vê: a equipe e a liderança; o RH, nas equipes que acompanha. Link assinado de 1 h, retenção de 30 dias.
+- No Slack: quando fica pronto, o Echo posta o vídeo uma vez no canal da equipe, para a equipe assistir e comentar junto na thread. Equipe sem canal usa o canal da empresa; sem nenhum canal, o vídeo fica só no painel, nunca no privado. O canal se escolhe em Configuração (RH e liderança), colando o id do canal; o Echo precisa ser convidado para o canal. A mensagem diz que é o vídeo da semana da equipe, o período, que foi gravado por um agente Claude (Powered by Claude) e que também está no painel, em Relatórios, sem chamar todo mundo do canal. Sem permissão de arquivo no Slack, chega só o texto com o link.
+- Para em 80% do limite de custo da empresa, como a correção. Com falha, o relatório de cada pessoa segue igual.
+- Ainda não existe: o vídeo de cada entrega no relatório individual, com aprovação da pessoa antes do envio ao RH.
 
 ## Painel
 
@@ -754,10 +755,9 @@ _Gravado por um agente Claude — Painel · Relatórios · semana de 2/11 (Paine
 | Relatórios | /relatorios | Relatório semanal, vídeos das entregas, observação e registro de ajuda | A pessoa (o próprio) e o RH (enviados) |
 | Resumo interativo | /resumos/[id] | Nota do dia, plano da manhã e resumo da ausência como páginas interativas | A própria pessoa |
 | Ganhos | /ganhos | Espera evitada e revisões antes e depois, só em totais | RH e liderança |
-| Custo e execuções | /execucoes | Custo por fluxo, agent_runs, auditoria, controles de ensaio | Liderança |
-| Configuração | /configuracao | Slack, Linear, pessoas, currículo, contas, RH e limite de custo | RH e liderança |
-| Simulador | /simulador | Conversa pelo mesmo fluxo do Slack | Só na demonstração |
-| Entrar · Convite | /entrar · /convite | Login com Slack, por persona (demo) ou convite de uso único | Público |
+| Custo e execuções | /execucoes | Custo por fluxo, agent_runs e auditoria | Liderança |
+| Configuração | /configuracao | Slack, Linear, pessoas, currículo, contas, RH, canal do vídeo da semana e limite de custo | RH e liderança |
+| Entrar · Convite | /entrar · /convite | Login com Slack, por usuário e senha (demo: o nome da pessoa e a senha `echo`) ou convite de uso único | Público |
 
 ### Papéis
 
@@ -772,7 +772,7 @@ _Gravado por um agente Claude — Painel · Relatórios · semana de 2/11 (Paine
 | **Fernando** | Desenvolvedor em Fortaleza, dorme enquanto Eduardo trabalha |
 | **Eduardo** | Desenvolvedor na África do Sul, precisa saber se pode seguir |
 | **Yan** | Desenvolvedor da equipe |
-| **Marina** | Líder: redistribuição, custo e execuções, recriar a demonstração |
+| **Marina** | Líder: redistribuição, custo e execuções |
 | **Bruno** | Entra de férias e tem as tarefas redistribuídas |
 | **Carla** | Poucos commits, 0 entregas e 5 ajudas a colegas |
 | **Rita** | RH: vê o relatório enviado, sem nota, ranking ou cérebros |
@@ -785,7 +785,7 @@ _Demo · 3 minutos_
 
 ### Roteiro com cronômetro
 
-- **Avise os jurados** — Os dados são sintéticos, o RH é simulado, os erros do código são plantados, "simular a noite" comprime o que roda de madrugada e "simular o envio automático" antecipa o prazo de 3 dias.
+- **Avise os jurados** — Os dados são sintéticos, o RH é simulado, os erros do código são plantados, `pnpm noite:agora` roda na hora o que rodaria de madrugada e "simular o envio automático" antecipa o prazo de 3 dias.
 
 #### 1. A pergunta que esperaria um dia 40 s · entre como Eduardo
 
@@ -809,17 +809,16 @@ Em Gestão → Custo e execuções, quanto custou cada coisa. Em Gestão → Gan
 
 _Preparação_
 
-1. Entre como Marina, abra Gestão → Custo e execuções e clique em Recriar a demonstração.
-2. Clique em Simular a noite e confira a execução na lista.
-3. Com o banco recriado (`pnpm db:seed`), rode `pnpm relatorio:agora`: gera o relatório da semana que já fechou, sem o qual a cena 4 mostra "ainda não foi gerado". `pnpm e2e` ensaia as cinco cenas sozinho, sem modelo.
-4. Abra o Slack e o painel lado a lado, se for mostrar a resposta real.
-5. Confira o código de acesso do painel: passe aos jurados ou remova.
+1. Recrie o banco da demonstração (`pnpm db:seed`) e rode `pnpm noite:agora` para a revisão da noite aparecer em Gestão → Custo e execuções.
+2. Rode `pnpm relatorio:agora`: gera o relatório da semana que já fechou, sem o qual a cena 4 mostra "ainda não foi gerado". `pnpm e2e` ensaia as cinco cenas sozinho, sem modelo.
+3. Abra o Slack e o painel lado a lado, se for mostrar a resposta real.
+4. Confira o código de acesso do painel: passe aos jurados ou remova.
 
 _Se algo falhar_
 
 - **Resposta demorando:** pergunte no painel, que não depende do Slack.
-- **Lote noturno:** não use ao vivo. O botão de simular faz a mesma análise.
-- **Dados estranhos:** recrie a demonstração.
+- **Lote noturno:** não use ao vivo. `pnpm noite:agora` faz a mesma análise antes da apresentação.
+- **Dados estranhos:** recrie a demonstração com `pnpm db:seed`.
 
 _Para os jurados testarem_
 

@@ -18,6 +18,8 @@ export const orgs = pgTable("orgs", {
   gainsBaseline: jsonb("gains_baseline"),
   repositoriesOpenToTeam: jsonb("repositories_open_to_team").$type<string[]>().notNull().default([]),
   isDemo: boolean("is_demo").notNull().default(false),
+  /** Canal do Slack (C…) de reserva para o vídeo da semana: vale para equipe sem canal e empresa sem equipes. */
+  slackChannelId: text("slack_channel_id"),
   createdAt: createdAt(),
 });
 
@@ -46,6 +48,8 @@ export const teams = pgTable("teams", {
   name: text("name").notNull(),
   leaderId: uuid("leader_id"),
   loadLimit: integer("load_limit").notNull().default(12),
+  /** Canal do Slack (C…) da equipe, onde sai o vídeo da semana para a equipe assistir e comentar junto. */
+  slackChannelId: text("slack_channel_id"),
 });
 
 /** Pessoas. Sem tempo online. */
@@ -285,7 +289,9 @@ export const fixRuns = pgTable("fix_runs", {
   reviewId: uuid("review_id").notNull().references(() => reviews.id),
   branch: text("branch"),
   draftPrNumber: integer("draft_pr_number"),
+  /** Resultado dos testes que o próprio agente da correção declara no fix.json. */
   testsReported: text("tests_reported"),
+  /** Último estado do CI do rascunho lido pela delegação. */
   checksState: text("checks_state"),
   costUsd: numeric("cost_usd", { precision: 10, scale: 4 }),
   state: text("state").notNull().default("queued"), // running | draft_queued | ready | approved | applied | declined | rejected | failed | skipped
@@ -304,6 +310,8 @@ export const fixRuns = pgTable("fix_runs", {
   decidedVia: text("decided_via"),
   /** Por que a delegação cobriu (ou não) esta correção: travas e juiz, para a pessoa conferir. */
   delegationNote: text("delegation_note"),
+  /** Desde quando a delegação espera o CI do rascunho (só une com ele verde); null = não está esperando. */
+  ciWaitSince: ts("ci_wait_since"),
   createdAt: createdAt(),
 }, (t) => [uniqueIndex("fix_runs_review").on(t.orgId, t.reviewId)]);
 

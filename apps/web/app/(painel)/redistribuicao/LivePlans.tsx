@@ -165,7 +165,7 @@ function PlanCard({ plan, people: team }: { plan: PlanView; people: Person[] }) 
                   ) : null}
                 </p>
                 <p className="assign__why">
-                  {chosen ? "Escolhida por você. As regras de ausência e conta no Linear são conferidas ao aprovar." : a.reason}
+                  {chosen ? "Escolhida por você. As regras de ausência e conta no tracker de tarefas são conferidas ao aprovar." : a.reason}
                   {a.load && !chosen ? <span className="assign__load mono"> · {a.load}</span> : null}
                 </p>
                 {picking === a.id ? (

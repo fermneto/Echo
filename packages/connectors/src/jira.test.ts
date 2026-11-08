@@ -2,6 +2,7 @@
 import { describe, expect, it } from "vitest";
 import { adfText, JiraApiError, JiraTracker } from "./jira-client.ts";
 import { jiraRouteKey, jiraState, normalizeJira } from "./jira.ts";
+import { platformsFromEnv } from "./platforms.ts";
 import { sign, verifyJira } from "./signatures.ts";
 
 const issue = (over: Record<string, unknown> = {}, fields: Record<string, unknown> = {}) => ({
@@ -138,5 +139,19 @@ describe("JiraTracker", () => {
     expect(calls[2]!.body.body.content).toHaveLength(2);
     expect(tracker.platform).toBe("jira");
     expect(tracker.site).toBe("acme.atlassian.net");
+  });
+});
+
+describe("um tracker por vez", () => {
+  const jiraEnv = { JIRA_BASE_URL: "https://acme.atlassian.net", JIRA_EMAIL: "echo@acme.test", JIRA_API_TOKEN: "token-de-teste" };
+  it("só o Jira configurado: o Jira é o tracker", () => {
+    const p = platformsFromEnv(jiraEnv);
+    expect(p.jira?.site).toBe("acme.atlassian.net");
+    expect(p.linear).toBeUndefined();
+  });
+  it("Linear e Jira configurados: vale o Linear, e o Jira fica de fora", () => {
+    const p = platformsFromEnv({ ...jiraEnv, LINEAR_API_KEY: "lin_api_teste" });
+    expect(p.linear).toBeDefined();
+    expect(p.jira).toBeUndefined();
   });
 });

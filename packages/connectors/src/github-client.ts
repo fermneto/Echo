@@ -11,6 +11,16 @@ import { RefreshingToken } from "./tokens.ts";
 
 type FetchLike = (input: string, init: RequestInit) => Promise<Response>;
 
+/** Até quantas páginas de 100 check runs (e de commit statuses) são lidas por commit. */
+const MAX_CHECK_PAGES = 10;
+
+/** Estado de um commit status antigo: `error` e `failure` são falha; `pending` ainda roda. */
+function statusStateOf(state: string): ChecksState {
+  if (state === "success") return "success";
+  if (state === "failure" || state === "error") return "failure";
+  return "pending";
+}
+
 export class GithubApiError extends Error {
   override name = "GithubApiError";
   constructor(
@@ -364,16 +374,46 @@ export class GithubCodeHost implements CodeHost, CodeWriter, RepoFiles {
     return out;
   }
 
-  /** Checks de um commit ao vivo: só estado, nomes que falharam e o link, nunca logs. */
+  /**
+   * Checks de um commit ao vivo: só estado, nomes que falharam e o link, nunca logs. Junta os check runs (paginados,
+   * até 10 páginas) e os commit statuses antigos (`/status`). Qualquer falha em um dos dois é falha; só é verde
+   * quando tudo terminou, com ao menos um sucesso. Erro de leitura (inclusive sem permissão) sobe: quem chama
+   * trata como "não sei", nunca como verde.
+   */
   async getChecks(repo: string, ref: string): Promise<{ state: ChecksState | "none"; total: number; failed: string[]; running: number; url: string }> {
-    const { data } = await this.get<{ total_count: number; check_runs: { name: string; status: string; conclusion: string | null }[] }>(
-      `/repos/${repo}/commits/${encodeURIComponent(ref)}/check-runs?per_page=100`,
-    );
-    const runs = data.check_runs;
-    const failed = runs.filter((r) => r.status === "completed" && checksStateOf(r.conclusion) === "failure").map((r) => r.name);
-    const running = runs.filter((r) => r.status !== "completed").length;
-    const state: ChecksState | "none" = runs.length === 0 ? "none" : failed.length ? "failure" : running ? "pending" : runs.every((r) => checksStateOf(r.conclusion) === "neutral") ? "neutral" : "success";
-    return { state, total: data.total_count, failed, running, url: `https://github.com/${repo}/commit/${ref}/checks` };
+    const sha = encodeURIComponent(ref);
+    const runs: { name: string; status: string; conclusion: string | null }[] = [];
+    let runsTotal = 0;
+    for (let page = 1; page <= MAX_CHECK_PAGES; page++) {
+      const { data } = await this.get<{ total_count: number; check_runs: { name: string; status: string; conclusion: string | null }[] }>(
+        `/repos/${repo}/commits/${sha}/check-runs?per_page=100&page=${page}`,
+      );
+      runsTotal = data.total_count;
+      runs.push(...data.check_runs);
+      if (data.check_runs.length < 100 || runs.length >= runsTotal) break;
+    }
+    // O combinado já traz o último status de cada contexto; paginado igual aos check runs.
+    const statuses: { context: string; state: string }[] = [];
+    let statusesTotal = 0;
+    for (let page = 1; page <= MAX_CHECK_PAGES; page++) {
+      const { data } = await this.get<{ total_count: number; statuses: { context: string; state: string }[] }>(`/repos/${repo}/commits/${sha}/status?per_page=100&page=${page}`);
+      statusesTotal = data.total_count;
+      statuses.push(...data.statuses);
+      if (data.statuses.length < 100 || statuses.length >= statusesTotal) break;
+    }
+    // Página que não veio (mais de 10) conta como ainda rodando: nunca vira verde sem ter sido lida.
+    const unread = Math.max(0, runsTotal - runs.length) + Math.max(0, statusesTotal - statuses.length);
+
+    const items: { name: string; state: ChecksState }[] = [
+      ...runs.map((r) => ({ name: r.name, state: r.status === "completed" ? checksStateOf(r.conclusion) : ("pending" as const) })),
+      ...statuses.map((s) => ({ name: s.context, state: statusStateOf(s.state) })),
+    ];
+    const failed = items.filter((i) => i.state === "failure").map((i) => i.name);
+    const running = items.filter((i) => i.state === "pending").length + unread;
+    const total = runsTotal + statusesTotal;
+    const state: ChecksState | "none" =
+      items.length === 0 && unread === 0 ? "none" : failed.length ? "failure" : running ? "pending" : items.every((i) => i.state === "neutral") ? "neutral" : "success";
+    return { state, total, failed, running, url: `https://github.com/${repo}/commit/${ref}/checks` };
   }
 
   // ---------- Escritas (só packages/actions, depois de aprovação)

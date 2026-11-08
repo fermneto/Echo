@@ -20,26 +20,53 @@ export async function saveDemoProfile(input: { style: string; delegation: string
   jar.set(PROFILE_COOKIE, JSON.stringify({ style, delegation, delegationAtIso }), { httpOnly: true, sameSite: "lax", path: "/", secure: process.env.NODE_ENV === "production" });
 }
 
-export type OwnAgent = { style: string; delegation: string; delegationAt: Date | null; decisions: DecisionView[]; demo: boolean };
+/** `decisions: null`: a leitura das decisões falhou; o formulário aparece e a lista avisa. */
+export type OwnAgent = { style: string; delegation: string; delegationAt: Date | null; decisions: DecisionView[] | null; demo: boolean };
+
+/**
+ * `indisponivel`: a leitura do próprio texto falhou. A ficha abre sem o formulário: um formulário vazio, se salvo,
+ * apagaria o estilo e a delegação gravados.
+ */
+export type OwnAgentLoad = { status: "ok"; agent: OwnAgent } | { status: "indisponivel" };
+
+type ProfileReader = Pick<typeof import("@echo/agents/perfil"), "readAgentProfile" | "readAgentDecisions">;
+
+const errorMessage = (err: unknown) => (err instanceof Error ? err.message : String(err));
 
 /**
  * "Seu agente" da própria pessoa: do banco quando há; senão, para a persona da demonstração, o texto do cookie e
  * decisões de exemplo. Empresa conectada sem banco: vazio, nunca as decisões de exemplo.
+ * Falha na leitura não derruba a ficha: o bloco fica indisponível (texto) ou sem a lista (decisões).
  */
-export async function loadOwnAgent(me: { id: string; orgId: string }, db: Database | null): Promise<OwnAgent> {
-  if (!db && !isDemoOrg(me.orgId)) return { style: "", delegation: "", delegationAt: null, decisions: [], demo: false };
+export async function loadOwnAgent(me: { id: string; orgId: string }, db: Database | null, deps: { read?: ProfileReader } = {}): Promise<OwnAgentLoad> {
+  if (!db && !isDemoOrg(me.orgId)) return { status: "ok", agent: { style: "", delegation: "", delegationAt: null, decisions: [], demo: false } };
   if (!db) {
     const p = await currentDemoProfile();
-    return { style: p.style, delegation: p.delegation, delegationAt: p.delegationAtIso ? new Date(p.delegationAtIso) : null, decisions: demoDecisions(me.id), demo: true };
+    return { status: "ok", agent: { style: p.style, delegation: p.delegation, delegationAt: p.delegationAtIso ? new Date(p.delegationAtIso) : null, decisions: demoDecisions(me.id), demo: true } };
   }
-  const { readAgentDecisions, readAgentProfile } = await import("@echo/agents/perfil");
   const [orgId, personId] = [gainsOrgId(me.orgId), personIdFor(me.id)];
-  const [p, decisions] = await Promise.all([readAgentProfile(db, orgId, personId), readAgentDecisions(db, orgId, personId)]);
+  let read: ProfileReader;
+  try {
+    read = deps.read ?? (await import("@echo/agents/perfil"));
+  } catch (err) {
+    console.error("seu agente indisponível", errorMessage(err));
+    return { status: "indisponivel" };
+  }
+  const [profile, decisions] = await Promise.allSettled([read.readAgentProfile(db, orgId, personId), read.readAgentDecisions(db, orgId, personId)]);
+  if (profile.status === "rejected") {
+    console.error("seu agente indisponível", errorMessage(profile.reason));
+    return { status: "indisponivel" };
+  }
+  if (decisions.status === "rejected") console.error("decisões do agente indisponíveis", errorMessage(decisions.reason));
+  const p = profile.value;
   return {
-    style: p?.style ?? "",
-    delegation: p?.delegation ?? "",
-    delegationAt: p?.delegationUpdatedAt ?? null,
-    decisions: decisions.map(({ at, ...d }) => ({ ...d, atIso: at.toISOString() })),
-    demo: false,
+    status: "ok",
+    agent: {
+      style: p?.style ?? "",
+      delegation: p?.delegation ?? "",
+      delegationAt: p?.delegationUpdatedAt ?? null,
+      decisions: decisions.status === "fulfilled" ? decisions.value.map(({ at, ...d }) => ({ ...d, atIso: at.toISOString() })) : null,
+      demo: false,
+    },
   };
 }

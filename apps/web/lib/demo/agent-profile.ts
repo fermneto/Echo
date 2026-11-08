@@ -7,7 +7,7 @@ export type DecisionView = {
   repository: string;
   prNumber: number;
   draftPrNumber: number | null;
-  outcome: "unida" | "com_voce";
+  outcome: "unida" | "esperando_ci" | "com_voce";
   state: string;
   note: string;
   atIso: string;

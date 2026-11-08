@@ -85,7 +85,7 @@ export async function descartarPlano(planId: string): Promise<FlowResult> {
 
 /**
  * Passa adiante um item recusado, que falhou ou ficou sem responsável, depois da aprovação.
- * As regras de quem pode receber (ausência, conta no Linear, autor do PR) ficam no fluxo.
+ * As regras de quem pode receber (ausência, conta no tracker de tarefas, autor do PR) ficam no fluxo.
  */
 export async function repassarItem(itemId: string, toId: string): Promise<FlowResult> {
   return guarded(async () => {
