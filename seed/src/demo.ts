@@ -478,8 +478,9 @@ export function buildDemo(now: Date): DemoData {
   });
   const absences: DemoData["absences"] = [vacation("yan", nextMonday(now, "Asia/Tokyo")), vacation("noah", new Date("2026-11-14T23:59:00-05:00"))];
 
-  // Relatórios enviados das 7 semanas anteriores (a atual ainda não fechou). Números sintéticos e estáveis por
-  // pessoa e semana. Nenhum envio cai nos últimos 7 dias nem tem aviso gravado: o vídeo da semana entra na fila
+  // Relatórios enviados de 7 semanas, da 8ª à 2ª antes da atual no fuso de cada pessoa. A semana anterior fica
+  // vazia: é a que `reportsDue` dá como pendente, e o fluxo de verdade (ou `pnpm relatorio:agora`, no e2e) gera o
+  // relatório dela para a pessoa conferir. Números sintéticos e estáveis por pessoa e semana. Nenhum envio cai nos últimos 7 dias nem tem aviso gravado: o vídeo da semana entra na fila
   // por relatório liberado há menos de 7 dias, e o seed não pode disparar gravação (cada uma custa).
   const vary = (key: string, n: number) => {
     let h = 2166136261;
@@ -489,14 +490,14 @@ export function buildDemo(now: Date): DemoData {
     h = Math.imul(h ^ (h >>> 13), 0xc2b2ae35);
     return ((h ^ (h >>> 16)) >>> 0) % n;
   };
-  const thisMonday = weekMonday(isoWeek(localDate(now, "UTC")))!;
   const reporters = people.filter((p) => p.role !== "hr");
   const plural = (v: number, one: string, many: string) => `${v} ${v === 1 ? one : many}`;
   const weeklyReports: DemoData["weeklyReports"] = [];
-  for (let back = 7; back >= 1; back--) {
-    const monday = addDays(thisMonday, -7 * back);
-    const week = isoWeek(monday);
-    for (const p of reporters) {
+  for (const p of reporters) {
+    const thisMonday = weekMonday(isoWeek(localDate(now, p.timezone)))!;
+    for (let back = 8; back >= 2; back--) {
+      const monday = addDays(thisMonday, -7 * back);
+      const week = isoWeek(monday);
       if (vary(`${p.id}:${week}:envio`, 12) === 0) continue; // de vez em quando alguém não tem relatório
       const deliveries = vary(`${p.id}:${week}:e`, 4);
       const commits = 2 + vary(`${p.id}:${week}:c`, 9);
