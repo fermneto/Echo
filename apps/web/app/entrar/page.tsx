@@ -25,7 +25,7 @@ export default async function EntrarPage({ searchParams }: { searchParams: Promi
       ) : null}
       {demo ? (
         <>
-          <p className="lead">Entre com seu usuário e sua senha. Cada pessoa vê só o que o papel dela permite.</p>
+          <p className="lead">Entre com seu usuário e sua senha.</p>
           <p className="entrar__hint mono">
             Usuários: {demoUsernames().join(", ")} · senha: {DEMO_PASSWORD}
           </p>

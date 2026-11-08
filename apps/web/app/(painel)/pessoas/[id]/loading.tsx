@@ -26,19 +26,19 @@ export default function LoadingPessoa() {
       <Link href="/equipe" className="back-link mono" tabIndex={-1}>
         ← Pessoas
       </Link>
-      <header className="profile-top">
-        <figure className="profile-avatar">
-          <Skeleton width={132} height={132} />
-          <Skeleton width={140} height={15} />
-        </figure>
-        <div className="profile-top__text">
-          <Skeleton width="min(320px, 100%)" height={47} />
-          <Skeleton width={200} height={24} />
-          <Skeleton width={260} height={28} />
-        </div>
-      </header>
       <div className="profile-grid">
         <div className="profile-col">
+          <header className="profile-top">
+            <figure className="profile-avatar">
+              <Skeleton width={132} height={132} />
+              <Skeleton width={140} height={15} />
+            </figure>
+            <div className="profile-top__text">
+              <Skeleton width="min(320px, 100%)" height={47} />
+              <Skeleton width={200} height={24} />
+              <Skeleton width={260} height={28} />
+            </div>
+          </header>
           <CardSkeleton title={220} rows={[70, 85, 55]} />
           <CardSkeleton title={260} rows={[80, 60, 72, 45]} />
         </div>
