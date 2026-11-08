@@ -520,7 +520,7 @@ _Regras da API_
 - Opus 5.5 e Sonnet 5.5 não aceitam forçar uma ferramenta: seleção automática, esquemas estritos e saída estruturada.
 - Esforço definido por fluxo. Tratar `stop_reason` de recusa.
 - Instruções e ferramentas estáveis no início, com cache. Nada variável nesse trecho.
-- Chave de API da empresa, nunca login do claude.ai. "Powered by Claude", nunca "Claude Code".
+- Chave de API da empresa, nunca login do claude.ai. Se citar a marca, "Powered by Claude", nunca "Claude Code".
 
 ### Calculadora de custo
 

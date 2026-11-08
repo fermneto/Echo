@@ -93,4 +93,4 @@ pnpm relatorio:agora     # relatório da semana que já fechou, sem enviar ao RH
 - Estilo da pessoa (`people.agent_style`): entra no prompt do gêmeo fora de `<dados>` e muda só o tom; o agente continua se identificando.
 - Revisão de PR: API de lotes (Sonnet 5.5; Opus 5.5 para PR sensível ou grande).
 - Correção e vídeos: Claude Managed Agents. A correção roda no `apps/worker` (a sessão fica na nuvem do Managed Agents).
-- Chave de API da empresa (`ANTHROPIC_API_KEY`), nunca login do claude.ai. "Powered by Claude".
+- Chave de API da empresa (`ANTHROPIC_API_KEY`), nunca login do claude.ai. Se citar a marca, "Powered by Claude", nunca "Claude Code".

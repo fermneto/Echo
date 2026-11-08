@@ -686,10 +686,6 @@ html:has(.lp) {
   font-size: 15px;
   color: var(--color-fog);
 }
-.lp-footer__powered {
-  margin: var(--space-sm) 0 0;
-  color: var(--color-ash);
-}
 .lp-footer__cols {
   display: flex;
   gap: clamp(48px, 8vw, 120px);
