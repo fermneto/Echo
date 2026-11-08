@@ -136,6 +136,7 @@ export {
 } from "./daily-note.ts";
 export {
   createNightReview,
+  noFindingsComment,
   reviewComment,
   validFindings,
   type BatchApi,
