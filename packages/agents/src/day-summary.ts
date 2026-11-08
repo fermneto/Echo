@@ -40,6 +40,8 @@ export interface DaySummaryDeps {
   outbox?: (orgId: string) => NoteOutbox;
   /** Endereço do painel, para o botão do resumo interativo. */
   webUrl?: string;
+  /** Imagem do resumo (PNG) para a mensagem privada; sem ela, ou se falhar, vai a versão em blocos. */
+  renderImage?: (a: StoredArtifact) => Promise<Buffer>;
 }
 
 // ---------- Fatos (regras)
@@ -201,12 +203,41 @@ export function createDaySummary(deps: DaySummaryDeps) {
       const usedModel = artifact.state === "rendered";
 
       // Mensagem privada com o resumo, pelo outbox: uma por pessoa e data (montar de novo não manda outra).
+      // A imagem (o mesmo visual do painel) vai como arquivo; a versão em blocos é a reserva.
       let sent = false;
+      let imageError: string | undefined;
       if (deps.outbox && deps.webUrl && day.facts.length && (await deps.notes(orgId).slackUserOf(personId))) {
-        const msg = summaryMessage(artifact, `${deps.webUrl.replace(/\/$/, "")}/resumos?data=${date}`);
-        const r = await deps.outbox(orgId).enqueue({ type: "slack.dm", target: `person:${personId}`, payload: { personId, text: msg.text, blocks: msg.blocks }, idempotencyKey: `day_summary:${personId}:${date}` });
+        const url = `${deps.webUrl.replace(/\/$/, "")}/resumos?data=${date}`;
+        const msg = summaryMessage(artifact, url);
+        let png: Buffer | null = null;
+        if (deps.renderImage) {
+          try {
+            png = await deps.renderImage(artifact);
+          } catch (err) {
+            imageError = `imagem: ${err instanceof Error ? err.message : String(err)}`.slice(0, 200);
+          }
+        }
+        const dd = `${date.slice(8, 10)}/${date.slice(5, 7)}`;
+        const r = png
+          ? await deps.outbox(orgId).enqueue({
+              type: "slack.dm_image",
+              target: `person:${personId}`,
+              payload: {
+                personId,
+                filename: `resumo-${date}.png`,
+                title: `Resumo do dia, ${dd}`,
+                comment: `*Resumo do seu dia, ${dd}* · Agente de ${day.pessoa} · ${artifact.state === "rendered" ? "layout pelo modelo aberto" : "layout padrão"}\n<${url}|Abrir o resumo interativo no painel>`,
+                altText: msg.text,
+                pngBase64: png.toString("base64"),
+                text: msg.text,
+                blocks: msg.blocks,
+              },
+              idempotencyKey: `day_summary_img:${personId}:${date}`,
+            })
+          : await deps.outbox(orgId).enqueue({ type: "slack.dm", target: `person:${personId}`, payload: { personId, text: msg.text, blocks: msg.blocks }, idempotencyKey: `day_summary:${personId}:${date}` });
         sent = !r.duplicate;
       }
+      if (imageError) error = error ? `${error}; ${imageError}` : imageError;
       await record({ ...run, durationMs: elapsed(), result: usedModel ? "ok" : "fallback", ...(error ? { error } : {}), ...(sent ? { tools: ["slack.dm"] } : {}) });
       return { status: "created", usedModel, artifact };
     } catch (err) {

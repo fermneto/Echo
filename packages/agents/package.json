@@ -17,6 +17,10 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "catalog:",
+    "@fontsource/geist-sans": "catalog:",
+    "@fontsource/inter": "catalog:",
+    "@fontsource/jetbrains-mono": "catalog:",
+    "@resvg/resvg-js": "catalog:",
     "@echo/actions": "workspace:*",
     "@echo/artifacts": "workspace:*",
     "@echo/brain": "workspace:*",
@@ -25,6 +29,7 @@
     "@echo/domain": "workspace:*",
     "@echo/observability": "workspace:*",
     "drizzle-orm": "catalog:",
+    "satori": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {

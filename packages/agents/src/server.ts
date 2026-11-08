@@ -138,6 +138,8 @@ export function serverDaySummary(db: Database, ollama?: { url: string; model: st
     timeoutMs: ollama?.timeoutMs,
     outbox: (orgId) => createPgOutbox(db, orgId),
     webUrl,
+    // Import tardio: satori e resvg só carregam no worker, quando há resumo para mandar.
+    renderImage: async (a) => (await import("./summary-image.ts")).renderSummaryPng(a, { stateLabel: "Resumo" }),
   });
 }
 
