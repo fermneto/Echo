@@ -2,7 +2,7 @@
 // certa, traços gravados e lidos de volta, e nada visível para outra empresa.
 import { randomUUID } from "node:crypto";
 import type { AvatarTraits } from "@echo/domain";
-import { asSystem, auditLog, createDb, createPool, type Database, orgs, people } from "@echo/db";
+import { agentRuns, asSystem, auditLog, createDb, createPool, type Database, orgs, people } from "@echo/db";
 import { appRoleUrl } from "@echo/db/testing";
 import { LogRunRecorder } from "@echo/observability";
 import { eq } from "drizzle-orm";
@@ -84,6 +84,16 @@ describe.skipIf(!url)("cadastro pelo RH, em Postgres", () => {
 
     const audit = await asSystem(createDb(admin), (tx) => tx.select().from(auditLog).where(eq(auditLog.target, `person:${id}`)));
     expect(audit.map((a) => a.action).sort()).toEqual(["avatar:ajustar", "avatar:refazer"]);
-    expect(await avatars.recentRedos(org, new Date(Date.now() - 3_600_000))).toBe(1);
+    // O limite conta leituras de foto em agent_runs, gravadas ou não; as puladas (limite, sem chave) não contam.
+    await asSystem(createDb(admin), (tx) =>
+      tx.insert(agentRuns).values([
+        { orgId: org, flow: "avatar_redo", durationMs: 1, result: "ok" },
+        { orgId: org, flow: "avatar_redo", durationMs: 1, result: "fallback" },
+        { orgId: org, flow: "avatar_redo", durationMs: 1, result: "skipped" },
+        { orgId: org, flow: "avatar_adjust", durationMs: 1, result: "ok" },
+        { orgId: other, flow: "avatar_redo", durationMs: 1, result: "ok" },
+      ]),
+    );
+    expect(await avatars.recentRedos(org, new Date(Date.now() - 3_600_000))).toBe(2);
   });
 });

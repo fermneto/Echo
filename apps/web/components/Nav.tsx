@@ -6,15 +6,15 @@ import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import type { NavGroup } from "@/lib/access";
 import { EASE_IN, gsap, leave, prefersReduced, useGSAP } from "@/lib/motion";
 
+/** Pausa antes de fechar ao tirar o mouse: dá tempo de atravessar o vão entre a aba e o menu. */
+const CLOSE_DELAY_MS = 180;
+
 /**
  * Abas do painel: Início e grupos que abrem um menu com uma linha sobre cada tela.
  * Um destaque desliza atrás da aba sob o ponteiro; o menu abre a partir da aba, com os itens
  * entrando em sequência, e fecha mais rápido do que abre. Com mouse, o menu abre ao passar por cima;
  * no toque e no teclado, pelo clique.
  */
-
-/** Pausa antes de fechar ao tirar o mouse: dá tempo de atravessar o vão entre a aba e o menu. */
-const CLOSE_DELAY_MS = 180;
 export function Nav({ groups }: { groups: NavGroup[] }) {
   const pathname = usePathname();
   const [open, setOpen] = useState<string | null>(null);

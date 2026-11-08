@@ -1,6 +1,6 @@
 // Cadastro de pessoa e leitura do bonequinho, sempre em withOrg com filtro explícito de org_id.
-import { auditLog, type Database, people, withOrg } from "@echo/db";
-import { and, count, eq, gte, isNull } from "drizzle-orm";
+import { agentRuns, auditLog, type Database, people, withOrg } from "@echo/db";
+import { and, count, eq, gte, isNull, ne } from "drizzle-orm";
 import { parseAvatarTraits, traitsFromSeed } from "@echo/domain";
 import type { OnboardingStore, ResumeProfile } from "./onboarding.ts";
 import type { AvatarStore } from "./redo-avatar.ts";
@@ -66,7 +66,7 @@ export async function updateProfile(db: Database, orgId: string, personId: strin
   });
 }
 
-/** Bonequinho de quem já está cadastrado: ler os traços, trocar com audit_log e contar as refações pela foto. */
+/** Bonequinho de quem já está cadastrado: ler os traços, trocar com audit_log e contar as leituras de foto. */
 export function createPgAvatarStore(db: Database): AvatarStore {
   return {
     async current(orgId, personId) {
@@ -91,11 +91,12 @@ export function createPgAvatarStore(db: Database): AvatarStore {
     },
 
     async recentRedos(orgId, since) {
+      // Conta as chamadas ao modelo (agent_runs), não só as trocas gravadas: foto ilegível também gasta.
       const [r] = await withOrg(db, orgId, (tx) =>
         tx
           .select({ n: count() })
-          .from(auditLog)
-          .where(and(eq(auditLog.orgId, orgId), eq(auditLog.action, "avatar:refazer"), gte(auditLog.createdAt, since))),
+          .from(agentRuns)
+          .where(and(eq(agentRuns.orgId, orgId), eq(agentRuns.flow, "avatar_redo"), ne(agentRuns.result, "skipped"), gte(agentRuns.createdAt, since))),
       );
       return r?.n ?? 0;
     },

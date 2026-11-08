@@ -1,5 +1,6 @@
 "use server";
 
+import { loadConfig } from "@echo/config";
 import { revalidatePath } from "next/cache";
 import { canAskTwin, canEditProfile } from "@/lib/access";
 import { askAgent, panelRequest, personIdFor, recordIn } from "@/lib/agent";
@@ -13,7 +14,6 @@ import { teamScope } from "@/lib/scope";
 import { currentPersona, isDemoSession } from "@/lib/session";
 import { loadTeam } from "@/lib/team-live";
 
-import { loadConfig } from "@echo/config";
 import { MAX_QUESTION, type AskState } from "@/lib/ask";
 
 /** Pessoa do recorte de quem está logado, já com quem foi cadastrado no painel. */

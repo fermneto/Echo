@@ -14,7 +14,7 @@ export interface AvatarStore {
   current(orgId: string, personId: string): Promise<AvatarTraits | undefined>;
   /** Grava os traços e registra quem trocou em `audit_log`, na mesma transação. */
   update(orgId: string, personId: string, traits: AvatarTraits, actorId: string, action: AvatarAction): Promise<boolean>;
-  /** Quantas vezes a empresa refez bonequinho pela foto desde `since`. */
+  /** Quantas fotos a empresa mandou ao modelo desde `since` (gravadas ou não: toda leitura gasta). */
   recentRedos(orgId: string, since: Date): Promise<number>;
 }
 
