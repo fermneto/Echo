@@ -1,6 +1,6 @@
 import { serve } from "@hono/node-server";
 import { listenPort, loadConfig } from "@echo/config";
-import { applyHrEvent, hrSecret, receive, routeOrg, TokenCipher } from "@echo/connectors";
+import { applyHrEvent, hrSecret, orgActiveTracker, receive, routeOrg, TokenCipher } from "@echo/connectors";
 import { createDb, createPool, identities, people, ping, withOrg } from "@echo/db";
 import { DEDUPE_SECONDS, PgBossQueue, QUEUES } from "@echo/jobs";
 import { createLogger, initTracing } from "@echo/observability";
@@ -25,6 +25,8 @@ const app = createApp({
     secrets: { github: cfg.GITHUB_WEBHOOK_SECRET, slack: cfg.SLACK_SIGNING_SECRET, linear: cfg.LINEAR_WEBHOOK_SECRET, jira: cfg.JIRA_WEBHOOK_SECRET, vercel: cfg.VERCEL_WEBHOOK_SECRET },
     receive: (d) => receive(db, queue, d),
     routeOrg: (kind, externalId) => routeOrg(db, kind, externalId),
+    // A API não tem as credenciais do Linear: vale a rota da empresa (com a do Linear, o Jira fica de fora).
+    trackerOf: (orgId) => orgActiveTracker(db, orgId),
     slackContext: async (orgId) => {
       const rows = await withOrg(db, orgId, (tx) =>
         tx
@@ -46,6 +48,7 @@ const app = createApp({
       await queue.send(QUEUES.slackInteraction, { orgId, payload });
     },
     onError: (err, where) => log.error({ err, where }, "falha no webhook"),
+    onIgnored: (where, reason, detail) => log.warn({ where, reason, ...detail }, "aviso recusado"),
   },
 });
 for (const [name, secret] of Object.entries({ GITHUB_WEBHOOK_SECRET: cfg.GITHUB_WEBHOOK_SECRET, SLACK_SIGNING_SECRET: cfg.SLACK_SIGNING_SECRET, LINEAR_WEBHOOK_SECRET: cfg.LINEAR_WEBHOOK_SECRET })) {

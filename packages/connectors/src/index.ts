@@ -142,7 +142,22 @@ export { RefreshingToken } from "./tokens.ts";
 export { appJwt, GithubApiError, GithubApp, GithubCodeHost, normalizePem, selectDeliveriesToRetry, type GithubAppOptions, type PullRequestHistory, type WebhookDelivery } from "./github-client.ts";
 export { LinearApiError, LinearTracker, toTask, type LinearOptions } from "./linear-client.ts";
 export { BACKFILL_MS, MAX_DETAILS_PER_REPO, openPullRequestNumbers, reconcileGithub, reconcileLinear, type GithubReconciler, type GithubReconcileResult, type LinearReconciler } from "./reconcile.ts";
-export { calendarsForOrg, connectedOrgs, githubForOrg, orgRoute, platformsFromEnv, type PlatformEnv, type Platforms } from "./platforms.ts";
+export {
+  activeTracker,
+  calendarsForOrg,
+  connectedOrgs,
+  dropInactiveTrackerRoute,
+  githubForOrg,
+  linearConfigured,
+  orgActiveTracker,
+  orgRoute,
+  platformsFromEnv,
+  trackerOfTaskId,
+  type PlatformEnv,
+  type Platforms,
+  type TrackerEnv,
+  type TrackerKind,
+} from "./platforms.ts";
 export { applyHrEvent, hrSecret, parseHrEvent, rotateHrSecret, type HrEvent, type HrResult } from "./hr.ts";
 export { exchangeSlackCode, SlackLoginError, slackAuthorizeUrl, type SlackIdentity, type SlackOidcConfig } from "./slack-oidc.ts";
 export { loadPanelPerson, resolvePanelPerson, type PanelLogin, type PanelPerson } from "./panel-login.ts";

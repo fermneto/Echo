@@ -8,6 +8,7 @@ import { GithubApp } from "./github-client.ts";
 import { ingest } from "./ingest.ts";
 import { JiraTracker } from "./jira-client.ts";
 import { LinearTracker } from "./linear-client.ts";
+import { activeTracker, dropInactiveTrackerRoute } from "./platforms.ts";
 
 interface PessoaTeste {
   nome: string;
@@ -84,8 +85,9 @@ for (const p of pessoas) await withOrg(db, orgId, async (db) => {
 
 // Um tracker por vez: com o Linear ligado, vale o Linear. O Jira fica sem rota e sem importação,
 // senão as tarefas dos dois se sobrescrevem (ex.: ECH-1 nos dois).
-const linearOn = Boolean(env.LINEAR_API_KEY || (env.LINEAR_CLIENT_ID && env.LINEAR_CLIENT_SECRET));
-const jiraOn = !linearOn && Boolean(env.JIRA_BASE_URL && env.JIRA_EMAIL && env.JIRA_API_TOKEN);
+const tracker = activeTracker(env);
+const linearOn = tracker === "linear";
+const jiraOn = tracker === "jira";
 
 // Rotas das instalações: é por elas que um aviso encontra a empresa.
 const routes = [
@@ -101,8 +103,8 @@ const routes = [
 for (const [kind, externalId] of routes) {
   if (kind === "jira" && linearOn) {
     // Tira uma rota do Jira que tenha ficado de antes: sem ela, o aviso do Jira não chega a esta empresa.
-    await db.delete(installationRoutes).where(and(eq(installationRoutes.kind, "jira"), eq(installationRoutes.orgId, orgId)));
-    if (env.DEMO_JIRA_SITE) console.log("  rota jira: ignorada, o Linear está ligado (vale o Linear)");
+    const dropped = await dropInactiveTrackerRoute(db, orgId, tracker);
+    if (env.DEMO_JIRA_SITE || dropped) console.log(`  rota jira: ignorada, o Linear está ligado (vale o Linear)${dropped ? "; a rota antiga saiu" : ""}`);
     continue;
   }
   if (!externalId) {

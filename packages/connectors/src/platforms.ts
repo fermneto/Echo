@@ -1,6 +1,6 @@
 // Clientes das plataformas a partir da configuração: um GitHub App, um app do Linear e um bot do Slack.
 import { installationRoutes, type Database } from "@echo/db";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { GoogleCalendar, MicrosoftCalendar, type CalendarSource } from "./calendar.ts";
 import { GithubApp, type GithubCodeHost } from "./github-client.ts";
 import { JiraTracker } from "./jira-client.ts";
@@ -39,20 +39,75 @@ export interface Platforms {
   microsoft?: (tenantId: string) => MicrosoftCalendar;
 }
 
+/** Tracker de tarefas de uma empresa. Vale um por vez. */
+export type TrackerKind = "linear" | "jira";
+
+/** Variáveis que decidem o tracker. */
+export type TrackerEnv = Pick<PlatformEnv, "LINEAR_API_KEY" | "LINEAR_CLIENT_ID" | "LINEAR_CLIENT_SECRET" | "JIRA_BASE_URL" | "JIRA_EMAIL" | "JIRA_API_TOKEN">;
+
+/** O Linear está configurado: chave pessoal de API ou app OAuth completo. */
+export function linearConfigured(env: TrackerEnv): boolean {
+  return Boolean(env.LINEAR_API_KEY || (env.LINEAR_CLIENT_ID && env.LINEAR_CLIENT_SECRET));
+}
+
+/**
+ * Um tracker por vez: com o Linear configurado, vale o Linear, e o Jira fica de fora (rota, importação,
+ * reconciliação, aviso e escrita), senão as tarefas de mesma chave dos dois (ex.: ECH-1) se sobrescrevem.
+ * Sem o Linear, vale o Jira se estiver completo. Sem nenhum, `null`.
+ */
+export function activeTracker(env: TrackerEnv): TrackerKind | null {
+  if (linearConfigured(env)) return "linear";
+  return env.JIRA_BASE_URL && env.JIRA_EMAIL && env.JIRA_API_TOKEN ? "jira" : null;
+}
+
+/**
+ * Tracker da empresa pelas rotas das instalações, para quem não tem as credenciais (a API dos webhooks).
+ * Com as duas rotas (ligadas antes da regra), vale o Linear, como em `activeTracker`.
+ */
+export async function orgActiveTracker(db: Pick<Database, "select">, orgId: string): Promise<TrackerKind | null> {
+  const rows = await db
+    .select({ kind: installationRoutes.kind })
+    .from(installationRoutes)
+    .where(and(eq(installationRoutes.orgId, orgId), inArray(installationRoutes.kind, ["linear", "jira"])));
+  const kinds = new Set(rows.map((r) => r.kind));
+  return kinds.has("linear") ? "linear" : kinds.has("jira") ? "jira" : null;
+}
+
+/** Tira da empresa a rota do tracker que não vale (com o Linear, a do Jira). Devolve quantas tirou. */
+export async function dropInactiveTrackerRoute(db: Pick<Database, "delete">, orgId: string, active: TrackerKind | null): Promise<number> {
+  if (active !== "linear") return 0;
+  const gone = await db
+    .delete(installationRoutes)
+    .where(and(eq(installationRoutes.kind, "jira"), eq(installationRoutes.orgId, orgId)))
+    .returning({ externalId: installationRoutes.externalId });
+  return gone.length;
+}
+
+/**
+ * Plataforma dona do id de uma tarefa (`tasks.linear_id`). O id do Jira é só número (ex.: 10042); o do Linear
+ * nunca é (UUID). A tabela `tasks` não guarda a origem, e a chave (PROJ-123) é igual nos dois: é por aqui que a
+ * escrita recusa mandar ao Linear o id de uma tarefa que ficou do Jira, e vice-versa.
+ */
+export function trackerOfTaskId(id: string): TrackerKind {
+  return /^\d+$/.test(id) ? "jira" : "linear";
+}
+
 export function platformsFromEnv(env: PlatformEnv): Platforms {
   const github = env.GITHUB_APP_ID && env.GITHUB_PRIVATE_KEY ? new GithubApp({ appId: env.GITHUB_APP_ID, privateKey: env.GITHUB_PRIVATE_KEY }) : undefined;
-  const linear = env.LINEAR_API_KEY
-    ? new LinearTracker({ token: env.LINEAR_API_KEY })
-    : env.LINEAR_CLIENT_ID && env.LINEAR_CLIENT_SECRET
-      ? new LinearTracker({ clientId: env.LINEAR_CLIENT_ID, clientSecret: env.LINEAR_CLIENT_SECRET })
-      : undefined;
-  // Um tracker por vez: com o Linear ligado, vale o Linear, e o Jira fica de fora (leitura, reconciliação e escrita).
+  // Um tracker por vez (activeTracker): com o Linear configurado, o Jira fica de fora (leitura, reconciliação e escrita).
+  const tracker = activeTracker(env);
+  const linear =
+    tracker !== "linear"
+      ? undefined
+      : env.LINEAR_API_KEY
+        ? new LinearTracker({ token: env.LINEAR_API_KEY })
+        : new LinearTracker({ clientId: env.LINEAR_CLIENT_ID!, clientSecret: env.LINEAR_CLIENT_SECRET! });
   const jira =
-    !linear && env.JIRA_BASE_URL && env.JIRA_EMAIL && env.JIRA_API_TOKEN
+    tracker === "jira"
       ? new JiraTracker({
-          baseUrl: env.JIRA_BASE_URL,
-          email: env.JIRA_EMAIL,
-          apiToken: env.JIRA_API_TOKEN,
+          baseUrl: env.JIRA_BASE_URL!,
+          email: env.JIRA_EMAIL!,
+          apiToken: env.JIRA_API_TOKEN!,
           ...(env.JIRA_STORY_POINTS_FIELD ? { storyPointsField: env.JIRA_STORY_POINTS_FIELD } : {}),
           ...(env.JIRA_JQL ? { jql: env.JIRA_JQL } : {}),
         })

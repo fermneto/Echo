@@ -76,6 +76,11 @@ export interface ProcessOptions {
   brainsRepository?: string | undefined;
   /** Campo dos story points no Jira desta instalação (padrão: customfield_10016). */
   jiraStoryPointsField?: string | undefined;
+  /**
+   * Linear configurado neste worker (`linearConfigured`): um tracker por vez, então aviso do Jira que tenha
+   * chegado ao inbox (rota antiga, gravada antes da regra) é ignorado em vez de sobrescrever tarefa do Linear.
+   */
+  linearActive?: boolean | undefined;
 }
 
 /** Processa um aviso gravado. Erro marca "failed" e relança, para a fila tentar de novo. */
@@ -93,8 +98,11 @@ export async function processInbox(db: Database, job: InboxJob | string, opts: P
   try {
     const repo: string | undefined = body?.repository?.full_name;
     const isBrains = row.source === "github" && repo && opts.brainsRepository && repo.toLowerCase() === opts.brainsRepository.toLowerCase();
+    const jiraOff = row.source === "jira" && opts.linearActive;
     const events = isBrains
       ? [{ kind: "ignored" as const, reason: "repositório do espelho" }]
+      : jiraOff
+        ? [{ kind: "ignored" as const, reason: "linear ativo" }]
       : row.source === "github"
         ? normalizeGithub(eventName ?? "", body)
         : row.source === "linear"

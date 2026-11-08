@@ -1,7 +1,7 @@
 // Executor do outbox: a ÚNICA peça que altera GitHub, Linear ou Slack.
 // Cada ação tem chave única (não roda duas vezes), é reservada por atualização condicional
 // (dois workers não executam a mesma) e só roda aprovada — exceto as listadas em REQUIRES_APPROVAL como false.
-import { FileChangedError, GithubApiError, SlackApiError, type ChatPlatform, type CodeWriter, type IssueWriter } from "@echo/connectors";
+import { FileChangedError, GithubApiError, SlackApiError, trackerOfTaskId, type ChatPlatform, type CodeWriter, type IssueWriter } from "@echo/connectors";
 import { asSystem, auditLog, brainNotes, identities, outboxActions, people, planItems, tasks, withOrg, type Database, type Tx } from "@echo/db";
 import { isMirrorExportable, PatchConflictError, soleTeam } from "@echo/domain";
 import { and, asc, eq, inArray, isNotNull, lt, or, sql } from "drizzle-orm";
@@ -83,9 +83,13 @@ async function trackerIdentity(tx: Tx, orgId: string, personId: string, platform
   return id.externalId;
 }
 
-async function taskLinearId(tx: Tx, orgId: string, taskKey: string, tracker = "Linear"): Promise<{ id: string; linearId: string }> {
+async function taskLinearId(tx: Tx, orgId: string, taskKey: string, platform: "linear" | "jira"): Promise<{ id: string; linearId: string }> {
   const [t] = await tx.select({ id: tasks.id, linearId: tasks.linearId }).from(tasks).where(and(eq(tasks.orgId, orgId), eq(tasks.key, taskKey)));
-  if (!t?.linearId) throw new PermanentActionError(`tarefa ${taskKey} sem id no ${tracker}`);
+  if (!t?.linearId) throw new PermanentActionError(`tarefa ${taskKey} sem id no ${TRACKER_NAME[platform]}`);
+  // Um tracker por vez: depois da troca, a tarefa antiga (do outro tracker) fica no banco com a mesma chave.
+  // O id denuncia a origem, e mandar ao Linear o id do Jira (ou o contrário) mexeria na tarefa errada.
+  const owner = trackerOfTaskId(t.linearId);
+  if (owner !== platform) throw new PermanentActionError(`tarefa ${taskKey} é do ${TRACKER_NAME[owner]}, e o tracker ligado é o ${TRACKER_NAME[platform]}`);
   return { id: t.id, linearId: t.linearId };
 }
 
@@ -126,7 +130,7 @@ async function run(deps: ExecutorDeps, row: Row): Promise<unknown> {
       const issues = need("issues", "Tracker de tarefas");
       const platform = issues.platform ?? "linear";
       const { task, assignee } = await withOrg(db, orgId, async (tx) => ({
-        task: await taskLinearId(tx, orgId, p.taskKey, TRACKER_NAME[platform]),
+        task: await taskLinearId(tx, orgId, p.taskKey, platform),
         assignee: p.toPersonId ? await trackerIdentity(tx, orgId, p.toPersonId, platform) : null,
       }));
       await issues.assignIssue(task.linearId, assignee);
@@ -137,7 +141,7 @@ async function run(deps: ExecutorDeps, row: Row): Promise<unknown> {
     case "linear.comment": {
       const p = row.payload as ActionPayloads["linear.comment"];
       const issues = need("issues", "Tracker de tarefas");
-      const task = await withOrg(db, orgId, (tx) => taskLinearId(tx, orgId, p.taskKey, TRACKER_NAME[issues.platform ?? "linear"]));
+      const task = await withOrg(db, orgId, (tx) => taskLinearId(tx, orgId, p.taskKey, issues.platform ?? "linear"));
       await issues.comment(task.linearId, p.body);
       return;
     }

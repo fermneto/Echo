@@ -159,6 +159,19 @@ describe.skipIf(!url)("ingest e caixa de entrada (Postgres real)", () => {
     expect(doneEvents).toMatchObject([{ type: "task_done", personId: ids.car, source: "jira" }]);
   });
 
+  it("Jira com o Linear ativo no worker: aviso que chegou ao inbox (rota antiga) é ignorado e não mexe nas tarefas", async () => {
+    const queue = new InMemoryQueue();
+    let inboxId = "";
+    await queue.work<InboxJob>(QUEUES.inboxProcess, async (j) => void (inboxId = j.data.inboxId));
+    const issue = { id: "77001", key: "PAG-77", self: `https://acme-${suffix}.atlassian.net/rest/api/3/issue/77001`, fields: { summary: "Não deveria entrar", status: { name: "To Do", statusCategory: { key: "new" } }, labels: [], updated: "2026-11-07T10:00:00.000Z" } };
+    await deliver(queue, { source: "jira", deliveryId: `jira-${suffix}-linear-ativo`, orgId, payload: { webhookEvent: "jira:issue_created", issue } });
+    const r = await processInbox(app, inboxId, { linearActive: true });
+    expect(r?.applied).toBe(0);
+    expect(await db.select().from(tasks).where(and(eq(tasks.orgId, orgId), eq(tasks.key, "PAG-77")))).toEqual([]);
+    const [row] = await db.select({ state: inboxEvents.state }).from(inboxEvents).where(eq(inboxEvents.deliveryId, `jira-${suffix}-linear-ativo`));
+    expect(row?.state).toBe("ignored");
+  });
+
   it("reação de ajuda registra só a referência; mensagem segue para o F2 e o texto não fica guardado", async () => {
     await run("slack", undefined, slackEnvelope({ type: "reaction_added", user: `UBRU${suffix}`, reaction: "pray", item_user: `UCAR${suffix}`, item: { type: "message", channel: "C1", ts: "5.5" }, event_ts: "1762500000.1" }), "s1");
     const [c] = await db.select().from(contributions).where(and(eq(contributions.orgId, orgId), eq(contributions.kind, "reaction")));

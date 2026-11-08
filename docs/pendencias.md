@@ -65,6 +65,12 @@ Só "quem está no expediente" sai pela equipe da tela.
 - recusar o aviso com `body.timestamp` fora de cerca de 5 minutos, contra repetição. Hoje o `verifyJira` só confere a assinatura, e a entrega repetida é barrada pelo `X-Atlassian-Webhook-Identifier`;
 - restringir `JIRA_BASE_URL` a `https://*.atlassian.net`. Hoje `packages/config` só exige uma URL válida.
 
+### B17. Tarefas do tracker antigo ao trocar de Linear para Jira (ou o contrário)
+
+**Dono:** Integrações.
+**Situação:** vale um tracker por vez (`activeTracker` em `packages/connectors/src/platforms.ts`; com o Linear configurado, o Jira fica de fora). A tabela `tasks` não guarda a origem, então, ao trocar de tracker, as tarefas antigas **ficam abertas** no Echo: ninguém mais as atualiza nem as reconcilia, e elas continuam contando na carga, na redistribuição e no plano da manhã. A chave (`PROJ-123`) é igual nos dois trackers e não serve para separar; o que separa é o id em `tasks.linear_id`: no Jira é só número (ex.: `10042`), no Linear é UUID. Por isso a escrita já recusa a tarefa do outro tracker: `linear.assign` e `linear.comment` falham com "tarefa PAG-7 é do Jira, e o tracker ligado é o Linear" em vez de mandar ao Linear o id do Jira (`trackerOfTaskId`, no executor de `packages/actions`).
+**Destrava:** uma migração com a coluna de origem em `tasks` (`linear` ou `jira`), preenchida pela regra do id, e o fechamento (ou arquivamento) das tarefas do tracker que saiu. Até lá, quem troca de tracker apaga as tarefas antigas da empresa à mão.
+
 ### Resolvidos
 
 - **B2, B3, B9:** entraram com o #23.

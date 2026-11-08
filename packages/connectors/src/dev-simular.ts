@@ -5,6 +5,7 @@
 import { randomUUID } from "node:crypto";
 import { asSystem, contributions, createDb, createPool, deployments, identities, inboxEvents, installationRoutes, orgs, people, tasks, withOrg, workEvents } from "@echo/db";
 import { and, eq } from "drizzle-orm";
+import { dropInactiveTrackerRoute, orgActiveTracker } from "./platforms.ts";
 import { sign } from "./signatures.ts";
 import { signVercel } from "./vercel.ts";
 
@@ -42,6 +43,8 @@ const orgId = await asSystem(db, async (tx) => {
   for (const [kind, externalId] of Object.entries(R)) {
     await tx.insert(installationRoutes).values({ kind, externalId, orgId: id }).onConflictDoUpdate({ target: [installationRoutes.kind, installationRoutes.externalId], set: { orgId: id } });
   }
+  // Um tracker por vez: a simulação fala pelo Linear, então uma rota do Jira que tenha ficado nesta empresa sai.
+  await dropInactiveTrackerRoute(tx, id, await orgActiveTracker(tx, id));
   return id;
 });
 const ids = await withOrg(db, orgId, async (tx) => {

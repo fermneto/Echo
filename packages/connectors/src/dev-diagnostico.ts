@@ -6,7 +6,7 @@ import { and, eq, sql } from "drizzle-orm";
 import { GithubApp } from "./github-client.ts";
 import { JiraTracker } from "./jira-client.ts";
 import { LinearTracker } from "./linear-client.ts";
-import { platformsFromEnv } from "./platforms.ts";
+import { linearConfigured, platformsFromEnv } from "./platforms.ts";
 import { SlackChat } from "./slack-client.ts";
 
 type Status = "ok" | "falta" | "erro" | "aviso";
@@ -162,7 +162,7 @@ if (api) {
 }
 
 // Jira Cloud (opcional, no lugar do Linear: com os dois configurados, vale o Linear)
-const linearConfigured = Boolean(env.LINEAR_API_KEY || (env.LINEAR_CLIENT_ID && env.LINEAR_CLIENT_SECRET));
+const linearOn = linearConfigured(env);
 if (has("JIRA_BASE_URL") || has("JIRA_API_TOKEN")) {
   if (!has("JIRA_BASE_URL", "JIRA_EMAIL", "JIRA_API_TOKEN")) add("Jira", "JIRA_BASE_URL, JIRA_EMAIL e JIRA_API_TOKEN", "falta", undefined, "jira.md");
   else {
@@ -170,13 +170,13 @@ if (has("JIRA_BASE_URL") || has("JIRA_API_TOKEN")) {
     try {
       const { tasks, truncated } = await jira.listOpenTasks();
       add("Jira", "credencial aceita", "ok", `${tasks.length}${truncated ? "+" : ""} tarefas abertas`);
-      if (linearConfigured) add("Jira", "Jira desligado nesta empresa", "aviso", "o Linear está ligado, e vale um tracker por vez (vale o Linear)", "jira.md");
+      if (linearOn) add("Jira", "Jira desligado nesta empresa", "aviso", "o Linear está ligado, e vale um tracker por vez (vale o Linear)", "jira.md");
       else routeCheck("Jira", "jira", "DEMO_JIRA_SITE", jira.site, "jira.md");
     } catch (err) {
       add("Jira", "credencial", "erro", msg(err), "jira.md");
     }
   }
-  if (!linearConfigured) {
+  if (!linearOn) {
     if (!env.JIRA_WEBHOOK_SECRET) add("Jira", "JIRA_WEBHOOK_SECRET", "falta", "sem ele, /webhooks/jira responde 503", "jira.md");
     add("Jira", "pessoas com conta do Jira", (idCount.get("jira") ?? 0) > 0 ? "ok" : "falta", String(idCount.get("jira") ?? 0), "jira.md");
   }

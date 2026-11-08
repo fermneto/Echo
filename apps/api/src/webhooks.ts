@@ -16,6 +16,7 @@ import {
   type Delivery,
   type InboxSource,
   type SlackEntryContext,
+  type TrackerKind,
 } from "@echo/connectors";
 import type { Context, Hono } from "hono";
 
@@ -35,8 +36,15 @@ export interface WebhookDeps {
   slackContext: (orgId: string) => Promise<Omit<SlackEntryContext, "botUserId">>;
   /** Clique em botão já verificado; o processamento é da frente Funções. */
   slackInteraction?: (orgId: string, payload: unknown) => Promise<void>;
+  /**
+   * Tracker que vale na empresa (um por vez; com o Linear, o Jira fica de fora). Sem a função, o aviso do Jira
+   * segue para o inbox como antes.
+   */
+  trackerOf?: (orgId: string) => Promise<TrackerKind | null>;
   nowMs?: () => number;
   onError?: (err: unknown, where: string) => void;
+  /** Aviso válido recusado de propósito (ex.: Jira com o Linear ativo). Sem conteúdo do aviso, só ids. */
+  onIgnored?: (where: string, reason: string, detail: Record<string, string | null>) => void;
 }
 
 const headersOf = (c: Context) => Object.fromEntries(c.req.raw.headers.entries());
@@ -122,6 +130,12 @@ export function registerWebhooks(app: Hono, deps: WebhookDeps): void {
   });
 
   // ---------- Jira Cloud (etapa 21): mesmas tarefas do Linear, para empresas que usam Jira
+  // Aviso recusado de propósito: 200 (o Jira repete 408, 409, 425, 429 e 5xx; 200 encerra), corpo com o motivo,
+  // registro em log e nada no inbox.
+  const ignored = (c: Context, where: string, reason: string, detail: Record<string, string | null>) => {
+    deps.onIgnored?.(where, reason, detail);
+    return c.text(`ignored: ${reason}`, 200);
+  };
   const jira = async (c: Context, secret: string | null | undefined, fixedOrg: string | null) => {
     if (!secret) return c.body(null, 503);
     const raw = await c.req.text();
@@ -131,9 +145,15 @@ export function registerWebhooks(app: Hono, deps: WebhookDeps): void {
     const deliveryId = c.req.header("x-atlassian-webhook-identifier");
     if (!body || !deliveryId) return c.body(null, 400);
     const routeKey = jiraRouteKey(body);
-    if (fixedOrg && routeKey && (await deps.routeOrg("jira", routeKey)) !== fixedOrg) return c.body(null, 403);
     try {
-      await deps.receive({ source: "jira", deliveryId, orgId: fixedOrg ?? undefined, routeKey, payload: body });
+      const routed = routeKey ? await deps.routeOrg("jira", routeKey) : null;
+      if (fixedOrg && routeKey && routed !== fixedOrg) return c.body(null, 403);
+      const orgId = fixedOrg ?? routed;
+      // Um tracker por vez: com o Linear ativo na empresa, o aviso do Jira não entra (as chaves dos dois colidem).
+      if (orgId && (await deps.trackerOf?.(orgId)) === "linear") return ignored(c, "jira", "linear ativo", { deliveryId, orgId, routeKey: routeKey ?? null });
+      const r = await deps.receive({ source: "jira", deliveryId, orgId: orgId ?? undefined, routeKey, payload: body });
+      // Sem rota (ex.: `integracoes:ligar` tirou a do Jira porque o Linear está ligado): recusa explícita, não silêncio.
+      if (r === "unrouted") return ignored(c, "jira", "sem rota", { deliveryId, orgId: null, routeKey: routeKey ?? null });
       return c.body(null, 200);
     } catch (err) {
       return fail(c, err, "jira");

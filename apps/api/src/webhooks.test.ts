@@ -94,6 +94,61 @@ describe("webhook do Jira", () => {
     expect((await post(app, "/webhooks/jira", body, { ...sign.jira("outro", body), "x-atlassian-webhook-identifier": "j-2" })).status).toBe(401);
     expect((await post(app, "/webhooks/jira", body, sign.jira(jiraSecret, body))).status).toBe(400);
   });
+
+  describe("um tracker por vez", () => {
+    const withRoute = async (kind: string, ext: string) => (`${kind}:${ext}` === "jira:acme.atlassian.net" ? ORG : null);
+    const track = (tracker: "linear" | "jira" | null) => {
+      const ignored: { where: string; reason: string; detail: Record<string, string | null> }[] = [];
+      const trackerCalls: string[] = [];
+      const deps: Partial<WebhookDeps> = {
+        secrets: { ...S, jira: jiraSecret },
+        routeOrg: withRoute,
+        trackerOf: async (o) => (trackerCalls.push(o), tracker),
+        onIgnored: (where, reason, detail) => void ignored.push({ where, reason, detail }),
+      };
+      return { deps, ignored, trackerCalls };
+    };
+
+    it("só o Jira na empresa: o aviso entra no inbox da empresa da rota", async () => {
+      const t = track("jira");
+      const { app, received } = setup(t.deps);
+      const res = await post(app, "/webhooks/jira", body, h);
+      expect(res.status).toBe(200);
+      expect(await res.text()).toBe("");
+      expect(received).toMatchObject([{ source: "jira", deliveryId: "j-1", orgId: ORG, routeKey: "acme.atlassian.net" }]);
+      expect(t.trackerCalls).toEqual([ORG]);
+      expect(t.ignored).toEqual([]);
+    });
+
+    it("Linear e Jira na empresa: vale o Linear, o aviso do Jira é recusado com motivo, registrado e não vai ao inbox", async () => {
+      const t = track("linear");
+      const { app, received } = setup(t.deps);
+      const res = await post(app, "/webhooks/jira", body, h);
+      // 200 e não 409: o Jira repete 408, 409, 425, 429 e 5xx; com 200 ele não fica reenviando.
+      expect(res.status).toBe(200);
+      expect(await res.text()).toBe("ignored: linear ativo");
+      expect(received).toEqual([]);
+      expect(t.ignored).toEqual([{ where: "jira", reason: "linear ativo", detail: { deliveryId: "j-1", orgId: ORG, routeKey: "acme.atlassian.net" } }]);
+    });
+
+    it("rota do Jira tirada (o Linear ligado): recusa explícita e registrada em vez de 200 mudo", async () => {
+      const t = track("linear");
+      const { app } = setup({ ...t.deps, routeOrg: async () => null, receive: async () => "unrouted" });
+      const res = await post(app, "/webhooks/jira", body, h);
+      expect(res.status).toBe(200);
+      expect(await res.text()).toBe("ignored: sem rota");
+      // Sem empresa, nem chega a perguntar o tracker.
+      expect(t.trackerCalls).toEqual([]);
+      expect(t.ignored).toMatchObject([{ where: "jira", reason: "sem rota", detail: { deliveryId: "j-1", routeKey: "acme.atlassian.net" } }]);
+    });
+
+    it("assinatura errada continua 401 antes de qualquer consulta ao tracker", async () => {
+      const t = track("linear");
+      const { app } = setup(t.deps);
+      expect((await post(app, "/webhooks/jira", body, { ...sign.jira("outro", body), "x-atlassian-webhook-identifier": "j-3" })).status).toBe(401);
+      expect(t.trackerCalls).toEqual([]);
+    });
+  });
 });
 
 describe("webhook do Slack", () => {

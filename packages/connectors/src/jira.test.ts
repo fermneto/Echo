@@ -1,8 +1,10 @@
 // Jira Cloud (etapa 21): webhook, estados, assinatura e cliente REST, sem rede (fetch falso).
-import { describe, expect, it } from "vitest";
+import { createDb, createPool, installationRoutes, orgs } from "@echo/db";
+import { eq, inArray } from "drizzle-orm";
+import { afterAll, describe, expect, it } from "vitest";
 import { adfText, JiraApiError, JiraTracker } from "./jira-client.ts";
 import { jiraRouteKey, jiraState, normalizeJira } from "./jira.ts";
-import { platformsFromEnv } from "./platforms.ts";
+import { activeTracker, dropInactiveTrackerRoute, linearConfigured, orgActiveTracker, platformsFromEnv, trackerOfTaskId } from "./platforms.ts";
 import { sign, verifyJira } from "./signatures.ts";
 
 const issue = (over: Record<string, unknown> = {}, fields: Record<string, unknown> = {}) => ({
@@ -153,5 +155,67 @@ describe("um tracker por vez", () => {
     const p = platformsFromEnv({ ...jiraEnv, LINEAR_API_KEY: "lin_api_teste" });
     expect(p.linear).toBeDefined();
     expect(p.jira).toBeUndefined();
+  });
+  it("activeTracker e linearConfigured: a mesma regra para plataformas, ligar e diagnóstico", () => {
+    expect(activeTracker({})).toBeNull();
+    expect(activeTracker(jiraEnv)).toBe("jira");
+    expect(activeTracker({ ...jiraEnv, JIRA_API_TOKEN: undefined })).toBeNull();
+    expect(activeTracker({ ...jiraEnv, LINEAR_API_KEY: "lin_api_teste" })).toBe("linear");
+    expect(activeTracker({ ...jiraEnv, LINEAR_CLIENT_ID: "id", LINEAR_CLIENT_SECRET: "segredo" })).toBe("linear");
+    // App OAuth pela metade não liga o Linear, e o Jira continua valendo.
+    expect(linearConfigured({ LINEAR_CLIENT_ID: "id" })).toBe(false);
+    expect(activeTracker({ ...jiraEnv, LINEAR_CLIENT_ID: "id" })).toBe("jira");
+  });
+  it("trackerOfTaskId: id só de números é do Jira; o resto (UUID do Linear) é do Linear", () => {
+    expect(trackerOfTaskId("10042")).toBe("jira");
+    expect(trackerOfTaskId("5b3f0c1e-2a4d-4f6e-9b8a-1c2d3e4f5a6b")).toBe("linear");
+    expect(trackerOfTaskId("lin-133")).toBe("linear");
+  });
+});
+
+const url = process.env.DATABASE_URL;
+
+describe.skipIf(!url)("um tracker por vez: rotas (Postgres real)", () => {
+  const pool = createPool(url!, 2);
+  const db = createDb(pool);
+  const suffix = Math.random().toString(36).slice(2, 8);
+  const orgIds: string[] = [];
+  const newOrg = async (routes: ("linear" | "jira" | "github")[]) => {
+    const [org] = await db.insert(orgs).values({ name: `Teste tracker ${suffix} ${orgIds.length}` }).returning();
+    orgIds.push(org!.id);
+    if (routes.length) await db.insert(installationRoutes).values(routes.map((kind) => ({ kind, externalId: `${kind}-${suffix}-${orgIds.length}`, orgId: org!.id })));
+    return org!.id;
+  };
+  const kinds = async (orgId: string) => (await db.select({ kind: installationRoutes.kind }).from(installationRoutes).where(eq(installationRoutes.orgId, orgId))).map((r) => r.kind).sort();
+
+  afterAll(async () => {
+    if (orgIds.length) {
+      await db.delete(installationRoutes).where(inArray(installationRoutes.orgId, orgIds));
+      await db.delete(orgs).where(inArray(orgs.id, orgIds));
+    }
+    await pool.end();
+  });
+
+  it("orgActiveTracker: com as duas rotas vale o Linear; só a do Jira, o Jira; nenhuma, null", async () => {
+    expect(await orgActiveTracker(db, await newOrg(["linear", "jira"]))).toBe("linear");
+    expect(await orgActiveTracker(db, await newOrg(["jira", "github"]))).toBe("jira");
+    expect(await orgActiveTracker(db, await newOrg(["github"]))).toBeNull();
+  });
+
+  it("integracoes:ligar com o Linear: a rota antiga do Jira sai, as outras ficam e as de outra empresa também", async () => {
+    const both = await newOrg(["linear", "jira", "github"]);
+    const other = await newOrg(["jira"]);
+    expect(await dropInactiveTrackerRoute(db, both, activeTracker({ LINEAR_API_KEY: "lin_api_teste" }))).toBe(1);
+    expect(await kinds(both)).toEqual(["github", "linear"]);
+    expect(await kinds(other)).toEqual(["jira"]);
+    // Rodar de novo não tira nada.
+    expect(await dropInactiveTrackerRoute(db, both, "linear")).toBe(0);
+  });
+
+  it("só o Jira (ou nenhum tracker): a rota do Jira fica", async () => {
+    const jiraOnly = await newOrg(["jira"]);
+    expect(await dropInactiveTrackerRoute(db, jiraOnly, activeTracker({ JIRA_BASE_URL: "https://acme.atlassian.net", JIRA_EMAIL: "e@acme.test", JIRA_API_TOKEN: "t" }))).toBe(0);
+    expect(await dropInactiveTrackerRoute(db, jiraOnly, null)).toBe(0);
+    expect(await kinds(jiraOnly)).toEqual(["jira"]);
   });
 });
