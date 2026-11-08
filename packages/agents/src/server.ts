@@ -19,6 +19,9 @@ import { createPgArtifactStore } from "./pg-artifacts.ts";
 import { onboardPerson } from "./onboarding.ts";
 import { createPgAvatarStore, createPgOnboardingStore } from "./pg-onboarding.ts";
 import { adjustAvatar, redoAvatar } from "./redo-avatar.ts";
+import { createManagedVideoSandbox, downloadVideoFile, filesDeleter, videoAgentParams, videoEnvironmentParams } from "./managed-video.ts";
+import { createPgTeamVideoStore } from "./pg-video.ts";
+import { createVideo, type Video } from "./video.ts";
 import { createFix, type Fix, type FixCodeHost } from "./fix.ts";
 import { createManagedFixSandbox, fixAgentParams, fixEnvironmentParams } from "./managed-fix.ts";
 import { createPgFixStore, pgDelegationOf } from "./pg-fix.ts";
@@ -37,6 +40,8 @@ export { createPgDailyNoteStore } from "./pg-notes.ts";
 export { createPgPlanStore, createPgReviewStore } from "./pg-night.ts";
 export { ollamaBaseUrl, ollamaJson, ollamaTriage } from "./triage-ollama.ts";
 export { createPgArtifactStore } from "./pg-artifacts.ts";
+export { expireTeamVideos, failStuckTeamVideos, latestTeamVideos, queuedTeamVideos, queueTeamVideos, teamVideoForStream, type TeamVideoView } from "./pg-video.ts";
+export { videoAgentParams, videoEnvironmentParams, VIDEO_RUNNER } from "./managed-video.ts";
 export { createPgAvatarStore, createPgOnboardingStore, readAvatar, updateProfile } from "./pg-onboarding.ts";
 export { createPgFixStore } from "./pg-fix.ts";
 export { createPgRedistributionStore } from "./pg-redistribution.ts";
@@ -360,4 +365,53 @@ export function serverOnboarding(db: Database, opts: { apiKey?: string | undefin
 export function serverAvatar(db: Database, apiKey: string | undefined) {
   const deps = { store: createPgAvatarStore(db), vision: apiKey ? anthropicModelCall(apiKey) : null, recorder: createDbRunRecorder(db) };
   return { redo: redoAvatar(deps), adjust: adjustAvatar(deps) };
+}
+
+/**
+ * Vídeo da semana da equipe (etapa 27). Desligado sem chave ou sem VIDEO_AGENT_ID e VIDEO_ENVIRONMENT_ID: os
+ * relatórios seguem iguais, sem vídeo.
+ */
+export function serverVideo(db: Database, opts: { apiKey?: string | undefined; agentId?: string | undefined; environmentId?: string | undefined; timeoutMs?: number }): Video & { deleteFile: (id: string) => Promise<void> } {
+  const client = opts.apiKey ? new Anthropic({ apiKey: opts.apiKey, maxRetries: 2 }) : null;
+  const sandbox = client && opts.agentId && opts.environmentId ? createManagedVideoSandbox(client, { agentId: opts.agentId, environmentId: opts.environmentId, ...(opts.timeoutMs ? { timeoutMs: opts.timeoutMs } : {}) }) : null;
+  // Apagar só precisa da chave: o painel descarta vídeos sem as IDs do ambiente.
+  const deleteFile = client ? filesDeleter(client) : null;
+  const video = createVideo({
+    store: createPgTeamVideoStore(db),
+    sandbox,
+    deleteFile,
+    model: opts.apiKey ? anthropicModelCall(opts.apiKey) : null,
+    recorder: createDbRunRecorder(db),
+  });
+  return { ...video, deleteFile: async (id) => void (await deleteFile?.(id)) };
+}
+
+/** Resposta com o mp4 guardado na Files API (o painel confere o link assinado antes). */
+export async function videoFile(apiKey: string, fileId: string): Promise<Response> {
+  return downloadVideoFile(new Anthropic({ apiKey, maxRetries: 1 }), fileId);
+}
+
+/**
+ * Cria (ou reaproveita) o agente e o ambiente da gravação. Rodar uma vez: `pnpm --filter @echo/reviewer provision-video`.
+ * Ambiente que já existe tem a rede e os pacotes atualizados (vale para as próximas sessões).
+ */
+export async function provisionVideo(apiKey: string, existing: { agentId?: string | undefined; environmentId?: string | undefined }, previewHosts?: readonly string[]): Promise<{ agentId: string; environmentId: string; created: string[] }> {
+  const client = new Anthropic({ apiKey, maxRetries: 2 });
+  const created: string[] = [];
+  const agentId = existing.agentId ?? (created.push("agente"), (await client.beta.agents.create(videoAgentParams())).id);
+  const params = videoEnvironmentParams(previewHosts);
+  let environmentId = existing.environmentId;
+  if (environmentId) await client.beta.environments.update(environmentId, { config: params.config });
+  else environmentId = (created.push("ambiente"), (await client.beta.environments.create(params)).id);
+  return { agentId, environmentId, created };
+}
+
+/** Peças do vídeo para o teste na hora (`pnpm video:agora`): sem banco, sem worker. */
+export function videoTestKit(apiKey: string, ids: { agentId: string; environmentId: string; timeoutMs?: number }) {
+  const client = new Anthropic({ apiKey, maxRetries: 2 });
+  return {
+    model: anthropicModelCall(apiKey),
+    sandbox: createManagedVideoSandbox(client, { agentId: ids.agentId, environmentId: ids.environmentId, ...(ids.timeoutMs ? { timeoutMs: ids.timeoutMs } : {}) }),
+    deleteFile: filesDeleter(client),
+  };
 }

@@ -6,7 +6,7 @@ import { LogRunRecorder } from "@echo/observability";
 import { describe, expect, it } from "vitest";
 import type { AgentData } from "./data.ts";
 import type { TriageModel } from "./triage.ts";
-import { type BatchApi, type BatchItemResult, type BatchRequest, createNightReview, type PrDiff, type ReviewStore, type StoredReview, safeErrorMessage, validFindings } from "./night-review.ts";
+import { APPROVAL_PATTERN, type BatchApi, type BatchItemResult, type BatchRequest, createNightReview, type PrDiff, type ReviewStore, type StoredReview, safeErrorMessage, validFindings } from "./night-review.ts";
 
 const NOW = new Date("2026-11-07T05:00:00Z");
 const hours = { days: [1, 2, 3, 4, 5], start: "09:00", end: "18:00" };
@@ -320,7 +320,12 @@ describe("resultado do lote", () => {
     expect(body).not.toMatch(/outro\.ts|LGTM|Talvez/);
     expect(store.rows.find((r) => r.id === "rv1")).toMatchObject({ state: "reviewed", costUsd: 0.015 });
     expect(store.rows.find((r) => r.id === "rv2")!.state).toBe("no_findings");
-    expect(outbox.filter((a) => a.idempotencyKey.startsWith("review_comment:"))).toHaveLength(1);
+    // Sem achado: comentário curto dizendo que a versão foi analisada, sem linguagem de aprovação.
+    const empty = (outbox.find((a) => a.idempotencyKey === "review_comment:rv2")!.payload as { body: string }).body;
+    expect(empty).toContain("Nenhum problema apontado na versão");
+    expect(empty).toContain("Isto não é uma aprovação");
+    expect(empty).not.toMatch(APPROVAL_PATTERN);
+    expect(outbox.filter((a) => a.idempotencyKey.startsWith("review_comment:"))).toHaveLength(2);
     expect(runs.filter((r) => r.flow === "night_review").map((r) => [r.model, r.costUsd, r.result])).toEqual([
       ["claude-sonnet-5-5", 0.015, "ok"],
       ["claude-opus-5-5", 0.03, "ok"],
@@ -328,7 +333,7 @@ describe("resultado do lote", () => {
 
     // Buscar de novo não publica outra vez.
     expect(await flow.collect("org")).toEqual({ reviewed: 0, noFindings: 0, failed: 0, pending: 0 });
-    expect(outbox.filter((a) => a.idempotencyKey.startsWith("review_comment:"))).toHaveLength(1);
+    expect(outbox.filter((a) => a.idempotencyKey.startsWith("review_comment:"))).toHaveLength(2);
   });
 
   it("erro, expiração, saída fora do formato e item sem resultado viram falha, sem comentário", async () => {

@@ -180,6 +180,18 @@ export function reviewComment(findings: Finding[], headSha: string): string {
   ].join("\n");
 }
 
+/**
+ * Revisão sem achado: diz que a versão foi analisada e nada foi apontado, sem linguagem de aprovação. Quem olha o
+ * PR sabe que a versão nova passou pela análise (por exemplo, depois de uma correção aplicada).
+ */
+export function noFindingsComment(headSha: string): string {
+  return [
+    `**Análise automática do Echo.** Nenhum problema apontado na versão ${headSha.slice(0, 7)}. Isto não é uma aprovação e não substitui a revisão de uma pessoa.`,
+    "",
+    `_Feita pelo Claude sobre a versão ${headSha.slice(0, 7)}. Powered by Claude._`,
+  ].join("\n");
+}
+
 export const TOO_LARGE_COMMENT = (reason: string) =>
   `**Análise automática do Echo.** PR grande demais para análise automática (${reason}): não houve análise nesta versão. A revisão de uma pessoa segue normal.`;
 
@@ -385,16 +397,16 @@ export function createNightReview(deps: NightReviewDeps) {
         }
         const state: ReviewState = findings.length ? "reviewed" : "no_findings";
         if (!(await store.finish(review.id, { state, findings, costUsd }))) continue;
-        if (findings.length) {
-          await outbox.enqueue({
-            type: "github.comment",
-            target: `github:${review.pr.repository}#${review.pr.number}`,
-            payload: { repo: review.pr.repository, number: review.pr.number, body: reviewComment(findings, review.headSha), headSha: review.headSha },
-            idempotencyKey: `review_comment:${review.id}`,
-          });
-          out.reviewed++;
-        } else out.noFindings++;
-        await record({ ...run, durationMs: Math.round(performance.now() - started), result: "ok", tools: findings.length ? ["github.comment"] : [] });
+        // Com ou sem achado, a versão analisada ganha um comentário (mesma chave: publicado uma vez só).
+        await outbox.enqueue({
+          type: "github.comment",
+          target: `github:${review.pr.repository}#${review.pr.number}`,
+          payload: { repo: review.pr.repository, number: review.pr.number, body: findings.length ? reviewComment(findings, review.headSha) : noFindingsComment(review.headSha), headSha: review.headSha },
+          idempotencyKey: `review_comment:${review.id}`,
+        });
+        if (findings.length) out.reviewed++;
+        else out.noFindings++;
+        await record({ ...run, durationMs: Math.round(performance.now() - started), result: "ok", tools: ["github.comment"] });
       }
       // Revisões do lote sem resultado: falharam.
       for (const r of reviews) {

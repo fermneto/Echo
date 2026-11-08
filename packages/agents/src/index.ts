@@ -14,6 +14,12 @@ export const MODELS = {
   artifact: "claude-haiku-5-5",
   /** Traços do bonequinho a partir da foto do cadastro. */
   avatar: "claude-haiku-5-5",
+  /** Roteiro de um trecho de tela do vídeo da semana (saída estruturada, esforço baixo). */
+  videoScript: "claude-sonnet-5-5",
+  /** Frases do vídeo da semana da equipe (saída estruturada, esforço baixo). */
+  videoTexts: "claude-haiku-5-5",
+  /** Gravação do vídeo no Managed Agents, com navegador sem interface. */
+  video: "claude-sonnet-5-5",
 } as const;
 
 export const LIMITS = { maxRounds: 4, timeoutMs: 30_000, presenceTimeoutMs: 1_500 } as const;
@@ -130,6 +136,7 @@ export {
 } from "./daily-note.ts";
 export {
   createNightReview,
+  noFindingsComment,
   reviewComment,
   validFindings,
   type BatchApi,
@@ -229,3 +236,7 @@ export {
   type ResumeProfile,
 } from "./onboarding.ts";
 export { adjustAvatar, type AvatarAction, type AvatarStore, REDO_LIMIT, redoAvatar, type RedoAvatarDeps, type RedoOutcome } from "./redo-avatar.ts";
+export { createVideo, finalScenes, MAX_RECORDINGS, prepareTeamVideo, recordScenes, TEXTS_SYSTEM, VIDEO_BUDGET_USD, type RecordInput, type RecordResult, type TeamVideoPatch, type TeamVideoRow, type TeamVideoState, type TeamVideoStore, type TeamVideoStory, type Video, type VideoDeps, type VideoOutcome, type VideoSandbox } from "./video.ts";
+export { mp4DurationSeconds, normalizeScript, SCRIPT_SYSTEM, writeVideoScript } from "./video-clip.ts";
+/** Regras do vídeo, para o teste na hora (`pnpm video:agora`) usar as mesmas conferências do fluxo. */
+export { type AvatarTraits, previewOrigin, scenesSeconds, scriptIssues, teamRecordingIssues, type PullRequest, type TeamWeekFacts, type VideoScript } from "@echo/domain";

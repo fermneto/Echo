@@ -463,6 +463,30 @@ export const featureVideos = pgTable("feature_videos", {
   expiresAt: ts("expires_at"),
 });
 
+/**
+ * Vídeo da semana da equipe (etapa 27): um por equipe por semana, montado dos relatórios conferidos. Vai direto
+ * para a equipe e a liderança no painel; o mp4 fica na Files API (`storage_key`) até `expires_at`.
+ */
+export const teamVideos = pgTable("team_videos", {
+  id: id(),
+  orgId: orgId(),
+  teamId: uuid("team_id").notNull().references(() => teams.id, { onDelete: "cascade" }),
+  week: text("week").notNull(), // AAAA-Www
+  state: text("state").notNull().default("queued"), // queued | recording | ready | failed
+  /** Fatos, textos e cenas que foram gravados (sem conteúdo de PR além de título e referência). */
+  story: jsonb("story"),
+  storageKey: text("storage_key"),
+  durationS: integer("duration_s"),
+  chapters: jsonb("chapters").$type<{ at: number; title: string }[]>(),
+  costUsd: numeric("cost_usd", { precision: 10, scale: 4 }),
+  sessionId: text("session_id"),
+  attempts: integer("attempts").notNull().default(0),
+  error: text("error"),
+  expiresAt: ts("expires_at"),
+  createdAt: createdAt(),
+  updatedAt: updatedAt(),
+}, (t) => [uniqueIndex("team_videos_team_week").on(t.orgId, t.teamId, t.week)]);
+
 /** Auditoria de toda execução (todo fluxo grava aqui). */
 export const agentRuns = pgTable("agent_runs", {
   id: id(),
