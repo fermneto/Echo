@@ -3,7 +3,8 @@
 import { agentLabel as labelFor, detectLanguage, type AnswerRequest, type AnswerResult, type Lang } from "@echo/agents";
 import { answerBlocks, REPLY_TEXT, respondToInteraction, SLACK_ACTIONS, type ChatMessage, type ChatPlatform } from "@echo/connectors";
 import { absences, asSystem, identities, people, questions, withOrg, type Database } from "@echo/db";
-import { avatarKey, digestKind, digestLine, isAway, parseAvatarTraits, proposalCitation, SPRITE_VERSION, traitsFromSeed } from "@echo/domain";
+import { digestKind, digestLine, isAway, proposalCitation } from "@echo/domain";
+import { agentIconUrl } from "./agent-icon.ts";
 import type { Logger } from "@echo/observability";
 import { and, eq, gte, inArray, isNull, lt, or, sql } from "drizzle-orm";
 
@@ -26,18 +27,6 @@ export interface SlackAnswerDeps {
 export type SlackAnswerOutcome = "answered" | "silent" | "noted" | "duplicate" | "skipped";
 
 type Known = { id: string; name: string; timezone: string; workHours: { days: number[]; start: string; end: string }; avatar?: Record<string, string> | null };
-
-/**
- * Ícone da mensagem: o bonequinho do gêmeo (ou o do Echo), servido pelo painel. A chave dos traços vai no
- * endereço, para o Slack buscar de novo quando o desenho muda. Sem https público, fica o ícone do app.
- */
-export function agentIconUrl(webUrl: string | undefined, orgId: string, owner: Pick<Known, "id" | "avatar"> | undefined): string | undefined {
-  if (!webUrl?.startsWith("https://")) return undefined;
-  const base = webUrl.replace(/\/$/, "");
-  if (!owner) return `${base}/api/avatar/echo?v=${SPRITE_VERSION}`;
-  const traits = owner.avatar ? parseAvatarTraits(owner.avatar, traitsFromSeed(owner.id)).traits : traitsFromSeed(owner.id);
-  return `${base}/api/avatar/${orgId}/${owner.id}?v=${avatarKey(traits)}`;
-}
 
 /** Pessoas da empresa pelas contas do Slack. */
 async function bySlack(db: Database, orgId: string, slackIds: string[]) {

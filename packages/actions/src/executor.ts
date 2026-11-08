@@ -20,7 +20,8 @@ export interface ActionPayloads {
   "github.merge_fix": { repo: string; number: number; sha: string; base: string; prNumber: number };
   "github.mirror_write": { repo: string; noteId: string; path: string; content: string; previousSha?: string };
   "github.mirror_delete": { repo: string; noteId: string; path: string; sha: string };
-  "slack.post": { channel: string; text: string; threadTs?: string; agentName?: string };
+  /** `ownerId`: a pessoa cujo gêmeo fala ("Agente de Fernando"); a mensagem sai com o bonequinho dela. */
+  "slack.post": { channel: string; text: string; threadTs?: string; agentName?: string; ownerId?: string };
   "slack.dm": { personId: string; text: string; blocks?: unknown[] };
   /** Imagem na conversa privada; sem permissão de arquivo no Slack, manda o texto e os blocos de reserva. */
   "slack.dm_image": { personId: string; filename: string; title: string; comment: string; altText?: string; pngBase64: string; text: string; blocks?: unknown[] };
@@ -39,6 +40,11 @@ export interface ExecutorDeps {
   /** Escritores da empresa. Ausente = a plataforma não está ligada e a ação falha com esse motivo. */
   writers: (orgId: string) => Promise<{ code?: CodeWriter; issues?: IssueWriter; chat?: ChatPlatform }>;
   now?: () => Date;
+  /**
+   * Endereço do bonequinho para a mensagem no Slack: o do gêmeo de `ownerId` ou, sem dono, o do Echo.
+   * Sem a função ou sem endereço (painel sem https), a mensagem sai com o ícone do app.
+   */
+  agentIcon?: (orgId: string, ownerId?: string) => Promise<string | undefined>;
 }
 
 type Row = typeof outboxActions.$inferSelect;
@@ -193,7 +199,9 @@ async function run(deps: ExecutorDeps, row: Row): Promise<unknown> {
     }
     case "slack.post": {
       const p = row.payload as ActionPayloads["slack.post"];
-      await need("chat", "Slack").postAgentReply({ channel: p.channel, text: p.text, agentName: p.agentName ?? "Echo", ...(p.threadTs ? { threadTs: p.threadTs } : {}) });
+      // O ícone é enfeite: se a busca falhar, a mensagem sai com o ícone do app em vez de não sair.
+      const iconUrl = await deps.agentIcon?.(orgId, p.ownerId).catch(() => undefined);
+      await need("chat", "Slack").postAgentReply({ channel: p.channel, text: p.text, agentName: p.agentName ?? "Echo", ...(p.threadTs ? { threadTs: p.threadTs } : {}), ...(iconUrl ? { iconUrl } : {}) });
       return;
     }
     case "slack.dm": {

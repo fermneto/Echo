@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { renderSummaryPng } from "@echo/agents/imagem";
-import { allOrgIds, createGithubGainsHistory, serverFix, dueAwayDigests, dueEndOfDay, dueMorning, needsGainsBaseline, serverAwayDigest, serverDaySummary, serverEndOfDay, serverGains, serverMorningPlan, serverNightReview, serverRedistribution, serverWeeklyReport, dueWeeklyReports } from "@echo/agents/server";
+import { allOrgIds, createGithubGainsHistory, serverFix, dueAwayDigests, dueEndOfDay, dueMorning, needsGainsBaseline, serverAwayDigest, serverDaySummary, serverEndOfDay, serverGains, serverMorningPlan, serverNightReview, serverRedistribution, serverWeeklyReport, dueWeeklyReports, readAvatar } from "@echo/agents/server";
 import { ensureProductNote } from "@echo/brain/pg";
 import { loadConfig } from "@echo/config";
 import { createDb, createPool } from "@echo/db";
@@ -13,6 +13,7 @@ import { giveUpStaleQuestions, handleSlackInteraction, handleSlackMessage } from
 import { createInteractionRouter } from "./slack-interactions.ts";
 import type { SlackMessageJob } from "./inbox.ts";
 import { registerActions } from "./actions.ts";
+import { outboxAgentIcon } from "./agent-icon.ts";
 import { registerInbox } from "./inbox.ts";
 import { registerMirror } from "./mirror.ts";
 import { scheduleReconcile } from "./reconcile.ts";
@@ -37,7 +38,8 @@ await queue.start();
 // Até a gravação em agent_runs estar ligada (frente Funções), as execuções vão para o log.
 const runs = new LogRunRecorder(log);
 await registerInbox(db, queue, runs, { brainsRepository: cfg.BRAINS_REPOSITORY });
-const stopActions = await registerActions({ db, writers: writersFromEnv(db, cfg) }, queue, runs, log);
+// O que sai pelo outbox em nome de um gêmeo leva o bonequinho dele, como as respostas ao vivo.
+const stopActions = await registerActions({ db, writers: writersFromEnv(db, cfg), agentIcon: outboxAgentIcon(cfg.WEB_URL, (orgId, personId) => readAvatar(db, orgId, personId)) }, queue, runs, log);
 // F2: resposta no Slack com o fluxo da frente Funções (answer de @echo/agents).
 const interactions = createInteractionRouter(log);
 let giveUp: ReturnType<typeof setInterval> | undefined;
