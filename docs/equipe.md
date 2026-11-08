@@ -2,7 +2,7 @@
 
 Quatro frentes em paralelo. Cada frente é dona de pastas próprias, para quase não haver conflito de merge. Os pontos de contato entre as frentes são os **contratos** em `packages/*/src/index.ts`. Mudar um contrato exige avisar o time antes.
 
-Situação em **8/11/2026**, com a `main` no merge do #67. O que bloqueia, o que configurar e o que testar está em [`pendencias.md`](pendencias.md).
+Situação em **8/11/2026**, com a `main` no merge do #75. O que bloqueia, o que configurar e o que testar está em [`pendencias.md`](pendencias.md).
 
 ## Prazos
 
@@ -49,9 +49,9 @@ Situação em **8/11/2026**, com a `main` no merge do #67. O que bloqueia, o que
 
 **Dona de:** `apps/web` (telas, estilos e componentes) e `packages/artifacts`. Mudança de tela feita por outra frente (por exemplo, o card "Seu agente" e os botões da correção em Meu plano) passa pela revisão visual desta frente.
 
-**Entregue:** login por persona, ficha da pessoa com "Pergunte ao gêmeo", simulador, notas, Meu plano, Redistribuição, Relatórios, Ganhos, Custo e execuções, Resumos (etapa 26), landing e identidade visual.
+**Entregue:** telas com dados reais para quem é de empresa conectada, com o recorte que fica só na própria pessoa se a leitura das equipes falhar (#73), login por persona, ficha da pessoa com "Pergunte ao gêmeo", simulador, notas, Meu plano, Redistribuição, Relatórios, Ganhos, Custo e execuções, Resumos (etapa 26), landing e identidade visual.
 
-**Falta até a entrega:** a revisão visual do card "Seu agente" (`apps/web/components/AgentProfileForm.tsx`) e dos botões Aprovar e Recusar da correção (`apps/web/app/(painel)/plano/PlanList.tsx`); o recorte de equipe no "Pergunte ao Echo" com banco e o #73, bloqueado (B13); e o tratamento de erro do banco em `/redistribuicao`, `/execucoes` e `/resumos` (B14).
+**Falta até a entrega:** a revisão visual do card "Seu agente" (`apps/web/components/AgentProfileForm.tsx`) e dos botões Aprovar e Recusar da correção (`apps/web/app/(painel)/plano/PlanList.tsx`); as equipes escolhidas pelo RH no "Pergunte ao Echo" com banco (B13); e o tratamento de erro do banco em `/redistribuicao`, `/execucoes` e `/resumos` (B14).
 
 **Pronto quando:** o roteiro de 3 minutos da aba Demo pode ser clicado do começo ao fim.
 
@@ -59,14 +59,13 @@ Situação em **8/11/2026**, com a `main` no merge do #67. O que bloqueia, o que
 
 **Dona de:** `evals/`, os testes ponta a ponta (Playwright), `.github/workflows`, `infra/` (Blueprint da Render e imagens, inclusive a do modelo aberto) e a submissão.
 
-**Entregue:** CI e deploy pela Render via Actions, com a migração antes do código; os 15 casos fixos de segurança e 3 de idioma (inglês e espanhol), que passam com o modelo real (18 de 18).
+**Entregue:** CI e deploy pela Render via Actions, com a migração antes do código; `pnpm e2e`, a história da demo no navegador com Playwright, sem modelo, na CI (#75, B12); a fila sem jobs repetidos pela agenda (#74); os 15 casos fixos de segurança e 3 de idioma (inglês e espanhol), que passam com o modelo real (18 de 18).
 
 **Falta até a entrega:**
 
 | O quê | Detalhe |
 |---|---|
 | Render | Preencher `FIX_AGENT_ID` e `FIX_ENVIRONMENT_ID` no `echo-worker` (B7). O `echo-reviewer` não é mais necessário para a correção |
-| `pnpm e2e` | História da demo no navegador, sem modelo, na CI (B12) |
 | Submissão | Roteiro ensaiado com cronômetro, vídeo, README e lista de ferramentas usadas (incluindo o Claude Code) |
 | Negócio | Problema e quanto custa (espera entre fusos), tamanho de mercado, "por que agora", concorrentes (Viven, Twin1) e quem paga (o RH). Pitch de 3 minutos, texto da submissão e Desafio Tako |
 | Prêmio | Domínio próprio, landing page e e-mail corporativo no mesmo domínio, exigidos para resgatar os créditos AWS |

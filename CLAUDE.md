@@ -78,6 +78,7 @@ pnpm db:generate         # migração depois de mudar schema.ts
 pnpm nota:agora          # fim do expediente na hora (rascunho da nota e resumo do dia)
 pnpm noite:agora         # revisão noturna na hora
 pnpm manha:agora         # plano da manhã na hora
+pnpm relatorio:agora     # relatório da semana que já fechou, sem enviar ao RH
 ```
 
 ## IA

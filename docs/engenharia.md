@@ -649,9 +649,10 @@ pnpm db:generate # migração depois de mudar schema.ts
 pnpm nota:agora # fim do expediente na hora (rascunho da nota e resumo do dia)
 pnpm noite:agora # revisão noturna na hora
 pnpm manha:agora # plano da manhã na hora
+pnpm relatorio:agora # relatório da semana que já fechou
 ```
 
-Os três comandos `:agora` só põem na fila do worker o mesmo job da agenda; o worker faz o resto. Por padrão, pulam a empresa de demonstração (`--todas` inclui).
+`nota:agora`, `noite:agora` e `manha:agora` só põem na fila do worker o mesmo job da agenda; o worker faz o resto. Por padrão, pulam a empresa de demonstração (`--todas` inclui). `relatorio:agora` gera na hora os relatórios cuja semana já fechou, um por pessoa e semana, sem enviar ao RH; por padrão, só a empresa de demonstração.
 
 Para receber avisos das plataformas no computador, use um túnel apenas durante o desenvolvimento. Nada em produção depende dele.
 
