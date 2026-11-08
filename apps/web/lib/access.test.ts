@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canAskTwin, canEditProfile, canLinkAccounts, canSee, canSeePerson, navFor, ROUTES, visibleTeamIds, type RouteId } from "./access";
+import { canAskTwin, canEditProfile, canLinkAccounts, canSee, linkablePlatforms, canSeePerson, navFor, ROUTES, visibleTeamIds, type RouteId } from "./access";
 import { TEAM } from "./demo/team";
 import { TEAMS } from "./demo/teams";
 
@@ -135,5 +135,33 @@ describe("quem liga as contas da pessoa", () => {
     expect(canLinkAccounts({ id: "c", role: "member", teamId: "t1" }, target)).toBe(false);
     expect(canLinkAccounts({ id: "l", role: "leader", teamId: "t2" }, target)).toBe(false);
     expect(canLinkAccounts({ id: "l", role: "leader", teamId: "t1" }, { id: "rh", role: "hr", teamId: "t1" })).toBe(false);
+  });
+});
+
+describe("em quais plataformas cada papel liga as contas", () => {
+  const member = { id: "p", role: "member" as const, teamId: "t1" };
+  const leader = { id: "l", role: "leader" as const, teamId: "t1" };
+
+  it("a liderança sobre si mesma é recusada em todas as plataformas", () => {
+    expect(linkablePlatforms(leader, leader)).toEqual([]);
+    expect(canLinkAccounts(leader, { id: "l", role: "leader", teamId: "t1" })).toBe(false);
+  });
+
+  it("a liderança não liga nem troca o Slack de um membro da equipe", () => {
+    expect(linkablePlatforms(leader, member)).not.toContain("slack");
+  });
+
+  it("a liderança liga e troca o GitHub (e o Linear) de um membro da equipe", () => {
+    expect(linkablePlatforms(leader, member)).toEqual(["github", "linear"]);
+  });
+
+  it("o RH liga tudo, de qualquer pessoa", () => {
+    for (const target of [member, leader, { id: "rh2", role: "hr" as const }]) expect(linkablePlatforms({ id: "rh", role: "hr" }, target)).toEqual(["slack", "github", "linear"]);
+  });
+
+  it("a própria pessoa, colega ou liderança de outra equipe: nenhuma plataforma", () => {
+    expect(linkablePlatforms(member, member)).toEqual([]);
+    expect(linkablePlatforms({ id: "c", role: "member", teamId: "t1" }, member)).toEqual([]);
+    expect(linkablePlatforms({ id: "l2", role: "leader", teamId: "t2" }, member)).toEqual([]);
   });
 });

@@ -80,7 +80,37 @@ describe.skipIf(!url)("contas da pessoa, em Postgres", () => {
     expect(all).toEqual([]);
 
     const audit = await asSystem(createDb(admin), (tx) => tx.select().from(auditLog).where(eq(auditLog.target, `person:${caio}`)));
-    expect(audit.map((a) => a.action)).toEqual(expect.arrayContaining(["pessoa:cadastrar", "pessoa:contas:linear,slack", "pessoa:contas:slack"]));
+    expect(audit.map((a) => a.action)).toEqual(expect.arrayContaining(["pessoa:cadastrar", "pessoa:contas:nenhuma", "pessoa:contas:linear,slack", "pessoa:contas:slack"]));
     expect(JSON.stringify(audit)).not.toContain("U0CAIO");
+  });
+
+  it("o cadastro também registra as plataformas ligadas, sem os ids, sem mudar pessoa:cadastrar", async () => {
+    const [ana] = await asSystem(createDb(admin), (tx) => tx.select().from(people).where(eq(people.name, "Ana Contas")));
+    const audit = await asSystem(createDb(admin), (tx) => tx.select().from(auditLog).where(eq(auditLog.target, `person:${ana!.id}`)));
+    expect(audit.map((a) => a.action).sort()).toEqual(["pessoa:cadastrar", "pessoa:contas:github,slack"]);
+    expect(JSON.stringify(audit)).not.toContain("U0ANA");
+    expect(JSON.stringify(audit)).not.toContain("ana-dev");
+  });
+
+  it("login do GitHub de outra pessoa com outra caixa e outro id também é recusado", async () => {
+    const davi = (await flow()({ orgId: org, actorId: actor, name: "Davi Contas", timezone: "America/Sao_Paulo", workHours: hours })).personId;
+    const eva = (await flow()({ orgId: org, actorId: actor, name: "Eva Contas", timezone: "America/Sao_Paulo", workHours: hours })).personId;
+    // Como o ingest grava: o número da conta como id e o login com a caixa do GitHub.
+    await asSystem(createDb(admin), (tx) => tx.insert(identities).values({ orgId: org, personId: davi, platform: "github", externalId: "98765", login: "Davi-Dev" }));
+    expect(await saveAccounts(db, org, eva, links({ github: "davi-dev" }), actor)).toEqual({ status: "conflict", platform: "github", otherName: "Davi Contas" });
+    expect(await readAccounts(db, org, eva)).toEqual({});
+  });
+
+  it("só troca as plataformas permitidas: a liderança salva o GitHub sem mexer no Slack", async () => {
+    const fabi = (await flow()({ orgId: org, actorId: actor, name: "Fabi Contas", timezone: "America/Sao_Paulo", workHours: hours, accounts: links({ slack: "U0FABI001" }) })).personId;
+    expect(await saveAccounts(db, org, fabi, links({ slack: "U0OUTRO01", github: "fabi-dev" }), actor, ["github", "linear"])).toEqual({ status: "saved" });
+    expect(await readAccounts(db, org, fabi)).toEqual({ slack: { externalId: "U0FABI001", login: null }, github: { externalId: "login:fabi-dev", login: "fabi-dev" } });
+  });
+
+  it("dois pedidos ao mesmo tempo com a mesma conta: um grava, o outro vira conflito, sem erro cru", async () => {
+    const [gil, hugo] = await Promise.all(["Gil Contas", "Hugo Contas"].map(async (name) => (await flow()({ orgId: org, actorId: actor, name, timezone: "America/Sao_Paulo", workHours: hours })).personId));
+    const results = await Promise.all([gil!, hugo!].map((id) => saveAccounts(db, org, id, links({ slack: "U0CORRIDA" }), actor)));
+    expect(results.map((r) => r.status).sort()).toEqual(["conflict", "saved"]);
+    expect(results.find((r) => r.status === "conflict")).toMatchObject({ platform: "slack" });
   });
 });

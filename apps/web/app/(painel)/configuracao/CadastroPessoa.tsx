@@ -3,6 +3,7 @@
 import { type FormEvent, useActionState, useEffect, useRef, useTransition } from "react";
 import { PixelSprite } from "@/components/PixelSprite";
 import Link from "next/link";
+import type { AccountPlatform } from "@echo/domain";
 import { AccountFields } from "@/components/AccountFields";
 import { type CadastroState, PHOTO_ACCEPT, RESUME_ACCEPT, ROLE_OPTIONS, ZONES } from "@/lib/onboarding-options";
 
@@ -17,7 +18,7 @@ const DAYS = [
 ];
 
 /** Cadastro pelo RH: dados do expediente, foto e currículo. O resultado mostra o bonequinho e o contexto lido. */
-export function CadastroPessoa({ action, teams, slackMembers = null }: { action: (prev: CadastroState, form: FormData) => Promise<CadastroState>; teams: readonly { id: string; name: string }[]; slackMembers?: readonly { id: string; name: string }[] | null }) {
+export function CadastroPessoa({ action, teams, slackMembers = null, platforms, slackFailed = false }: { action: (prev: CadastroState, form: FormData) => Promise<CadastroState>; teams: readonly { id: string; name: string }[]; slackMembers?: readonly { id: string; name: string }[] | null; platforms: readonly AccountPlatform[]; slackFailed?: boolean }) {
   const [state, submit, pending] = useActionState(action, { status: "idle" } as CadastroState);
   const [, startTransition] = useTransition();
   const formRef = useRef<HTMLFormElement>(null);
@@ -87,7 +88,7 @@ export function CadastroPessoa({ action, teams, slackMembers = null }: { action:
           <legend className="field-row__k">Contas nas plataformas</legend>
           <p className="muted onboard__hint">É pela conta do Slack que a pessoa entra no painel, é reconhecida nas menções e recebe o privado do Echo. GitHub e Linear ligam os PRs e as tarefas a ela.</p>
           <div className="onboard__accounts-row">
-            <AccountFields slackMembers={slackMembers} />
+            <AccountFields slackMembers={slackMembers} platforms={platforms} slackFailed={slackFailed} />
           </div>
         </fieldset>
         <label className="onboard__field">
