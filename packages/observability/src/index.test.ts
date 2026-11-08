@@ -16,6 +16,15 @@ describe("withRun", () => {
     await expect(withRun(rec, "teste", async () => Promise.reject(new Error("boom")))).rejects.toThrow("boom");
     expect(rec.runs[0]).toMatchObject({ flow: "teste", result: "failed", error: "boom" });
   });
+
+  it("com keep, só registra a rodada que fez algo; falha sempre registra", async () => {
+    const rec = new LogRunRecorder();
+    const keep = (n: number) => n > 0;
+    await withRun(rec, "rodada", async () => 0, {}, { keep });
+    await withRun(rec, "rodada", async () => 2, {}, { keep });
+    await expect(withRun(rec, "rodada", async () => Promise.reject(new Error("caiu")), {}, { keep })).rejects.toThrow("caiu");
+    expect(rec.runs.map((r) => r.result)).toEqual(["ok", "failed"]);
+  });
 });
 
 describe("initTracing", () => {

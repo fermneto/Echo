@@ -1,4 +1,4 @@
-import { calendarsForOrg, connectedOrgs, githubForOrg, reconcileGithub, reconcileLinear, syncCalendar, type Platforms } from "@echo/connectors";
+import { calendarsForOrg, connectedOrgs, githubForOrg, reconcileGithub, reconcileLinear, syncCalendar, type CalendarSyncResult, type Platforms } from "@echo/connectors";
 import { QUEUES, type JobQueue } from "@echo/jobs";
 import type { createPool, Database } from "@echo/db";
 import { withRun, type Logger, type RunRecorder } from "@echo/observability";
@@ -19,6 +19,16 @@ export interface ReconcileDeps {
   now?: () => Date;
 }
 
+/**
+ * A reconciliação roda a cada 10 min por empresa: em `agent_runs` fica só a rodada que trouxe algo novo,
+ * avisou erro parcial ou falhou. GitHub: PR fechado desde a última rodada ou erro em algum repositório.
+ * Linear: a leitura é a lista inteira (sem como saber o que é novo), então só falha e lista truncada.
+ * Agenda: ausência registrada, alterada, cancelada ou sugerida, horário sugerido ou erro.
+ */
+function calendarChanged(r: CalendarSyncResult): boolean {
+  return r.registered + r.updated + r.cancelled + r.suggestions.length + r.shortRegistered.length + r.workHoursSuggested + r.errors.length > 0;
+}
+
 /** Uma rodada: reenvia avisos falhos do GitHub e reconcilia cada empresa ligada. */
 export async function reconcileOnce(d: ReconcileDeps): Promise<{ skipped: boolean }> {
   const client = await d.pool.connect();
@@ -29,10 +39,12 @@ export async function reconcileOnce(d: ReconcileDeps): Promise<{ skipped: boolea
       const now = d.now?.() ?? new Date();
       if (d.platforms.github) {
         // Uma falha no reenvio não impede a importação, que é o que cobre as lacunas.
+        // Vale para todas as empresas (sem orgId): fica só no log, não em agent_runs.
         await withRun(d.runs, "reconcile_redeliver", async () => {
           const n = await d.platforms.github!.redeliverFailedWebhooks();
           if (n) d.log.info({ reenviados: n }, "avisos do GitHub pedidos de novo");
-        }).catch((err) => d.log.warn({ err: String(err) }, "falha ao pedir reenvio ao GitHub"));
+          return n;
+        }, {}, { keep: (n) => n > 0 }).catch((err) => d.log.warn({ err: String(err) }, "falha ao pedir reenvio ao GitHub"));
       }
       for (const { orgId, kinds } of await connectedOrgs(d.db)) {
         if (kinds.includes("github")) {
@@ -41,7 +53,8 @@ export async function reconcileOnce(d: ReconcileDeps): Promise<{ skipped: boolea
             await withRun(d.runs, "reconcile_github", async () => {
               const r = await reconcileGithub(d.db, orgId, gh, now, { brainsRepository: d.brainsRepository });
               d.log.info({ orgId, ...r }, "reconciliação do GitHub");
-            }, { orgId }).catch((err) => d.log.error({ orgId, err: String(err) }, "falha na reconciliação do GitHub"));
+              return r;
+            }, { orgId }, { keep: (r) => r.closedSinceLastRun > 0 || r.errors.length > 0 }).catch((err) => d.log.error({ orgId, err: String(err) }, "falha na reconciliação do GitHub"));
             // Pela mesma fila do push (uma por empresa), para duas sincronizações da mesma empresa não correrem juntas.
             if (d.queue && d.brainsRepository) await d.queue.send(QUEUES.brainMirror, { orgId }, { singletonKey: orgId }).catch((err) => d.log.error({ orgId, err: String(err) }, "falha ao pedir o espelho das notas"));
             else await mirrorOrg(d, orgId).catch((err) => d.log.error({ orgId, err: String(err) }, "falha no espelho das notas"));
@@ -52,13 +65,15 @@ export async function reconcileOnce(d: ReconcileDeps): Promise<{ skipped: boolea
             const r = await syncCalendar(d.db, orgId, cal, now);
             for (const s of r.suggestions) await d.queue?.send(QUEUES.absenceSuggested, { orgId, ...s }, { singletonKey: s.absenceId });
             d.log.info({ orgId, provider: cal.provider, ...r, suggestions: r.suggestions.length, shortRegistered: r.shortRegistered.length }, "sincronização da agenda");
-          }, { orgId }).catch((err) => d.log.error({ orgId, err: String(err) }, "falha na sincronização da agenda"));
+            return r;
+          }, { orgId }, { keep: calendarChanged }).catch((err) => d.log.error({ orgId, err: String(err) }, "falha na sincronização da agenda"));
         }
         if (kinds.includes("linear") && d.platforms.linear) {
           await withRun(d.runs, "reconcile_linear", async () => {
             const r = await reconcileLinear(d.db, orgId, d.platforms.linear!, now);
             d.log.info({ orgId, ...r }, "reconciliação do Linear");
-          }, { orgId }).catch((err) => d.log.error({ orgId, err: String(err) }, "falha na reconciliação do Linear"));
+            return r;
+          }, { orgId }, { keep: (r) => r.truncated }).catch((err) => d.log.error({ orgId, err: String(err) }, "falha na reconciliação do Linear"));
         }
       }
       return { skipped: false };

@@ -140,6 +140,29 @@ describe("filtro e lote", () => {
     expect(outbox).toHaveLength(1);
   });
 
+  it("disparo manual mais cedo: a agenda da noite pula a versão já revisada e revisa o PR novo e a versão nova", async () => {
+    const prs = [pr(44), pr(45)];
+    const diffs: Record<number, PrDiff | null> = { 44: diff("sha44", [["src/listagem.ts", 40]]), 45: null };
+    const { flow, batches, store } = setup({ prs, diffs });
+    expect(await flow.prepareAndSubmit("org")).toMatchObject({ queued: 1, batchId: "batch_1" });
+    // Depois do manual: PR 45 ganha diff e o 44 recebe um commit novo.
+    diffs[45] = diff("sha45", [["src/estoque.ts", 30]]);
+    diffs[44] = diff("sha44b", [["src/listagem.ts", 42]]);
+    expect(await flow.prepareAndSubmit("org")).toMatchObject({ queued: 2, batchId: "batch_2" });
+    expect(batches.created[1]!.map((r) => r.custom_id)).toEqual(["rv2", "rv3"]);
+    expect(store.rows.map((r) => `${r.pr.number}:${r.headSha}:${r.state}`)).toEqual(["44:sha44:batched", "44:sha44b:batched", "45:sha45:batched"]);
+  });
+
+  it("correção aberta pelo Echo (echo/fix-pr-N) fica fora do lote, mesmo marcada como pronta, sem ler o diff", async () => {
+    const prs = [pr(1, { branch: "cliente-http-tempo-limite" }), pr(2, { branch: "echo/fix-pr-1", state: "open" }), pr(3, { branch: "echo/fix-pr-1", state: "draft" })];
+    const diffs = { 1: diff("sha1", [["src/cliente-http.ts", 51]]), 2: diff("sha2", [["src/cliente-http.ts", 4]]), 3: diff("sha3", [["src/cliente-http.ts", 4]]) };
+    const { flow, batches, fetched, store } = setup({ prs, diffs });
+    expect(await flow.prepareAndSubmit("org")).toMatchObject({ queued: 1, skipped: 2 });
+    expect(fetched).toEqual([1]);
+    expect(batches.created[0]!.map((r) => r.custom_id)).toEqual(["rv1"]);
+    expect(store.rows.map((r) => r.pr.number)).toEqual([1]);
+  });
+
   it("falha ao criar o lote: a fila tenta de novo com as mesmas revisões; lote criado não é reenviado", async () => {
     const { flow, batches, store, runs } = setup();
     batches.failNext = 2;

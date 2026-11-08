@@ -4,7 +4,7 @@
 import type Anthropic from "@anthropic-ai/sdk";
 import type { OutboxAction } from "@echo/actions";
 import type { BrainStore } from "@echo/brain";
-import { applyTriage, type Clock, costLevel, type FindingSeverity, NIGHT_RULES, type PrDiffSummary, type PullRequest, reviewDecision, severityRank, systemClock } from "@echo/domain";
+import { applyTriage, type Clock, costLevel, type FindingSeverity, isEchoFixBranch, NIGHT_RULES, type PrDiffSummary, type PullRequest, reviewDecision, severityRank, systemClock } from "@echo/domain";
 import type { AgentRun, RunRecorder } from "@echo/observability";
 import { modelCostUsd, type Usage } from "./cost.ts";
 import type { AgentData } from "./data.ts";
@@ -259,7 +259,8 @@ export function createNightReview(deps: NightReviewDeps) {
       for (const pr of prs) {
         try {
           const existing = await store.forPr(pr.id);
-          if (pr.state === "draft") { summary.skipped++; continue; }
+          // Rascunho e correção aberta pelo próprio Echo: pulados antes de ler o diff no GitHub.
+          if (pr.state === "draft" || isEchoFixBranch(pr.branch)) { summary.skipped++; continue; }
           const diff = await diffs.getDiff(pr.repository, pr.number);
           if (!diff) { summary.skipped++; continue; }
           const queuedSame = existing.find((r) => r.headSha === diff.headSha && r.state === "queued");

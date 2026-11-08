@@ -52,8 +52,18 @@ export interface QueuedJob<T> {
 }
 
 export interface SendOptions {
-  /** Chave única: o mesmo valor não gera dois jobs na mesma fila enquanto o primeiro existir. */
+  /**
+   * Chave do job. Sozinha, no pg-boss (fila de política padrão), não impede outro job com o mesmo valor: serve
+   * para quem consome o job e só bloqueia junto com `singletonSeconds`. A fila em memória dos testes recusa a
+   * chave repetida sempre.
+   */
   singletonKey?: string;
+  /**
+   * Com `singletonKey`: no máximo um job com essa chave por janela de tantos segundos (relógio do banco, a
+   * partir de 1970 em UTC; 86400 = um por dia UTC). Vale entre processos, mesmo depois de o primeiro terminar
+   * ou falhar: o índice único do pg-boss recusa o segundo e `send` devolve null.
+   */
+  singletonSeconds?: number;
   retryLimit?: number;
   /** Espera fixa entre tentativas; sem ela, a espera cresce a cada tentativa. */
   retryDelaySeconds?: number;
@@ -102,6 +112,7 @@ export class PgBossQueue implements JobQueue {
     await this.ensureQueue(name);
     return this.boss.send(name, data, {
       ...(opts.singletonKey ? { singletonKey: opts.singletonKey } : {}),
+      ...(opts.singletonSeconds ? { singletonSeconds: opts.singletonSeconds } : {}),
       retryLimit: opts.retryLimit ?? 3,
       ...(opts.retryDelaySeconds ? { retryDelay: opts.retryDelaySeconds, retryBackoff: false } : { retryBackoff: true }),
       ...(opts.startAfterSeconds ? { startAfter: opts.startAfterSeconds } : {}),
