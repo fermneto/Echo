@@ -414,7 +414,7 @@ export default function LandingPage() {
               ))}
             </tbody>
           </table>
-          <p className="lp-gains__foot">O painel mede a espera evitada e as revisões da sua equipe, semana a semana.</p>
+          <p className="lp-gains__foot">O painel mede a espera evitada e as revisões da sua equipe, só em totais.</p>
         </section>
 
         <section className="lp-section lp-split" aria-labelledby="ajuda">
