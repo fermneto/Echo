@@ -210,9 +210,12 @@ export function scheduledKeys(schedule: PersonSchedule): Set<string> {
   return new Set([...schedule.days.flatMap((d) => d.entries.map((e) => e.key)), ...schedule.waiting.map((w) => w.key)]);
 }
 
-/** Férias, licença ou imprevisto em curso. Compromisso curto e ausência inferida da agenda não tiram a pessoa da distribuição. */
+/**
+ * Férias, licença ou imprevisto em curso. Só o compromisso curto (`ooo`) não tira a pessoa da distribuição. Férias lidas
+ * da agenda contam mesmo antes da confirmação: a confirmada continua `inferred`, e quem está de férias não é chamado.
+ */
 export function onLeaveNow(personId: string, absences: Absence[], now: Date): boolean {
-  return absences.some((a) => a.personId === personId && a.kind !== "ooo" && !a.inferred && a.startsAt <= now && a.endsAt > now);
+  return absences.some((a) => a.personId === personId && a.kind !== "ooo" && a.startsAt <= now && a.endsAt > now);
 }
 
 export type AssignCheck = { ok: true } | { ok: false; reason: string };

@@ -136,10 +136,10 @@ describe("agenda da pessoa", () => {
 describe("quem pode receber a tarefa", () => {
   const leader = person("lid", "Marina", { role: "leader" });
   const free = task("A", { assigneeId: undefined });
-  it("compromisso curto e ausência inferida não bloqueiam a distribuição", () => {
+  it("compromisso curto não bloqueia; férias lidas da agenda bloqueiam, mesmo antes da confirmação", () => {
     const at = { personId: "yan", startsAt: new Date(now.getTime() - 1000), endsAt: new Date(now.getTime() + 1000) };
     expect(onLeaveNow("yan", [{ ...at, kind: "ooo" }], now)).toBe(false);
-    expect(onLeaveNow("yan", [{ ...at, kind: "vacation", inferred: true }], now)).toBe(false);
+    expect(onLeaveNow("yan", [{ ...at, kind: "vacation", inferred: true }], now)).toBe(true);
     expect(onLeaveNow("yan", [{ ...at, kind: "leave" }], now)).toBe(true);
   });
   it("liderança atribui na própria equipe", () => {
