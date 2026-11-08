@@ -47,7 +47,8 @@ export async function perguntar(prev: AskState, formData: FormData): Promise<Ask
   return r.ok ? { turns: [...prev.turns, { question, reply: r.reply }] } : { ...prev, error: r.error };
 }
 
-export type ProfileState = { saved?: string; error?: string };
+/** `style` e `delegation`: o que ficou gravado (já limpo), para a tela mostrar o texto salvo e não o de antes. */
+export type ProfileState = { saved?: string; error?: string; style?: string; delegation?: string };
 
 /** O próprio texto do agente: como ele responde e até onde decide pela pessoa. Só a pessoa grava o dela. */
 export async function salvarPerfilDoAgente(_prev: ProfileState, formData: FormData): Promise<ProfileState> {
@@ -55,14 +56,19 @@ export async function salvarPerfilDoAgente(_prev: ProfileState, formData: FormDa
   if (!me || String(formData.get("pessoa") ?? "") !== me.id) return { error: "Só a própria pessoa muda o jeito do agente dela." };
   const db = panelDb();
   const input = { style: String(formData.get("estilo") ?? ""), delegation: String(formData.get("delegacao") ?? "") };
+  const { cleanAgentText } = await import("@echo/domain");
+  const stored = { style: cleanAgentText(input.style) ?? "", delegation: cleanAgentText(input.delegation) ?? "" };
   if (!db) {
     // Demonstração sem banco: fica só neste navegador.
     await saveDemoProfile(input, new Date());
-    return { saved: new Date().toISOString() };
+    return { saved: new Date().toISOString(), ...stored };
   }
   const { saveAgentProfile } = await import("@echo/agents/perfil");
   const ok = await saveAgentProfile(db, gainsOrgId(me.orgId), personIdFor(me.id), input, new Date());
-  return ok ? { saved: new Date().toISOString() } : { error: "Pessoa não encontrada nesta empresa." };
+  if (!ok) return { error: "Pessoa não encontrada nesta empresa." };
+  // Sem isto, a ficha continuava com o texto de antes (e a data da delegação) até recarregar a página.
+  revalidatePath(`/pessoas/${me.id}`);
+  return { saved: new Date().toISOString(), ...stored };
 }
 
 /**

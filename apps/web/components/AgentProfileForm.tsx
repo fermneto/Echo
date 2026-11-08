@@ -3,7 +3,7 @@
 import { useActionState } from "react";
 import type { DecisionView } from "@/lib/demo/agent-profile";
 
-type State = { saved?: string; error?: string };
+type State = { saved?: string; error?: string; style?: string; delegation?: string };
 
 /** Estado atual da correção, em palavras de quem lê. */
 const STATE_LABEL: Record<string, string> = {
@@ -49,15 +49,18 @@ export function AgentProfileForm({
 }) {
   const when = (iso: string) => new Intl.DateTimeFormat("pt-BR", { timeZone: timezone, day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }).format(new Date(iso));
   const [state, action, pending] = useActionState(save, {});
+  // Depois de salvar, o React limpa o formulário e volta ao valor inicial dos campos: o inicial passa a ser o
+  // texto gravado, e a chave remonta os campos, para a tela nunca mostrar o texto de antes.
+  const shown = state.saved ? { style: state.style ?? "", delegation: state.delegation ?? "" } : { style, delegation };
   return (
-    <form action={action} className="agent-profile">
+    <form action={action} className="agent-profile" key={state.saved ?? "inicial"}>
       <input type="hidden" name="pessoa" value={personId} />
       <label className="agent-profile__field">
         <span className="field-row__k mono">Como seu agente responde</span>
         <span className="muted agent-profile__hint">
           Seu jeito de falar e de atuar: tom, nível de detalhe, como você costuma explicar e encaminhar as coisas. O agente responde parecido com você, mas sempre como &ldquo;Agente de {firstName}&rdquo;, nunca como você.
         </span>
-        <textarea name="estilo" defaultValue={style} maxLength={maxChars} rows={5} placeholder="Por exemplo: respondo curto e direto, explico o porquê em uma frase e sempre digo qual é o próximo passo. Prefiro apontar o PR ou a tarefa em vez de resumir." />
+        <textarea name="estilo" defaultValue={shown.style} maxLength={maxChars} rows={5} placeholder="Por exemplo: respondo curto e direto, explico o porquê em uma frase e sempre digo qual é o próximo passo. Prefiro apontar o PR ou a tarefa em vez de resumir." />
       </label>
       <label className="agent-profile__field">
         <span className="field-row__k mono">Até onde ele decide por você</span>
@@ -65,7 +68,7 @@ export function AgentProfileForm({
           Escreva o que o agente pode decidir sozinho no seu lugar e em que condições. O que não estiver claro aqui continua esperando você. Hoje vale para unir no seu PR a correção da revisão noturna.
           {delegationSince ? ` Versão atual salva em ${delegationSince}.` : ""}
         </span>
-        <textarea name="delegacao" defaultValue={delegation} maxLength={maxChars} rows={4} placeholder="Por exemplo: pode unir no meu PR correções pequenas da revisão noturna quando os testes passarem, menos no repositório de pagamentos. Mudança de regra de negócio, me pergunte." />
+        <textarea name="delegacao" defaultValue={shown.delegation} maxLength={maxChars} rows={4} placeholder="Por exemplo: pode unir no meu PR correções pequenas da revisão noturna quando os testes passarem, menos no repositório de pagamentos. Mudança de regra de negócio, me pergunte." />
       </label>
       <div className="agent-profile__limits">
         <p className="field-row__k mono">Nunca, diga o texto o que disser</p>
