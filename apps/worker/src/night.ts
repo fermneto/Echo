@@ -1,6 +1,9 @@
 import type { MorningPlan, NightReview } from "@echo/agents";
 import { QUEUES, type JobQueue } from "@echo/jobs";
 
+/** Um job da noite por empresa em cada dia UTC. */
+export const NIGHT_SINGLETON_SECONDS = 24 * 60 * 60;
+
 export interface OrgJob {
   orgId: string;
 }
@@ -44,8 +47,11 @@ export async function registerNight(queue: JobQueue, w: NightWiring): Promise<{ 
       let night = 0;
       if (at.getUTCHours() === w.nightHourUtc) {
         const day = at.toISOString().slice(0, 10);
+        // A agenda passa a cada 5 min a hora inteira, e no deploy dois workers passam juntos. A chave sozinha não
+        // impede outro job no pg-boss: a janela de um dia (UTC) é que deixa um só job por empresa na noite, mesmo
+        // depois de o primeiro terminar ou falhar. O disparo manual usa outra chave e não ocupa esta.
         for (const orgId of orgIds) {
-          if (await queue.send<OrgJob>(QUEUES.nightReview, { orgId }, { singletonKey: `${orgId}:${day}`, retryLimit: 2, retryDelaySeconds: 30 * 60 })) night++;
+          if (await queue.send<OrgJob>(QUEUES.nightReview, { orgId }, { singletonKey: `${orgId}:${day}`, singletonSeconds: NIGHT_SINGLETON_SECONDS, retryLimit: 2, retryDelaySeconds: 30 * 60 })) night++;
         }
       }
       for (const orgId of orgIds) await queue.send<OrgJob>(QUEUES.reviewCollect, { orgId }, { singletonKey: orgId, retryLimit: 1 });

@@ -25,6 +25,7 @@
     "integracoes:reconciliar": "pnpm --filter @echo/worker reconciliar",
     "nota:agora": "pnpm --filter @echo/worker nota:agora",
     "noite:agora": "pnpm --filter @echo/worker noite:agora",
+    "manha:agora": "pnpm --filter @echo/worker manha:agora",
     "relatorio:agora": "pnpm --filter @echo/worker relatorio:agora",
     "integracoes:rh": "pnpm --filter @echo/connectors integracoes:rh",
     "integracoes:agenda": "pnpm --filter @echo/connectors agenda:check",

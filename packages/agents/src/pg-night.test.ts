@@ -101,6 +101,12 @@ describe.skipIf(!url)("noite e manhã em Postgres", () => {
       webUrl: "http://localhost:3000",
     });
     expect(await morning.build(org, fernando, "2026-11-09")).toMatchObject({ status: "created", dmQueued: true });
+    // Uma vez por pessoa e dia: com o plano gravado, a agenda não põe outro job na janela, e um job repetido
+    // (ensaio ou reentrega) não grava outro plano nem outra mensagem.
+    expect((await dueMorning(db, new Date(MORNING.getTime() + 3 * 60_000))).filter((d) => d.orgId === org)).toEqual([]);
+    expect(await morning.build(org, fernando, "2026-11-09")).toEqual({ status: "skipped", reason: "plano já existe nesta data" });
+    const dms = (await asSystem(db, (tx) => tx.select().from(outboxActions).where(eq(outboxActions.orgId, org)))).filter((a) => a.type === "slack.dm");
+    expect(dms.map((a) => a.idempotencyKey)).toEqual([`morning_plan:${fernando}:2026-11-09`]);
     const [plan] = await asSystem(db, (tx) => tx.select().from(morningPlans).where(eq(morningPlans.orgId, org)));
     expect((plan!.items as { text: string }[]).map((i) => i.text)).toEqual([
       "Eduardo deixou uma pergunta sobre ech-128-tempo-limite e está esperando",
@@ -112,7 +118,7 @@ describe.skipIf(!url)("noite e manhã em Postgres", () => {
     expect(await createPgPlanStore(db, other).get(fernando, "2026-11-09")).toBeNull();
 
     const runs = await asSystem(db, (tx) => tx.select().from(agentRuns).where(eq(agentRuns.orgId, org)));
-    expect(runs.map((r) => r.flow).sort()).toEqual(["morning_plan", "night_review", "night_review_batch"]);
+    expect(runs.map((r) => r.flow).sort()).toEqual(["morning_plan", "morning_plan", "night_review", "night_review_batch"]);
     expect(runs.find((r) => r.flow === "night_review")).toMatchObject({ model: "claude-opus-5-5", costUsd: "0.007000" });
   });
 });
