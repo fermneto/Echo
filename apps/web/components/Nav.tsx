@@ -93,7 +93,7 @@ export function Nav({ groups }: { groups: NavGroup[] }) {
     if (glow.current) gsap.to(glow.current, { opacity: 0, duration: 0.2, ease: "power1.out", overwrite: "auto" });
   });
 
-  const isActive = (href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
+  const isActive = (href: string) => pathname.startsWith(href);
   const hover = { onPointerEnter: (e: React.PointerEvent<HTMLElement>) => e.pointerType === "mouse" && moveGlow(e.currentTarget) };
   const groupHover = (label: string) => ({
     onPointerEnter: (e: React.PointerEvent<HTMLElement>) => {
@@ -121,7 +121,7 @@ export function Nav({ groups }: { groups: NavGroup[] }) {
   return (
     <nav className="tabs" ref={ref} aria-label="Painel" onPointerLeave={hideGlow}>
       <span className="tabs__glow" ref={glow} aria-hidden="true" />
-      <Link href="/" className={`tabs__tab label-caps${isActive("/") ? " is-active" : ""}`} aria-current={isActive("/") ? "page" : undefined} {...hover}>
+      <Link href="/dashboard" className={`tabs__tab label-caps${isActive("/dashboard") ? " is-active" : ""}`} aria-current={isActive("/dashboard") ? "page" : undefined} {...hover}>
         Início
       </Link>
       {groups.map((g) => {

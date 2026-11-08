@@ -8,6 +8,7 @@ import { CardStack } from "@/components/landing/CardStack";
 import { MOMENTS } from "@/components/landing/moments";
 import { IntegrationsCarousel } from "@/components/landing/integrations";
 import { LandingMotion } from "@/components/landing/LandingMotion";
+import { StartButton } from "@/components/landing/StartButton";
 import { WaitRace } from "@/components/landing/WaitRace";
 import { PixelSprite, type SpriteMode } from "@/components/PixelSprite";
 import { lookFor } from "@/lib/demo/looks";
@@ -15,7 +16,7 @@ import { WORLD, worldCounts, worldState, type WorldMember } from "@/lib/demo/wor
 import { DEMO_NOW } from "@/lib/demo/personas";
 import { siteUrl } from "@/lib/site-url";
 import { localTime } from "@/lib/time";
-import "./landing.css";
+import "./landing/landing.css";
 
 const TITLE = "Echo · A resposta não precisa esperar até amanhã";
 const DESCRIPTION = "Cada pessoa da equipe tem um gêmeo digital que responde quando ela dorme, revisa à noite e deixa o plano pronto de manhã.";
@@ -23,13 +24,13 @@ const DESCRIPTION = "Cada pessoa da equipe tem um gêmeo digital que responde qu
 /** Lido a cada requisição: o endereço público só existe em produção, depois do build. */
 export async function generateMetadata(): Promise<Metadata> {
   await connection();
-  const image = { url: "/landing/imagem-social", width: 1200, height: 630, alt: "Echo: a resposta não precisa esperar até amanhã." };
+  const image = { url: "/imagem-social", width: 1200, height: 630, alt: "Echo: a resposta não precisa esperar até amanhã." };
   return {
     metadataBase: new URL(siteUrl()),
     title: TITLE,
     description: DESCRIPTION,
-    alternates: { canonical: "/landing" },
-    openGraph: { type: "website", locale: "pt_BR", siteName: "Echo", url: "/landing", title: TITLE, description: DESCRIPTION, images: [image] },
+    alternates: { canonical: "/" },
+    openGraph: { type: "website", locale: "pt_BR", siteName: "Echo", url: "/", title: TITLE, description: DESCRIPTION, images: [image] },
     twitter: { card: "summary_large_image", title: TITLE, description: DESCRIPTION, images: [image.url] },
   };
 }
@@ -282,7 +283,7 @@ export default function LandingPage() {
         Pular para o conteúdo
       </a>
       <header className="lp-nav">
-        <Link href="/landing" className="lp-logo" aria-label="Echo">
+        <Link href="/" className="lp-logo" aria-label="Echo">
           echo<span className="lp-logo__dot" aria-hidden="true" />
         </Link>
         <nav className="lp-nav__links" aria-label="Seções">
@@ -295,9 +296,7 @@ export default function LandingPage() {
           <Link href="/entrar" className="lp-btn lp-btn--outline lp-btn--sm">
             Entrar
           </Link>
-          <Link href="/entrar" className="lp-btn lp-btn--paper lp-btn--sm">
-            Começar
-          </Link>
+          <StartButton small />
         </div>
       </header>
 
@@ -313,9 +312,7 @@ export default function LandingPage() {
               O Echo dá a cada pessoa um agente que conhece o trabalho dela. Ele responde aos colegas na ausência dela, adianta revisões à noite, organiza o dia de cada um e ajuda a liderança a distribuir tarefas sem sobrecarregar ninguém.
             </p>
             <div className="lp-actions">
-              <Link href="/entrar" className="lp-btn lp-btn--paper">
-                Começar
-              </Link>
+              <StartButton />
               <a href="#como-funciona" className="lp-btn lp-btn--ghost">
                 Ver como funciona
               </a>
@@ -495,9 +492,7 @@ export default function LandingPage() {
             </h2>
             <p className="lp-lead">Conecte o GitHub, o Slack e o Linear ou o Jira. Cada pessoa ganha um agente que conhece o trabalho dela.</p>
           </div>
-          <Link href="/entrar" className="lp-btn lp-btn--paper">
-            Começar
-          </Link>
+          <StartButton />
         </section>
       </main>
 

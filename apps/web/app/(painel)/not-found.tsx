@@ -7,7 +7,7 @@ export const metadata = { title: "Página não encontrada · Echo" };
 export default function NotFoundPainel() {
   return (
     <StatusScreen title="Esta página não existe." text="O endereço pode estar errado, ou esta tela não está disponível para o seu acesso.">
-      <Link href="/" className="button-pill">
+      <Link href="/dashboard" className="button-pill">
         Ir para o início
       </Link>
     </StatusScreen>

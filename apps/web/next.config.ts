@@ -12,6 +12,8 @@ const config: NextConfig = {
   typescript: { ignoreBuildErrors: true },
   poweredByHeader: false,
   // Cadastro do RH envia foto (até 4 MB) e currículo em PDF (até 2 MB) pela ação do servidor; o padrão é 1 MB.
+  // A landing era em /landing: link antigo compartilhado continua chegando nela.
+  redirects: async () => [{ source: "/landing", destination: "/", permanent: true }],
   experimental: { serverActions: { bodySizeLimit: "7mb" } },
 };
 

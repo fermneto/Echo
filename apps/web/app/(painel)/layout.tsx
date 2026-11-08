@@ -24,7 +24,7 @@ export default async function PainelLayout({ children }: { children: ReactNode }
       <header className="topbar">
         <div className="topbar__inner">
           <div className="topbar__row">
-            <Logo />
+            <Logo href="/dashboard" />
             <div className="topbar__me">
               <span className="topbar__name">{persona.name}</span>
               <form action={sair}>
