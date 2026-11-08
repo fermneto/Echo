@@ -171,6 +171,34 @@ describe("gravação do vídeo da semana", () => {
   });
 });
 
+describe("pausa por custo", () => {
+  it("paused segue o limite do mês: em 80% pausa, abaixo libera; o processo grava um skipped só para o job já posto", async () => {
+    const recorder = new LogRunRecorder();
+    const v = createVideo({ store: store({}, { spentUsd: 40, monthlyLimitUsd: 50 }).s, sandbox: sandbox().sb, model: model().call, recorder });
+    expect(await v.paused("org")).toBe(true);
+    expect(await createVideo({ store: store({}, { spentUsd: 39, monthlyLimitUsd: 50 }).s, recorder }).paused("org")).toBe(false);
+    expect(await v.process("org", "v1")).toMatchObject({ status: "skipped" });
+    expect(recorder.runs.map((r) => [r.flow, r.result])).toEqual([["team_video", "skipped"]]);
+  });
+});
+
+describe("cards de entrega", () => {
+  it("mostram só a referência e o título, sem nome nem bonequinho do autor; as ajudas seguem com os nomes", async () => {
+    const two: TeamWeekFacts = { ...facts, deliveries: [{ ref: "ECH-128", title: "Tempo limite", personId: "fer" }, { ref: "echo/app#63", title: "Bonequinho", personId: "fer" }] };
+    const p = await prepareTeamVideo(model().call, two, [], new LogRunRecorder());
+    const cards = [...p.html.matchAll(/<li class="card"[^]*?<\/li>/g)].map((m) => m[0]);
+    expect(cards).toHaveLength(2);
+    expect(cards[0]).toContain("Tempo limite");
+    expect(cards[1]).toContain("Bonequinho");
+    for (const c of cards) {
+      expect(c).not.toContain("Fernando");
+      expect(c).not.toContain("card__by");
+      expect(c).not.toContain("<svg");
+    }
+    expect(p.html).toContain("<b>Carla</b> ajudou <b>Fernando</b>");
+  });
+});
+
 describe("tempos finais com a voz", () => {
   it("aceita cena esticada pela voz; nunca encurta; meta torto fica no planejado", async () => {
     const p = await prepareTeamVideo(model().call, facts, [], new LogRunRecorder());

@@ -723,21 +723,21 @@ _Reordenar e aprovar na página — Painel · /resumos/plano-2026-11-07 (Painel)
 - Aprovar a correção passa pelo `actions`, como no Meu plano.
 - A barra de carga vem de `capacityCard`, não do modelo.
 
-### Vídeos e resumos interativos · Vídeo da entrega no relatório
+### Vídeos e resumos interativos · Vídeo da semana da equipe
 
 _Gravado por um agente Claude — Painel · Relatórios · semana de 2/11 (Painel)_
 
-> **Echo** (sex 18:05): **Seu relatório da semana está pronto**, com 1 vídeo da entrega ECH-131. Assista e aprove antes do envio ao RH. — Ver relatório
->
-> _(página interativa)_ ▶Agente do Echo: a nova versão da API de pagamentos responde em JSON v20:48 **0:00** Abre o preview do commit**0:12** Cria um pagamento de teste**0:31** Mostra a resposta no formato v2**0:44** Erro tratado com mensagem clara Aprovar vídeoGravar de novoDescartar
+> _(página interativa)_ ▶ **Vídeo da semana · Produto · 2 a 6/11** 0:41 **0:00** Abertura **0:05** A semana em números **0:11** Entregas **0:18** Uma das telas novas **0:28** Ajudas entre colegas **0:35** Gêmeos em ação **0:38** Encerramento
 >
 
 **Por trás:**
 
-- Regras escolhem a entrega: PR unido com mudança de tela e preview.
-- O Claude escreve o roteiro e, no Managed Agents, dirige um navegador sem interface no preview. Playwright grava, ffmpeg legenda.
-- Só domínio de preview, até 90 s, dados sintéticos, legendas em terceira pessoa.
-- O vídeo mostra a feature, nunca a pessoa. Sem aprovação ou com falha, o relatório segue sem ele.
+- Sai só depois que os relatórios da equipe foram liberados ao RH, pela mesma regra do envio: a pessoa conferiu e passaram os 3 dias, ou não houve aviso em 7. Todos liberados, ou 24 h depois do primeiro.
+- Mostra só o que está nos relatórios liberados: totais da equipe, entregas (referência e título, sem o autor), ajudas entre colegas ("X ajudou Y") e respostas dos gêmeos. Sem nota, sem ranking, sem comparar pessoas.
+- Trechos das telas novas: regras escolhem PR unido com mudança de tela e preview. O Claude escreve o roteiro e, no Managed Agents, um navegador sem interface grava no preview. Só domínio de preview, até 90 s, dados sintéticos.
+- Quem vê: a equipe e a liderança; o RH, nas equipes que acompanha. Link assinado de 1 h, retenção de 30 dias.
+- Para em 80% do limite de custo da empresa, como a correção. Com falha, o relatório de cada pessoa segue igual.
+- Ainda não existe: o vídeo de cada entrega no relatório individual, com aprovação da pessoa antes do envio ao RH.
 
 ## Painel
 

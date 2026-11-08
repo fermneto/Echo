@@ -4,7 +4,7 @@ import { registerVideo, type VideoAgenda } from "./video.ts";
 
 const NOW = new Date("2026-11-07T12:00:00Z");
 
-function wiring(enabled: boolean) {
+function wiring(enabled: boolean, paused = false) {
   const calls: string[] = [];
   const agenda: VideoAgenda = {
     queueTeamVideos: async (o) => (calls.push(`fila:${o}`), o === "org" ? 1 : 0),
@@ -14,6 +14,7 @@ function wiring(enabled: boolean) {
   };
   const video = {
     enabled: () => enabled,
+    paused: async () => paused,
     process: async (o: string, id: string) => (calls.push(`grava:${o}:${id}`), { status: "skipped" as const, reason: "x" }),
     deleteFile: async (id: string) => void calls.push(`apaga:${id}`),
   };
@@ -40,5 +41,18 @@ describe("registerVideo", () => {
     const v = await registerVideo(new InMemoryQueue(), { video: w.video, agenda: w.agenda, orgIds: async () => ["org"], timeoutMs: 1_200_000, now: () => NOW });
     expect(await v.tick()).toEqual({ teams: 0, queued: 0, removed: 1 });
     expect(w.calls).toEqual(["apaga:file_velho"]);
+  });
+
+  it("custo em pausa: o vídeo fica na fila, mas nenhum job entra (nada de skipped repetido em agent_runs)", async () => {
+    const queue = new InMemoryQueue();
+    let sends = 0;
+    const send = queue.send.bind(queue);
+    queue.send = async (name, data, opts) => (sends++, send(name, data, opts));
+    const w = wiring(true, true);
+    const v = await registerVideo(queue, { video: w.video, agenda: w.agenda, orgIds: async () => ["org"], timeoutMs: 1_200_000, now: () => NOW });
+    expect(await v.tick()).toEqual({ teams: 1, queued: 0, removed: 1 });
+    expect(await v.tick()).toEqual({ teams: 1, queued: 0, removed: 1 });
+    expect(sends).toBe(0);
+    expect(w.calls.filter((c) => c.startsWith("grava:"))).toEqual([]);
   });
 });

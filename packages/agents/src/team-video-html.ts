@@ -45,10 +45,9 @@ export function teamVideoHtml(facts: TeamWeekFacts, texts: TeamWeekTexts, scenes
     .join("");
 
   const deliveries = facts.deliveries
-    .map((d, i) => {
-      const t = look(d.personId);
-      return `<li class="card" style="--i:${i}">${t ? sprite(t, 64) : ""}<div><p class="card__ref">${esc(d.ref)}</p><p class="card__title">${esc(d.title)}</p><p class="card__by">${esc(first(d.personId))}</p></div></li>`;
-    })
+    // Sem autor (nem nome, nem bonequinho): com até 6 cards daria para contar entregas por pessoa, perto de um
+    // ranking (regra 7). A entrega é da equipe; o card mostra só a referência e o título.
+    .map((d, i) => `<li class="card" style="--i:${i}"><div><p class="card__ref">${esc(d.ref)}</p><p class="card__title">${esc(d.title)}</p></div></li>`)
     .join("");
 
   const clips = facts.clips
@@ -126,7 +125,6 @@ html,body{width:1280px;height:720px;overflow:hidden;background:var(--bg);color:v
 .on .card{animation:pop .6s cubic-bezier(.2,.9,.3,1.15) forwards;animation-delay:calc(var(--i)*230ms + .5s)}
 .card__ref{font-family:"DejaVu Sans Mono",monospace;font-size:13px;color:var(--on);letter-spacing:.06em}
 .card__title{font-size:19px;margin:4px 0 6px;line-height:1.25}
-.card__by{font-size:14px;color:var(--ash)}
 .win{width:860px;border-radius:16px;overflow:hidden;border:1px solid #2c3038;box-shadow:0 40px 120px rgba(0,0,0,.6),0 0 0 1px rgba(255,255,255,.03);transform:scale(.96);transition:transform 10s linear}
 .scene--clip.on .win{transform:scale(1.02)}
 .win__bar{display:flex;align-items:center;gap:8px;height:38px;padding:0 16px;background:#16191f;border-bottom:1px solid #2c3038}

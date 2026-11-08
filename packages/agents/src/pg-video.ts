@@ -1,7 +1,7 @@
-// Vídeo da semana da equipe no Postgres, sempre em withOrg com filtro explícito de org_id. Os fatos saem dos
-// relatórios semanais já gerados (os mesmos números que cada pessoa conferiu); só o código do fluxo escreve.
+// Vídeo da semana da equipe no Postgres, sempre em withOrg com filtro explícito de org_id. Os fatos saem só dos
+// relatórios semanais já liberados ao RH (conferidos pela pessoa ou passado o prazo); só o código do fluxo escreve.
 import { agentRuns, type Database, deployments, orgs, people, pullRequests, questions, tasks, teams, teamVideos, weeklyReports, withOrg } from "@echo/db";
-import { type AvatarTraits, localDate, parseAvatarTraits, pickVideoDeliveries, type PrState, type PullRequest, traitsFromSeed, type TeamWeekFacts, type VideoCandidate, type WeeklyMetrics } from "@echo/domain";
+import { type AvatarTraits, localDate, RELEASED_REPORT_STATES, teamVideoDue, parseAvatarTraits, pickVideoDeliveries, type PrState, type PullRequest, traitsFromSeed, type TeamWeekFacts, type VideoCandidate, type WeeklyMetrics } from "@echo/domain";
 import { and, eq, gte, inArray, isNotNull, lt, sql } from "drizzle-orm";
 import type { TeamVideoPatch, TeamVideoRow, TeamVideoState, TeamVideoStore, TeamVideoStory } from "./video.ts";
 
@@ -43,8 +43,13 @@ export function createPgTeamVideoStore(db: Database): TeamVideoStore {
           .where(and(eq(people.orgId, orgId), eq(people.teamId, teamId), eq(people.active, true)));
         if (!members.length) return null;
         const ids = members.map((m) => m.id);
-        const reports = await tx.select().from(weeklyReports).where(and(eq(weeklyReports.orgId, orgId), eq(weeklyReports.week, week), inArray(weeklyReports.personId, ids)));
+        // Só relatórios liberados ao RH: o que ainda está em conferência não entra (nem entregas, nem ajudas).
+        const reports = await tx
+          .select()
+          .from(weeklyReports)
+          .where(and(eq(weeklyReports.orgId, orgId), eq(weeklyReports.week, week), inArray(weeklyReports.personId, ids), inArray(weeklyReports.state, [...RELEASED_REPORT_STATES])));
         if (!reports.length) return null;
+        const releasedIds = [...new Set(reports.map((r) => r.personId))];
         const from = new Date(Math.min(...reports.map((r) => Date.parse(r.coveredPeriod.from))));
         const to = new Date(Math.max(...reports.map((r) => Date.parse(r.coveredPeriod.to))));
 
@@ -81,7 +86,7 @@ export function createPgTeamVideoStore(db: Database): TeamVideoStore {
           : [];
         const prs = prRows.map(toPr);
         const previews = deps.map((d) => ({ repository: d.repository ?? undefined, sha: d.sha ?? undefined, environment: d.environment, state: d.state, url: d.url ?? undefined }));
-        const candidates: VideoCandidate[] = ids
+        const candidates: VideoCandidate[] = releasedIds
           .flatMap((id) => pickVideoDeliveries(id, prs, previews, { from, to }))
           .sort((a, b) => (b.pr.mergedAt?.getTime() ?? 0) - (a.pr.mergedAt?.getTime() ?? 0))
           .slice(0, 3);
@@ -143,32 +148,31 @@ function toRow(v: typeof teamVideos.$inferSelect): TeamVideoRow {
 // ---------- Agenda (worker)
 
 /**
- * Equipes com relatórios da semana já gerados e sem vídeo: entram na fila quando todos da equipe têm relatório ou
- * quando o primeiro saiu há mais de 24 h (fusos diferentes não seguram o vídeo para sempre).
+ * Equipes com relatórios da semana já liberados ao RH e sem vídeo. A decisão é a regra pura `teamVideoDue`
+ * (packages/domain): a mesma liberação do relatório (conferência da pessoa e 3 dias, ou sem aviso em 7), com todos
+ * da equipe liberados ou 24 h depois do primeiro liberado.
  */
 export async function queueTeamVideos(db: Database, orgId: string, now: Date): Promise<number> {
   return withOrg(db, orgId, async (tx) => {
     const recent = await tx
-      .select({ teamId: people.teamId, week: weeklyReports.week, noticeAt: weeklyReports.noticeAt })
+      .select({ teamId: people.teamId, week: weeklyReports.week, state: weeklyReports.state, sentAt: weeklyReports.sentAt })
       .from(weeklyReports)
       .innerJoin(people, eq(people.id, weeklyReports.personId))
-      .where(and(eq(weeklyReports.orgId, orgId), isNotNull(people.teamId), gte(weeklyReports.noticeAt, new Date(now.getTime() - 7 * 86_400_000))));
+      .where(and(eq(weeklyReports.orgId, orgId), isNotNull(people.teamId), inArray(weeklyReports.state, [...RELEASED_REPORT_STATES]), gte(weeklyReports.sentAt, new Date(now.getTime() - 7 * 86_400_000))));
     const existing = await tx.select({ teamId: teamVideos.teamId, week: teamVideos.week }).from(teamVideos).where(eq(teamVideos.orgId, orgId));
     const done = new Set(existing.map((e) => `${e.teamId}:${e.week}`));
-    const groups = new Map<string, { teamId: string; week: string; reports: number; first: number }>();
+    const groups = new Map<string, { teamId: string; week: string; reports: { state: string; sentAt: Date | null }[] }>();
     for (const r of recent) {
       const key = `${r.teamId}:${r.week}`;
       if (done.has(key)) continue;
-      const g = groups.get(key) ?? { teamId: r.teamId!, week: r.week, reports: 0, first: Infinity };
-      g.reports++;
-      g.first = Math.min(g.first, r.noticeAt?.getTime() ?? Infinity);
+      const g = groups.get(key) ?? { teamId: r.teamId!, week: r.week, reports: [] };
+      g.reports.push({ state: r.state, sentAt: r.sentAt });
       groups.set(key, g);
     }
     let n = 0;
     for (const g of groups.values()) {
       const [count] = await tx.select({ members: sql<number>`count(*)` }).from(people).where(and(eq(people.orgId, orgId), eq(people.teamId, g.teamId), eq(people.active, true)));
-      const ready = g.reports >= Number(count?.members ?? 0) || now.getTime() - g.first > 24 * 3_600_000;
-      if (!ready) continue;
+      if (!teamVideoDue(Number(count?.members ?? 0), g.reports, now)) continue;
       const rows = await tx.insert(teamVideos).values({ orgId, teamId: g.teamId, week: g.week }).onConflictDoNothing().returning({ id: teamVideos.id });
       n += rows.length;
     }
