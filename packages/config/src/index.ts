@@ -96,7 +96,8 @@ const slm = {
   /** Tag do modelo no Ollama (Apache 2.0). */
   SLM_MODEL: z.string().min(1).default("qwen3:4b-instruct"),
   /** Tempo máximo da triagem de um PR e do juiz da delegação (CPU, ~15 a 30 s; a primeira chamada também carrega o modelo). */
-  TRIAGE_TIMEOUT_MS: z.coerce.number().int().min(1000).max(300_000).default(120_000),
+  /** Por PR na triagem (e no juiz da delegação). Em produção (CPU, 2 vCPU) a média foi de ~82 s, e 1 de 5 passou de 120 s. */
+  TRIAGE_TIMEOUT_MS: z.coerce.number().int().min(1000).max(300_000).default(240_000),
   /**
    * SSLM do roteador de custo da resposta (mesmo Ollama), para a dúvida da regra. Vazio ou `off` = desligado
    * (padrão): o Qwen3 0.6B e o 4B erraram demais na checagem (docs/engenharia.md). O modelo precisa estar no Ollama.

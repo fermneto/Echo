@@ -4,6 +4,12 @@ import { QUEUES, DEDUPE_SECONDS, type JobQueue } from "@echo/jobs";
 /** Um job da noite por empresa em cada dia UTC. */
 export const NIGHT_SINGLETON_SECONDS = 24 * 60 * 60;
 
+/**
+ * O job da noite faz a triagem de um PR por vez (até TRIAGE_TIMEOUT_MS cada) antes do lote. Os 15 min padrão do pg-boss
+ * venciam com poucos PRs, e a fila daria o job por perdido com ele ainda rodando.
+ */
+export const NIGHT_JOB_EXPIRE_SECONDS = 2 * 60 * 60;
+
 export interface OrgJob {
   orgId: string;
 }
@@ -51,7 +57,7 @@ export async function registerNight(queue: JobQueue, w: NightWiring): Promise<{ 
         // impede outro job no pg-boss: a janela de um dia (UTC) é que deixa um só job por empresa na noite, mesmo
         // depois de o primeiro terminar ou falhar. O disparo manual usa outra chave e não ocupa esta.
         for (const orgId of orgIds) {
-          if (await queue.send<OrgJob>(QUEUES.nightReview, { orgId }, { singletonKey: `${orgId}:${day}`, singletonSeconds: NIGHT_SINGLETON_SECONDS, retryLimit: 2, retryDelaySeconds: 30 * 60 })) night++;
+          if (await queue.send<OrgJob>(QUEUES.nightReview, { orgId }, { singletonKey: `${orgId}:${day}`, singletonSeconds: NIGHT_SINGLETON_SECONDS, retryLimit: 2, retryDelaySeconds: 30 * 60, expireInSeconds: NIGHT_JOB_EXPIRE_SECONDS })) night++;
         }
       }
       for (const orgId of orgIds) await queue.send<OrgJob>(QUEUES.reviewCollect, { orgId }, { singletonKey: orgId, singletonSeconds: DEDUPE_SECONDS.perScan, retryLimit: 1 });
