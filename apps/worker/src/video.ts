@@ -15,7 +15,7 @@ export interface VideoAgenda {
 }
 
 export interface VideoWiring {
-  video: Pick<Video, "enabled" | "process"> & { deleteFile: (id: string) => Promise<void> };
+  video: Pick<Video, "enabled" | "paused" | "process"> & { deleteFile: (id: string) => Promise<void> };
   agenda: VideoAgenda;
   orgIds: () => Promise<string[]>;
   timeoutMs: number;
@@ -24,7 +24,7 @@ export interface VideoWiring {
 
 /**
  * Vídeo da semana da equipe (etapa 27). A cada passada, por empresa: equipe com os relatórios da semana prontos
- * ganha o vídeo na fila; cada vídeo na fila vira um job (chave única, sem nova tentativa: cada gravação custa);
+ * (liberados ao RH) ganha o vídeo na fila; com o custo fora de pausa, cada vídeo na fila vira um job (chave única, sem nova tentativa: cada gravação custa);
  * gravação parada vira falha; vídeo vencido sai do armazenamento.
  */
 export async function registerVideo(queue: JobQueue, w: VideoWiring): Promise<{ tick: () => Promise<{ teams: number; queued: number; removed: number }> }> {
@@ -44,6 +44,9 @@ export async function registerVideo(queue: JobQueue, w: VideoWiring): Promise<{ 
         if (!w.video.enabled()) continue;
         await w.agenda.failStuckTeamVideos(orgId, new Date(now.getTime() - w.timeoutMs - 10 * 60_000));
         out.teams += await w.agenda.queueTeamVideos(orgId, now);
+        // Custo em pausa (80% do limite): o vídeo fica `queued` e nenhum job entra. Sem isto, cada passada poria um
+        // job que só grava `skipped` em agent_runs. Volta sozinho quando o custo baixa (mês novo ou limite maior).
+        if (await w.video.paused(orgId)) continue;
         for (const videoId of await w.agenda.queuedTeamVideos(orgId)) {
           if (await queue.send<VideoJob>(QUEUES.videoRun, { orgId, videoId }, { singletonKey: videoId, retryLimit: 0, expireInSeconds })) out.queued++;
         }

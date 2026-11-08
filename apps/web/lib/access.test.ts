@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canAskTwin, canEditProfile, canSee, canSeePerson, navFor, ROUTES, visibleTeamIds, type RouteId } from "./access";
+import { canAskTwin, canEditProfile, canLinkAccounts, canSee, canSeePerson, navFor, ROUTES, visibleTeamIds, type RouteId } from "./access";
 import { TEAM } from "./demo/team";
 import { TEAMS } from "./demo/teams";
 
@@ -24,6 +24,12 @@ describe("canSee", () => {
       expect(canSee("leader", r, demo)).toBe(true);
       expect(canSee("member", r, demo)).toBe(false);
     }
+  });
+
+  it("visão das equipes: só o RH", () => {
+    expect(canSee("hr", "equipes", demo)).toBe(true);
+    expect(canSee("leader", "equipes", demo)).toBe(false);
+    expect(canSee("member", "equipes", demo)).toBe(false);
   });
 
   it("simulador só existe na demonstração", () => {
@@ -119,5 +125,20 @@ describe("quem edita o perfil na ficha", () => {
     expect(canEditProfile({ id: "l", role: "leader", teamId: "t2" }, target)).toBe(false);
     expect(canEditProfile({ id: "l", role: "leader" }, { id: "p" })).toBe(false);
     expect(canEditProfile({ id: "c", role: "member", teamId: "t1" }, target)).toBe(false);
+  });
+});
+
+describe("quem liga as contas da pessoa", () => {
+  const target = { id: "p", role: "member" as const, teamId: "t1" };
+  it("RH e a liderança da equipe", () => {
+    expect(canLinkAccounts({ id: "rh", role: "hr" }, target)).toBe(true);
+    expect(canLinkAccounts({ id: "rh", role: "hr" }, { id: "rh2", role: "hr" })).toBe(true);
+    expect(canLinkAccounts({ id: "l", role: "leader", teamId: "t1" }, target)).toBe(true);
+  });
+  it("a própria pessoa, colega, outra equipe ou alguém do RH pela liderança, não", () => {
+    expect(canLinkAccounts({ id: "p", role: "member", teamId: "t1" }, target)).toBe(false);
+    expect(canLinkAccounts({ id: "c", role: "member", teamId: "t1" }, target)).toBe(false);
+    expect(canLinkAccounts({ id: "l", role: "leader", teamId: "t2" }, target)).toBe(false);
+    expect(canLinkAccounts({ id: "l", role: "leader", teamId: "t1" }, { id: "rh", role: "hr", teamId: "t1" })).toBe(false);
   });
 });

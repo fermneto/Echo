@@ -2,6 +2,7 @@
 // com trabalho inventado; as demais personas são simuladas.
 // Datas são relativas ao `now` recebido, para a história valer em qualquer dia da apresentação.
 import type { schema } from "@echo/db";
+import { addDays, isoWeek, weekMonday } from "@echo/domain";
 
 type Row<T extends { $inferInsert: unknown }> = T["$inferInsert"];
 
@@ -61,6 +62,8 @@ export interface DemoData {
   agentRuns: Row<typeof schema.agentRuns>[];
   /** Férias que o mapa mostra (Yan e Noah), para as respostas saberem quem está fora. */
   absences: Row<typeof schema.absences>[];
+  /** Relatórios já enviados ao RH das semanas anteriores, para a Visão das equipes ter histórico. */
+  weeklyReports: Row<typeof schema.weeklyReports>[];
 }
 
 const HOUR = 3_600_000;
@@ -475,8 +478,42 @@ export function buildDemo(now: Date): DemoData {
   });
   const absences: DemoData["absences"] = [vacation("yan", nextMonday(now, "Asia/Tokyo")), vacation("noah", new Date("2026-11-14T23:59:00-05:00"))];
 
+  // Relatórios enviados das 7 semanas anteriores (a atual ainda não fechou). Números sintéticos e estáveis por
+  // pessoa e semana. Nenhum envio cai nos últimos 7 dias nem tem aviso gravado: o vídeo da semana entra na fila
+  // por relatório liberado há menos de 7 dias, e o seed não pode disparar gravação (cada uma custa).
+  const vary = (key: string, n: number) => {
+    let h = 2166136261;
+    for (let i = 0; i < key.length; i++) h = Math.imul(h ^ key.charCodeAt(i), 16777619);
+    // Mistura final (fmix32): chaves quase iguais não dão números quase iguais.
+    h = Math.imul(h ^ (h >>> 16), 0x85ebca6b);
+    h = Math.imul(h ^ (h >>> 13), 0xc2b2ae35);
+    return ((h ^ (h >>> 16)) >>> 0) % n;
+  };
+  const thisMonday = weekMonday(isoWeek(localDate(now, "UTC")))!;
+  const reporters = people.filter((p) => p.role !== "hr");
+  const plural = (v: number, one: string, many: string) => `${v} ${v === 1 ? one : many}`;
+  const weeklyReports: DemoData["weeklyReports"] = [];
+  for (let back = 7; back >= 1; back--) {
+    const monday = addDays(thisMonday, -7 * back);
+    const week = isoWeek(monday);
+    for (const p of reporters) {
+      if (vary(`${p.id}:${week}:envio`, 12) === 0) continue; // de vez em quando alguém não tem relatório
+      const deliveries = vary(`${p.id}:${week}:e`, 4);
+      const commits = 2 + vary(`${p.id}:${week}:c`, 9);
+      const reviews = vary(`${p.id}:${week}:r`, 5);
+      const helps = vary(`${p.id}:${week}:a`, 3);
+      weeklyReports.push({
+        orgId: org, personId: p.id!, week, state: "sent",
+        metrics: { deliveries, commits, reviews, helps, delays: [], deliveryRefs: [], helped: [] },
+        text: `${p.name} registrou na semana ${plural(deliveries, "entrega", "entregas")}, ${plural(commits, "commit", "commits")} e ${plural(reviews, "revisão", "revisões")}, e ${plural(helps, "ajuda confirmada", "ajudas confirmadas")} a colegas.`,
+        coveredPeriod: { from: `${monday}T00:00:00.000Z`, to: `${addDays(monday, 7)}T00:00:00.000Z` },
+        sentAt: new Date(Math.min(new Date(`${addDays(monday, 10)}T12:00:00.000Z`).getTime(), now.getTime() - 8 * DAY)),
+      });
+    }
+  }
+
   return {
     orgs, teams, people, identities, tasks, pullRequests, dailyNotes,
-    brainNotes, workEvents, contributions, questions, agentRuns, absences,
+    brainNotes, workEvents, contributions, questions, agentRuns, absences, weeklyReports,
   };
 }

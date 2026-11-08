@@ -53,7 +53,7 @@ export default async function ResumosPage({ searchParams }: { searchParams: Prom
           <span className={view.model ? "summary__by" : "summary__by summary__by--rule"}>{view.model ? `Layout por ${modelName(view.model)} · modelo aberto` : "Layout padrão, por regra"}</span>
         </div>
       </div>
-      <p className="lead">Feito pelo Agente de {first} a partir do GitHub, do Linear e da sua nota. Números e nomes vêm dos fatos, nunca do modelo.</p>
+      <p className="lead">Feito pelo Agente de {first} a partir do GitHub, das tarefas e da sua nota. Números e nomes vêm dos fatos, nunca do modelo.</p>
       {personaNote}
       <SummaryBlocks blocks={view.spec.blocks} day={view.day} />
       <p className="summary__links">

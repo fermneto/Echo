@@ -96,16 +96,16 @@ export function AgentProfileForm({
             {decisions.map((d) => (
               <li key={d.fixId} className={`agent-decision is-${d.outcome}`}>
                 <p className="agent-decision__head">
-                  <span className={`status-tag mono agent-decision__tag is-${d.outcome}`}>{d.outcome === "unida" ? "Decidiu por você" : "Ficou com você"}</span>
+                  <span className={`status-tag mono agent-decision__tag is-${d.outcome}`}>{d.outcome === "unida" ? "Decidiu por você" : d.outcome === "esperando_ci" ? "Esperando o CI" : "Ficou com você"}</span>
                   <span>
                     PR {d.prNumber} <span className="muted">({d.repository})</span>
                   </span>
                   <span className="mono muted agent-decision__when">{when(d.atIso)}</span>
                 </p>
-                <p className="agent-decision__note">{d.note || (d.outcome === "unida" ? "Unida pela sua delegação." : "A delegação não cobriu esta correção.")}</p>
+                <p className="agent-decision__note">{d.note || (d.outcome === "unida" ? "Unida pela sua delegação." : d.outcome === "esperando_ci" ? "Esperando o CI do rascunho para decidir pela sua delegação." : "A delegação não cobriu esta correção.")}</p>
                 <p className="mono muted agent-decision__state">
                   {STATE_LABEL[d.state] ?? d.state}
-                  {d.outcome === "unida" ? ` · para desfazer, reverta o commit da união no PR ${d.prNumber}` : d.state === "ready" ? ` · aprove ou recuse a correção (rascunho ${d.draftPrNumber ?? "—"}) em Meu plano` : ""}
+                  {d.outcome === "unida" ? ` · para desfazer, reverta o commit da união no PR ${d.prNumber}` : d.outcome === "esperando_ci" ? " · une sozinho se o CI do rascunho ficar verde; você também pode decidir em Meu plano" : d.state === "ready" ? ` · aprove ou recuse a correção (rascunho ${d.draftPrNumber ?? "—"}) em Meu plano` : ""}
                 </p>
               </li>
             ))}

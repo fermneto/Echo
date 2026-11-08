@@ -434,7 +434,7 @@ _IA e custos_
 
 | Fluxo | Modo | Modelo | Esforço |
 |---|---|---|---|
-| Roteador da resposta (consulta ou conversa) | Antes do Sonnet | Regra (SSLM opcional, desligado: ver abaixo) | — |
+| Roteador da resposta (consulta ou conversa) | Antes do Sonnet | Regra; na dúvida, SSLM Qwen3 4B Instruct (ver abaixo) | — |
 | Resposta a colega e quem sabe | Tempo real com ferramentas | Claude Sonnet 5.5 | Baixo |
 | Nota do dia | Tempo real curto | Claude Haiku 5.5 | Baixo |
 | Triagem da revisão noturna | Antes do lote, na nossa infraestrutura (Ollama, CPU) | Qwen3 4B Instruct (modelo aberto, Apache 2.0) | — |
@@ -478,12 +478,12 @@ Cada triagem grava uma linha `night_triage` em `agent_runs` (custo zero por toke
 **Roteador de custo da resposta.** A resposta a colega é o fluxo pago mais frequente (Sonnet a cada menção). Muita pergunta é consulta de um fato que o código já responde: "a ech-131 está liberada?", "o ECH-140 terminou?". `packages/agents/src/route.ts` decide o caminho antes do Sonnet, depois da recusa fixa e do teto de custo:
 
 1. **Regra** (`ruleRoute`): só pergunta ao gêmeo, sem mensagens anteriores, curta (até 120 letras fora identificadores), com exatamente um branch, tarefa ou PR. Palavra de estado ("liberada", "posso mexer", "terminou", "em revisão", "novidades", "released", "any update", "¿está lista?") vai para a regra. Vão para o Sonnet: pedido de explicação, decisão ou indicação ("por que", "quem", "devo", "why"), pedido de ajuda ou ação ("me ajuda", "escreve", "can you", "quebra alguma coisa?"), opinião ou previsão ("é arriscado?", "vale a pena", "worth") e texto que fala das regras ou do modelo ("ignore", "responda", "você é", "a partir de agora"). O resto, na dúvida, vai para o Sonnet.
-2. **SSLM, opcional e desligado por padrão** (`SSLM_MODEL` vazio). Ligado, decide só a dúvida da regra em pergunta de até 3 palavras fora menção e identificadores, no Ollama de `SLM_OLLAMA_URL`, com `think: false`, contexto de 1024 tokens e até 16 tokens de saída. Responde só `{"so_consulta": true|false}`; a pergunta vai entre `<pergunta>` como dado. Saída fora do formato, erro ou mais de `SSLM_TIMEOUT_MS` (8 s): Sonnet.
+2. **SSLM, ligado por padrão desde 08/11** (`SSLM_MODEL` vazio = o modelo de `SLM_MODEL`, o Qwen3 4B Instruct já no `echo-triage`; `SSLM_MODEL=off` desliga; sem `SLM_OLLAMA_URL`, não há SSLM). Decide só a dúvida da regra em pergunta de até 3 palavras fora menção e identificadores, no Ollama de `SLM_OLLAMA_URL`, com `think: false`, contexto de 1024 tokens e até 16 tokens de saída. Responde só `{"so_consulta": true|false}`; a pergunta vai entre `<pergunta>` como dado. Saída fora do formato, erro ou mais de `SSLM_TIMEOUT_MS` (8 s): Sonnet.
 3. Na rota da regra, `ruleAnswer` responde. Se não tiver o fato ("não sei") ou recusar, a pergunta segue para o Sonnet, sem as fontes que a regra consultou.
 
 O roteador nunca escreve a resposta, não decide liberação e não lê números. O pior caso é o custo de antes. Cada decisão que importa grava `answer_route` em `agent_runs` (`ok`: o Sonnet não foi chamado; `skipped`: seguiu para o Sonnet, com o motivo; `tools`: `regra` ou `sslm`). A pergunta que a regra manda direto ao Sonnet não grava linha de rota. Em Custo e execuções aparece como "Roteador da resposta (sem Sonnet)". `ANSWER_ROUTER=false` desliga o roteador. Na avaliação fixa, 5 das 18 perguntas saíram sem o Sonnet, e as 18 passaram.
 
-_Por que o SSLM ficou desligado (checagem de 7/11, CPU local, Ollama 0.40.11)._ Cinco conjuntos de perguntas sintéticas em português, inglês e espanhol, cada um com metade consultas e metade perguntas que precisam do Sonnet. Do segundo conjunto em diante, perguntas novas, sem ajuste prévio:
+_Checagem de 7/11 que deixou o SSLM desligado até 08/11 (CPU local, Ollama 0.40.11)._ Em 08/11 ele foi ligado para o fluxo ter o modelo pequeno na dúvida, aceitando o erro conhecido abaixo. Numa nova checagem com o 4B real, 5 de 8 perguntas curtas acertaram (~1,5 s cada); os erros foram "does PR 88 handle timeouts?" e "ECH-171 usa cache?" (para a regra) e "e a ech-131?" (para o Sonnet, só custo). Cinco conjuntos de perguntas sintéticas em português, inglês e espanhol, cada um com metade consultas e metade perguntas que precisam do Sonnet. Do segundo conjunto em diante, perguntas novas, sem ajuste prévio:
 
 | Roteador | Para a regra sem dever | Para o Sonnet à toa | Tempo do SSLM |
 |---|---|---|---|
@@ -495,6 +495,7 @@ Os dois modelos confundem a situação do item com o conteúdo dele ("ECH-171 us
 
 **Delegação da correção (juiz pequeno).** `people.delegation` é o texto livre da pessoa sobre até onde o agente decide por ela, com a data da versão em `delegation_updated_at` (só muda quando o texto muda). Hoje cobre uma decisão: unir no PR do autor a correção pronta (`DelegableDecision = "aplicar_correcao"`). Em `fix.sync`, quando a correção passa a `ready`:
 1. `delegatedFixGate` (`packages/domain`): delegação escrita, testes `passou`, até 5 arquivos, nenhum caminho sensível da revisão noturna. Falhou: fica com o autor, sem chamar modelo.
+   - **CI do rascunho** (`delegatedCiGate`): o `passou` do `fix.json` é o próprio agente da correção quem declara, então a delegação só une com o CI do commit exato do rascunho (`draftHeadSha`, `FixCodeHost.getChecks`) em `success`. `failure` ou só checks neutros: fica com o autor. Rodando, sem checks ainda ou leitura com erro: a correção fica em `ready` com `fix_runs.ci_wait_since`, sem o Aplicar/Recusar, e cada `fix.sync` (5 min) confere de novo; passados 45 min (15 min sem nenhum check), fica com o autor e ele recebe o Aplicar/Recusar. Só o começo da espera e o desfecho gravam `fix_delegation`; o último estado lido fica em `fix_runs.checks_state`. Em "Seu agente", aparece como "Esperando o CI".
 2. `runDelegation` (`packages/agents/src/delegation.ts`): o juiz recebe só o texto da delegação e fatos estruturados (repositório, PR, arquivos, testes), nunca o diff, o título ou os achados; responde `{cabe, motivo}` presos ao esquema. As instruções listam `NEVER_DELEGATED` e mandam responder `false` na dúvida. Erro, tempo esgotado ou saída inválida: fica com o autor.
 3. Cabendo, a união segue pelo mesmo `decide` do painel (`fixMergeCheck`: rascunho e PR sem mudança), com `approvedBy` = autor e `fix_runs.decided_via = 'delegacao'` e o motivo em `delegation_note`. O outbox grava no `audit_log`, na mesma transação, a aprovação com o autor como ator (`person:<id>`) e a origem `delegacao` (`approve:github.merge_fix:delegacao`). O autor recebe `slack.dm` com o motivo e como desfazer.
 
@@ -989,6 +990,7 @@ Convite, Configuração, currículo e RH
 
 1. `pnpm org:create` gera convite de uso único (7 dias), com o token depois do `#` e só o hash no banco.
 2. Em Configuração, o RH liga Slack e Linear, traz as pessoas ou cadastra pelo currículo e pela foto, e confere as contas.
+   - **Contas da pessoa** (`identities`): no cadastro e na ficha (`/pessoas/[id]` → "Contas nas plataformas"), o RH ou a liderança da equipe (nunca a de alguém do RH, nem a própria pessoa) liga a conta do Slack, o login do GitHub e o ID do Linear. `parseAccounts` (`packages/domain/src/accounts.ts`) confere o formato; com `SLACK_BOT_TOKEN` no painel e a workspace da empresa (`installation_routes`) igual à do token, o Slack vem da lista de membros (`users.list`, cache de 5 min) e a conta precisa estar nela; sem isso, o RH cola o ID do membro. `replaceAccounts` (`packages/agents/src/pg-accounts.ts`) troca as contas na mesma transação do cadastro ou da ficha e recusa conta já de outra pessoa (GitHub também pelo login), sem mudar nada. O `audit_log` guarda quem ligou e as plataformas (`pessoa:contas:github,slack`), nunca os ids. Sem a conta do Slack, a pessoa existe só no painel: não entra pelo login, não é reconhecida nas menções nem recebe o privado; o cadastro e a ficha avisam (`NO_SLACK_NOTE`).
 3. `pnpm org:github` liga a instalação do GitHub. `pnpm org:invite` gera um novo convite.
 4. Aviso de RH assinado em `/webhooks/rh/o/<empresa>`, com cancelamento.
 5. Login no painel com Slack, papéis e sessão de 12 horas para quem entra por convite.
@@ -1005,7 +1007,7 @@ Simulador, simular a noite, custo na tela e roteiro
 
 **Passos:**
 
-1. Login por persona com `DEMO_MODE=true`, só para a empresa de demonstração (`rehearsalAllowed`).
+1. Login por usuário e senha com `DEMO_MODE=true` (o usuário é o nome da persona e a senha é `echo` para todos), só para a empresa de demonstração (`rehearsalAllowed`).
 2. Simulador de conversa e "Pergunte ao gêmeo" pelo mesmo fluxo do Slack.
 3. Simular a noite, recriar a demonstração e simular o envio automático do relatório.
 4. Custo e execuções a partir de `agent_runs`.
@@ -1204,26 +1206,26 @@ Nota do dia, plano da manhã e resumo da ausência como artefatos
 - **Testes:** Especificação com número inventado é recusada. Página de outra pessoa retorna 404. Interação sem permissão é recusada.
 - **Pronto quando:** A nota do dia abre como página interativa, a pessoa confirma o que está liberado nela, e a resposta do agente muda.
 
-### Etapa 27 · Vídeos das entregas no relatório
+### Etapa 27 · Vídeo da semana da equipe
 
-Um agente Claude grava a feature entregue na semana
+Um agente Claude grava um resumo animado da semana de cada equipe, depois da conferência dos relatórios
 
 - **Depende de:** 10, 12, 19
-- **Contas:** Armazenamento de mídia
+- **Contas:** Managed Agents (agente e ambiente de gravação); o mp4 fica na Files API da Anthropic
 
-**Passos:**
+**O que existe hoje:**
 
-1. Na criação do relatório, regras escolhem até 3 entregas da semana com mudança visível: PR unido que alterou telas e tem preview ou pode subir com dados sintéticos. Entregas sem tela ficam só no texto.
-2. O Claude (Sonnet) escreve o roteiro em saída estruturada: endereço inicial, passos (clicar, digitar, esperar) e legenda de cada passo, a partir do título do PR, da tarefa e do diff, tratados como dado.
-3. Rodar `pnpm --filter @echo/reviewer provision-video` uma vez: agente e ambiente do Managed Agents com navegador sem interface, Playwright e ffmpeg → `VIDEO_AGENT_ID` e `VIDEO_ENVIRONMENT_ID`.
-4. A sessão abre o preview do commit (etapa 19) ou sobe o app nesse commit com o seed, executa o roteiro, grava a tela do próprio navegador com o Playwright e queima as legendas com o ffmpeg.
-5. Fora do ambiente, a plataforma confere: só domínios de preview ou `localhost`, nunca produção; até 90 segundos; legendas em terceira pessoa e sem números fora das métricas.
-6. O vídeo vai para o armazenamento de mídia, com link assinado e retenção definida, e aparece no relatório ao lado da entrega, com capítulos por passo.
-7. A pessoa assiste antes do envio ao RH e pode descartar ou pedir nova gravação. O prazo de 3 dias não muda, e o relatório segue sem o vídeo se ele falhar.
-8. Limites: o vídeo para em 80% do limite da empresa, como a correção, e grava `agent_runs` com o custo.
+1. **Quando sai.** O vídeo só entra na fila depois que os relatórios da equipe foram liberados ao RH, pela mesma regra do envio: a pessoa conferiu e passaram os 3 dias do aviso, ou não houve aviso em 7 dias (`reportReleased` e `RELEASED_REPORT_STATES`, em `packages/domain/src/report.ts`). A decisão de fila é a regra pura `teamVideoDue` (`packages/domain/src/team-video.ts`): todos da equipe com relatório liberado, ou 24 h depois do primeiro liberado. Relatório ainda em conferência não conta e não entra no vídeo.
+2. **O que mostra.** Só os fatos dos relatórios liberados: totais da equipe (entregas, ajudas entre colegas e respostas dos gêmeos), até 6 entregas (referência e título, sem o autor, para não virar contagem por pessoa), até 5 ajudas ("X ajudou Y", crédito sem placar) e até 3 trechos de tela gravados no preview do commit (etapa 19). Até 90 s. Números saem das regras; o Claude Haiku só escreve frases curtas, conferidas por regra (`teamTextIssues`: sem ranking, sem primeira pessoa, sem número fora dos totais). Texto recusado vira texto por regra.
+3. **Trechos de tela.** Regras escolhem PRs unidos com mudança de tela e preview pronto. O Claude Sonnet escreve o roteiro em saída estruturada, conferido por regra (só domínio de preview).
+4. **Gravação.** Uma sessão do Managed Agents (agente e ambiente criados uma vez com `pnpm --filter @echo/reviewer provision-video`) grava os trechos com o Playwright e a página animada, com voz ou trilha. Fora do ambiente, o Echo confere a duração do mp4 contra as cenas e se o navegador só abriu o preview ou a página local (`teamRecordingIssues`). Recusado ou com falha, o vídeo fica `failed` e o relatório de cada pessoa segue igual.
+5. **Quem vê.** A página de relatórios mostra o último vídeo de cada equipe visível: a própria equipe para quem é dela e para a liderança; para o RH, as equipes que acompanha. O mp4 sai pela rota `/api/video/[org]/[id]` com link assinado (HMAC com `SESSION_SECRET`, válido por 1 h) e `cache-control: private`. Retenção de 30 dias; depois, o arquivo sai do armazenamento.
+6. **Custo.** No máximo 3 gravações por vídeo e US$ 2 por gravação. Com o gasto do mês em 80% do limite da empresa, os vídeos param, como a correção: a agenda não põe job (o vídeo fica `queued`, sem linha repetida em `agent_runs`) e volta sozinha quando o custo baixa. Cada etapa grava uma linha em `agent_runs` com o custo.
+7. **Variáveis** (worker, validadas em `packages/config`): `VIDEO_AGENT_ID` e `VIDEO_ENVIRONMENT_ID` (sem elas, não há vídeo), `VIDEO_SCAN_MS` (intervalo da agenda, padrão 300000) e `VIDEO_TIMEOUT_MS` (tempo máximo de uma gravação, padrão 1200000). Teste na hora: `pnpm video:agora`.
 
-- **Testes:** Roteiro com domínio de produção é recusado. Falha na gravação não atrasa o relatório. Vídeo descartado não vai ao RH.
-- **Pronto quando:** O relatório de uma semana com entrega de tela traz um vídeo curto, legendado, gravado pelo agente no preview, e a pessoa aprova antes do envio.
+- **Testes:** Relatório em conferência não libera o vídeo, e só entram entregas e ajudas de relatórios liberados. Texto com ranking ("campeã", "o que mais entregou") é recusado, sem recusar frase neutra. Card de entrega sem o nome do autor. Custo em pausa não põe job. Roteiro com domínio de produção é recusado. Falha na gravação não muda o relatório.
+- **Pronto quando:** Depois da conferência dos relatórios, a equipe e a liderança veem no painel um vídeo curto da semana, sem nota nem ranking, gravado pelo agente no preview.
+- **Por fazer:** o vídeo por entrega no relatório individual, com aprovação da pessoa antes do envio ao RH (ver `docs/pendencias.md`).
 
 ## Contas e variáveis
 
@@ -1489,7 +1491,7 @@ A demo roda na Render com dados sintéticos. Para clientes, o mesmo código vai 
 
 ### Configuração de produção
 
-- `DEMO_MODE=false`, para desligar login por persona, simulador e controles de ensaio.
+- `DEMO_MODE=false`, para desligar o login por senha da demo, o simulador e os controles de ensaio.
 - Novo `SESSION_SECRET` e `ENCRYPTION_KEY` guardada no gerenciador de segredos, com plano de rotação. Trocar a chave invalida as credenciais guardadas.
 - Login só com a conta da empresa. Remover `PANEL_ACCESS_CODE`.
 - Limites de custo por empresa definidos antes do primeiro uso.

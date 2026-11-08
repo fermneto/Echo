@@ -3,6 +3,7 @@ import { agentRuns, auditLog, type Database, people, withOrg } from "@echo/db";
 import { and, count, eq, gte, isNull, ne } from "drizzle-orm";
 import { parseAvatarTraits, traitsFromSeed } from "@echo/domain";
 import type { OnboardingStore, ResumeProfile } from "./onboarding.ts";
+import { replaceAccounts } from "./pg-accounts.ts";
 import type { AvatarStore } from "./redo-avatar.ts";
 
 export function createPgOnboardingStore(db: Database): OnboardingStore {
@@ -26,6 +27,8 @@ export function createPgOnboardingStore(db: Database): OnboardingStore {
           })
           .returning({ id: people.id });
         if (!row) throw new Error("pessoa não criada");
+        // Conta já de outra pessoa: lança, e a transação desfaz a pessoa também.
+        await replaceAccounts(tx, p.orgId, row.id, p.accounts);
         await tx.insert(auditLog).values({ orgId: p.orgId, actor: `person:${p.actorId}`, action: "pessoa:cadastrar", target: `person:${row.id}` });
         return row;
       });

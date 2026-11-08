@@ -6,7 +6,7 @@
 //   O desenho sai por regra a partir dos traços, igual no painel e no Slack.
 // O modelo não grava nada: quem cria a pessoa é o código do fluxo, com o que passou pelos validadores.
 import type Anthropic from "@anthropic-ai/sdk";
-import { AVATAR_LISTS, type AvatarTraits, type Clock, parseAvatarTraits, type PersonRole, systemClock, traitsFromSeed } from "@echo/domain";
+import { type AccountLink, AVATAR_LISTS, type AvatarTraits, type Clock, parseAvatarTraits, type PersonRole, systemClock, traitsFromSeed } from "@echo/domain";
 import type { RunRecorder } from "@echo/observability";
 import type { ModelCall } from "./answer.ts";
 import { modelCostUsd, type Usage } from "./cost.ts";
@@ -27,12 +27,14 @@ export interface NewPerson {
   areas: string[];
   languages: string[];
   avatar: AvatarTraits;
+  /** Contas no Slack, GitHub e Linear (identities), já conferidas. Sem a do Slack, a pessoa fica só no painel. */
+  accounts: AccountLink[];
   /** Quem cadastrou (id da pessoa no banco), para o `audit_log`. */
   actorId: string;
 }
 
 export interface OnboardingStore {
-  /** Cria a pessoa e registra quem cadastrou em `audit_log`, na mesma transação. */
+  /** Cria a pessoa e as contas e registra quem cadastrou em `audit_log`, na mesma transação. Conta já de outra pessoa: lança e nada é criado. */
   createPerson(p: NewPerson): Promise<{ id: string }>;
   /** Quantos cadastros a empresa fez desde `since` (pelo `audit_log`), para o limite por hora. */
   recentCount(orgId: string, since: Date): Promise<number>;
@@ -71,6 +73,8 @@ export interface OnboardingInput {
   /** Texto do currículo, já extraído do arquivo. */
   resumeText?: string;
   photo?: { mediaType: PhotoType; base64: string };
+  /** Contas da pessoa nas plataformas, já conferidas (parseAccounts). */
+  accounts?: AccountLink[];
 }
 
 export type PhotoType = "image/png" | "image/jpeg" | "image/webp";
@@ -315,17 +319,24 @@ export function onboardPerson(deps: OnboardingDeps) {
       }
     }
 
-    const { id } = await deps.store.createPerson({
-      orgId: input.orgId,
-      name,
-      role: input.role ?? "member",
-      timezone: input.timezone,
-      workHours: input.workHours,
-      ...(input.teamId ? { teamId: input.teamId } : {}),
-      ...profile,
-      avatar,
-      actorId: input.actorId,
-    });
+    const created = await deps.store
+      .createPerson({
+        orgId: input.orgId,
+        name,
+        role: input.role ?? "member",
+        timezone: input.timezone,
+        workHours: input.workHours,
+        ...(input.teamId ? { teamId: input.teamId } : {}),
+        ...profile,
+        avatar,
+        accounts: input.accounts ?? [],
+        actorId: input.actorId,
+      })
+      .catch(async (err: unknown) => {
+        await deps.recorder.record({ flow: "onboarding", orgId: input.orgId, durationMs: Date.now() - flowStarted, result: "failed", error: message(err) });
+        throw err;
+      });
+    const { id } = created;
     // Uma linha do cadastro inteiro, mesmo sem currículo nem foto.
     await deps.recorder.record({ flow: "onboarding", orgId: input.orgId, durationMs: Date.now() - flowStarted, result: resume === "fallback" || photo === "fallback" ? "fallback" : "ok" });
     return { personId: id, avatar, profile, resume, photo };

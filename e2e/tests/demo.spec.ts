@@ -1,10 +1,12 @@
 // As cinco cenas da demo (docs/produto.md → "Cenas"), com o seed e sem modelo. Cada cena entra pela
-// tela de login por persona, como o jurado faria, e confere o que a cena promete, não o visual.
+// tela de login com usuário e senha (na demo, "echo" para todos), como o jurado faria, e confere o que a cena
+// promete, não o visual.
 import { expect, type Page, test } from "@playwright/test";
 
 async function entrarComo(page: Page, nome: string) {
   await page.goto("/entrar");
-  await page.getByRole("radio", { name: new RegExp(`^${nome},`) }).check();
+  await page.getByLabel("Usuário").fill(nome);
+  await page.getByLabel("Senha").fill("echo");
   await page.getByRole("button", { name: "Entrar", exact: true }).click();
   await page.waitForURL((u) => !u.pathname.startsWith("/entrar"));
 }

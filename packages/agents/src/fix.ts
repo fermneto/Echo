@@ -8,7 +8,9 @@ import {
   checkFixDiff,
   type Clock,
   costLevel,
+  delegatedCiGate,
   delegatedFixGate,
+  type DraftCiState,
   fixBranch,
   fixDecision,
   fixMergeCheck,
@@ -32,6 +34,8 @@ export interface FixCodeHost {
   /** Token de instalação de 1 h, só `contents: read`, só deste repositório. Fica no proxy de Git, fora do ambiente. */
   readToken(repository: string): Promise<string>;
   pull(repository: string, number: number): Promise<PullHead | null>;
+  /** Checks de um commit (só o estado). A delegação só une o rascunho com o CI dele verde. */
+  getChecks(repository: string, ref: string): Promise<{ state: DraftCiState }>;
 }
 
 export interface FixSandboxInput {
@@ -84,6 +88,8 @@ export interface StoredFix {
   files: string[];
   tests?: FixTestResult;
   costUsd?: number;
+  /** Desde quando a delegação espera o CI do rascunho; sem isto, não está esperando. */
+  ciWaitSince?: Date;
 }
 
 /** Tabela `fix_runs`. Uma correção por revisão; cada mudança de estado só sai do estado esperado. */
@@ -112,9 +118,14 @@ export interface FixStore {
   decide(id: string, by: string, to: "approved" | "declined", at: Date, via?: FixDecidedVia): Promise<boolean>;
   /** Por que a delegação não cobriu esta correção (a pessoa vê no plano). Não muda o estado. */
   noteDelegation(id: string, note: string): Promise<void>;
+  /** Começa (data) ou encerra (null) a espera do CI do rascunho pela delegação, com o último estado lido. */
+  waitCi(id: string, since: Date | null, checks?: DraftCiState): Promise<void>;
   /** `approved` → `applied`; a revisão também. */
   markApplied(id: string): Promise<boolean>;
 }
+
+/** merged: unida pela delegação; waiting: esperando o CI do rascunho; person: o autor decide. */
+type DelegateOutcome = "merged" | "waiting" | "person";
 
 /** pessoa: decidiu no painel. delegacao: o agente decidiu pela delegação escrita da pessoa, com o motivo. */
 export type FixDecidedVia = { via: "pessoa" } | { via: "delegacao"; note: string };
@@ -351,6 +362,11 @@ export function createFix(deps: FixDeps) {
   async function sync(orgId: string): Promise<{ ready: number; applied: number; failed: number }> {
     const out = { ready: 0, applied: 0, failed: 0 };
     const store = deps.fixes(orgId);
+    // Delegações esperando o CI do rascunho: confere de novo. Fora da delegação, o autor decide pelo Slack.
+    for (const fix of await store.inState("ready")) {
+      if (!fix.ciWaitSince || !fix.draftPrNumber) continue;
+      if ((await delegateSafe(orgId, fix.id)) === "person") await askAuthor(orgId, fix, fix.draftPrNumber);
+    }
     for (const fix of await store.inState("draft_queued")) {
       const r = await store.outboxResult(draftKey(fix.id));
       const draft = r?.result as { number?: unknown; headSha?: unknown } | null | undefined;
@@ -358,21 +374,9 @@ export function createFix(deps: FixDeps) {
         if (await store.markReady(fix.id, { number: draft.number, headSha: draft.headSha })) {
           out.ready++;
           await record({ flow: "fix_ready", orgId, durationMs: 0, result: "ok" });
-          // A delegação escrita pelo autor decide primeiro; sem ela (ou sem cobrir), o autor decide pelo Slack:
-          // Aplicar leva a correção para a branch do PR; Recusar encerra.
-          // Erro na delegação não pode deixar a correção pronta sem o aviso ao autor.
-          const delegated = await delegate(orgId, fix.id).catch(async (err: unknown) => {
-            await record({ flow: "fix_delegation", orgId, durationMs: 0, result: "failed", error: String(err) });
-            return false;
-          });
-          if (!delegated && fix.pr.authorId) {
-            await deps.outbox(orgId).enqueue({
-              type: "slack.dm",
-              target: `slack:${fix.pr.authorId}`,
-              payload: { personId: fix.pr.authorId, ...fixReadyMessage({ fixId: fix.id, repository: fix.pr.repository, prNumber: fix.pr.number, draftNumber: draft.number }) },
-              idempotencyKey: `fix_ready_dm:${fix.id}`,
-            });
-          }
+          // A delegação escrita pelo autor decide primeiro (esperando o CI do rascunho, se preciso); sem ela, sem
+          // cobrir ou sem CI verde, o autor decide pelo Slack: Aplicar leva a correção para a branch do PR; Recusar encerra.
+          if ((await delegateSafe(orgId, fix.id)) === "person") await askAuthor(orgId, fix, draft.number);
         }
       } else if (r?.state === "failed") {
         if (await store.markFailed(fix.id, "draft_queued", `rascunho não criado: ${r.error ?? "erro"}`)) out.failed++;
@@ -392,6 +396,28 @@ export function createFix(deps: FixDeps) {
       }
     }
     return out;
+  }
+
+  /** Aplicar/Recusar no Slack para o autor (uma vez por correção, pela chave). */
+  async function askAuthor(orgId: string, fix: StoredFix, draftNumber: number): Promise<void> {
+    if (!fix.pr.authorId) return;
+    await deps.outbox(orgId).enqueue({
+      type: "slack.dm",
+      target: `slack:${fix.pr.authorId}`,
+      payload: { personId: fix.pr.authorId, ...fixReadyMessage({ fixId: fix.id, repository: fix.pr.repository, prNumber: fix.pr.number, draftNumber }) },
+      idempotencyKey: `fix_ready_dm:${fix.id}`,
+    });
+  }
+
+  /** Erro na delegação não pode deixar a correção pronta sem o aviso ao autor, nem esperando o CI para sempre. */
+  async function delegateSafe(orgId: string, fixId: string): Promise<DelegateOutcome> {
+    try {
+      return await delegate(orgId, fixId);
+    } catch (err) {
+      await record({ flow: "fix_delegation", orgId, durationMs: 0, result: "failed", error: String(err) });
+      await deps.fixes(orgId).waitCi(fixId, null).catch(() => undefined);
+      return "person";
+    }
   }
 
   /**
@@ -443,51 +469,73 @@ export function createFix(deps: FixDeps) {
   }
 
   /**
-   * Correção pronta: se o autor escreveu uma delegação, as travas fixas (delegatedFixGate) e o juiz pequeno decidem
-   * se ela cobre esta correção. Cobrindo, a união segue pelo mesmo `decide` do painel (mesma conferência do
-   * rascunho), registrada como aprovação do autor pela delegação, e o autor recebe o aviso com o motivo. Não
-   * cobrindo ou na dúvida, a correção espera o autor, com a nota do porquê.
+   * Correção pronta: se o autor escreveu uma delegação, as travas fixas (delegatedFixGate), o CI verde do rascunho
+   * (delegatedCiGate: o "testes passaram" do fix.json é o próprio agente quem diz) e o juiz pequeno decidem se ela
+   * cobre esta correção. Cobrindo, a união segue pelo mesmo `decide` do painel (mesma conferência do rascunho),
+   * registrada como aprovação do autor pela delegação, e o autor recebe o aviso com o motivo. CI ainda rodando:
+   * espera, e o próximo sync confere de novo. Não cobrindo, na dúvida ou sem CI verde no prazo, a correção espera
+   * o autor, com a nota do porquê.
    */
-  async function delegate(orgId: string, fixId: string): Promise<boolean> {
+  async function delegate(orgId: string, fixId: string): Promise<DelegateOutcome> {
     const del = deps.delegation;
-    if (!del) return false;
+    if (!del) return "person";
     const started = performance.now();
     const store = deps.fixes(orgId);
     const fix = await store.get(fixId);
-    if (!fix?.pr.authorId || fix.state !== "ready") return false;
-    const owner = await del.of(orgId, fix.pr.authorId);
-    if (!owner?.text) return false;
+    if (!fix?.pr.authorId || fix.state !== "ready") return "person";
     const ms = () => Math.round(performance.now() - started);
-    const gate = delegatedFixGate(owner.text, { files: fix.files, tests: fix.tests });
-    if (!gate.ok) {
-      await store.noteDelegation(fixId, `Ficou com você: ${gate.reason}.`);
-      await record({ flow: "fix_delegation", orgId, durationMs: ms(), result: "skipped", error: gate.reason, tools: ["travas"] });
-      return false;
+    const toPerson = async (note: string, run: Omit<AgentRun, "flow" | "orgId" | "durationMs">): Promise<"person"> => {
+      await store.noteDelegation(fixId, note.slice(0, DELEGATION_RULES.maxNoteChars));
+      if (fix.ciWaitSince) await store.waitCi(fixId, null);
+      await record({ flow: "fix_delegation", orgId, durationMs: ms(), ...run });
+      return "person";
+    };
+    const owner = await del.of(orgId, fix.pr.authorId);
+    if (!owner?.text) {
+      if (fix.ciWaitSince) await store.waitCi(fixId, null);
+      return "person";
     }
+    const gate = delegatedFixGate(owner.text, { files: fix.files, tests: fix.tests });
+    if (!gate.ok) return toPerson(`Ficou com você: ${gate.reason}.`, { result: "skipped", error: gate.reason, tools: ["travas"] });
+
+    // CI do commit exato que seria unido (fixMergeCheck recusa se o rascunho mudar depois).
+    const host = await deps.codeHost(orgId);
+    const ci: DraftCiState = host && fix.draftHeadSha ? await host.getChecks(fix.pr.repository, fix.draftHeadSha).then((c) => c.state, () => "unknown" as const) : "unknown";
+    const now = clock.now();
+    const ciGate = delegatedCiGate(ci, fix.ciWaitSince ?? now, now);
+    if ("wait" in ciGate) {
+      if (!fix.ciWaitSince) {
+        // Grava só o começo da espera: o sync a cada 5 min não enche agent_runs.
+        await store.waitCi(fixId, now, ci);
+        await store.noteDelegation(fixId, `Esperando o CI do rascunho para decidir pela sua delegação (${ciGate.reason}).`);
+        await record({ flow: "fix_delegation", orgId, durationMs: ms(), result: "skipped", error: `esperando: ${ciGate.reason}`, tools: ["travas", "github.checks"] });
+      } else await store.waitCi(fixId, fix.ciWaitSince, ci);
+      return "waiting";
+    }
+    if (!ciGate.ok) return toPerson(`Ficou com você: ${ciGate.reason}.`, { result: "skipped", error: ciGate.reason, tools: ["travas", "github.checks"] });
+    if (fix.ciWaitSince) await store.waitCi(fixId, null, ci);
+
     const out = await runDelegation(del.judge, { decision: "aplicar_correcao", ownerName: owner.name, delegation: owner.text, fix: { repository: fix.pr.repository, prNumber: fix.pr.number, files: fix.files, tests: fix.tests } }, del.timeoutMs);
     const usage = { model: out.model, costUsd: 0, ...(out.inputTokens !== undefined ? { inputTokens: out.inputTokens } : {}), ...(out.outputTokens !== undefined ? { outputTokens: out.outputTokens } : {}) };
+    const tools = ["travas", "github.checks", "juiz"];
     if (!out.verdict?.cabe) {
       const why = out.verdict ? out.verdict.motivo : `o juiz não respondeu (${out.error ?? "sem resposta"})`;
-      await store.noteDelegation(fixId, `Ficou com você: ${why}`.slice(0, DELEGATION_RULES.maxNoteChars));
-      await record({ flow: "fix_delegation", orgId, durationMs: ms(), ...usage, result: out.verdict ? "skipped" : "fallback", error: why, tools: ["travas", "juiz"] });
-      return false;
+      return toPerson(`Ficou com você: ${why}`, { ...usage, result: out.verdict ? "skipped" : "fallback", error: why, tools });
     }
     const since = owner.updatedAt ? ` de ${owner.updatedAt.toISOString().slice(0, 10)}` : "";
-    const note = `Unida pela sua delegação${since}: ${out.verdict.motivo}`.slice(0, DELEGATION_RULES.maxNoteChars);
+    const note = `Unida pela sua delegação${since}, com o CI do rascunho verde: ${out.verdict.motivo}`.slice(0, DELEGATION_RULES.maxNoteChars);
     const r = await decide(orgId, fix.pr.authorId, fixId, "approve", { via: "delegacao", note });
     if (r.status !== "approved") {
-      await store.noteDelegation(fixId, `Ficou com você: a delegação cobria, mas a conferência do rascunho recusou (${"reason" in r ? r.reason : r.status}).`);
-      await record({ flow: "fix_delegation", orgId, durationMs: ms(), ...usage, result: "skipped", error: `conferência: ${r.status}`, tools: ["travas", "juiz"] });
-      return false;
+      return toPerson(`Ficou com você: a delegação cobria, mas a conferência do rascunho recusou (${"reason" in r ? r.reason : r.status}).`, { ...usage, result: "skipped", error: `conferência: ${r.status}`, tools });
     }
     await deps.outbox(orgId).enqueue({
       type: "slack.dm",
       target: `person:${fix.pr.authorId}`,
-      payload: { personId: fix.pr.authorId, text: `Agente de ${owner.name}: a correção do PR #${fix.pr.number} (${fix.pr.repository}) foi unida pela sua delegação${since}. Motivo: ${out.verdict.motivo} Para desfazer, reverta o commit da união no PR. Para mudar o que o agente decide por você, edite a delegação no painel.` },
+      payload: { personId: fix.pr.authorId, text: `Agente de ${owner.name}: a correção do PR #${fix.pr.number} (${fix.pr.repository}) foi unida pela sua delegação${since}, com o CI do rascunho verde. Motivo: ${out.verdict.motivo} Para desfazer, reverta o commit da união no PR. Para mudar o que o agente decide por você, edite a delegação no painel.` },
       idempotencyKey: `fix_delegated:${fixId}`,
     });
-    await record({ flow: "fix_delegation", orgId, durationMs: ms(), ...usage, result: "ok", tools: ["travas", "juiz", "github.merge_fix", "slack.dm"] });
-    return true;
+    await record({ flow: "fix_delegation", orgId, durationMs: ms(), ...usage, result: "ok", tools: [...tools, "github.merge_fix", "slack.dm"] });
+    return "merged";
   }
 
   /** Clique em Aplicar ou Recusar no Slack. Null quando o clique não é destes botões. */

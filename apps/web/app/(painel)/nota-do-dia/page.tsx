@@ -26,14 +26,14 @@ export default async function NotaDoDiaPage({ searchParams }: { searchParams: Pr
           <button type="submit" className="button-pill">
             Gerar o rascunho de hoje
           </button>
-          <span className="muted">O agente escreve a partir do GitHub e do Linear, e avisa no Slack.</span>
+          <span className="muted">O agente escreve a partir do GitHub e das tarefas (Linear ou Jira), e avisa no Slack.</span>
         </form>
       )}
       {view ? (
         <NoteEditor key={`${view.date}-${view.state}`} initial={view} ownerName={first} branchFormat={mode === "db"} />
       ) : (
         <p className="note muted">
-          {reason === "sem evento nas últimas 24 horas" ? "Sem atividade nas últimas 24 horas no GitHub ou no Linear, então o agente não escreveu rascunho." : "Ainda não há nota do dia."}
+          {reason === "sem evento nas últimas 24 horas" ? "Sem atividade nas últimas 24 horas no GitHub ou nas tarefas (Linear ou Jira), então o agente não escreveu rascunho." : "Ainda não há nota do dia."}
         </p>
       )}
     </>

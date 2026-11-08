@@ -144,7 +144,7 @@ export function Redistribution({
             {phase === "confirmar" && (
               <Reveal className="plan-confirm" role="group" aria-labelledby="confirmar-titulo">
                 <p id="confirmar-titulo" className="plan-confirm__title">
-                  Aplicar {plan.length} mudanças no Linear e no GitHub?
+                  Aplicar {plan.length} mudanças nas tarefas e no GitHub?
                 </p>
                 <p className="plan-confirm__text">
                   {names(receivers)} {receivers.length === 1 ? "recebe" : "recebem"} as tarefas e {receivers.length === 1 ? "é avisado" : "são avisados"} no Slack. Cada um pode recusar com motivo, e você pode desfazer.

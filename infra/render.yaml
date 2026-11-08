@@ -87,6 +87,10 @@ services:
         sync: false
       - key: DEMO_SLACK_TEAM_ID
         sync: false
+      # Bot do Slack (o mesmo token do worker): lista os membros da workspace para ligar a conta da pessoa no
+      # cadastro e na ficha. Sem ele, o RH cola o ID do membro.
+      - key: SLACK_BOT_TOKEN
+        sync: false
       # "Pergunte ao gêmeo" no painel e traços do bonequinho a partir da foto do cadastro. Sem ela, só regra.
       - key: ANTHROPIC_API_KEY
         sync: false

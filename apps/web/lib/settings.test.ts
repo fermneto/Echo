@@ -5,13 +5,13 @@ import { accessMatrix, connectionRows, costSteps } from "./settings";
 describe("configuração", () => {
   it("sem banco, nenhuma plataforma aparece como ligada", () => {
     const rows = connectionRows(null);
-    expect(rows.map((r) => r.kind)).toEqual(["github", "slack", "linear", "google", "microsoft", "vercel"]);
+    expect(rows.map((r) => r.kind)).toEqual(["github", "slack", "linear", "jira", "google", "microsoft", "vercel"]);
     expect(rows.every((r) => r.state === "no_env" && r.status === "Não conectado neste ambiente")).toBe(true);
   });
 
   it("com banco, ligada é quem tem rota para a empresa", () => {
-    const rows = connectionRows({ github: "123", slack: "T01", linear: null });
-    expect(Object.fromEntries(rows.map((r) => [r.kind, r.state]))).toEqual({ github: "on", slack: "on", linear: "off", google: "off", microsoft: "off", vercel: "off" });
+    const rows = connectionRows({ github: "123", slack: "T01", linear: null, jira: "acme.atlassian.net" });
+    expect(Object.fromEntries(rows.map((r) => [r.kind, r.state]))).toEqual({ github: "on", slack: "on", linear: "off", jira: "on", google: "off", microsoft: "off", vercel: "off" });
   });
 
   it("a matriz de acesso segue as regras das rotas: o RH não vê notas, plano nem custo", () => {

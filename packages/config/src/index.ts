@@ -78,6 +78,9 @@ export const webSchema = baseSchema.extend({
   /** GitHub App (o mesmo do worker): Meu plano confere o rascunho da correção antes de aprovar. */
   GITHUB_APP_ID: optionalString,
   GITHUB_PRIVATE_KEY: optionalString,
+  /** Bot do Slack (o mesmo do worker): lista os membros da workspace para ligar a conta da pessoa no cadastro e na ficha. Sem ele, o RH digita o ID do membro. */
+  SLACK_BOT_TOKEN: optionalString,
+  SLACK_API_BASE_URL: optionalString.pipe(z.url().optional()),
   /** Modelo aberto (Ollama) que lê o currículo no cadastro pelo RH. Sem ele, cargo e habilidades ficam para a ficha. */
   SLM_OLLAMA_URL: optionalString.pipe(z.string().regex(/^(https?:\/\/)?[\w.-]+(:\d+)?\/?$/, "use http://host:porta ou host:porta").optional()),
   SLM_MODEL: z.string().min(1).default("qwen3:4b-instruct"),
@@ -95,8 +98,8 @@ const slm = {
   /** Tempo máximo da triagem de um PR e do juiz da delegação (CPU, ~15 a 30 s; a primeira chamada também carrega o modelo). */
   TRIAGE_TIMEOUT_MS: z.coerce.number().int().min(1000).max(300_000).default(120_000),
   /**
-   * SSLM do roteador de custo da resposta (mesmo Ollama), para a dúvida da regra. Vazio = desligado (padrão): o
-   * Qwen3 0.6B e o 4B erraram demais na checagem (docs/engenharia.md). O modelo precisa estar no Ollama.
+   * SSLM do roteador de custo da resposta (mesmo Ollama), para a dúvida da regra. Vazio = o mesmo modelo de
+   * SLM_MODEL (já no Ollama); `off` = desligado (a dúvida vai ao Sonnet). Outro modelo precisa estar no Ollama.
    */
   SSLM_MODEL: optionalString,
   /** Tempo máximo do SSLM; passou disso, a pergunta segue para o Sonnet. */

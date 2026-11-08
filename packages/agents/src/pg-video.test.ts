@@ -1,5 +1,5 @@
-// Vídeo da semana da equipe contra o Postgres real (DATABASE_URL), com papel comum (RLS): fatos montados dos
-// relatórios, fila por equipe sem duplicar, transição condicional, isolamento entre empresas e vencimento.
+// Vídeo da semana da equipe contra o Postgres real (DATABASE_URL), com papel comum (RLS): fatos montados só dos
+// relatórios liberados ao RH, fila por equipe sem duplicar, transição condicional, isolamento entre empresas e vencimento.
 import { randomUUID } from "node:crypto";
 import { asSystem, createDb, createPool, type Database, deployments, orgs, people, pullRequests, questions, teams, teamVideos, weeklyReports } from "@echo/db";
 import { appRoleUrl } from "@echo/db/testing";
@@ -60,7 +60,23 @@ describe.skipIf(!url)("vídeo da semana em Postgres", () => {
     await admin.end();
   });
 
-  it("fila por equipe quando todos têm relatório; não duplica; fatos saem dos relatórios", async () => {
+  it("relatório em conferência não libera o vídeo; só entra o que já foi liberado ao RH", async () => {
+    const store = createPgTeamVideoStore(db);
+    // Os dois ainda em conferência (aviso entregue, prazo de 3 dias correndo): nada na fila, nada para mostrar.
+    expect(await queueTeamVideos(db, org, NOW)).toBe(0);
+    expect(await store.facts(org, team, "2026-W45")).toBeNull();
+    // Carla liberada (prazo passou), Fernando ainda conferindo: antes de 24 h, sem fila; só a ajuda de Carla entra.
+    await asSystem(sys(), (tx) => tx.update(weeklyReports).set({ state: "sent", sentAt: new Date("2026-11-07T08:00:00Z") }).where(eq(weeklyReports.personId, car)));
+    expect(await queueTeamVideos(db, org, NOW)).toBe(0);
+    const partial = await store.facts(org, team, "2026-W45");
+    expect(partial!.facts.deliveries).toEqual([]);
+    expect(partial!.facts.helps).toEqual([{ fromId: car, toId: fer, count: 2 }]);
+    expect(partial!.candidates).toEqual([]);
+    // Fernando liberado: todos da equipe liberados, o vídeo entra (teste seguinte).
+    await asSystem(sys(), (tx) => tx.update(weeklyReports).set({ state: "sent_without_notice", sentAt: new Date("2026-11-07T09:00:00Z") }).where(eq(weeklyReports.personId, fer)));
+  });
+
+  it("fila por equipe quando todos têm relatório liberado; não duplica; fatos saem dos relatórios", async () => {
     expect(await queueTeamVideos(db, org, NOW)).toBe(1);
     expect(await queueTeamVideos(db, org, NOW)).toBe(0);
     expect(await queueTeamVideos(db, other, NOW)).toBe(0);

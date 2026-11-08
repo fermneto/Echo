@@ -285,7 +285,9 @@ export const fixRuns = pgTable("fix_runs", {
   reviewId: uuid("review_id").notNull().references(() => reviews.id),
   branch: text("branch"),
   draftPrNumber: integer("draft_pr_number"),
+  /** Resultado dos testes que o próprio agente da correção declara no fix.json. */
   testsReported: text("tests_reported"),
+  /** Último estado do CI do rascunho lido pela delegação. */
   checksState: text("checks_state"),
   costUsd: numeric("cost_usd", { precision: 10, scale: 4 }),
   state: text("state").notNull().default("queued"), // running | draft_queued | ready | approved | applied | declined | rejected | failed | skipped
@@ -304,6 +306,8 @@ export const fixRuns = pgTable("fix_runs", {
   decidedVia: text("decided_via"),
   /** Por que a delegação cobriu (ou não) esta correção: travas e juiz, para a pessoa conferir. */
   delegationNote: text("delegation_note"),
+  /** Desde quando a delegação espera o CI do rascunho (só une com ele verde); null = não está esperando. */
+  ciWaitSince: ts("ci_wait_since"),
   createdAt: createdAt(),
 }, (t) => [uniqueIndex("fix_runs_review").on(t.orgId, t.reviewId)]);
 
