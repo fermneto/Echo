@@ -31,6 +31,18 @@ function runs(look: Look) {
   return out;
 }
 
+/** Um desenho por cor: as páginas têm dezenas de bonequinhos, e cada trecho como elemento pesava milhares de nós. */
+function shapes(list: ReturnType<typeof runs>) {
+  const out = new Map<string, { fill: string; eye: boolean; d: string }>();
+  for (const r of list) {
+    const key = `${r.eye}-${r.fill}`;
+    const shape = out.get(key) ?? { fill: r.fill, eye: r.eye, d: "" };
+    shape.d += `M${r.x} ${r.y}h${r.w}v1h-${r.w}z`;
+    out.set(key, shape);
+  }
+  return [...out.values()];
+}
+
 export function PixelSprite({ look, mode, size = 36, label, view = "full" }: { look: Look; mode: SpriteMode; size?: number; label?: string; view?: "full" | "bust" }) {
   const rows = view === "bust" ? 17 : SPRITE_H;
   return (
@@ -44,11 +56,9 @@ export function PixelSprite({ look, mode, size = 36, label, view = "full" }: { l
       aria-label={label}
       aria-hidden={label ? undefined : true}
     >
-      {runs(look)
-        .filter((r) => r.y < rows)
-        .map((r) => (
-          <rect key={`${r.x}-${r.y}`} className={r.eye ? "px-eye" : undefined} x={r.x} y={r.y} width={r.w} height={1} fill={r.fill} />
-        ))}
+      {shapes(runs(look).filter((r) => r.y < rows)).map((s) => (
+        <path key={`${s.eye}-${s.fill}`} className={s.eye ? "px-eye" : undefined} d={s.d} fill={s.fill} />
+      ))}
       {mode !== "person" ? <rect className="sprite__holo" x={0} y={-2} width={SPRITE_W} height={2} /> : null}
     </svg>
   );

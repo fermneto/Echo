@@ -74,3 +74,23 @@ a {
   clip-path: inset(50%);
   white-space: nowrap;
 }
+
+/* Atalho de teclado: aparece só ao receber o foco. */
+.skip-link {
+  position: fixed;
+  top: 8px;
+  left: 8px;
+  z-index: 300;
+  padding: 10px 16px;
+  border-radius: 8px;
+  background: var(--color-cloud);
+  color: var(--color-canvas-app);
+  font-size: 14px;
+  transform: translateY(-200%);
+}
+.skip-link:focus {
+  transform: none;
+}
+main:focus {
+  outline: none;
+}
