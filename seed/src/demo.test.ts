@@ -35,6 +35,17 @@ describe("empresa de demonstração", () => {
     for (const a of demo.absences) expect(a.endsAt.getTime()).toBeGreaterThan(now.getTime());
   });
 
+  it("relatórios enviados só das semanas anteriores, nunca do RH e sem aviso gravado", () => {
+    expect(demo.weeklyReports.length).toBeGreaterThan(50);
+    expect(new Set(demo.weeklyReports.map((r) => r.week)).size).toBe(7);
+    expect(demo.weeklyReports.some((r) => r.personId === P.rita)).toBe(false);
+    for (const r of demo.weeklyReports) {
+      expect(r.state).toBe("sent");
+      expect(r.noticeAt).toBeUndefined();
+      expect(new Date(r.coveredPeriod.to).getTime()).toBeLessThanOrEqual(now.getTime());
+    }
+  });
+
   it("dá um papel por persona: Marina lidera, Rita é do RH", () => {
     const role = (id: string) => demo.people.find((p) => p.id === id)?.role ?? "member";
     expect(role(P.marina)).toBe("leader");
