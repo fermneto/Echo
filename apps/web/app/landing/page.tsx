@@ -1,3 +1,5 @@
+import type { Metadata } from "next";
+import { connection } from "next/server";
 import type { CSSProperties, ReactNode } from "react";
 import Link from "next/link";
 import { EchoGlobe, type GlobeArc, type GlobePoint } from "@/components/landing/EchoGlobe";
@@ -9,13 +11,26 @@ import { PixelSprite, type SpriteMode } from "@/components/PixelSprite";
 import { lookFor } from "@/lib/demo/looks";
 import { WORLD, worldCounts, worldState, type WorldMember } from "@/lib/demo/world";
 import { DEMO_NOW } from "@/lib/demo/personas";
+import { siteUrl } from "@/lib/site-url";
 import { localTime } from "@/lib/time";
 import "./landing.css";
 
-export const metadata = {
-  title: "Echo · A resposta não precisa esperar até amanhã",
-  description: "Cada pessoa da equipe tem um gêmeo digital que responde quando ela dorme, revisa à noite e deixa o plano pronto de manhã.",
-};
+const TITLE = "Echo · A resposta não precisa esperar até amanhã";
+const DESCRIPTION = "Cada pessoa da equipe tem um gêmeo digital que responde quando ela dorme, revisa à noite e deixa o plano pronto de manhã.";
+
+/** Lido a cada requisição: o endereço público só existe em produção, depois do build. */
+export async function generateMetadata(): Promise<Metadata> {
+  await connection();
+  const image = { url: "/landing/imagem-social", width: 1200, height: 630, alt: "Echo: a resposta não precisa esperar até amanhã." };
+  return {
+    metadataBase: new URL(siteUrl()),
+    title: TITLE,
+    description: DESCRIPTION,
+    alternates: { canonical: "/landing" },
+    openGraph: { type: "website", locale: "pt_BR", siteName: "Echo", url: "/landing", title: TITLE, description: DESCRIPTION, images: [image] },
+    twitter: { card: "summary_large_image", title: TITLE, description: DESCRIPTION, images: [image.url] },
+  };
+}
 
 /* Conteúdo: docs/produto.md. Pessoas e conversas são ilustrativas, com dados sintéticos. */
 
@@ -254,6 +269,9 @@ const COUNTS = worldCounts(DEMO_NOW);
 export default function LandingPage() {
   return (
     <div className="lp">
+      <a className="skip-link" href="#tese">
+        Pular para o conteúdo
+      </a>
       <header className="lp-nav">
         <Link href="/landing" className="lp-logo" aria-label="Echo">
           echo<span className="lp-logo__dot" aria-hidden="true" />

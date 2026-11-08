@@ -20,8 +20,10 @@ import { AskPanel } from "@/components/AskPanel";
 import { WaitingStrip } from "@/components/WaitingStrip";
 import { PixelAvatar } from "@/components/PixelAvatar";
 import { WorldMap, type MapArc, type MapCrew, type MapZone } from "@/components/WorldMap";
-import { perguntarEcho } from "./actions";
-import "./inicio.css";
+import { perguntarEcho } from "../actions";
+import "../inicio.css";
+
+export const metadata = { title: "Início · Echo" };
 
 /** "GMT-3" → -3; "GMT+5:30" → 5.5. Só exibição: a hora local vem do Intl. */
 function utcOffset(timeZone: string, at: Date): number {
@@ -83,23 +85,25 @@ function buildMap(team: readonly Persona[], now: Date) {
 export default async function InicioPage() {
   const me = await requireAccess("inicio");
   const now = new Date();
-  const scope = await teamScope(me, await loadTeam(now, { orgId: me.orgId }));
+  const seesWork = canAskTwin(me.role);
+  const demo = isDemoOrg(me.orgId);
+  // O que não depende da equipe é lido junto com ela; só o resumo da ausência precisa do expediente vindo do banco.
+  const [loaded, decisions, plans, live] = await Promise.all([
+    loadTeam(now, { orgId: me.orgId }),
+    currentDecisions(),
+    seesWork ? pendingPlans(me, now) : null,
+    seesWork && !demo ? loadWaiting(me, now) : [],
+  ]);
+  const scope = await teamScope(me, loaded);
   const team = scope.people;
   const counts = countsOf(team);
-  const seesWork = canAskTwin(me.role);
   // O RH nunca lê perguntas: a seção do que o agente fez não aparece para ele.
   const seesAway = me.role !== "hr";
   // Expediente e fuso do banco, quando houver: a janela começa no fim do último expediente registrado.
   const meLive = team.find((p) => p.id === me.id) ?? me;
   // Com banco, o plano de ausência vem dos planos esperando esta liderança, não da demonstração.
   // Quem é de empresa conectada vê só as pendências do banco; a persona da demonstração, também as da história.
-  const demo = isDemoOrg(me.orgId);
-  const [decisions, away, plans, live] = await Promise.all([
-    currentDecisions(),
-    seesAway ? loadAwayRows(meLive, now) : null,
-    seesWork ? pendingPlans(me, now) : null,
-    seesWork && !demo ? loadWaiting(me, now) : [],
-  ]);
+  const away = seesAway ? await loadAwayRows(meLive, now) : null;
   const waiting = [
     ...(plans ?? []).map((p) => ({
       id: "Plano",

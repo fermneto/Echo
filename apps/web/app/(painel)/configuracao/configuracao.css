@@ -39,7 +39,7 @@
 }
 .settings-conn__state.is-off,
 .settings-conn__state.is-no_env {
-  color: var(--color-ash);
+  color: var(--color-fog);
 }
 
 .settings-grid {

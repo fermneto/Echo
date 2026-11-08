@@ -3759,3 +3759,61 @@ select.field option {
     animation: none;
   }
 }
+
+/* Erro e página inexistente */
+.status-screen__actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-lg);
+  margin-top: var(--space-xl);
+}
+.status-screen__code {
+  margin: var(--space-xl) 0 0;
+  font-size: 12px;
+  color: var(--color-fog);
+}
+
+/* Linha de carregamento ao trocar de tela: só aparece se a espera for perceptível. */
+.nav-progress {
+  position: fixed;
+  inset: 0 0 auto;
+  z-index: 200;
+  height: 2px;
+  overflow: hidden;
+  animation: skeleton-in 150ms ease-out 150ms both;
+}
+.nav-progress::after {
+  content: "";
+  display: block;
+  width: 40%;
+  height: 100%;
+  background: var(--color-cloud);
+  animation: nav-progress 1.1s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+}
+@keyframes nav-progress {
+  from {
+    transform: translateX(-100%);
+  }
+  to {
+    transform: translateX(250%);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .nav-progress::after {
+    animation: none;
+    width: 100%;
+  }
+}
+
+/* Alvos de toque de pelo menos 24 px, sem mudar o espaço da tela. */
+.back-link {
+  padding-block: 5px;
+  margin-block: -5px calc(var(--space-xl) - 5px);
+}
+.text-link,
+a.link-inline,
+.note-list__title a {
+  display: inline-block;
+  padding-block: 3px;
+}

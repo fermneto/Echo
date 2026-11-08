@@ -9,6 +9,7 @@ const geist = Geist({ subsets: ["latin"], variable: "--font-geist", display: "sw
 const mono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-jetbrains-mono", display: "swap" });
 
 export const metadata = { title: "Echo", description: "Gêmeos digitais para equipes distribuídas" };
+export const viewport = { themeColor: "#0a0a0a" };
 
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
