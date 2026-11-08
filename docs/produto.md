@@ -772,7 +772,7 @@ _Gravado por um agente Claude — Painel · Relatórios · semana de 2/11 (Paine
 | **Fernando** | Desenvolvedor em Fortaleza, dorme enquanto Eduardo trabalha |
 | **Eduardo** | Desenvolvedor na África do Sul, precisa saber se pode seguir |
 | **Yan** | Desenvolvedor da equipe |
-| **Marina** | Líder: redistribuição, custo e execuções, recriar a demonstração |
+| **Marina** | Líder: redistribuição, custo e execuções |
 | **Bruno** | Entra de férias e tem as tarefas redistribuídas |
 | **Carla** | Poucos commits, 0 entregas e 5 ajudas a colegas |
 | **Rita** | RH: vê o relatório enviado, sem nota, ranking ou cérebros |
@@ -785,7 +785,7 @@ _Demo · 3 minutos_
 
 ### Roteiro com cronômetro
 
-- **Avise os jurados** — Os dados são sintéticos, o RH é simulado, os erros do código são plantados, "simular a noite" comprime o que roda de madrugada e "simular o envio automático" antecipa o prazo de 3 dias.
+- **Avise os jurados** — Os dados são sintéticos, o RH é simulado, os erros do código são plantados, `pnpm noite:agora` roda na hora o que rodaria de madrugada e "simular o envio automático" antecipa o prazo de 3 dias.
 
 #### 1. A pergunta que esperaria um dia 40 s · entre como Eduardo
 
@@ -817,8 +817,8 @@ _Preparação_
 _Se algo falhar_
 
 - **Resposta demorando:** pergunte no painel, que não depende do Slack.
-- **Lote noturno:** não use ao vivo. O botão de simular faz a mesma análise.
-- **Dados estranhos:** recrie a demonstração.
+- **Lote noturno:** não use ao vivo. `pnpm noite:agora` faz a mesma análise antes da apresentação.
+- **Dados estranhos:** recrie a demonstração com `pnpm db:seed`.
 
 _Para os jurados testarem_
 
