@@ -41,7 +41,8 @@ export function AgentProfileForm({
   maxChars: number;
   never: readonly string[];
   fixRules: string;
-  decisions: DecisionView[];
+  /** `null`: a leitura das decisões falhou; o resto do formulário continua valendo. */
+  decisions: DecisionView[] | null;
   timezone: string;
   /** Demonstração sem banco: o texto fica só neste navegador e as decisões são de exemplo. */
   demo: boolean;
@@ -89,7 +90,9 @@ export function AgentProfileForm({
         <p id="decisoes-do-agente" className="field-row__k mono">
           Decisões do seu agente
         </p>
-        {decisions.length === 0 ? (
+        {decisions === null ? (
+          <p className="muted agent-profile__hint">Não foi possível carregar as decisões agora. O seu texto acima continua valendo e pode ser salvo.</p>
+        ) : decisions.length === 0 ? (
           <p className="muted agent-profile__hint">Nenhuma ainda. Quando uma correção da revisão noturna ficar pronta, aparece aqui se o agente uniu pela sua delegação ou deixou com você, e por quê.</p>
         ) : (
           <ul role="list" className="agent-decisions">

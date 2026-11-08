@@ -172,7 +172,16 @@ export default async function PessoaPage({ params }: { params: Promise<{ id: str
             </section>
           )}
 
-          {own && (
+          {own?.status === "indisponivel" && (
+            <section className="card" aria-labelledby="seu-agente">
+              <h2 id="seu-agente" className="card__title">
+                Seu agente
+              </h2>
+              <p className="muted">Não foi possível carregar o seu agente agora. O que você já salvou continua valendo; tente de novo em alguns minutos.</p>
+            </section>
+          )}
+
+          {own?.status === "ok" && (
             <section className="card" aria-labelledby="seu-agente">
               <h2 id="seu-agente" className="card__title">
                 Seu agente
@@ -181,15 +190,15 @@ export default async function PessoaPage({ params }: { params: Promise<{ id: str
                 save={salvarPerfilDoAgente}
                 personId={me.id}
                 firstName={persona.name.split(" ")[0] ?? persona.name}
-                style={own.style}
-                delegation={own.delegation}
-                delegationSince={own.delegationAt ? own.delegationAt.toLocaleDateString("pt-BR", { timeZone: persona.timezone }) : null}
-                decisions={own.decisions}
+                style={own.agent.style}
+                delegation={own.agent.delegation}
+                delegationSince={own.agent.delegationAt ? own.agent.delegationAt.toLocaleDateString("pt-BR", { timeZone: persona.timezone }) : null}
+                decisions={own.agent.decisions}
                 timezone={persona.timezone}
                 maxChars={AGENT_PROFILE_RULES.maxChars}
                 never={NEVER_DELEGATED}
                 fixRules={`Mesmo com a delegação, a correção só é unida sozinha com testes passando, até ${AGENT_PROFILE_RULES.delegatedFixMaxFiles} arquivos, fora de autenticação, pagamentos, migrações e infraestrutura, e se o rascunho não mudou. Você recebe o aviso com o motivo e pode desfazer.`}
-                demo={own.demo}
+                demo={own.agent.demo}
               />
             </section>
           )}
