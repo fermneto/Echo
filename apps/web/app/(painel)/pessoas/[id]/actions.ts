@@ -1,11 +1,15 @@
 "use server";
 
+import { loadConfig } from "@echo/config";
 import { revalidatePath } from "next/cache";
 import { canAskTwin, canEditProfile } from "@/lib/access";
 import { askAgent, panelRequest, personIdFor, recordIn } from "@/lib/agent";
+import { saveDemoProfile } from "@/lib/agent-profile-store";
 import { panelDb } from "@/lib/db";
 import { askTwinDemo } from "@/lib/demo/twin";
 import { gainsOrgId } from "@/lib/gains";
+import { type BonequinhoState, readTraitsForm } from "@/lib/avatar-form";
+import { parsePhoto } from "@/lib/onboarding-form";
 import { droppedCount, type PerfilState, parseProfileForm } from "@/lib/profile-form";
 import { teamScope } from "@/lib/scope";
 import { currentPersona, isDemoSession } from "@/lib/session";
@@ -39,29 +43,94 @@ export async function perguntar(prev: AskState, formData: FormData): Promise<Ask
   return r.ok ? { turns: [...prev.turns, { question, reply: r.reply }] } : { ...prev, error: r.error };
 }
 
+export type ProfileState = { saved?: string; error?: string };
+
+/** O próprio texto do agente: como ele responde e até onde decide pela pessoa. Só a pessoa grava o dela. */
+export async function salvarPerfilDoAgente(_prev: ProfileState, formData: FormData): Promise<ProfileState> {
+  const me = await currentPersona();
+  if (!me || String(formData.get("pessoa") ?? "") !== me.id) return { error: "Só a própria pessoa muda o jeito do agente dela." };
+  const db = panelDb();
+  const input = { style: String(formData.get("estilo") ?? ""), delegation: String(formData.get("delegacao") ?? "") };
+  if (!db) {
+    // Demonstração sem banco: fica só neste navegador.
+    await saveDemoProfile(input, new Date());
+    return { saved: new Date().toISOString() };
+  }
+  const { saveAgentProfile } = await import("@echo/agents/perfil");
+  const ok = await saveAgentProfile(db, gainsOrgId(me.orgId), personIdFor(me.id), input, new Date());
+  return ok ? { saved: new Date().toISOString() } : { error: "Pessoa não encontrada nesta empresa." };
+}
+
 /**
  * Editar perfil na ficha de quem foi cadastrado no painel: RH, liderança da equipe ou a própria pessoa.
  * Na demonstração, não grava.
  * Passa pelo mesmo validador do currículo e fica registrado em `audit_log`.
  */
 export async function salvarPerfil(_prev: PerfilState, formData: FormData): Promise<PerfilState> {
-  const me = await currentPersona();
-  if (!me) return { status: "error", error: "Entre de novo para editar." };
-  const target = await visibleTarget(me, String(formData.get("pessoa") ?? ""));
-  if (!target || !target.registered) return { status: "error", error: "Pessoa não encontrada." };
-  if (!canEditProfile(me, target)) return { status: "error", error: "Só o RH, a liderança da equipe ou a própria pessoa editam o perfil." };
-  // Persona da demonstração (escolhida em /entrar): pode abrir a edição, mas nada é gravado.
-  if (isDemoSession(me)) return { status: "error", error: "Demonstração: o perfil não é gravado." };
-  const db = panelDb();
-  if (!db) return { status: "error", error: "O painel não tem banco ligado (DATABASE_URL)." };
+  const ctx = await editableTarget(formData, "o perfil");
+  if (!ctx.ok) return { status: "error", error: ctx.error };
 
   const input = parseProfileForm(formData);
   const { cleanProfile } = await import("@echo/agents");
   const profile = cleanProfile(input);
   const { updateProfile } = await import("@echo/agents/server");
-  const ok = await updateProfile(db, gainsOrgId(me.orgId), target.id, profile, personIdFor(me.id));
+  const ok = await updateProfile(ctx.db, ctx.orgId, ctx.target.id, profile, ctx.actorId);
   if (!ok) return { status: "error", error: "Não foi possível salvar agora. Tente de novo." };
-  revalidatePath(`/pessoas/${target.id}`);
+  revalidatePath(`/pessoas/${ctx.target.id}`);
   revalidatePath("/equipe");
   return { status: "saved", profile, dropped: droppedCount(input, profile) };
+}
+
+/**
+ * Quem pode trocar o perfil ou o bonequinho de uma pessoa cadastrada no painel, e com que banco. Devolve a
+ * mensagem de erro em português quando não pode (inclusive na demonstração, que não grava).
+ */
+async function editableTarget(formData: FormData, what: string) {
+  const me = await currentPersona();
+  if (!me) return { ok: false, error: "Entre de novo para editar." } as const;
+  const target = await visibleTarget(me, String(formData.get("pessoa") ?? ""));
+  if (!target || !target.registered) return { ok: false, error: "Pessoa não encontrada." } as const;
+  if (!canEditProfile(me, target)) return { ok: false, error: `Só o RH, a liderança da equipe ou a própria pessoa trocam ${what}.` } as const;
+  if (isDemoSession(me)) return { ok: false, error: `Demonstração: ${what} não é gravado.` } as const;
+  const db = panelDb();
+  if (!db) return { ok: false, error: "O painel não tem banco ligado (DATABASE_URL)." } as const;
+  return { ok: true, me, target, db, orgId: gainsOrgId(me.orgId), actorId: personIdFor(me.id) } as const;
+}
+
+const REDO_ERRORS = {
+  not_found: "Pessoa não encontrada.",
+  no_model: "A leitura da foto está desligada neste ambiente (sem ANTHROPIC_API_KEY). Ajuste os traços à mão.",
+  limit: "A empresa chegou ao limite de refações por hora. Tente de novo mais tarde ou ajuste à mão.",
+  unreadable: "Não deu para ler essa foto. O bonequinho ficou como estava; tente outra foto ou ajuste à mão.",
+  invalid: "Algum traço não está na lista. Escolha de novo.",
+} as const;
+
+/** Refazer o bonequinho por uma foto nova. A foto não é guardada; se o modelo falha, nada muda. */
+export async function refazerBonequinho(_prev: BonequinhoState, formData: FormData): Promise<BonequinhoState> {
+  const ctx = await editableTarget(formData, "o bonequinho");
+  if (!ctx.ok) return { status: "error", error: ctx.error };
+  const photo = await parsePhoto(formData);
+  if (typeof photo === "string") return { status: "error", error: photo };
+  if (!photo) return { status: "error", error: "Escolha uma foto." };
+
+  const { serverAvatar } = await import("@echo/agents/server");
+  const r = await serverAvatar(ctx.db, loadConfig("web").ANTHROPIC_API_KEY).redo({ orgId: ctx.orgId, personId: ctx.target.id, actorId: ctx.actorId, photo });
+  if (r.status !== "saved") return { status: "error", error: REDO_ERRORS[r.status] };
+  revalidatePath(`/pessoas/${ctx.target.id}`);
+  revalidatePath("/equipe");
+  revalidatePath("/");
+  return { status: "saved", traits: r.traits, note: r.kept.length ? "Bonequinho refeito. Alguns traços ficaram como estavam." : "Bonequinho refeito pela foto. A foto não foi guardada." };
+}
+
+/** Ajustar os traços à mão, só com valores da lista fechada. */
+export async function ajustarBonequinho(_prev: BonequinhoState, formData: FormData): Promise<BonequinhoState> {
+  const ctx = await editableTarget(formData, "o bonequinho");
+  if (!ctx.ok) return { status: "error", error: ctx.error };
+  const { serverAvatar } = await import("@echo/agents/server");
+  const r = await serverAvatar(ctx.db, undefined).adjust({ orgId: ctx.orgId, personId: ctx.target.id, actorId: ctx.actorId, traits: readTraitsForm(formData) });
+  if (r.status !== "saved") return { status: "error", error: REDO_ERRORS[r.status] };
+  revalidatePath(`/pessoas/${ctx.target.id}`);
+  revalidatePath("/equipe");
+  revalidatePath("/");
+  return { status: "saved", traits: r.traits, note: "Bonequinho ajustado." };
 }

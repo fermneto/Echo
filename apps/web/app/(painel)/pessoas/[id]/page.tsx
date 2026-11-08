@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { canAskTwin, canEditProfile } from "@/lib/access";
 import { profileFor } from "@/lib/demo/profiles";
 import { suggestedQuestions } from "@/lib/demo/twin";
+import { lookFor } from "@/lib/demo/looks";
 import { latest } from "@/lib/demo/notes";
 import { currentNotes } from "@/lib/notes-store";
 import { teamScope } from "@/lib/scope";
@@ -14,7 +15,12 @@ import { AskPanel } from "@/components/AskPanel";
 import { PixelAvatar } from "@/components/PixelAvatar";
 import { HolderPanel, StatusChip } from "@/components/Status";
 import { RailTrack } from "@/components/TimeRail";
-import { perguntar, salvarPerfil } from "./actions";
+import { AgentProfileForm } from "@/components/AgentProfileForm";
+import { AGENT_PROFILE_RULES, NEVER_DELEGATED } from "@echo/domain";
+import { loadOwnAgent } from "@/lib/agent-profile-store";
+import { panelDb } from "@/lib/db";
+import { ajustarBonequinho, perguntar, refazerBonequinho, salvarPerfil, salvarPerfilDoAgente } from "./actions";
+import { Bonequinho } from "./Bonequinho";
 import { EditarPerfil } from "./EditarPerfil";
 
 const DAYS = ["domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sábado"];
@@ -71,6 +77,7 @@ export default async function PessoaPage({ params }: { params: Promise<{ id: str
   const isMe = me.id === persona.id;
   const away = persona.availability.kind !== "working";
   const seesWork = canAskTwin(me.role);
+  const own = isMe ? await loadOwnAgent(me, panelDb()) : null;
   // Só quem foi cadastrado no painel tem o perfil no banco; as personas da demo seguem com o perfil sintético.
   const editable = Boolean(persona.registered) && canEditProfile(me, persona);
   const emptyProfile = Boolean(persona.registered && !persona.jobTitle && persona.skills.length === 0);
@@ -160,6 +167,28 @@ export default async function PessoaPage({ params }: { params: Promise<{ id: str
             </section>
           )}
 
+          {own && (
+            <section className="card" aria-labelledby="seu-agente">
+              <h2 id="seu-agente" className="card__title">
+                Seu agente
+              </h2>
+              <AgentProfileForm
+                save={salvarPerfilDoAgente}
+                personId={me.id}
+                firstName={persona.name.split(" ")[0] ?? persona.name}
+                style={own.style}
+                delegation={own.delegation}
+                delegationSince={own.delegationAt ? own.delegationAt.toLocaleDateString("pt-BR", { timeZone: persona.timezone }) : null}
+                decisions={own.decisions}
+                timezone={persona.timezone}
+                maxChars={AGENT_PROFILE_RULES.maxChars}
+                never={NEVER_DELEGATED}
+                fixRules={`Mesmo com a delegação, a correção só é unida sozinha com testes passando, até ${AGENT_PROFILE_RULES.delegatedFixMaxFiles} arquivos, fora de autenticação, pagamentos, migrações e infraestrutura, e se o rascunho não mudou. Você recebe o aviso com o motivo e pode desfazer.`}
+                demo={own.demo}
+              />
+            </section>
+          )}
+
           {seesWork && notes.length > 0 && (
             <section className="card" aria-labelledby="notas">
               <h2 id="notas" className="card__title">
@@ -191,6 +220,7 @@ export default async function PessoaPage({ params }: { params: Promise<{ id: str
               open={emptyProfile}
             />
           )}
+          {editable && <Bonequinho redo={refazerBonequinho} adjust={ajustarBonequinho} personId={persona.id} name={persona.name} initial={persona.avatar ?? lookFor(persona.id)} />}
           <HolderPanel persona={persona} />
           <section className="card" aria-labelledby="como">
             <h2 id="como" className="card__title">

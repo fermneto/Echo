@@ -1,6 +1,7 @@
 // Contratos dos agentes (aba IA). Frente: Funções implementa o laço; frente Avaliador testa contra estes tipos.
 import type { DigestKind } from "@echo/domain";
 import { z } from "zod";
+import type { Lang } from "./language.ts";
 
 export const MODELS = {
   answer: "claude-sonnet-5-5",
@@ -59,7 +60,9 @@ export interface AnswerRequest {
 
 /** Resposta final, já com cabeçalho, hora de volta, fontes e avisos adicionados pelo código. */
 export interface AnswerResult {
-  agentName: string; // "Agente de Fernando" | "Echo"
+  agentName: string; // "Agente de Fernando" | "Fernando's agent" | "Echo"
+  /** Idioma da conversa, o mesmo da pergunta (português, inglês ou espanhol). */
+  language?: Lang;
   text: string;
   sources: { label: string; ref: string }[];
   needsOwner: boolean;
@@ -84,7 +87,7 @@ export interface AnswerResult {
 }
 
 export interface ValidationIssue {
-  code: "fonte_inexistente" | "liberacao_falsa" | "assunto_proibido" | "primeira_pessoa" | "numero_inventado";
+  code: "fonte_inexistente" | "liberacao_falsa" | "assunto_proibido" | "primeira_pessoa" | "numero_inventado" | "idioma_errado";
   detail: string;
 }
 
@@ -97,12 +100,16 @@ export interface ValidatorContext {
   releasedTargets: string[];
   /** Números que vieram das regras de `packages/domain` nesta execução; qualquer outra quantidade é recusada. */
   allowedNumbers?: string[];
+  /** Idioma da conversa: os padrões do validador são os desse idioma (padrão: português). */
+  language?: Lang;
 }
 
 /** Validador em código (etapa 6). Recusa a resposta se houver qualquer issue. */
 export type AnswerValidator = (out: AnswerOutput, ctx: ValidatorContext) => ValidationIssue[];
 
 export { validateAnswer } from "./validator.ts";
+export { agentLabel, DEFAULT_LANG, detectLanguage, LANGS, LOCALE, type Detected, type Lang } from "./language.ts";
+export { ROUTER_SYSTEM, routeQuestion, ruleRoute, type Route, type RouteDecision, type RouterModel } from "./route.ts";
 export { isWhoKnowsQuestion, topicPhrase } from "./who-knows.ts";
 export { createAnswer, type AnswerDeps, type ModelCall } from "./answer.ts";
 export type { AgentData, ExpertiseOverride, OrgSettings } from "./data.ts";
@@ -220,3 +227,4 @@ export {
   type PhotoType,
   type ResumeProfile,
 } from "./onboarding.ts";
+export { adjustAvatar, type AvatarAction, type AvatarStore, REDO_LIMIT, redoAvatar, type RedoAvatarDeps, type RedoOutcome } from "./redo-avatar.ts";

@@ -6,7 +6,7 @@ import { LogRunRecorder } from "@echo/observability";
 import { describe, expect, it } from "vitest";
 import type { AgentData } from "./data.ts";
 import type { TriageModel } from "./triage.ts";
-import { type BatchApi, type BatchItemResult, type BatchRequest, createNightReview, type PrDiff, type ReviewStore, type StoredReview, validFindings } from "./night-review.ts";
+import { type BatchApi, type BatchItemResult, type BatchRequest, createNightReview, type PrDiff, type ReviewStore, type StoredReview, safeErrorMessage, validFindings } from "./night-review.ts";
 
 const NOW = new Date("2026-11-07T05:00:00Z");
 const hours = { days: [1, 2, 3, 4, 5], start: "09:00", end: "18:00" };
@@ -57,9 +57,9 @@ const message = (custom_id: string, body: unknown, model = "claude-sonnet-5-5"):
   result: { type: "succeeded", message: { id: "m", type: "message", role: "assistant", model, stop_reason: "end_turn", stop_sequence: null, usage: { input_tokens: 10_000, output_tokens: 1000, cache_creation_input_tokens: 0, cache_read_input_tokens: 0 }, content: [{ type: "text", text: JSON.stringify(body), citations: null }] } as never },
 });
 
-function setup(opts: { prs?: PullRequest[]; diffs?: Record<number, PrDiff | null>; spent?: number; batches?: FakeBatches | null; triage?: TriageModel } = {}) {
+function setup(opts: { prs?: PullRequest[]; diffs?: Record<number, PrDiff | Error | null>; spent?: number; batches?: FakeBatches | null; triage?: TriageModel; pullRequestsError?: Error } = {}) {
   const prs = opts.prs ?? [pr(44), pr(45), pr(46, { state: "draft" }), pr(47), pr(48)];
-  const diffs: Record<number, PrDiff | null> = opts.diffs ?? {
+  const diffs: Record<number, PrDiff | Error | null> = opts.diffs ?? {
     44: diff("sha44", [["src/listagem.ts", 40]]),
     45: diff("sha45", [["src/pagamentos/cliente.ts", 30]]),
     47: diff("sha47", [["src/a.ts", 5000]]),
@@ -74,7 +74,7 @@ function setup(opts: { prs?: PullRequest[]; diffs?: Record<number, PrDiff | null
     orgSettings: async () => ({ monthlyLimitUsd: 50, hardLimitUsd: 100, repositoriesOpenToTeam: ["echo-teste/app"], teamLoadLimits: {} }),
     spentUsdSince: async () => opts.spent ?? 0,
     people: async () => people,
-    pullRequests: async () => prs,
+    pullRequests: async () => { if (opts.pullRequestsError) throw opts.pullRequestsError; return prs; },
     task: async () => null,
     latestDailyNote: async () => ({ personId: "fernando", date: "2026-11-06", stoppedAt: "ECH-128, PR 44 aberto.", released: [], reserved: [], state: "confirmed" as const }),
   } as unknown as AgentData;
@@ -88,7 +88,14 @@ function setup(opts: { prs?: PullRequest[]; diffs?: Record<number, PrDiff | null
     data: () => data,
     brain: () => brain,
     reviews: () => store,
-    diffs: () => ({ getDiff: async (_r, n) => (fetched.push(n), diffs[n] ?? null) }),
+    diffs: () => ({
+      getDiff: async (_r, n) => {
+        fetched.push(n);
+        const d = diffs[n];
+        if (d instanceof Error) throw d;
+        return d ?? null;
+      },
+    }),
     outbox: () => ({ enqueue: async (a) => { const dup = outbox.some((x) => x.idempotencyKey === a.idempotencyKey); if (!dup) outbox.push(a); return { id: a.idempotencyKey, duplicate: dup }; } }),
     batches,
     recorder,
@@ -102,7 +109,7 @@ describe("filtro e lote", () => {
   it("uma chamada por PR no lote; rascunho pulado; grande demais recebe só o aviso; sem diff fica para depois", async () => {
     const { flow, store, outbox, batches, fetched, runs } = setup();
     const s = await flow.prepareAndSubmit("org");
-    expect(s).toEqual({ queued: 2, tooLarge: 1, skipped: 2, batchId: "batch_1" });
+    expect(s).toEqual({ queued: 2, tooLarge: 1, skipped: 2, failed: 0, batchId: "batch_1" });
     expect(fetched).not.toContain(46);
 
     const requests = batches.created[0]!;
@@ -154,6 +161,51 @@ describe("filtro e lote", () => {
     await costly.flow.prepareAndSubmit("org");
     expect(costly.batches.created).toEqual([]);
     expect(costly.runs[0]).toMatchObject({ result: "skipped", error: "teto de custo" });
+  });
+});
+
+describe("falha por PR", () => {
+  // Erro como o GithubApiError do conector: a mensagem traz status e caminho; o token nunca pode ir para agent_runs.
+  const githubError = (status: number) => Object.assign(new Error(`GitHub ${status} em /repos/echo-teste/app/pulls/60/files: Resource not accessible (Bearer ghs_abcdefghijklmnopqrstuvwxyz0123)`), { name: "GithubApiError", status });
+
+  it("403 em um PR não derruba a noite: o outro vai para o lote, o summary conta a falha e agent_runs registra o erro", async () => {
+    const { flow, store, batches, runs, fetched } = setup({
+      prs: [pr(60), pr(61)],
+      diffs: { 60: githubError(403), 61: diff("sha61", [["src/listagem.ts", 20]]) },
+    });
+    const s = await flow.prepareAndSubmit("org");
+    expect(s).toEqual({ queued: 1, tooLarge: 0, skipped: 0, failed: 1, batchId: "batch_1" });
+    expect(fetched).toEqual([60, 61]);
+    expect(batches.created).toHaveLength(1);
+    expect(batches.created[0]!.map((r) => store.rows.find((x) => x.id === r.custom_id)!.prId)).toEqual(["pr61"]);
+    expect(store.rows.map((r) => `${r.pr.number}:${r.state}`)).toEqual(["61:batched"]);
+
+    expect(runs).toHaveLength(1);
+    expect(runs[0]).toMatchObject({ flow: "night_review_batch", orgId: "org", result: "ok", tools: ["batch.create"] });
+    expect(runs[0]!.error).toContain("1 PR com falha: echo-teste/app#60: GitHub 403 em /repos/echo-teste/app/pulls/60/files");
+    expect(runs[0]!.error).not.toContain("ghs_");
+    expect(runs[0]!.error).toContain("[oculto]");
+  });
+
+  it("todos os PRs falham: nada vai para o lote e agent_runs grava a noite como falha, sem relançar", async () => {
+    const { flow, batches, runs } = setup({ prs: [pr(60), pr(62)], diffs: { 60: githubError(403), 62: githubError(502) } });
+    expect(await flow.prepareAndSubmit("org")).toMatchObject({ queued: 0, failed: 2 });
+    expect(batches.created).toEqual([]);
+    expect(runs[0]).toMatchObject({ flow: "night_review_batch", result: "failed" });
+    expect(runs[0]!.error).toMatch(/^2 PRs com falha: echo-teste\/app#60: GitHub 403 .*; echo-teste\/app#62: GitHub 502 /);
+  });
+
+  it("erro geral fora do laço grava agent_runs como falha antes de relançar", async () => {
+    const { flow, runs, batches } = setup({ pullRequestsError: new Error("banco fora do ar") });
+    await expect(flow.prepareAndSubmit("org")).rejects.toThrow("banco fora do ar");
+    expect(batches.created).toEqual([]);
+    expect(runs).toEqual([expect.objectContaining({ flow: "night_review_batch", orgId: "org", result: "failed", error: "banco fora do ar" })]);
+  });
+
+  it("safeErrorMessage tira tokens e chaves da mensagem", () => {
+    expect(safeErrorMessage(new Error("falhou com ghp_0123456789abcdefghij e sk-ant-api03-abcdefghijkl e Authorization: Bearer abc.def.ghi123 e ?access_token=xyz"))).toBe(
+      "falhou com [oculto] e [oculto] e Authorization: Bearer [oculto] e ?access_token=[oculto]",
+    );
   });
 });
 

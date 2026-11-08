@@ -5,6 +5,9 @@ import { useState } from "react";
 import { move, type PlanItem } from "@/lib/demo/plan";
 import { collapse } from "@/lib/motion";
 
+/** Resultado da decisão sobre uma correção real, já em palavras. `final`: não há mais o que decidir no item. */
+export type FixDecisionView = { final: boolean; message: string };
+
 function Arrow({ up }: { up?: boolean }) {
   return (
     <svg viewBox="0 0 24 24" aria-hidden="true">
@@ -17,10 +20,23 @@ function Arrow({ up }: { up?: boolean }) {
  * Plano da manhã: cada item tem uma ação principal (abrir onde se resolve, ou aprovar ali mesmo).
  * Reordenar e descartar são secundários. Nada sai daqui sem a pessoa decidir.
  */
-export function PlanList({ initial }: { initial: PlanItem[] }) {
+export function PlanList({ initial, decideFix }: { initial: PlanItem[]; decideFix?: (fixId: string, decision: "approve" | "decline") => Promise<FixDecisionView> }) {
   const [items, setItems] = useState(initial);
   const [dropped, setDropped] = useState<PlanItem[]>([]);
   const [done, setDone] = useState<Set<string>>(new Set());
+  // Correção real: o resultado vem do servidor (aprovada, recusada ou por que não deu).
+  const [fixResult, setFixResult] = useState<Record<string, FixDecisionView>>({});
+  const [busy, setBusy] = useState<string | null>(null);
+  const decide = async (it: PlanItem, decision: "approve" | "decline") => {
+    if (!decideFix || !it.fixId) return;
+    setBusy(it.id);
+    try {
+      const r = await decideFix(it.fixId, decision);
+      setFixResult((m) => ({ ...m, [it.id]: r }));
+    } finally {
+      setBusy(null);
+    }
+  };
 
   if (items.length === 0) {
     return (
@@ -39,7 +55,8 @@ export function PlanList({ initial }: { initial: PlanItem[] }) {
     <>
       <ol className="plan-list" aria-label="Itens do plano, em ordem">
         {items.map((it, i) => {
-          const isDone = done.has(it.id);
+          const fixed = fixResult[it.id];
+          const isDone = done.has(it.id) || Boolean(fixed?.final);
           return (
             <li key={it.id} className={`card plan-item${isDone ? " is-done" : ""}`}>
               <span className="plan-item__n mono" aria-hidden="true">
@@ -47,13 +64,23 @@ export function PlanList({ initial }: { initial: PlanItem[] }) {
               </span>
               <div className="plan-item__body">
                 <p className="plan-item__title">{it.title}</p>
-                <p className="plan-item__why">{isDone && it.action?.done ? it.action.done : it.why}</p>
+                <p className="plan-item__why">{fixed ? fixed.message : isDone && it.action?.done ? it.action.done : it.why}</p>
                 <div className="plan-item__foot">
                   <span className={`chip mono plan-item__kind is-${it.kind === "esperando" ? "wait" : "off"}`}>
                     <span className={`dot dot--${it.kind === "esperando" ? "wait" : "off"}`} aria-hidden="true" />
                     {it.kind}
                   </span>
-                  {it.action && !isDone &&
+                  {it.fixId && decideFix && !fixed?.final && (
+                    <>
+                      <button type="button" className="button-pill button-pill--sm" disabled={busy === it.id} onClick={() => void decide(it, "approve")}>
+                        {busy === it.id ? "Conferindo…" : "Aprovar a correção"}
+                      </button>
+                      <button type="button" className="link-inline" disabled={busy === it.id} onClick={() => void decide(it, "decline")}>
+                        Recusar
+                      </button>
+                    </>
+                  )}
+                  {!it.fixId && it.action && !isDone &&
                     (it.action.href ? (
                       <Link href={it.action.href} className="button-pill button-pill--sm">
                         {it.action.label}
@@ -63,7 +90,7 @@ export function PlanList({ initial }: { initial: PlanItem[] }) {
                         {it.action.label}
                       </button>
                     ))}
-                  {isDone && (
+                  {isDone && !it.fixId && (
                     <button
                       type="button"
                       className="link-inline plan-item__undo"

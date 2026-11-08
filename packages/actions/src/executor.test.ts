@@ -57,7 +57,7 @@ describe.skipIf(!url)("executor do outbox (Postgres real)", () => {
     },
   };
   const chat = {
-    postAgentReply: async (i: { channel: string; text: string; agentName: string }) => (calls.push(`slack.post ${i.channel} [${i.agentName}]: ${i.text}`), { ts: "1" }),
+    postAgentReply: async (i: { channel: string; text: string; agentName: string; iconUrl?: string }) => (calls.push(`slack.post ${i.channel} [${i.agentName}]${i.iconUrl ? ` (${i.iconUrl})` : ""}: ${i.text}`), { ts: "1" }),
     sendDm: async (u: string, i: { text: string; blocks?: unknown[] }) => void calls.push(`slack.dm ${u}: ${i.text}${i.blocks ? ` [${i.blocks.length} blocos]` : ""}`),
     sendDmFile: async (u: string, i: { filename: string; data: Uint8Array; comment: string }) => {
       if (fileScopeMissing) throw new SlackApiError("files.getUploadURLExternal", "missing_scope");
@@ -156,6 +156,26 @@ describe.skipIf(!url)("executor do outbox (Postgres real)", () => {
       "slack.post C1 [Echo]: Plano aprovado por Marina.",
       "github.reviewers org-teste/app#36: carla-dev",
       "slack.dm UCAR: A ECH-133 agora é sua. [1 blocos]",
+    ]);
+  });
+
+  it("mensagem em nome do gêmeo sai com o bonequinho dele; sem dono, com o do Echo; se o ícone falha, sai mesmo assim", async () => {
+    calls.length = 0;
+    const asked: (string | undefined)[] = [];
+    const agentIcon = async (_org: string, ownerId?: string) => {
+      asked.push(ownerId);
+      if (ownerId === "quebra") throw new Error("banco fora do ar");
+      return ownerId ? `https://echo.exemplo.com/api/avatar/o/${ownerId}?v=1` : "https://echo.exemplo.com/api/avatar/echo?v=1";
+    };
+    await enqueueAction(app, orgId, { type: "slack.post", target: "slack:C1", idempotencyKey: "gemeo1", payload: { channel: "C1", text: "Carla deixou a branch liberada.", agentName: "Agente de Carla", ownerId: ids.car! } });
+    await enqueueAction(app, orgId, { type: "slack.post", target: "slack:C1", idempotencyKey: "echo1", payload: { channel: "C1", text: "Plano aprovado." } });
+    await enqueueAction(app, orgId, { type: "slack.post", target: "slack:C1", idempotencyKey: "quebra1", payload: { channel: "C1", text: "Sem ícone.", agentName: "Agente de Bruno", ownerId: "quebra" } });
+    expect((await drainActions({ ...deps(), agentIcon }, orgId)).done).toBe(3);
+    expect(asked).toEqual([ids.car!, undefined, "quebra"]);
+    expect(calls).toEqual([
+      `slack.post C1 [Agente de Carla] (https://echo.exemplo.com/api/avatar/o/${ids.car!}?v=1): Carla deixou a branch liberada.`,
+      "slack.post C1 [Echo] (https://echo.exemplo.com/api/avatar/echo?v=1): Plano aprovado.",
+      "slack.post C1 [Agente de Bruno]: Sem ícone.",
     ]);
   });
 

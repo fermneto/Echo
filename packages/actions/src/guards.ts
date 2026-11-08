@@ -3,8 +3,8 @@
 import { checkFixDiff, fixDraftBranchCheck } from "@echo/domain";
 import type { ActionType } from "./index.ts";
 
-/** Onde a pessoa aprovou: botão no Slack ou o painel. */
-export type ApprovalSource = "slack" | "painel";
+/** Onde a pessoa aprovou: botão no Slack, o painel ou a delegação que ela escreveu. */
+export type ApprovalSource = "slack" | "painel" | "delegacao";
 
 /** Carga do rascunho da correção (github.draft_pr). */
 export interface DraftPrPayload {
