@@ -61,7 +61,7 @@ describe.skipIf(!url)("visão das equipes em Postgres", () => {
     if (produto?.status !== "ok") throw new Error("esperava totais");
     expect(produto.weeks.find((w) => w.week === "2026-W44")).toMatchObject({ deliveries: 3, reviews: 3, helps: 1, sent: 2 });
     expect(produto.weeks.find((w) => w.week === "2026-W45")).toMatchObject({ twins: 1, sent: 0 });
-    expect(produto.away).toEqual([{ name: "Caio Teste", kind: "vacation", until: new Date("2026-11-14T00:00:00Z") }]);
+    expect(produto.away).toEqual([{ name: "Caio Teste", until: new Date("2026-11-14T00:00:00Z") }]);
 
     expect((await readHrOverview(db, org, [small], NOW)).teams.map((t) => t.id)).toEqual([small]);
     expect((await readHrOverview(db, other, [team, small], NOW)).teams).toEqual([]);
