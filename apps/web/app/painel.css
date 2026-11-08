@@ -543,56 +543,63 @@
   flex-direction: column;
   gap: var(--space-xl);
 }
-.persona-list {
-  margin: 0;
-  padding: 0;
-  border: 0;
-  border-top: 1px solid var(--color-line);
-}
-.persona-row {
-  display: grid;
-  grid-template-columns: auto auto 1fr;
-  align-items: center;
+.login-form {
   gap: var(--space-lg);
-  padding: var(--space-md) var(--space-sm);
-  border-bottom: 1px solid var(--color-line);
-  cursor: pointer;
-  transition: background var(--duration-fast) var(--ease-swap);
 }
-.persona-row:hover,
-.persona-row:has(input:checked) {
-  background: var(--color-panel);
-}
-.persona-row input {
-  accent-color: var(--color-cloud);
-  width: 16px;
-  height: 16px;
-  margin: 0;
-}
-.persona-row input:focus-visible {
-  outline: 2px solid var(--color-cloud);
-  outline-offset: 3px;
-}
-.persona-row__text {
+.login-form__field {
   display: flex;
   flex-direction: column;
-  min-width: 0;
+  gap: 6px;
 }
-.persona-row__name {
-  font-size: 15px;
-}
-.persona-row__role {
+.login-form__label {
   font-size: 11px;
   text-transform: uppercase;
+  letter-spacing: 0.06em;
   color: var(--color-ash);
 }
-.persona-row__story {
-  grid-column: 3;
-  font-size: 13px;
-  color: var(--color-fog);
+.login-form .field {
+  min-height: 48px;
 }
-.persona-row:not(:has(input:checked)) .persona-row__story {
-  display: none;
+.login-form .field[aria-invalid="true"] {
+  border-color: var(--color-signal-wait);
+}
+.login-form__error {
+  margin: 0;
+  font-size: 14px;
+  color: var(--color-signal-wait);
+}
+.entrar__or {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  margin: 0;
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-ash);
+}
+.entrar__or::before,
+.entrar__or::after {
+  content: "";
+  flex: 1;
+  height: 1px;
+  background: var(--color-line);
+}
+.entrar .entrar__slack-alt {
+  display: inline-flex;
+  align-items: center;
+  width: 100%;
+  justify-content: center;
+  border-radius: var(--rounded-pill);
+}
+.entrar__slack-logo {
+  flex: none;
+  margin-right: 10px;
+}
+/* Os dois botões da entrada com a mesma altura (o estilo base de cada um traz a sua). */
+.entrar .entrar__submit,
+.entrar .entrar__slack-alt {
+  min-height: 44px;
 }
 .entrar__note {
   font-size: 11px;
@@ -976,9 +983,6 @@
   }
   .button-app-primary {
     width: 100%;
-  }
-  .persona-row__role {
-    display: none;
   }
 }
 

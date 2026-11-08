@@ -757,7 +757,7 @@ _Gravado por um agente Claude — Painel · Relatórios · semana de 2/11 (Paine
 | Custo e execuções | /execucoes | Custo por fluxo, agent_runs, auditoria, controles de ensaio | Liderança |
 | Configuração | /configuracao | Slack, Linear, pessoas, currículo, contas, RH e limite de custo | RH e liderança |
 | Simulador | /simulador | Conversa pelo mesmo fluxo do Slack | Só na demonstração |
-| Entrar · Convite | /entrar · /convite | Login com Slack, por persona (demo) ou convite de uso único | Público |
+| Entrar · Convite | /entrar · /convite | Login com Slack, por usuário e senha (demo: o nome da pessoa e a senha `echo`) ou convite de uso único | Público |
 
 ### Papéis
 
