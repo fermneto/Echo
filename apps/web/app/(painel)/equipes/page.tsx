@@ -14,8 +14,6 @@ const dm = (date: string) => `${Number(date.slice(8, 10))}/${Number(date.slice(5
 /** "26/10 a 30/10": segunda a sexta da semana. */
 const weekRange = (monday: string) => `${dm(monday)} a ${dm(addDays(monday, 4))}`;
 
-const AWAY: Record<string, string> = { vacation: "férias", leave: "licença", unexpected: "ausência", ooo: "fora" };
-
 type Ok = Extract<HrTeam, { status: "ok" }>;
 
 function Tile({ label, value, before, detail }: { label: string; value: string; before?: string; detail?: string }) {
@@ -67,7 +65,7 @@ function TeamCard({ team, focus, timeZone }: { team: HrTeam; focus: string; time
         ) : (
           team.away.map((a) => (
             <span key={`${a.name}${a.until.getTime()}`} className="hr-team__away-who">
-              <span className="hr-dot" aria-hidden /> {a.name} <span className="mono muted">{AWAY[a.kind] ?? "fora"} até {dm(localDate(a.until, timeZone))}</span>
+              <span className="hr-dot" aria-hidden /> {a.name} <span className="mono muted">volta em {dm(localDate(a.until, timeZone))}</span>
             </span>
           ))
         )}
@@ -111,7 +109,7 @@ export default async function EquipesPage() {
   return (
     <>
       <h1 className="hero-title hero-title--page">Visão das equipes</h1>
-      <p className="lead">Entregas, revisões, ajudas e respostas dos gêmeos somadas por equipe, a partir dos relatórios já enviados. Sem número por pessoa e sem ranking.</p>
+      <p className="lead">Entregas, revisões, ajudas e respostas dos gêmeos somadas por equipe, a partir dos relatórios já enviados. Sem número por pessoa, sem ranking e sem comparar equipes: cada uma aparece frente à própria história.</p>
       <TeamPicker scope={scope} back="/equipes" />
 
       {view.teams.length === 0 ? (
