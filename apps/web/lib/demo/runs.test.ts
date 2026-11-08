@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { budgetStatus, BUDGET, DAY_RUNS, NIGHT_RUNS, runCost, totalCost, totalsByFlow } from "./runs";
+import { budgetStatus, BUDGET, DAY_RUNS, runCost, totalCost, totalsByFlow } from "./runs";
 
 describe("custo das execuções", () => {
   it("custo sai dos tokens e da tabela de preços; lote paga metade", () => {
@@ -17,14 +17,14 @@ describe("custo das execuções", () => {
     for (let i = 1; i < totals.length; i++) expect(totals[i - 1]!.costUsd).toBeGreaterThanOrEqual(totals[i]!.costUsd);
   });
 
-  it("a noite simulada mantém a empresa abaixo do limite na demo", () => {
-    const s = budgetStatus(totalCost([...DAY_RUNS, ...NIGHT_RUNS]));
+  it("as execuções da demo mantêm a empresa abaixo do limite", () => {
+    const s = budgetStatus(totalCost([...DAY_RUNS]));
     expect(s.level).toBe("normal");
     expect(s.spentUsd).toBeLessThan(BUDGET.monthlyLimitUsd * 0.8);
   });
 
   it("ids das execuções são únicos", () => {
-    const ids = [...DAY_RUNS, ...NIGHT_RUNS].map((r) => r.id);
+    const ids = DAY_RUNS.map((r) => r.id);
     expect(new Set(ids).size).toBe(ids.length);
   });
 });

@@ -1,11 +1,11 @@
 import { panelDb } from "@/lib/db";
 import { latest } from "@/lib/demo/notes";
-import { DAY_RUNS, NIGHT_RUNS } from "@/lib/demo/runs";
+import { DAY_RUNS } from "@/lib/demo/runs";
 import { currentDecisions } from "@/lib/decisions-store";
-import { gainsOrgId, isDemoOrg } from "@/lib/gains";
+import { gainsOrgId } from "@/lib/gains";
 import { currentNotes } from "@/lib/notes-store";
 import { monthStart, runsBoardFromDb } from "@/lib/runs-db";
-import { demoMode, requireAccess } from "@/lib/session";
+import { requireAccess } from "@/lib/session";
 import { RunsBoard, type AuditEntry } from "./RunsBoard";
 
 export const metadata = { title: "Custo e execuções · Echo" };
@@ -22,8 +22,6 @@ const BASE_AUDIT: AuditEntry[] = [
 export default async function ExecucoesPage() {
   const persona = await requireAccess("execucoes");
   const db = panelDb();
-  // "Simular a noite" acrescenta execuções sintéticas: só para a persona da demonstração.
-  const rehearsal = demoMode() && isDemoOrg(persona.orgId);
 
   if (db) {
     // Import tardio: só o leitor das execuções, sem o restante do servidor dos agentes.
@@ -38,9 +36,7 @@ export default async function ExecucoesPage() {
         <p className="lead">{LEAD}</p>
         <RunsBoard
           day={board.runs}
-          night={NIGHT_RUNS}
           audit={board.audit}
-          rehearsal={rehearsal}
           spentBeforeUsd={board.spentBeforeUsd}
           {...(settings ? { limitUsd: settings.monthlyLimitUsd } : {})}
           periodLabel={board.runs.length >= LIMIT ? `Custo das últimas ${LIMIT} execuções` : "Custo das execuções listadas"}
@@ -63,7 +59,7 @@ export default async function ExecucoesPage() {
     <>
       <h1 className="hero-title hero-title--page">Custo e execuções</h1>
       <p className="lead">{LEAD}</p>
-      <RunsBoard day={DAY_RUNS} night={NIGHT_RUNS} audit={[...decided, ...edits, ...BASE_AUDIT]} rehearsal={rehearsal} />
+      <RunsBoard day={DAY_RUNS} audit={[...decided, ...edits, ...BASE_AUDIT]} />
     </>
   );
 }
