@@ -15,7 +15,7 @@ import { teamsFor } from "@/lib/scope";
 import { currentPersona, isDemoSession } from "@/lib/session";
 
 /**
- * Cadastro de pessoa pelo RH: o currículo vira o contexto inicial do gêmeo (modelo aberto) e a foto vira o
+ * Cadastro de pessoa pelo RH: o currículo vira o contexto inicial do gêmeo (Claude Haiku) e a foto vira o
  * bonequinho (Claude escolhe traços de uma lista fechada). Só o RH cadastra (`canRegisterPeople`).
  * Na demonstração (persona escolhida em /entrar), só pré-visualiza: nada é gravado e nenhum modelo é chamado.
  */
