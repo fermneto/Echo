@@ -43,6 +43,7 @@ export { createPgArtifactStore } from "./pg-artifacts.ts";
 export { expireTeamVideos, failStuckTeamVideos, latestTeamVideos, queuedTeamVideos, queueTeamVideos, teamVideoForStream, type TeamVideoView } from "./pg-video.ts";
 export { videoAgentParams, videoEnvironmentParams, VIDEO_RUNNER } from "./managed-video.ts";
 export { createPgAvatarStore, createPgOnboardingStore, readAvatar, updateProfile } from "./pg-onboarding.ts";
+export { AccountConflictError, type PersonAccounts, readAccounts, saveAccounts, type SaveAccountsResult } from "./pg-accounts.ts";
 export { createPgFixStore } from "./pg-fix.ts";
 export { createPgRedistributionStore } from "./pg-redistribution.ts";
 export { createPgReportStore } from "./pg-report.ts";

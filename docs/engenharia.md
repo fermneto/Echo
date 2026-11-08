@@ -990,6 +990,7 @@ Convite, Configuração, currículo e RH
 
 1. `pnpm org:create` gera convite de uso único (7 dias), com o token depois do `#` e só o hash no banco.
 2. Em Configuração, o RH liga Slack e Linear, traz as pessoas ou cadastra pelo currículo e pela foto, e confere as contas.
+   - **Contas da pessoa** (`identities`): no cadastro e na ficha (`/pessoas/[id]` → "Contas nas plataformas"), o RH ou a liderança da equipe (nunca a de alguém do RH, nem a própria pessoa) liga a conta do Slack, o login do GitHub e o ID do Linear. `parseAccounts` (`packages/domain/src/accounts.ts`) confere o formato; com `SLACK_BOT_TOKEN` no painel e a workspace da empresa (`installation_routes`) igual à do token, o Slack vem da lista de membros (`users.list`, cache de 5 min) e a conta precisa estar nela; sem isso, o RH cola o ID do membro. `replaceAccounts` (`packages/agents/src/pg-accounts.ts`) troca as contas na mesma transação do cadastro ou da ficha e recusa conta já de outra pessoa (GitHub também pelo login), sem mudar nada. O `audit_log` guarda quem ligou e as plataformas (`pessoa:contas:github,slack`), nunca os ids. Sem a conta do Slack, a pessoa existe só no painel: não entra pelo login, não é reconhecida nas menções nem recebe o privado; o cadastro e a ficha avisam (`NO_SLACK_NOTE`).
 3. `pnpm org:github` liga a instalação do GitHub. `pnpm org:invite` gera um novo convite.
 4. Aviso de RH assinado em `/webhooks/rh/o/<empresa>`, com cancelamento.
 5. Login no painel com Slack, papéis e sessão de 12 horas para quem entra por convite.

@@ -85,6 +85,15 @@ export function canEditProfile(me: { id: string; role: Role; teamId?: string | u
   return me.role === "leader" && Boolean(me.teamId) && me.teamId === target.teamId;
 }
 
+/**
+ * Quem liga as contas da pessoa no Slack, GitHub e Linear: o RH, ou a liderança da equipe da pessoa (nunca a de
+ * alguém do RH). A própria pessoa não: a conta do Slack decide quem entra no painel como ela.
+ */
+export function canLinkAccounts(me: { id: string; role: Role; teamId?: string | undefined }, target: { id: string; role?: Role | undefined; teamId?: string | undefined }): boolean {
+  if (me.role === "hr") return true;
+  return me.role === "leader" && target.role !== "hr" && Boolean(me.teamId) && me.teamId === target.teamId;
+}
+
 /** Perguntar ao gêmeo lê notas e tarefas: o RH não pode. */
 export function canAskTwin(role: Role): boolean {
   return role !== "hr";
