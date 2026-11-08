@@ -118,10 +118,23 @@ const fix = {
   FIX_TIMEOUT_MS: z.coerce.number().int().min(60_000).max(3_600_000).default(1_200_000),
 };
 
+/** Vídeo da semana da equipe (etapa 27): roda no worker; o reviewer cria o agente e o ambiente. */
+const video = {
+  // Agente e ambiente da gravação no Managed Agents, criados uma vez com `pnpm --filter @echo/reviewer provision-video`.
+  // Sem eles, não há vídeo e os relatórios seguem iguais.
+  VIDEO_AGENT_ID: optionalString.pipe(z.string().startsWith("agent_", "precisa começar com agent_").optional()),
+  VIDEO_ENVIRONMENT_ID: optionalString.pipe(z.string().startsWith("env_", "precisa começar com env_").optional()),
+  // Intervalo da busca por equipes com a semana pronta e vídeos na fila.
+  VIDEO_SCAN_MS: z.coerce.number().int().min(10_000).default(300_000),
+  // Tempo máximo de uma gravação no ambiente isolado.
+  VIDEO_TIMEOUT_MS: z.coerce.number().int().min(60_000).max(3_600_000).default(1_200_000),
+};
+
 export const workerSchema = baseSchema.extend({
   ...database,
   ...anthropic,
   ...fix,
+  ...video,
   /** Token do bot do Slack (xoxb-…). Sem ele, o worker não fala no Slack. */
   SLACK_BOT_TOKEN: optionalString,
   /** Só para desenvolvimento e testes: outro endereço para a Web API do Slack (ex.: um Slack falso local). */
@@ -171,6 +184,7 @@ export const reviewerSchema = baseSchema.extend({
   ...database,
   ...anthropic,
   ...fix,
+  ...video,
 });
 
 export const schemas = { api: apiSchema, web: webSchema, worker: workerSchema, reviewer: reviewerSchema } as const;

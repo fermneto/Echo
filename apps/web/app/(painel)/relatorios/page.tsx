@@ -10,6 +10,8 @@ import { helpers, loadMyReport, loadSentReports, reportContext } from "@/lib/rep
 import { requireAccess } from "@/lib/session";
 import { PixelAvatar } from "@/components/PixelAvatar";
 import { HelpForm, Helps, LiveHelpForm, LiveReportCard, ReportCard } from "./ReportCard";
+import { loadTeamVideos } from "@/lib/team-videos";
+import { VideoSemana } from "./VideoSemana";
 
 export const metadata = { title: "Relatórios · Echo" };
 export const dynamic = "force-dynamic";
@@ -71,6 +73,8 @@ export default async function RelatoriosPage({ searchParams }: { searchParams: P
   if (db) {
     const ctx = await reportContext(db, me);
     const ids = scopeDbIds(scope);
+    // Vídeo da semana das equipes que a pessoa vê (a própria; o RH, as que acompanha).
+    const teamVideos = <VideoSemana videos={await loadTeamVideos(db, ctx.orgId, scope.visible)} />;
     if (me.role === "hr") {
       // Só os relatórios das equipes que o RH acompanha.
       const { list, current } = await loadSentReports(db, ctx, pick, (id) => ids.has(id));
@@ -80,6 +84,7 @@ export default async function RelatoriosPage({ searchParams }: { searchParams: P
           <h1 className="hero-title hero-title--page">{HR_TITLE}</h1>
           <p className="lead">{HR_LEAD}</p>
           <TeamPicker scope={scope} back="/relatorios" />
+          {teamVideos}
           {current ? (
             <HrReports
               items={list.map((x) => ({ id: x.personId, persona: persona(x.personId, x.name), week: x.week }))}
@@ -106,6 +111,7 @@ export default async function RelatoriosPage({ searchParams }: { searchParams: P
       <>
         <h1 className="hero-title hero-title--page">{MY_TITLE}</h1>
         <p className="lead">{MY_LEAD}</p>
+        {teamVideos}
         <div className="profile-grid">
           {live ? (
             <LiveReportCard live={live} />

@@ -27,6 +27,7 @@
     "noite:agora": "pnpm --filter @echo/worker noite:agora",
     "manha:agora": "pnpm --filter @echo/worker manha:agora",
     "relatorio:agora": "pnpm --filter @echo/worker relatorio:agora",
+    "video:agora": "pnpm --filter @echo/reviewer video:agora",
     "integracoes:rh": "pnpm --filter @echo/connectors integracoes:rh",
     "integracoes:agenda": "pnpm --filter @echo/connectors agenda:check",
     "integracoes:diagnostico": "pnpm --filter @echo/connectors integracoes:diagnostico",
