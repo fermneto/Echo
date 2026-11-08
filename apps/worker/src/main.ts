@@ -1,11 +1,10 @@
-import { randomUUID } from "node:crypto";
 import { renderSummaryPng } from "@echo/agents/imagem";
 import { allOrgIds, createGithubGainsHistory, serverFix, dueAwayDigests, dueEndOfDay, dueMorning, needsGainsBaseline, serverAwayDigest, serverDaySummary, serverEndOfDay, serverGains, serverMorningPlan, serverNightReview, serverRedistribution, serverWeeklyReport, dueWeeklyReports } from "@echo/agents/server";
 import { ensureProductNote } from "@echo/brain/pg";
 import { loadConfig } from "@echo/config";
 import { createDb, createPool } from "@echo/db";
-import { PgBossQueue, QUEUES, type PingMessage } from "@echo/jobs";
-import { createLogger, initTracing, LogRunRecorder } from "@echo/observability";
+import { PgBossQueue, QUEUES } from "@echo/jobs";
+import { createLogger, initTracing } from "@echo/observability";
 import { writersFromEnv } from "@echo/actions";
 import * as agents from "@echo/agents";
 import type { AnswerRequest, AnswerResult } from "@echo/agents";
@@ -15,6 +14,7 @@ import type { SlackMessageJob } from "./inbox.ts";
 import { registerActions } from "./actions.ts";
 import { registerInbox } from "./inbox.ts";
 import { registerMirror } from "./mirror.ts";
+import { createWorkerRunRecorder } from "./runs.ts";
 import { scheduleReconcile } from "./reconcile.ts";
 import { githubForOrg, platformsFromEnv, respondToInteraction } from "@echo/connectors";
 import { FIX_DECISION_TEXT } from "@echo/agents";
@@ -34,8 +34,8 @@ const pool = createPool(cfg.DATABASE_URL);
 const db = createDb(pool);
 
 await queue.start();
-// Até a gravação em agent_runs estar ligada (frente Funções), as execuções vão para o log.
-const runs = new LogRunRecorder(log);
+// Ingestão, outbox, espelho e reconciliação: execuções no log e em agent_runs (as rodadas sem efeito ficam de fora).
+const runs = createWorkerRunRecorder(db, log);
 await registerInbox(db, queue, runs, { brainsRepository: cfg.BRAINS_REPOSITORY });
 const stopActions = await registerActions({ db, writers: writersFromEnv(db, cfg) }, queue, runs, log);
 // F2: resposta no Slack com o fluxo da frente Funções (answer de @echo/agents).
@@ -187,10 +187,6 @@ const runGains = () =>
   );
 void runGains();
 const gainsTimer = setInterval(() => void runGains(), cfg.END_OF_DAY_SCAN_MS);
-
-// Confirma, a cada início, que a fila chega ao reviewer.
-await queue.work<PingMessage>(QUEUES.reviewerPong, async (job) => log.info({ nonce: job.data.nonce }, "reviewer respondeu ao ping"));
-await queue.send<PingMessage>(QUEUES.reviewerPing, { from: "worker", sentAt: new Date().toISOString(), nonce: randomUUID() });
 
 const heartbeat = setInterval(() => log.info({ uptimeS: Math.round(process.uptime()) }, "heartbeat"), cfg.HEARTBEAT_INTERVAL_MS);
 

@@ -50,7 +50,8 @@ export async function mirrorOrg(d: MirrorDeps, orgId: string): Promise<{ importe
     const summary = { imported: r.imported, conflicts: r.conflicts, exported, removed, warnings: r.warnings.length, truncated: r.truncated };
     d.log.info({ orgId, ...summary }, "espelho das notas");
     return { imported: r.imported, exported, removed, warnings: r.warnings.length };
-  }, { orgId });
+    // Roda a cada push e a cada reconciliação (10 min): só a rodada que mudou algo ou avisou.
+  }, { orgId }, { keep: (r) => r.imported + r.exported + r.removed + r.warnings > 0 });
 }
 
 /** Push no repositório brains: sincroniza a empresa na hora, sem esperar a próxima rodada. */

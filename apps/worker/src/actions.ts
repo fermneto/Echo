@@ -12,7 +12,7 @@ export async function registerActions(deps: ExecutorDeps, queue: JobQueue, runs:
       const r = await drainActions(deps, orgId);
       if (r.done || r.failed || r.retried) log.info({ orgId, ...r }, "ações executadas");
       return r;
-    }, { orgId });
+    }, { orgId }, { keep: (r) => r.done + r.failed + r.retried > 0 }); // a cada 15 s: só a rodada que executou algo
 
   await queue.work<{ orgId: string }>(QUEUES.actionsDrain, async (job) => void (await drainOrg(job.data.orgId)));
 

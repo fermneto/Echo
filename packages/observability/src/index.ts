@@ -44,16 +44,26 @@ export class LogRunRecorder implements RunRecorder {
   }
 }
 
+export interface WithRunOptions<T> {
+  /**
+   * Decide se uma execução bem-sucedida vira registro. Para fluxos frequentes (reconciliação a cada 10 min,
+   * outbox a cada 15 s), só a rodada que fez algo. Falha sempre vira registro.
+   */
+  keep?: (value: T) => boolean;
+}
+
 /** Mede a duração de um fluxo e registra o resultado, inclusive em caso de erro. */
 export async function withRun<T>(
   recorder: RunRecorder,
   flow: string,
   fn: () => Promise<T>,
   extra: Omit<AgentRun, "flow" | "durationMs" | "result"> = {},
+  opts: WithRunOptions<T> = {},
 ): Promise<T> {
   const start = performance.now();
   try {
     const value = await fn();
+    if (opts.keep && !opts.keep(value)) return value;
     await recorder.record({ ...extra, flow, durationMs: Math.round(performance.now() - start), result: "ok" });
     return value;
   } catch (err) {
