@@ -7,7 +7,9 @@
     "start": "tsx src/main.ts",
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run --passWithNoTests",
-    "provision": "tsx --env-file-if-exists=../../.env src/provision.ts"
+    "provision": "tsx --env-file-if-exists=../../.env src/provision.ts",
+    "provision-video": "tsx --env-file-if-exists=../../.env src/provision-video.ts",
+    "video:agora": "tsx --env-file-if-exists=../../.env src/video-agora.ts"
   },
   "dependencies": {
     "@echo/agents": "workspace:*",

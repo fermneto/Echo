@@ -1,5 +1,5 @@
 import { renderSummaryPng } from "@echo/agents/imagem";
-import { allOrgIds, createGithubGainsHistory, serverFix, dueAwayDigests, dueEndOfDay, dueMorning, needsGainsBaseline, serverAwayDigest, serverDaySummary, serverEndOfDay, serverGains, serverMorningPlan, serverNightReview, serverRedistribution, serverWeeklyReport, dueWeeklyReports, readAvatar } from "@echo/agents/server";
+import { allOrgIds, createGithubGainsHistory, serverFix, dueAwayDigests, dueEndOfDay, dueMorning, needsGainsBaseline, serverAwayDigest, serverDaySummary, serverEndOfDay, serverGains, serverMorningPlan, serverNightReview, serverRedistribution, serverWeeklyReport, dueWeeklyReports, readAvatar, serverVideo, queueTeamVideos, queuedTeamVideos, failStuckTeamVideos, expireTeamVideos } from "@echo/agents/server";
 import { ensureProductNote } from "@echo/brain/pg";
 import { loadConfig } from "@echo/config";
 import { createDb, createPool } from "@echo/db";
@@ -19,6 +19,7 @@ import { createWorkerRunRecorder } from "./runs.ts";
 import { scheduleReconcile } from "./reconcile.ts";
 import { githubForOrg, platformsFromEnv } from "@echo/connectors";
 import { fixInteractionHandler, registerFix } from "./fix.ts";
+import { registerVideo } from "./video.ts";
 import { registerEndOfDay } from "./end-of-day.ts";
 import { registerNight } from "./night.ts";
 import { registerRedistribution } from "./redistribution.ts";
@@ -104,6 +105,29 @@ log.info({ correcao: Boolean(cfg.ANTHROPIC_API_KEY && cfg.FIX_AGENT_ID && cfg.FI
 await interactions.listen(queue);
 void runFix();
 const fixTimer = setInterval(() => void runFix(), cfg.FIX_SCAN_MS);
+
+// Vídeo da semana da equipe (etapa 27): sessão no Managed Agents. Sem VIDEO_AGENT_ID e VIDEO_ENVIRONMENT_ID,
+// nenhuma sessão abre e os relatórios seguem sem vídeo; a arrumação do armazenamento roda mesmo assim.
+const video = serverVideo(db, { apiKey: cfg.ANTHROPIC_API_KEY, agentId: cfg.VIDEO_AGENT_ID, environmentId: cfg.VIDEO_ENVIRONMENT_ID, timeoutMs: cfg.VIDEO_TIMEOUT_MS });
+const videos = await registerVideo(queue, {
+  video,
+  agenda: {
+    queueTeamVideos: (orgId, now) => queueTeamVideos(db, orgId, now),
+    queuedTeamVideos: (orgId) => queuedTeamVideos(db, orgId),
+    failStuckTeamVideos: (orgId, before) => failStuckTeamVideos(db, orgId, before),
+    expireTeamVideos: (orgId, at) => expireTeamVideos(db, orgId, at),
+  },
+  orgIds: () => allOrgIds(db),
+  timeoutMs: cfg.VIDEO_TIMEOUT_MS,
+});
+const runVideo = () =>
+  videos.tick().then(
+    (r) => (r.teams > 0 || r.queued > 0 || r.removed > 0) && log.info(r, "vídeos da semana"),
+    (err) => log.error({ err }, "falha na agenda dos vídeos"),
+  );
+log.info({ video: video.enabled() }, "vídeo da semana");
+void runVideo();
+const videoTimer = setInterval(() => void runVideo(), cfg.VIDEO_SCAN_MS);
 const runEndOfDay = () =>
   endOfDay.tick().then(
     (queued) => queued > 0 && log.info({ queued }, "rascunhos da nota do dia na fila"),
@@ -195,6 +219,7 @@ async function shutdown(signal: string) {
   clearInterval(weeklyReportTimer);
   clearInterval(gainsTimer);
   clearInterval(fixTimer);
+  clearInterval(videoTimer);
   await Promise.allSettled([queue.stop(), pool.end(), flush()]);
   process.exit(0);
 }
