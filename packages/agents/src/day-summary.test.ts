@@ -172,14 +172,17 @@ describe("createDaySummary", () => {
       return { outbox, run: recorder.runs[0]! };
     };
     const ok = await run(async () => Buffer.from([137, 80, 78, 71]));
-    expect(ok.outbox[0]).toMatchObject({ type: "slack.dm_image", idempotencyKey: "day_summary_img:fernando:2026-11-06", payload: { filename: "resumo-2026-11-06.png", pngBase64: "iVBORw==" } });
+    expect(ok.outbox[0]).toMatchObject({ type: "slack.dm_image", idempotencyKey: "day_summary:fernando:2026-11-06", payload: { filename: "resumo-2026-11-06.png", pngBase64: "iVBORw==" } });
     const p = ok.outbox[0]!.payload as { comment: string; blocks: unknown[] };
     expect(p.comment).toContain("Agente de Fernando");
     expect(p.comment).toContain("https://echo.test/resumos?data=2026-11-06");
     expect(p.blocks.length).toBeGreaterThan(2);
+    expect(ok.run.tools).toEqual(["slack.dm_image"]);
 
     const failed = await run(async () => { throw new Error("fonte ausente"); });
     expect(failed.outbox[0]).toMatchObject({ type: "slack.dm", idempotencyKey: "day_summary:fernando:2026-11-06" });
     expect(failed.run.error).toContain("imagem: fonte ausente");
+    // Imagem e reserva usam a mesma chave: o outbox recusa o segundo DM do mesmo dia.
+    expect(failed.outbox[0]!.idempotencyKey).toBe(ok.outbox[0]!.idempotencyKey);
   });
 });

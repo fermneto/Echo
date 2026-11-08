@@ -204,7 +204,9 @@ export function createDaySummary(deps: DaySummaryDeps) {
 
       // Mensagem privada com o resumo, pelo outbox: uma por pessoa e data (montar de novo não manda outra).
       // A imagem (o mesmo visual do painel) vai como arquivo; a versão em blocos é a reserva.
-      let sent = false;
+      // As duas usam a mesma chave: se a imagem falhar numa rodada e funcionar na outra, a pessoa recebe um DM só.
+      const idempotencyKey = `day_summary:${personId}:${date}`;
+      let sent: "slack.dm" | "slack.dm_image" | null = null;
       let imageError: string | undefined;
       if (deps.outbox && deps.webUrl && day.facts.length && (await deps.notes(orgId).slackUserOf(personId))) {
         const url = `${deps.webUrl.replace(/\/$/, "")}/resumos?data=${date}`;
@@ -232,13 +234,13 @@ export function createDaySummary(deps: DaySummaryDeps) {
                 text: msg.text,
                 blocks: msg.blocks,
               },
-              idempotencyKey: `day_summary_img:${personId}:${date}`,
+              idempotencyKey,
             })
-          : await deps.outbox(orgId).enqueue({ type: "slack.dm", target: `person:${personId}`, payload: { personId, text: msg.text, blocks: msg.blocks }, idempotencyKey: `day_summary:${personId}:${date}` });
-        sent = !r.duplicate;
+          : await deps.outbox(orgId).enqueue({ type: "slack.dm", target: `person:${personId}`, payload: { personId, text: msg.text, blocks: msg.blocks }, idempotencyKey });
+        if (!r.duplicate) sent = png ? "slack.dm_image" : "slack.dm";
       }
       if (imageError) error = error ? `${error}; ${imageError}` : imageError;
-      await record({ ...run, durationMs: elapsed(), result: usedModel ? "ok" : "fallback", ...(error ? { error } : {}), ...(sent ? { tools: ["slack.dm"] } : {}) });
+      await record({ ...run, durationMs: elapsed(), result: usedModel ? "ok" : "fallback", ...(error ? { error } : {}), ...(sent ? { tools: [sent] } : {}) });
       return { status: "created", usedModel, artifact };
     } catch (err) {
       await record({ flow: "daily_artifact", orgId, durationMs: elapsed(), result: "failed", error: err instanceof Error ? err.message : String(err) });
