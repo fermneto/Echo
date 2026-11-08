@@ -281,7 +281,8 @@ describe.skipIf(!url)("executor do outbox (Postgres real)", () => {
     calls.length = 0;
     const failedRow = (idempotencyKey: string, type: ActionType, payload: unknown, error: string, approvedBy?: string) =>
       db.insert(outboxActions).values({ orgId, type, target: "t", payload, idempotencyKey, state: "failed", attempts: 1, error, approvedBy: approvedBy ?? null }).returning();
-    const [note] = await db.insert(brainNotes).values({ orgId, path: "processos/como-o-echo-funciona.md", kind: "processo", content: "Como funciona.", visibility: "team" }).returning();
+    // Caminho próprio: no CI, outro pacote cria a nota do produto (processos/como-o-echo-funciona.md) em todas as empresas ao mesmo tempo.
+    const [note] = await db.insert(brainNotes).values({ orgId, path: "processos/teste-sem-executor.md", kind: "processo", content: "Como funciona.", visibility: "team" }).returning();
     const [mirror] = await failedRow("sem-exec:mirror", "github.mirror_write", { repo: "org-teste/brains", noteId: note!.id, path: note!.path, content: "Como funciona.\n" }, noExecutorError("github.mirror_write"));
     const [assignPending] = await failedRow("sem-exec:assign", "linear.assign", { taskKey: "ECH-133", toPersonId: ids.car! }, noExecutorError("linear.assign"));
     const [assignApproved] = await failedRow("sem-exec:assign-ok", "linear.assign", { taskKey: "ECH-133", toPersonId: ids.car! }, noExecutorError("linear.assign"), ids.mar!);
@@ -300,7 +301,7 @@ describe.skipIf(!url)("executor do outbox (Postgres real)", () => {
     expect(audits.length).toBeGreaterThanOrEqual(2);
 
     expect(await drainActions(deps(), orgId)).toEqual({ done: 2, failed: 0, retried: 0 });
-    expect(calls.sort()).toEqual(["github.put org-teste/brains/processos/como-o-echo-funciona.md", "linear.assign lin-133 → lin-carla"]);
+    expect(calls.sort()).toEqual(["github.put org-teste/brains/processos/teste-sem-executor.md", "linear.assign lin-133 → lin-carla"]);
     expect((await get(mirror!.id)).state).toBe("done");
     expect((await get(assignPending!.id)).state).toBe("pending");
     // Já recolocadas: rodar de novo não mexe em nada desta empresa.
