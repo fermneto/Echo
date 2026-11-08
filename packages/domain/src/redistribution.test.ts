@@ -37,6 +37,23 @@ describe("ausência no painel", () => {
     expect(canApprovePlan(marina, marina)).toBe(false);
     expect(canApprovePlan(person("lider2", { role: "leader", teamId: "vendas" }), bruno, "lider2")).toBe(true);
   });
+
+  it("empresa sem equipes: a liderança sem equipe registra e aprova, como recebe o aviso do plano", () => {
+    const { teamId: _t, ...base } = person("x");
+    const solo = (id: string, extra: Partial<Person> = {}): Person => ({ ...base, id, name: id, ...extra });
+    const fernando = solo("fernando", { role: "leader" });
+    const eduardo = solo("eduardo");
+    const yan = solo("yan");
+    expect(canRegisterAbsence(fernando, eduardo)).toBe(true);
+    expect(canApprovePlan(fernando, eduardo)).toBe(true);
+    expect(canApprovePlan(yan, eduardo)).toBe(false);
+    expect(canApprovePlan(fernando, fernando)).toBe(false);
+    // Liderança de uma equipe não responde por quem não tem equipe, e a sem equipe não responde por uma equipe.
+    const [bruno, , , marina] = people as [Person, Person, Person, Person];
+    expect(canApprovePlan(marina, eduardo)).toBe(false);
+    expect(canRegisterAbsence(marina, eduardo)).toBe(false);
+    expect(canApprovePlan(fernando, bruno)).toBe(false);
+  });
 });
 
 describe("candidatos e plano", () => {
