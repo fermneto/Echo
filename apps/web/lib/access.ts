@@ -12,7 +12,7 @@ const PEOPLE: readonly Role[] = ["member", "leader"];
 export type RouteDef = { href: string; label: string; hint?: string; roles: readonly Role[]; demoOnly?: boolean };
 
 export const ROUTES = {
-  inicio: { href: "/", label: "Início", roles: ALL },
+  inicio: { href: "/dashboard", label: "Início", roles: ALL },
   plano: { href: "/plano", label: "Meu plano", hint: "Sua agenda do dia e o que espera por você.", roles: PEOPLE },
   notaDoDia: { href: "/nota-do-dia", label: "Nota do dia", hint: "O rascunho do seu gêmeo para você conferir e publicar.", roles: PEOPLE },
   resumo: { href: "/resumos", label: "Resumo do dia", hint: "O seu dia em uma página, montado por um modelo aberto a partir de fatos.", roles: PEOPLE },

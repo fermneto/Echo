@@ -744,7 +744,8 @@ _Gravado por um agente Claude — Painel · Relatórios · semana de 2/11 (Paine
 
 | Tela | Endereço | O que tem | Quem vê |
 |---|---|---|---|
-| Início | / | Retratos da equipe, Pergunte ao Echo e atalhos | Todos |
+| Página inicial | / | Landing pública | Todos |
+| Início | /dashboard | Retratos da equipe, Pergunte ao Echo e atalhos | Todos |
 | Meu plano | /plano | Agenda dos próximos dias, correções a aprovar, achados e perguntas pendentes | A própria pessoa |
 | Distribuir tarefas | /distribuir | Tarefas sem responsável e carga de cada pessoa | Liderança |
 | Nota do dia | /nota-do-dia | Conferir, editar e confirmar a nota, com liberado e reservado | A própria pessoa |

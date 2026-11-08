@@ -8,8 +8,8 @@ import { currentPersona } from "@/lib/session";
 /** O RH escolhe quais equipes acompanhar. Só ids de equipes que existem; quem não é do RH não muda nada. */
 export async function acompanharEquipes(formData: FormData): Promise<void> {
   const me = await currentPersona();
-  const back = String(formData.get("voltar") ?? "/");
-  const safeBack = back.startsWith("/") && !back.startsWith("//") ? back : "/";
+  const back = String(formData.get("voltar") ?? "/dashboard");
+  const safeBack = back.startsWith("/") && !back.startsWith("//") ? back : "/dashboard";
   if (!me || me.role !== "hr") redirect(safeBack);
   const ids = new Set(((await teamsFor(me)) ?? []).map((t) => t.id));
   const chosen = formData.getAll("equipe").map(String).filter((id) => ids.has(id));

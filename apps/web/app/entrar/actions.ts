@@ -20,7 +20,7 @@ export async function entrarComSenha(_prev: EntrarState, formData: FormData): Pr
   jar.set(PERSONA_COOKIE, persona.id, { httpOnly: true, sameSite: "lax", path: "/", secure: process.env.NODE_ENV === "production" });
   // Vale o último login: entrar por senha encerra a sessão do Slack.
   jar.delete(SESSION_COOKIE);
-  redirect("/");
+  redirect("/dashboard");
 }
 
 export async function sair(): Promise<void> {

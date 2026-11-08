@@ -151,6 +151,87 @@
 .lp-btn--paper:hover {
   background: var(--color-cloud);
 }
+/* Começar: ao passar o mouse, um círculo grafite nasce e preenche o botão, e o texto volta com a seta. */
+.lp-start {
+  /* Quantas vezes o ponto de 8 px cresce: o bastante para cobrir o botão, sem acabar antes de ser visto. */
+  --lp-start-fill: 26;
+  position: relative;
+  overflow: hidden;
+  isolation: isolate;
+}
+.lp-start__dot {
+  position: absolute;
+  z-index: -1;
+  top: 50%;
+  left: 18px;
+  width: 8px;
+  height: 8px;
+  margin-top: -4px;
+  border-radius: 50%;
+  background: var(--color-charcoal);
+  transform: scale(0);
+  transition: transform 420ms cubic-bezier(0.4, 0, 0.2, 1);
+}
+.lp-start__label {
+  display: inline-block;
+  transition: transform 300ms var(--ease-enter), opacity 180ms ease-out;
+}
+.lp-start__hover {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  color: var(--color-cloud);
+  opacity: 0;
+  transform: translateX(28px);
+  transition: transform 300ms var(--ease-enter), opacity 180ms ease-out;
+}
+.lp-start:focus-visible {
+  outline: 2px solid var(--color-cloud);
+  outline-offset: 2px;
+}
+.lp-start:focus-visible .lp-start__dot {
+  transform: scale(var(--lp-start-fill));
+}
+.lp-start:focus-visible .lp-start__label {
+  opacity: 0;
+  transform: translateX(36px);
+}
+.lp-start:focus-visible .lp-start__hover {
+  opacity: 1;
+  transform: none;
+}
+@media (hover: hover) {
+  .lp-start:hover {
+    outline: 1px solid var(--color-iron);
+    outline-offset: -1px;
+  }
+  .lp-start:hover .lp-start__dot {
+    transform: scale(var(--lp-start-fill));
+  }
+  .lp-start:hover .lp-start__label {
+    opacity: 0;
+    transform: translateX(36px);
+  }
+  .lp-start:hover .lp-start__hover {
+    opacity: 1;
+    transform: none;
+  }
+}
+@media (max-width: 760px) {
+  .lp-start {
+    --lp-start-fill: 60;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .lp-start__dot,
+  .lp-start__label,
+  .lp-start__hover {
+    transition: none;
+  }
+}
 .lp-btn--outline {
   background: transparent;
   color: var(--color-cloud);
