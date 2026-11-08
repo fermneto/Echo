@@ -323,7 +323,7 @@ export default function LandingPage() {
                 Conecta onde a equipe já trabalha.
               </h2>
               <p className="lp-integrations__lead">
-                GitHub, Slack, Linear, agenda e CI hoje, com Claude por trás. Jira, GitLab, Teams e Notion a seguir.
+                GitHub, Slack, Linear, Jira, agenda e CI hoje, com Claude por trás. GitLab, Teams e Notion a seguir.
               </p>
             </div>
             <IntegrationsCarousel />
