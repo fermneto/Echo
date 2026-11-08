@@ -32,11 +32,6 @@ describe("canSee", () => {
     expect(canSee("member", "equipes", demo)).toBe(false);
   });
 
-  it("simulador só existe na demonstração", () => {
-    expect(canSee("member", "simulador", { demo: true })).toBe(true);
-    expect(canSee("member", "simulador", { demo: false })).toBe(false);
-  });
-
   it("toda rota tem ao menos um papel", () => {
     for (const def of Object.values(ROUTES)) expect(def.roles.length).toBeGreaterThan(0);
   });
@@ -49,14 +44,14 @@ describe("navFor", () => {
     expect(nav.flatMap((g) => g.items.map((i) => i.href))).not.toContain("/notas");
   });
 
-  it("sem demonstração, o grupo Demo some", () => {
-    expect(navFor("leader", { demo: false }).map((g) => g.label)).not.toContain("Demo");
+  it("não há grupo Demo no menu, nem na demonstração", () => {
+    for (const demo of [true, false]) expect(navFor("leader", { demo }).map((g) => g.label)).not.toContain("Demo");
   });
 
-  it("Meu dia traz o plano, a nota do dia e o resumo; a demonstração termina com o Simulador", () => {
+  it("Meu dia traz o plano, a nota do dia e o resumo; o menu termina em Gestão", () => {
     const nav = navFor("member", demo);
     expect(nav.find((g) => g.label === "Meu dia")?.items.map((i) => i.href)).toEqual(["/plano", "/nota-do-dia", "/resumos"]);
-    expect(nav.at(-1)).toMatchObject({ label: "Demo", items: [{ href: "/simulador" }] });
+    expect(nav.at(-1)?.label).toBe("Gestão");
   });
 });
 
