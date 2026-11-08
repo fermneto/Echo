@@ -50,6 +50,21 @@ describe("askTwinDemo", () => {
     expect(r.needsOwner).toBe(true);
   });
 
+  it("toda sugestão traz um fato com fonte, mesmo com a pessoa no expediente", () => {
+    for (const p of PERSONAS) {
+      for (const q of suggestedQuestions(p)) {
+        const r = askTwinDemo({ ...p, availability: { kind: "working" } }, q);
+        expect(r.sources.length, q).toBeGreaterThan(0);
+        expect(r.text, q).not.toMatch(/não encontrei|no expediente|não avalio|não falo|não aprovo/i);
+      }
+    }
+  });
+
+  it("quem tem tarefa no seed recebe sugestão, e nenhuma pede recusa", () => {
+    for (const id of ["fernando", "eduardo", "yan", "bruno", "carla"]) expect(suggestedQuestions(findPersona(id)!).length, id).toBeGreaterThan(0);
+    for (const p of PERSONAS) expect(suggestedQuestions(p).join(" ")).not.toMatch(/bom funcion|ignore suas regras/i);
+  });
+
   it("simulação não usa modelo e nunca fala na primeira pessoa como o trabalhador", () => {
     for (const p of PERSONAS) {
       for (const q of [...suggestedQuestions(p), "oi"]) {
