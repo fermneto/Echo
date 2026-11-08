@@ -97,6 +97,8 @@ export interface ChatPlatform {
   /** Resposta do agente, identificada (ex.: "Agente de Fernando"). Blocos prontos em answerBlocks. */
   postAgentReply(input: { channel: string; threadTs?: string; agentName: string; blocks?: unknown[]; text: string; iconUrl?: string }): Promise<{ ts: string }>;
   sendDm(userExternalId: string, input: { text: string; blocks?: unknown[] }): Promise<void>;
+  /** Arquivo (ex.: imagem do resumo do dia) na conversa privada. Precisa do escopo files:write. */
+  sendDmFile?(userExternalId: string, input: { filename: string; data: Uint8Array; title: string; comment: string; altText?: string }): Promise<void>;
 }
 
 export interface HrAbsenceEvent {
