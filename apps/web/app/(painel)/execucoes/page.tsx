@@ -2,7 +2,7 @@ import { panelDb } from "@/lib/db";
 import { latest } from "@/lib/demo/notes";
 import { DAY_RUNS, NIGHT_RUNS } from "@/lib/demo/runs";
 import { currentDecisions } from "@/lib/decisions-store";
-import { gainsOrgId } from "@/lib/gains";
+import { gainsOrgId, isDemoOrg } from "@/lib/gains";
 import { currentNotes } from "@/lib/notes-store";
 import { monthStart, runsBoardFromDb } from "@/lib/runs-db";
 import { demoMode, requireAccess } from "@/lib/session";
@@ -22,7 +22,8 @@ const BASE_AUDIT: AuditEntry[] = [
 export default async function ExecucoesPage() {
   const persona = await requireAccess("execucoes");
   const db = panelDb();
-  const rehearsal = demoMode();
+  // "Simular a noite" acrescenta execuções sintéticas: só para a persona da demonstração.
+  const rehearsal = demoMode() && isDemoOrg(persona.orgId);
 
   if (db) {
     // Import tardio: só o leitor das execuções, sem o restante do servidor dos agentes.

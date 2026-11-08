@@ -1,12 +1,14 @@
 import Link from "next/link";
 import { canAskTwin } from "@/lib/access";
-import { ECHO_SUGGESTIONS } from "@/lib/demo/echo";
+import { ECHO_GENERIC_SUGGESTIONS, ECHO_SUGGESTIONS } from "@/lib/demo/echo";
 import { WAITING } from "@/lib/demo/feed";
 import { teamScope } from "@/lib/scope";
 import { scopeLabel, TeamPicker } from "@/components/TeamPicker";
 import { lookFor } from "@/lib/demo/looks";
 import type { Persona } from "@/lib/demo/types";
 import { currentDecisions } from "@/lib/decisions-store";
+import { isDemoOrg } from "@/lib/gains";
+import { loadWaiting } from "@/lib/pending-live";
 import { pendingPlans } from "@/lib/redistribution-server";
 import { holderLine, statusLine, toneOf } from "@/lib/people";
 import { requireAccess } from "@/lib/session";
@@ -81,7 +83,7 @@ function buildMap(team: readonly Persona[], now: Date) {
 export default async function InicioPage() {
   const me = await requireAccess("inicio");
   const now = new Date();
-  const scope = await teamScope(me, await loadTeam(now));
+  const scope = await teamScope(me, await loadTeam(now, { orgId: me.orgId }));
   const team = scope.people;
   const counts = countsOf(team);
   const seesWork = canAskTwin(me.role);
@@ -90,7 +92,14 @@ export default async function InicioPage() {
   // Expediente e fuso do banco, quando houver: a janela começa no fim do último expediente registrado.
   const meLive = team.find((p) => p.id === me.id) ?? me;
   // Com banco, o plano de ausência vem dos planos esperando esta liderança, não da demonstração.
-  const [decisions, away, plans] = await Promise.all([currentDecisions(), seesAway ? loadAwayRows(meLive, now) : null, seesWork ? pendingPlans(me, now) : null]);
+  // Quem é de empresa conectada vê só as pendências do banco; a persona da demonstração, também as da história.
+  const demo = isDemoOrg(me.orgId);
+  const [decisions, away, plans, live] = await Promise.all([
+    currentDecisions(),
+    seesAway ? loadAwayRows(meLive, now) : null,
+    seesWork ? pendingPlans(me, now) : null,
+    seesWork && !demo ? loadWaiting(me, now) : [],
+  ]);
   const waiting = [
     ...(plans ?? []).map((p) => ({
       id: "Plano",
@@ -100,7 +109,8 @@ export default async function InicioPage() {
       detail: "Montado por regra a partir da ausência, respeitando áreas e carga. Nada muda no Linear nem no GitHub até você aprovar.",
       action: { label: "Revisar o plano", href: "/redistribuicao" },
     })),
-    ...WAITING.filter((w) => w.ownerId === me.id && !(w.decisionId && w.decisionId in decisions) && !(plans && w.decisionId === "ferias-bruno")).map((w) => ({ ...w, key: w.id })),
+    ...live,
+    ...(demo ? WAITING.filter((w) => w.ownerId === me.id && !(w.decisionId && w.decisionId in decisions) && !(plans && w.decisionId === "ferias-bruno")).map((w) => ({ ...w, key: w.id })) : []),
   ];
   const { crews, zones, arcs } = buildMap(team, now);
 
@@ -173,7 +183,7 @@ export default async function InicioPage() {
             askerName={me.name}
             empty="Por exemplo: quem está no expediente agora, o que está pendente ou quem sabe de um tema."
             placeholder="Por exemplo: alguém deixou algo pendente?"
-            suggestions={ECHO_SUGGESTIONS}
+            suggestions={demo ? ECHO_SUGGESTIONS : ECHO_GENERIC_SUGGESTIONS}
           />
         </section>
       )}

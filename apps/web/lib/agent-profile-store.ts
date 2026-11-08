@@ -3,7 +3,7 @@ import { cleanAgentText } from "@echo/domain";
 import { cookies } from "next/headers";
 import { personIdFor } from "./agent";
 import { type DecisionView, type DemoProfile, demoDecisions, parseProfile, PROFILE_COOKIE } from "./demo/agent-profile";
-import { gainsOrgId } from "./gains";
+import { gainsOrgId, isDemoOrg } from "./gains";
 
 /** "Seu agente" na demonstração sem banco: o texto fica só no navegador de quem visita. */
 export async function currentDemoProfile(): Promise<DemoProfile> {
@@ -22,8 +22,12 @@ export async function saveDemoProfile(input: { style: string; delegation: string
 
 export type OwnAgent = { style: string; delegation: string; delegationAt: Date | null; decisions: DecisionView[]; demo: boolean };
 
-/** "Seu agente" da própria pessoa: do banco quando há; senão, o texto do cookie e decisões de exemplo. */
+/**
+ * "Seu agente" da própria pessoa: do banco quando há; senão, para a persona da demonstração, o texto do cookie e
+ * decisões de exemplo. Empresa conectada sem banco: vazio, nunca as decisões de exemplo.
+ */
 export async function loadOwnAgent(me: { id: string; orgId: string }, db: Database | null): Promise<OwnAgent> {
+  if (!db && !isDemoOrg(me.orgId)) return { style: "", delegation: "", delegationAt: null, decisions: [], demo: false };
   if (!db) {
     const p = await currentDemoProfile();
     return { style: p.style, delegation: p.delegation, delegationAt: p.delegationAtIso ? new Date(p.delegationAtIso) : null, decisions: demoDecisions(me.id), demo: true };

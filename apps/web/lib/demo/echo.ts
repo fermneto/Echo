@@ -76,4 +76,6 @@ export function askEchoDemo(question: string, team: readonly Persona[], notes: r
   return reply("Não encontrei isso nos registros da equipe, então não vou supor. Tente perguntar sobre quem está disponível, pendências, PRs ou quem sabe de um tema.");
 }
 
-export const ECHO_SUGGESTIONS = ["Quem está no expediente agora?", "Alguém deixou algo pendente?", "O que está atrasado?", "Quais PRs estão abertos?", "Quem sabe de pagamentos?"];
+/** Sugestões que valem para qualquer empresa, sem tema da história da demo. */
+export const ECHO_GENERIC_SUGGESTIONS = ["Quem está no expediente agora?", "Alguém deixou algo pendente?", "O que está atrasado?", "Quais PRs estão abertos?"];
+export const ECHO_SUGGESTIONS = [...ECHO_GENERIC_SUGGESTIONS, "Quem sabe de pagamentos?"];
