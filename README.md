@@ -23,4 +23,12 @@ TypeScript de ponta a ponta num monorepo pnpm + Turborepo: `apps/` (web, api, wo
 
 ## Ferramentas usadas
 
-Claude Code (desenvolvimento), Claude API (Sonnet 5.5, Haiku 5.5, API de lotes, Managed Agents), Next.js, Hono, Postgres, Drizzle, pg-boss, Zod, Vitest, Playwright, Turborepo, Render, Langfuse.
+- **Desenvolvimento:** Claude Code.
+- **Modelos e APIs da Anthropic:** Claude Sonnet 5.5, Claude Opus 5.5 e Claude Haiku 5.5, API de lotes, Managed Agents e Files API.
+- **Modelo aberto:** Qwen3 4B Instruct (Apache 2.0), servido pelo Ollama.
+- **Vídeo da semana:** Playwright (gravação), Piper (narração com voz aberta em pt-BR) e ffmpeg.
+- **APIs das plataformas:** Slack, GitHub (GitHub App e Actions), Linear, Jira Cloud, Google Calendar, Microsoft 365 e Vercel.
+- **Aplicação:** TypeScript, Node.js, Next.js, React, Hono, Postgres, Drizzle, pg-boss, Zod, Pino, GSAP, Satori e resvg (imagem do resumo), unpdf (leitura do currículo) e simple-icons.
+- **Observabilidade:** Langfuse e OpenTelemetry.
+- **Testes e build:** Vitest, Playwright, pnpm, Turborepo e Docker.
+- **Hospedagem e CI:** Render e GitHub Actions.
