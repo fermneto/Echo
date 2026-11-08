@@ -1,8 +1,10 @@
 import type { ReactNode } from "react";
 import { redirect } from "next/navigation";
-import { navFor } from "@/lib/access";
+import { canSee, navFor } from "@/lib/access";
+import { lookFor } from "@/lib/demo/looks";
 import { currentPersona, demoMode } from "@/lib/session";
 import { Logo } from "@/components/Logo";
+import { MiniEcho } from "@/components/MiniEcho";
 import { Nav } from "@/components/Nav";
 import { NavProgress } from "@/components/NavProgress";
 import { PageEnter } from "@/components/PageEnter";
@@ -26,6 +28,7 @@ export default async function PainelLayout({ children }: { children: ReactNode }
           <div className="topbar__row">
             <Logo href="/dashboard" />
             <div className="topbar__me">
+              {canSee(persona.role, "plano", { demo }) && <MiniEcho personId={persona.id} look={persona.avatar ?? lookFor(persona.id)} />}
               <span className="topbar__name">{persona.name}</span>
               <form action={sair}>
                 <button type="submit" className="link-button mono">
