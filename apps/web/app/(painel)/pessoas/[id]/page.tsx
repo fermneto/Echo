@@ -93,22 +93,21 @@ export default async function PessoaPage({ params }: { params: Promise<{ id: str
         ← Pessoas
       </Link>
 
-      <header className="profile-top">
-        <figure className="profile-avatar">
-          <PixelAvatar persona={persona} size={132} />
-          <figcaption className="mono">{away ? `Gêmeo de ${persona.name} no comando` : `${persona.name} no expediente`}</figcaption>
-        </figure>
-        <div className="profile-top__text">
-          <h1 className="app-title">{persona.name}</h1>
-          <p className="lead">
-            {persona.title || (persona.registered ? "Cargo a preencher" : "")}
-          </p>
-          <StatusChip persona={persona} />
-        </div>
-      </header>
-
       <div className="profile-grid">
         <div className="profile-col">
+          <header className="profile-top">
+            <figure className="profile-avatar">
+              <PixelAvatar persona={persona} size={132} />
+              <figcaption className="mono">{away ? `Gêmeo de ${persona.name} no comando` : `${persona.name} no expediente`}</figcaption>
+            </figure>
+            <div className="profile-top__text">
+              <h1 className="app-title">{persona.name}</h1>
+              <p className="lead">
+                {persona.title || (persona.registered ? "Cargo a preencher" : "")}
+              </p>
+              <StatusChip persona={persona} />
+            </div>
+          </header>
           {seesWork && (
             <section className="card" aria-labelledby="trabalho">
               <h2 id="trabalho" className="card__title">
@@ -226,6 +225,7 @@ export default async function PessoaPage({ params }: { params: Promise<{ id: str
         </div>
 
         <div className="profile-col">
+          <HolderPanel persona={persona} />
           {editable && (
             <EditarPerfil
               action={salvarPerfil}
@@ -236,7 +236,6 @@ export default async function PessoaPage({ params }: { params: Promise<{ id: str
           )}
           {accounts && <ContasPessoa action={salvarContas} personId={persona.id} name={persona.name} initial={accounts.values} slackMembers={accounts.members} platforms={accounts.platforms} slackFailed={accounts.slackFailed} />}
           {editable && <Bonequinho redo={refazerBonequinho} adjust={ajustarBonequinho} personId={persona.id} name={persona.name} initial={persona.avatar ?? lookFor(persona.id)} />}
-          <HolderPanel persona={persona} />
           <section className="card" aria-labelledby="como">
             <h2 id="como" className="card__title">
               Como trabalha
