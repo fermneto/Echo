@@ -8,7 +8,8 @@
     "typecheck": "tsc -p tsconfig.json",
     "test": "vitest run --passWithNoTests",
     "reconciliar": "tsx --env-file-if-exists=../../.env src/reconcile-now.ts",
-    "nota:agora": "tsx --env-file-if-exists=../../.env src/nota-agora.ts"
+    "nota:agora": "tsx --env-file-if-exists=../../.env src/nota-agora.ts",
+    "noite:agora": "tsx --env-file-if-exists=../../.env src/noite-agora.ts"
   },
   "dependencies": {
     "@echo/agents": "workspace:*",
