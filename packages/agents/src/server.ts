@@ -38,6 +38,7 @@ export { createPgPlanStore, createPgReviewStore } from "./pg-night.ts";
 export { ollamaBaseUrl, ollamaJson, ollamaTriage } from "./triage-ollama.ts";
 export { createPgArtifactStore } from "./pg-artifacts.ts";
 export { createPgAvatarStore, createPgOnboardingStore, readAvatar, updateProfile } from "./pg-onboarding.ts";
+export { AccountConflictError, type PersonAccounts, readAccounts, saveAccounts, type SaveAccountsResult } from "./pg-accounts.ts";
 export { createPgFixStore } from "./pg-fix.ts";
 export { createPgRedistributionStore } from "./pg-redistribution.ts";
 export { createPgReportStore } from "./pg-report.ts";

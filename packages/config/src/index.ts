@@ -78,6 +78,9 @@ export const webSchema = baseSchema.extend({
   /** GitHub App (o mesmo do worker): Meu plano confere o rascunho da correção antes de aprovar. */
   GITHUB_APP_ID: optionalString,
   GITHUB_PRIVATE_KEY: optionalString,
+  /** Bot do Slack (o mesmo do worker): lista os membros da workspace para ligar a conta da pessoa no cadastro e na ficha. Sem ele, o RH digita o ID do membro. */
+  SLACK_BOT_TOKEN: optionalString,
+  SLACK_API_BASE_URL: optionalString.pipe(z.url().optional()),
   /** Modelo aberto (Ollama) que lê o currículo no cadastro pelo RH. Sem ele, cargo e habilidades ficam para a ficha. */
   SLM_OLLAMA_URL: optionalString.pipe(z.string().regex(/^(https?:\/\/)?[\w.-]+(:\d+)?\/?$/, "use http://host:porta ou host:porta").optional()),
   SLM_MODEL: z.string().min(1).default("qwen3:4b-instruct"),

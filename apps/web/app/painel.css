@@ -3345,6 +3345,12 @@ select.field option {
   gap: var(--space-md);
   flex-wrap: wrap;
 }
+.profile-accounts__warn {
+  margin: 0 0 var(--space-sm);
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--color-signal-wait);
+}
 .profile-edit__status {
   margin: 0;
   font-size: 13px;

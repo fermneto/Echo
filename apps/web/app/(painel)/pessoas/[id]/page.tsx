@@ -1,11 +1,13 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { notFound } from "next/navigation";
-import { canAskTwin, canEditProfile } from "@/lib/access";
+import { canAskTwin, canEditProfile, canLinkAccounts } from "@/lib/access";
+import { slackMembers } from "@/lib/accounts-server";
+import { gainsOrgId } from "@/lib/gains";
 import { lookFor } from "@/lib/demo/looks";
 import { loadProfile } from "@/lib/person-live";
 import { teamScope } from "@/lib/scope";
-import { currentPersona, requireAccess } from "@/lib/session";
+import { currentPersona, isDemoSession, requireAccess } from "@/lib/session";
 import { loadTeam } from "@/lib/team-live";
 import { localTime } from "@/lib/time";
 import { AskPanel } from "@/components/AskPanel";
@@ -16,7 +18,8 @@ import { AgentProfileForm } from "@/components/AgentProfileForm";
 import { AGENT_PROFILE_RULES, NEVER_DELEGATED } from "@echo/domain";
 import { loadOwnAgent } from "@/lib/agent-profile-store";
 import { panelDb } from "@/lib/db";
-import { ajustarBonequinho, perguntar, refazerBonequinho, salvarPerfil, salvarPerfilDoAgente } from "./actions";
+import { ajustarBonequinho, perguntar, refazerBonequinho, salvarContas, salvarPerfil, salvarPerfilDoAgente } from "./actions";
+import { ContasPessoa } from "./ContasPessoa";
 import { Bonequinho } from "./Bonequinho";
 import { EditarPerfil } from "./EditarPerfil";
 
@@ -80,6 +83,7 @@ export default async function PessoaPage({ params }: { params: Promise<{ id: str
   // Só quem foi cadastrado no painel tem o perfil no banco; as personas da demo seguem com o perfil sintético.
   const editable = Boolean(persona.registered) && canEditProfile(me, persona);
   const emptyProfile = Boolean(persona.registered && !persona.jobTitle && persona.skills.length === 0);
+  const accounts = await loadAccounts(me, persona);
 
   return (
     <>
@@ -219,6 +223,7 @@ export default async function PessoaPage({ params }: { params: Promise<{ id: str
               open={emptyProfile}
             />
           )}
+          {accounts && <ContasPessoa action={salvarContas} personId={persona.id} name={persona.name} initial={accounts.values} slackMembers={accounts.members} />}
           {editable && <Bonequinho redo={refazerBonequinho} adjust={ajustarBonequinho} personId={persona.id} name={persona.name} initial={persona.avatar ?? lookFor(persona.id)} />}
           <HolderPanel persona={persona} />
           <section className="card" aria-labelledby="como">
@@ -293,4 +298,17 @@ export default async function PessoaPage({ params }: { params: Promise<{ id: str
       </div>
     </>
   );
+}
+
+/** Contas da pessoa para a seção da ficha: só para quem pode ligar, com banco e fora da demonstração. */
+async function loadAccounts(me: Awaited<ReturnType<typeof requireAccess>>, persona: { id: string; role?: "member" | "leader" | "hr" | undefined; teamId?: string | undefined; registered?: boolean | undefined }) {
+  const db = panelDb();
+  if (!db || !persona.registered || !canLinkAccounts(me, persona) || isDemoSession(me)) return null;
+  const orgId = gainsOrgId(me.orgId);
+  const { readAccounts } = await import("@echo/agents/server");
+  const [current, members] = await Promise.all([readAccounts(db, orgId, persona.id), slackMembers(db, orgId)]);
+  return {
+    members,
+    values: { ...(current.slack ? { slack: current.slack.externalId } : {}), ...(current.github ? { github: current.github.login ?? current.github.externalId.replace(/^login:/, "") } : {}), ...(current.linear ? { linear: current.linear.externalId } : {}) },
+  };
 }
