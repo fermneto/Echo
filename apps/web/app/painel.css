@@ -2466,17 +2466,6 @@ select.field option {
 }
 
 /* Custo e execuções */
-.rehearsal {
-  margin-top: var(--space-2xl);
-  border-style: dashed;
-}
-.rehearsal .card__title {
-  margin-bottom: 4px;
-}
-.rehearsal__hint {
-  margin: 0 0 var(--space-md);
-  font-size: 13px;
-}
 .runs-metrics {
   margin-top: var(--space-xl);
 }
@@ -2580,16 +2569,6 @@ select.field option {
 .run:first-child {
   border-top: 0;
   padding-top: 0;
-}
-.run.is-new .run__what::before {
-  content: "";
-  display: inline-block;
-  width: 6px;
-  height: 6px;
-  margin-right: 8px;
-  vertical-align: middle;
-  border-radius: 50%;
-  background: var(--color-signal-twin);
 }
 .run__head {
   display: flex;
