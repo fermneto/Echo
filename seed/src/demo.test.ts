@@ -1,4 +1,5 @@
 import { describe, expect, it } from "vitest";
+import { addDays, FixedClock, isoWeek, lastClosedWeek, weekMonday } from "@echo/domain";
 import { buildDemo, DEMO_IDS, localDate } from "./demo.ts";
 
 // Noite em Fortaleza (03:12), manhã em Joanesburgo: o momento da cena 1.
@@ -37,7 +38,7 @@ describe("empresa de demonstração", () => {
 
   it("relatórios enviados só das semanas anteriores, nunca do RH, sem aviso e fora da janela do vídeo", () => {
     expect(demo.weeklyReports.length).toBeGreaterThan(50);
-    expect(new Set(demo.weeklyReports.map((r) => r.week)).size).toBe(7);
+    for (const id of new Set(demo.weeklyReports.map((r) => r.personId))) expect(demo.weeklyReports.filter((r) => r.personId === id).length).toBeLessThanOrEqual(7);
     expect(demo.weeklyReports.some((r) => r.personId === P.rita)).toBe(false);
     for (const r of demo.weeklyReports) {
       expect(r.state).toBe("sent");
@@ -46,6 +47,23 @@ describe("empresa de demonstração", () => {
       expect(new Date(r.coveredPeriod.to).getTime()).toBeLessThanOrEqual(now.getTime());
     }
   });
+
+  // Cena 4: a semana fechada mais recente de cada pessoa fica sem relatório no seed, para `relatorio:agora` gerá-la
+  // aberta à conferência. Vale em qualquer dia: sexta, domingo antes e depois do corte em Tóquio, segunda.
+  it.each(["2026-11-06T15:00:00Z", "2026-11-07T06:12:00Z", "2026-11-08T06:22:00Z", "2026-11-08T09:30:00Z", "2026-11-09T12:00:00Z", "2026-11-11T03:00:00Z"])(
+    "em %s, a última semana fechada de cada pessoa fica para o relatório aberto",
+    (at) => {
+      const clock = new FixedClock(at);
+      const d = buildDemo(clock.now());
+      for (const p of d.people.filter((x) => x.role !== "hr")) {
+        const closed = lastClosedWeek({ timezone: p.timezone, workHours: p.workHours! }, clock.now())!;
+        const weeks = d.weeklyReports.filter((r) => r.personId === p.id).map((r) => r.week);
+        expect(weeks.length).toBeGreaterThan(0);
+        for (const w of weeks) expect(w < closed).toBe(true);
+        expect(weeks).toContain(isoWeek(addDays(weekMonday(closed)!, -7)));
+      }
+    },
+  );
 
   it("dá um papel por persona: Marina lidera, Rita é do RH", () => {
     const role = (id: string) => demo.people.find((p) => p.id === id)?.role ?? "member";
