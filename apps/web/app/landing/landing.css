@@ -232,14 +232,6 @@
     transition: none;
   }
 }
-.lp-btn--outline {
-  background: transparent;
-  color: var(--color-cloud);
-  border: 1px solid var(--color-edge);
-}
-.lp-btn--outline:hover {
-  background: var(--color-charcoal);
-}
 .lp-btn--ghost {
   background: var(--color-edge);
   color: var(--color-cloud);
@@ -1431,9 +1423,6 @@
   }
   .lp-legend {
     top: 0;
-  }
-  .lp-nav__actions .lp-btn--outline {
-    display: none;
   }
 }
 
