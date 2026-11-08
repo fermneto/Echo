@@ -542,17 +542,28 @@ export function buildDemo(now: Date): DemoData {
   };
   const reporters = people.filter((p) => p.role !== "hr");
   const plural = (v: number, one: string, many: string) => `${v} ${v === 1 ? one : many}`;
+  // Visão do RH: cada equipe com um ritmo próprio, da semana mais antiga para a mais recente, para o gráfico contar
+  // uma história. Produto cresce aos poucos, Dados troca entregas por revisões numa migração, Aplicativo cai e se recupera.
+  const RHYTHM: Record<string, { deliveries: number[]; reviews: number[]; helps: number[]; twins: number[] }> = {
+    [T.produto]: { deliveries: [1, 1, 1, 2, 2, 2, 3], reviews: [1, 2, 2, 2, 3, 3, 3], helps: [0, 1, 1, 1, 1, 2, 2], twins: [3, 4, 4, 5, 6, 7, 8, 5] },
+    [T.dados]: { deliveries: [3, 3, 2, 1, 1, 1, 2], reviews: [1, 1, 2, 3, 4, 4, 3], helps: [1, 1, 0, 1, 2, 2, 1], twins: [6, 5, 5, 3, 3, 4, 4, 3] },
+    [T.app]: { deliveries: [2, 2, 1, 0, 1, 2, 3], reviews: [2, 1, 1, 1, 2, 2, 3], helps: [1, 0, 0, 1, 2, 2, 3], twins: [2, 2, 3, 6, 7, 5, 4, 3] },
+  };
+  const rhythmOf = (p: (typeof reporters)[number]) => RHYTHM[p.teamId ?? T.produto]!;
+  // A mesma semana mais recente para todos, a do fuso mais atrasado: sem isso, quem já virou a semana (Sydney)
+  // abria uma semana com um relatório só, e o painel do RH focava nela. Nunca ocupa a semana pendente de ninguém.
+  const baseMonday = reporters.map((p) => weekMonday(isoWeek(localDate(now, p.timezone)))!).sort()[0]!;
   const weeklyReports: DemoData["weeklyReports"] = [];
   for (const p of reporters) {
-    const thisMonday = weekMonday(isoWeek(localDate(now, p.timezone)))!;
     for (let back = 8; back >= 2; back--) {
-      const monday = addDays(thisMonday, -7 * back);
+      const monday = addDays(baseMonday, -7 * back);
       const week = isoWeek(monday);
+      const step = 8 - back;
       if (vary(`${p.id}:${week}:envio`, 12) === 0) continue; // de vez em quando alguém não tem relatório
-      const deliveries = vary(`${p.id}:${week}:e`, 4);
+      const deliveries = vary(`${p.id}:${week}:e`, 2) + rhythmOf(p).deliveries[step]!;
       const commits = 2 + vary(`${p.id}:${week}:c`, 9);
-      const reviews = vary(`${p.id}:${week}:r`, 5);
-      const helps = vary(`${p.id}:${week}:a`, 3);
+      const reviews = vary(`${p.id}:${week}:r`, 3) + rhythmOf(p).reviews[step]!;
+      const helps = vary(`${p.id}:${week}:a`, 2) + rhythmOf(p).helps[step]!;
       weeklyReports.push({
         orgId: org, personId: p.id!, week, state: "sent",
         metrics: { deliveries, commits, reviews, helps, delays: [], deliveryRefs: [], helped: [] },
@@ -561,6 +572,30 @@ export function buildDemo(now: Date): DemoData {
         sentAt: new Date(Math.min(new Date(`${addDays(monday, 10)}T12:00:00.000Z`).getTime(), now.getTime() - 8 * DAY)),
       });
     }
+  }
+
+  // Respostas dos gêmeos por equipe nas 8 semanas da visão do RH. Antigas o bastante para não entrar no "enquanto você
+  // estava fora" das cenas, e já entregues no resumo da ausência.
+  const oldEnough = now.getTime() - 4 * DAY;
+  for (const t of teams) {
+    const members = reporters.filter((p) => p.teamId === t.id);
+    RHYTHM[t.id!]!.twins.forEach((count, step) => {
+      const monday = addDays(baseMonday, -7 * (7 - step));
+      for (let n = 0; n < count; n++) {
+        const key = `${t.id}:${monday}:${n}`;
+        const owner = members[vary(`${key}:dono`, members.length)]!;
+        const asker = members[(members.indexOf(owner) + 1 + vary(`${key}:quem`, members.length - 1)) % members.length]!;
+        // De terça a quinta, no meio do dia: a semana é a mesma em qualquer fuso.
+        const answeredAt = new Date(`${addDays(monday, 1 + vary(`${key}:dia`, 3))}T${String(10 + vary(`${key}:hora`, 8)).padStart(2, "0")}:00:00.000Z`);
+        if (answeredAt.getTime() > oldEnough) continue;
+        questions.push({
+          orgId: org, askerId: asker.id!, ownerId: owner.id!, kind: "gemeo", channel: "slack:C_DEMO_PRODUTO", sourceRef: `demo:rh:${key}`,
+          answer: `Agente de ${owner.name}: resposta com base na nota do dia confirmada.`,
+          sources: [{ label: `nota do dia de ${owner.name}`, ref: `daily_note:${owner.id}` }],
+          state: "answered", resolved: true, answeredAt, digestedAt: answeredAt, ownerReturnsAt: new Date(answeredAt.getTime() + (2 + vary(`${key}:volta`, 7)) * HOUR), createdAt: answeredAt,
+        });
+      }
+    });
   }
 
   return {
