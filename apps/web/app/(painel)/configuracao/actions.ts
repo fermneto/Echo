@@ -4,10 +4,10 @@ import { loadConfig } from "@echo/config";
 import { revalidatePath } from "next/cache";
 import { panelDb } from "@/lib/db";
 import { gainsOrgId } from "@/lib/gains";
-import { TEAMS } from "@/lib/demo/teams";
 import { parseOnboardingForm } from "@/lib/onboarding-form";
 import type { CadastroState } from "@/lib/onboarding-options";
 import { personIdFor } from "@/lib/agent";
+import { teamsFor } from "@/lib/scope";
 import { currentPersona, isDemoSession } from "@/lib/session";
 
 /**
@@ -19,7 +19,7 @@ import { currentPersona, isDemoSession } from "@/lib/session";
 export async function cadastrarPessoa(_prev: CadastroState, form: FormData): Promise<CadastroState> {
   const me = await currentPersona();
   if (!me || (me.role !== "hr" && me.role !== "leader")) return { status: "error", error: "Só o RH e a liderança cadastram pessoas." };
-  const parsed = await parseOnboardingForm(form, TEAMS.map((t) => t.id));
+  const parsed = await parseOnboardingForm(form, ((await teamsFor(me)) ?? []).map((t) => t.id));
   if (!parsed.ok) return { status: "error", error: parsed.error };
   const f = parsed.fields;
   if (me.role === "leader" && f.role === "hr") return { status: "error", error: "A liderança cadastra pessoas da equipe; o papel de RH só o RH dá." };

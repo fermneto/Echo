@@ -1,12 +1,14 @@
 // Regras da nota do dia (etapa 8, F3). Puras: recebem `now`, sem relógio, rede nem modelo.
 // O modelo só redige "onde parou"; o que travou sai daqui, e só a pessoa declara liberado e reservado.
 import { isAway, releaseExpiry } from "./rules.ts";
-import { DAY, HOUR, localDate, weekdayOf, zonedTime } from "./time.ts";
+import { addDays, DAY, HOUR, localDate, weekdayOf, zonedTime } from "./time.ts";
 import type { Absence, BranchMark, DailyNote, DailyNoteState, Person, PullRequest, Task, WorkEvent } from "./types.ts";
 
 export const NOTE_RULES = {
   /** Sem resposta neste prazo, o rascunho vira `auto_unreviewed`. */
   confirmHours: 2,
+  /** Nota não confirmada continua pedindo a confirmação da dona por até estes dias (Início do painel). */
+  pendingDays: 3,
   /** Sem evento neste intervalo, não há rascunho e a nota anterior continua valendo. */
   quietHours: 24,
   /** Janela depois do fim do expediente em que a agenda ainda cria o rascunho (worker parado, reinício). */
@@ -111,6 +113,16 @@ export function carriedMarks(previous: DailyNote | null, now: Date): { released:
 export function noteStateAt(note: { state: DailyNoteState; createdAt: Date }, now: Date): DailyNoteState {
   if (note.state !== "draft") return note.state;
   return now.getTime() - note.createdAt.getTime() >= NOTE_RULES.confirmHours * HOUR ? "auto_unreviewed" : "draft";
+}
+
+/**
+ * Nota do dia que espera a confirmação da dona: a de hoje ou, sem nota hoje, a última que vale, se não for de
+ * mais de `NOTE_RULES.pendingDays` dias. `today` é AAAA-MM-DD no fuso da dona.
+ */
+export function noteAwaitingConfirmation(note: { date: string; state: DailyNoteState; createdAt: Date } | null, now: Date, today: string): { date: string; state: Exclude<DailyNoteState, "confirmed"> } | null {
+  if (!note || note.date < addDays(today, -NOTE_RULES.pendingDays)) return null;
+  const state = noteStateAt(note, now);
+  return state === "confirmed" ? null : { date: note.date, state };
 }
 
 /** Só a dona da nota confirma; rascunho e nota automática podem ser confirmados, a confirmada fica como está. */

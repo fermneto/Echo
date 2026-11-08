@@ -2,13 +2,10 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { notFound } from "next/navigation";
 import { canAskTwin, canEditProfile } from "@/lib/access";
-import { profileFor } from "@/lib/demo/profiles";
-import { suggestedQuestions } from "@/lib/demo/twin";
 import { lookFor } from "@/lib/demo/looks";
-import { latest } from "@/lib/demo/notes";
-import { currentNotes } from "@/lib/notes-store";
+import { loadProfile } from "@/lib/person-live";
 import { teamScope } from "@/lib/scope";
-import { requireAccess } from "@/lib/session";
+import { currentPersona, requireAccess } from "@/lib/session";
 import { loadTeam } from "@/lib/team-live";
 import { localTime } from "@/lib/time";
 import { AskPanel } from "@/components/AskPanel";
@@ -47,6 +44,7 @@ function Field({ k, children }: { k: string; children: ReactNode }) {
 }
 
 function List({ items }: { items: string[] }) {
+  if (items.length === 0) return <p className="muted">Nada registrado.</p>;
   return (
     <ul>
       {items.map((b) => (
@@ -58,7 +56,9 @@ function List({ items }: { items: string[] }) {
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
   const id = (await params).id;
-  const p = (await loadTeam(new Date())).find((x) => x.id === id);
+  const me = await currentPersona();
+  // O título só leva o nome de quem a pessoa logada pode ver: o id na URL não revela ninguém de outra equipe.
+  const p = me ? (await teamScope(me, await loadTeam(new Date(), { orgId: me.orgId }))).people.find((x) => x.id === id) : undefined;
   return { title: p ? `${p.name} · Echo` : "Pessoa · Echo" };
 }
 
@@ -66,14 +66,13 @@ export default async function PessoaPage({ params }: { params: Promise<{ id: str
   const me = await requireAccess("pessoa");
   const now = new Date();
   const id = (await params).id;
-  const team = await loadTeam(now);
+  const team = await loadTeam(now, { orgId: me.orgId });
   const persona = team.find((p) => p.id === id);
   if (!persona) notFound();
   // Membro e liderança só abrem a ficha de quem é da própria equipe; o RH, das equipes que acompanha.
   if (!(await teamScope(me, team)).people.some((p) => p.id === persona.id)) notFound();
-  const profile = profileFor(persona);
-  const brain = (await currentNotes()).filter((n) => n.ownerId === persona.id);
-  const notes = brain.length ? brain.map((n) => ({ title: n.title, excerpt: latest(n).body, tags: n.tags })) : profile.notes;
+  // Persona da demonstração: perfil sintético. Empresa conectada: tarefas, PRs, nota do dia e notas do banco.
+  const { profile, notes, suggestions } = await loadProfile(me, persona, team);
   const isMe = me.id === persona.id;
   const away = persona.availability.kind !== "working";
   const seesWork = canAskTwin(me.role);
@@ -124,7 +123,7 @@ export default async function PessoaPage({ params }: { params: Promise<{ id: str
                   ))}
                 </ul>
               ) : (
-                <p className="muted">{persona.registered ? "Nada registrado no GitHub ou no Linear ainda." : "Nada registrado no GitHub ou no Linear para esta pessoa na demo."}</p>
+                <p className="muted">{persona.registered ? "Nenhuma tarefa nem PR aberto no GitHub ou no Linear." : "Nada registrado no GitHub ou no Linear para esta pessoa na demo."}</p>
               )}
               {profile.activity && <p className="card__foot mono">{profile.activity}</p>}
             </section>
@@ -136,7 +135,7 @@ export default async function PessoaPage({ params }: { params: Promise<{ id: str
                 Última nota do dia ({profile.lastNote.date})
               </h2>
               <Field k="Parou em">
-                <p>{profile.lastNote.stoppedAt}</p>
+                {profile.lastNote.stoppedAt ? <p>{profile.lastNote.stoppedAt}</p> : <p className="muted">Nada registrado.</p>}
               </Field>
               <Field k="Travou">
                 <List items={profile.lastNote.blocked} />
@@ -162,7 +161,7 @@ export default async function PessoaPage({ params }: { params: Promise<{ id: str
                 askerName={me.name}
                 empty={`Pergunte sobre uma branch, uma tarefa ou quando ${persona.name} volta. O agente responde com o que ${persona.name} deixou registrado.`}
                 placeholder={`Por exemplo: onde ${persona.name} parou?`}
-                suggestions={suggestedQuestions(persona)}
+                suggestions={suggestions}
               />
             </section>
           )}

@@ -1,5 +1,5 @@
 import type { Redistribution } from "@echo/agents";
-import { QUEUES, type JobQueue } from "@echo/jobs";
+import { QUEUES, DEDUPE_SECONDS, type JobQueue } from "@echo/jobs";
 
 /** Carga de `absence.registered`, enviada pela API (painel ou aviso do RH) e pela agenda. */
 export interface AbsenceJob {
@@ -31,7 +31,7 @@ export async function registerRedistribution(queue: JobQueue, w: RedistributionW
   return {
     async tick() {
       let queued = 0;
-      for (const orgId of await w.orgIds()) if (await queue.send<OrgJob>(QUEUES.redistributionScan, { orgId }, { singletonKey: orgId, retryLimit: 1 })) queued++;
+      for (const orgId of await w.orgIds()) if (await queue.send<OrgJob>(QUEUES.redistributionScan, { orgId }, { singletonKey: orgId, singletonSeconds: DEDUPE_SECONDS.perScan, retryLimit: 1 })) queued++;
       return queued;
     },
   };

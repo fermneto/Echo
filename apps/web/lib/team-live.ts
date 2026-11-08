@@ -2,7 +2,7 @@ import type { Absence, Person } from "@echo/domain";
 import { isAway, localDate, weekdayOf, zonedParts } from "@echo/domain";
 import { personIdFor } from "./agent";
 import { panelDb } from "./db";
-import { DEMO_ORG_ID } from "./gains";
+import { DEMO_ORG_ID, isDemoOrg } from "./gains";
 import { TEAM } from "./demo/team";
 import type { Availability, Persona } from "./demo/types";
 import { ZONES } from "./zones";
@@ -113,18 +113,41 @@ async function readFromDb(orgId: string): Promise<{ people: Person[]; absences: 
 }
 
 /**
- * Equipe para as telas de pessoas (Início, Pessoas, ficha). Com banco, a disponibilidade sai de `isAway`;
- * sem banco ou com falha na leitura, a equipe da demonstração.
+ * Equipe para as telas de pessoas (Início, Pessoas, ficha). `orgId` é o da pessoa logada.
+ * - Persona da demonstração (ou sem `orgId`): com banco, a disponibilidade sai de `isAway`; sem banco ou com
+ *   falha na leitura, a equipe da demonstração.
+ * - Empresa conectada: só quem está no banco da empresa, com a disponibilidade de `isAway`. Com falha na leitura,
+ *   ninguém: nunca a equipe da demonstração no lugar da real.
  */
-export async function loadTeam(now: Date, deps: { hasDb?: boolean; read?: Reader } = {}): Promise<readonly Persona[]> {
+export async function loadTeam(now: Date, deps: { orgId?: string; hasDb?: boolean; read?: Reader } = {}): Promise<readonly Persona[]> {
   const hasDb = deps.hasDb ?? panelDb() !== null;
-  if (!hasDb) return TEAM;
+  const real = deps.orgId !== undefined && !isDemoOrg(deps.orgId);
+  if (!hasDb) return real ? [] : TEAM;
   try {
-    const { people, absences } = await (deps.read ?? readFromDb)(DEMO_ORG_ID);
-    return withLiveAvailability(TEAM, people, absences, now);
+    const { people, absences } = await (deps.read ?? readFromDb)(real ? deps.orgId! : DEMO_ORG_ID);
+    return withLiveAvailability(real ? [] : TEAM, people, absences, now);
   } catch (err) {
     console.error("disponibilidade do banco indisponível", err instanceof Error ? err.message : String(err));
-    return TEAM;
+    return real ? [] : TEAM;
+  }
+}
+
+export type PanelTeam = { id: string; name: string };
+
+/**
+ * Equipes da empresa conectada, do banco. `[]` é empresa sem equipes; `null` é leitura que falhou (ou sem banco),
+ * e quem usa não pode tratar como "sem equipes": não se sabe quem é de qual equipe.
+ */
+export async function loadTeams(orgId: string, deps: { read?: (orgId: string) => Promise<PanelTeam[]> } = {}): Promise<PanelTeam[] | null> {
+  try {
+    if (deps.read) return await deps.read(orgId);
+    const db = panelDb();
+    if (!db) return null;
+    const { readTeams } = await import("@echo/agents/painel");
+    return (await readTeams(db, orgId)).map((t) => ({ id: t.id, name: t.name }));
+  } catch (err) {
+    console.error("equipes do banco indisponíveis", err instanceof Error ? err.message : String(err));
+    return null;
   }
 }
 

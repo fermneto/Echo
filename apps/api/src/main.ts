@@ -2,7 +2,7 @@ import { serve } from "@hono/node-server";
 import { listenPort, loadConfig } from "@echo/config";
 import { applyHrEvent, hrSecret, receive, routeOrg, TokenCipher } from "@echo/connectors";
 import { createDb, createPool, identities, people, ping, withOrg } from "@echo/db";
-import { PgBossQueue, QUEUES } from "@echo/jobs";
+import { DEDUPE_SECONDS, PgBossQueue, QUEUES } from "@echo/jobs";
 import { createLogger, initTracing } from "@echo/observability";
 import { and, eq } from "drizzle-orm";
 import { createApp } from "./app.ts";
@@ -39,7 +39,7 @@ const app = createApp({
     hr: async (orgId, event) => {
       const r = await applyHrEvent(db, orgId, event);
       // A frente Funções monta a redistribuição a partir daqui.
-      if (r.status === "registered") await queue.send(QUEUES.absenceRegistered, { orgId, absenceId: r.absenceId }, { singletonKey: r.absenceId });
+      if (r.status === "registered") await queue.send(QUEUES.absenceRegistered, { orgId, absenceId: r.absenceId }, { singletonKey: r.absenceId, singletonSeconds: DEDUPE_SECONDS.perDay });
       return r;
     },
     slackInteraction: async (orgId, payload) => {

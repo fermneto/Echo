@@ -811,8 +811,9 @@ _Preparação_
 
 1. Entre como Marina, abra Gestão → Custo e execuções e clique em Recriar a demonstração.
 2. Clique em Simular a noite e confira a execução na lista.
-3. Abra o Slack e o painel lado a lado, se for mostrar a resposta real.
-4. Confira o código de acesso do painel: passe aos jurados ou remova.
+3. Com o banco recriado (`pnpm db:seed`), rode `pnpm relatorio:agora`: gera o relatório da semana que já fechou, sem o qual a cena 4 mostra "ainda não foi gerado". `pnpm e2e` ensaia as cinco cenas sozinho, sem modelo.
+4. Abra o Slack e o painel lado a lado, se for mostrar a resposta real.
+5. Confira o código de acesso do painel: passe aos jurados ou remova.
 
 _Se algo falhar_
 

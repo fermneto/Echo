@@ -1,4 +1,4 @@
-import { InMemoryQueue, QUEUES, type SendOptions } from "@echo/jobs";
+import { DEDUPE_SECONDS, InMemoryQueue, QUEUES, type SendOptions } from "@echo/jobs";
 import { describe, expect, it } from "vitest";
 import { registerWeeklyReport } from "./weekly-report.ts";
 
@@ -20,6 +20,6 @@ describe("registerWeeklyReport", () => {
     });
     expect(await wiring.tick()).toEqual({ built: 1, synced: 1 });
     expect(calls).toEqual(["relatorio:org:carla:2026-W45:2026-11-06T21:00:00.000Z", "agenda:org"]);
-    expect(sent.find((s) => s.name === QUEUES.weeklyReportBuild)?.opts).toEqual({ singletonKey: "org:carla:2026-W45", retryLimit: 2 });
+    expect(sent.find((s) => s.name === QUEUES.weeklyReportBuild)?.opts).toEqual({ singletonKey: "org:carla:2026-W45", singletonSeconds: DEDUPE_SECONDS.perDay, retryLimit: 2 });
   });
 });

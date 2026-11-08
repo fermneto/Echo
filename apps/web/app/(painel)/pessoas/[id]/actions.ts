@@ -19,7 +19,7 @@ import { MAX_QUESTION, type AskState } from "@/lib/ask";
 
 /** Pessoa do recorte de quem está logado, já com quem foi cadastrado no painel. */
 async function visibleTarget(me: NonNullable<Awaited<ReturnType<typeof currentPersona>>>, id: string) {
-  const scope = await teamScope(me, await loadTeam(new Date()));
+  const scope = await teamScope(me, await loadTeam(new Date(), { orgId: me.orgId }));
   return scope.people.find((p) => p.id === id);
 }
 

@@ -1,6 +1,6 @@
 // Entrada idempotente (F1): gravar, enfileirar e responder rápido. Processar fica para o worker.
 import { asSystem, inboxEvents, installationRoutes, withOrg, type Database } from "@echo/db";
-import { QUEUES, type JobQueue } from "@echo/jobs";
+import { QUEUES, DEDUPE_SECONDS, type JobQueue } from "@echo/jobs";
 import { and, eq, inArray } from "drizzle-orm";
 import { normalizeGithub } from "./github.ts";
 import { ingest, type IngestResult } from "./ingest.ts";
@@ -60,7 +60,7 @@ export async function receive(db: Database, queue: Pick<JobQueue, "send">, d: De
   });
   if (!found) return "duplicate";
   // singletonKey: duas entregas do mesmo aviso ao mesmo tempo viram um job só.
-  await queue.send<InboxJob>(QUEUES.inboxProcess, { inboxId: found.inboxId, orgId }, { singletonKey: found.inboxId });
+  await queue.send<InboxJob>(QUEUES.inboxProcess, { inboxId: found.inboxId, orgId }, { singletonKey: found.inboxId, singletonSeconds: DEDUPE_SECONDS.perHour });
   return found.fresh ? "queued" : "duplicate";
 }
 

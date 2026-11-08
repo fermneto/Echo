@@ -1,5 +1,5 @@
 import type { AwayDigest, Gains, GainsHistory } from "@echo/agents";
-import { QUEUES, type JobQueue } from "@echo/jobs";
+import { QUEUES, DEDUPE_SECONDS, type JobQueue } from "@echo/jobs";
 
 export interface DigestJob {
   orgId: string;
@@ -40,12 +40,12 @@ export async function registerGains(queue: JobQueue, w: GainsWiring): Promise<{ 
   return {
     async tick() {
       const due = await w.dueDigests(now());
-      for (const d of due) await queue.send<DigestJob>(QUEUES.awayDigestSend, d, { singletonKey: `${d.orgId}:${d.personId}:${d.date}:${d.slot}`, retryLimit: 2 });
+      for (const d of due) await queue.send<DigestJob>(QUEUES.awayDigestSend, d, { singletonKey: `${d.orgId}:${d.personId}:${d.date}:${d.slot}`, singletonSeconds: DEDUPE_SECONDS.perDay, retryLimit: 2 });
       let purged = 0;
       let baselines = 0;
       for (const orgId of await w.orgIds()) {
         purged += await w.digest.purge(orgId);
-        if ((await w.needsBaseline(orgId)) && (await w.history(orgId)) && (await queue.send<BaselineJob>(QUEUES.gainsBaseline, { orgId }, { singletonKey: orgId, retryLimit: 2, expireInSeconds: 1800 }))) baselines++;
+        if ((await w.needsBaseline(orgId)) && (await w.history(orgId)) && (await queue.send<BaselineJob>(QUEUES.gainsBaseline, { orgId }, { singletonKey: orgId, singletonSeconds: DEDUPE_SECONDS.perHour, retryLimit: 2, expireInSeconds: 1800 }))) baselines++;
       }
       return { digests: due.length, purged, baselines };
     },

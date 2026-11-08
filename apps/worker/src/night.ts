@@ -1,5 +1,5 @@
 import type { MorningPlan, NightReview } from "@echo/agents";
-import { QUEUES, type JobQueue } from "@echo/jobs";
+import { QUEUES, DEDUPE_SECONDS, type JobQueue } from "@echo/jobs";
 
 /** Um job da noite por empresa em cada dia UTC. */
 export const NIGHT_SINGLETON_SECONDS = 24 * 60 * 60;
@@ -54,9 +54,9 @@ export async function registerNight(queue: JobQueue, w: NightWiring): Promise<{ 
           if (await queue.send<OrgJob>(QUEUES.nightReview, { orgId }, { singletonKey: `${orgId}:${day}`, singletonSeconds: NIGHT_SINGLETON_SECONDS, retryLimit: 2, retryDelaySeconds: 30 * 60 })) night++;
         }
       }
-      for (const orgId of orgIds) await queue.send<OrgJob>(QUEUES.reviewCollect, { orgId }, { singletonKey: orgId, retryLimit: 1 });
+      for (const orgId of orgIds) await queue.send<OrgJob>(QUEUES.reviewCollect, { orgId }, { singletonKey: orgId, singletonSeconds: DEDUPE_SECONDS.perScan, retryLimit: 1 });
       const due = await w.dueMorning(at);
-      for (const d of due) await queue.send<MorningJob>(QUEUES.morningPlan, d, { singletonKey: `${d.orgId}:${d.personId}:${d.date}` });
+      for (const d of due) await queue.send<MorningJob>(QUEUES.morningPlan, d, { singletonKey: `${d.orgId}:${d.personId}:${d.date}`, singletonSeconds: DEDUPE_SECONDS.perDay });
       return { night, morning: due.length };
     },
   };

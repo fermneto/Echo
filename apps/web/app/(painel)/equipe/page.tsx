@@ -14,7 +14,7 @@ export const metadata = { title: "Pessoas · Echo" };
 export default async function EquipePage() {
   const me = await requireAccess("equipe");
   const now = new Date();
-  const team = await loadTeam(now);
+  const team = await loadTeam(now, { orgId: me.orgId });
   const seesWork = canAskTwin(me.role);
   const scope = await teamScope(me, team);
   const people = scope.people;
