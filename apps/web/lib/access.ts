@@ -103,6 +103,11 @@ export function canLinkAccounts(me: { id: string; role: Role; teamId?: string | 
   return linkablePlatforms(me, target).length > 0;
 }
 
+/** Quem cadastra pessoa nova: só o RH. A liderança edita o perfil e liga GitHub e Linear na ficha. */
+export function canRegisterPeople(role: Role): boolean {
+  return role === "hr";
+}
+
 /** Perguntar ao gêmeo lê notas e tarefas: o RH não pode. */
 export function canAskTwin(role: Role): boolean {
   return role !== "hr";

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canAskTwin, canEditProfile, canLinkAccounts, canSee, linkablePlatforms, canSeePerson, navFor, ROUTES, visibleTeamIds, type RouteId } from "./access";
+import { canAskTwin, canEditProfile, canLinkAccounts, canRegisterPeople, canSee, linkablePlatforms, canSeePerson, navFor, ROUTES, visibleTeamIds, type RouteId } from "./access";
 import { TEAM } from "./demo/team";
 import { TEAMS } from "./demo/teams";
 
@@ -163,5 +163,13 @@ describe("em quais plataformas cada papel liga as contas", () => {
     expect(linkablePlatforms(member, member)).toEqual([]);
     expect(linkablePlatforms({ id: "c", role: "member", teamId: "t1" }, member)).toEqual([]);
     expect(linkablePlatforms({ id: "l2", role: "leader", teamId: "t2" }, member)).toEqual([]);
+  });
+});
+
+describe("quem cadastra pessoa nova", () => {
+  it("só o RH; a liderança e o membro não", () => {
+    expect(canRegisterPeople("hr")).toBe(true);
+    expect(canRegisterPeople("leader")).toBe(false);
+    expect(canRegisterPeople("member")).toBe(false);
   });
 });

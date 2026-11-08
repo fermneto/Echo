@@ -4,7 +4,7 @@ import { loadConfig } from "@echo/config";
 import { revalidatePath } from "next/cache";
 import { panelDb } from "@/lib/db";
 import { gainsOrgId } from "@/lib/gains";
-import { linkablePlatforms } from "@/lib/access";
+import { canRegisterPeople, linkablePlatforms } from "@/lib/access";
 import { conflictMessage, parseAccountsForm, SLACK_FORMAT_ONLY_NOTE } from "@/lib/accounts-form";
 import { slackDirectory } from "@/lib/accounts-server";
 import { membersOf, slackDirectoryFor } from "@/lib/slack-directory";
@@ -16,18 +16,15 @@ import { currentPersona, isDemoSession } from "@/lib/session";
 
 /**
  * Cadastro de pessoa pelo RH: o currículo vira o contexto inicial do gêmeo (modelo aberto) e a foto vira o
- * bonequinho (Claude escolhe traços de uma lista fechada). Só RH e liderança cadastram; a liderança, só
- * pessoas da equipe e sem papel de RH.
+ * bonequinho (Claude escolhe traços de uma lista fechada). Só o RH cadastra (`canRegisterPeople`).
  * Na demonstração (persona escolhida em /entrar), só pré-visualiza: nada é gravado e nenhum modelo é chamado.
  */
 export async function cadastrarPessoa(_prev: CadastroState, form: FormData): Promise<CadastroState> {
   const me = await currentPersona();
-  if (!me || (me.role !== "hr" && me.role !== "leader")) return { status: "error", error: "Só o RH e a liderança cadastram pessoas." };
+  if (!me || !canRegisterPeople(me.role)) return { status: "error", error: "Só o RH cadastra pessoas." };
   const parsed = await parseOnboardingForm(form, ((await teamsFor(me)) ?? []).map((t) => t.id));
   if (!parsed.ok) return { status: "error", error: parsed.error };
   const f = parsed.fields;
-  if (me.role === "leader" && f.role === "hr") return { status: "error", error: "A liderança cadastra pessoas da equipe; o papel de RH só o RH dá." };
-  if (me.role === "leader" && f.teamId !== me.teamId) return { status: "error", error: "A liderança só cadastra pessoas na própria equipe." };
   const db = panelDb();
   // Conferido aqui, não só escondido na tela: a liderança não liga o Slack de ninguém.
   const platforms = linkablePlatforms(me, { id: "", role: f.role, teamId: f.teamId });
