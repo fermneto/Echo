@@ -1,3 +1,4 @@
+import type { AccountPlatform } from "@echo/domain";
 import type { Role } from "./demo/types";
 
 /**
@@ -87,12 +88,21 @@ export function canEditProfile(me: { id: string; role: Role; teamId?: string | u
 }
 
 /**
- * Quem liga as contas da pessoa no Slack, GitHub e Linear: o RH, ou a liderança da equipe da pessoa (nunca a de
- * alguém do RH). A própria pessoa não: a conta do Slack decide quem entra no painel como ela.
+ * Em quais plataformas cada papel liga ou troca as contas da pessoa. A conta do Slack decide quem entra no painel
+ * como a pessoa e quem ela é nas menções, então só o RH liga ou troca o Slack. GitHub e Linear: o RH e a liderança
+ * da equipe da pessoa (nunca a de alguém do RH). Fora do RH, ninguém mexe nas próprias contas, nem a liderança
+ * sobre si: senão um líder poderia entrar no painel como outra pessoa.
  */
+export function linkablePlatforms(me: { id: string; role: Role; teamId?: string | undefined }, target: { id: string; role?: Role | undefined; teamId?: string | undefined }): AccountPlatform[] {
+  if (me.role === "hr") return ["slack", "github", "linear"];
+  if (me.id === target.id) return [];
+  if (me.role === "leader" && target.role !== "hr" && Boolean(me.teamId) && me.teamId === target.teamId) return ["github", "linear"];
+  return [];
+}
+
+/** Quem vê a seção de contas da pessoa: quem liga ao menos uma plataforma. */
 export function canLinkAccounts(me: { id: string; role: Role; teamId?: string | undefined }, target: { id: string; role?: Role | undefined; teamId?: string | undefined }): boolean {
-  if (me.role === "hr") return true;
-  return me.role === "leader" && target.role !== "hr" && Boolean(me.teamId) && me.teamId === target.teamId;
+  return linkablePlatforms(me, target).length > 0;
 }
 
 /** Perguntar ao gêmeo lê notas e tarefas: o RH não pode. */

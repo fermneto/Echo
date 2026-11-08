@@ -27,7 +27,16 @@ describe("contas no formulário", () => {
     expect(parseAccountsForm(form({ conta_slack: "ana" })).ok).toBe(false);
   });
 
-  it("conta de outra pessoa: diz de quem é", () => {
+  it("conta de outra pessoa: diz de quem é; na corrida, sem nome", () => {
     expect(conflictMessage("slack", "Ana")).toBe("Essa conta do Slack já está ligada a Ana. Tire de lá primeiro, na ficha de Ana.");
+    expect(conflictMessage("github", null)).toBe("Essa conta do GitHub acabou de ser ligada a outra pessoa. Confira as contas e tente de novo.");
+  });
+
+  it("só as plataformas permitidas: o campo do Slack vindo da liderança é recusado, mesmo vazio", () => {
+    const leader = ["github", "linear"] as const;
+    expect(parseAccountsForm(form({ conta_github: "ana" }), null, leader)).toEqual({ ok: true, links: [{ platform: "github", externalId: "login:ana", login: "ana" }] });
+    expect(parseAccountsForm(form({ conta_slack: "U0ANA0001", conta_github: "ana" }), null, leader)).toEqual({ ok: false, error: "Só o RH liga ou troca a conta do Slack: é por ela que a pessoa entra no painel." });
+    expect(parseAccountsForm(form({ conta_slack: "" }), null, leader).ok).toBe(false);
+    expect(parseAccountsForm(form({ conta_github: "ana" }), null, []).ok).toBe(false);
   });
 });
