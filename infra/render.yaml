@@ -135,6 +135,12 @@ services:
         sync: false
       - key: FIX_ENVIRONMENT_ID
         sync: false
+      # Vídeo da semana da equipe (etapa 27) no Managed Agents: IDs de `pnpm --filter @echo/reviewer provision-video`.
+      # Sem eles, não há vídeo (os relatórios seguem iguais).
+      - key: VIDEO_AGENT_ID
+        sync: false
+      - key: VIDEO_ENVIRONMENT_ID
+        sync: false
       # Repositório do espelho das notas, no formato org/brains.
       - key: BRAINS_REPOSITORY
         sync: false

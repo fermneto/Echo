@@ -32,6 +32,8 @@ export const QUEUES = {
   morningPlan: "morning_plan.build",
   /** Correção de uma revisão em ambiente isolado (etapa 10), no reviewer. Chave única: a revisão. */
   fixRun: "fix.run",
+  /** Gravação do vídeo de uma entrega (etapa 27). Chave única: o vídeo; sem nova tentativa (cada gravação custa). */
+  videoRun: "video.run",
   /** Passada da redistribuição numa empresa: plano complementar, volta da ausência e planos concluídos. */
   redistributionScan: "redistribution.scan",
   /** Relatório semanal de uma pessoa, depois do corte (etapa 12). Chave única: pessoa + semana. */

@@ -14,3 +14,5 @@ export * from "./away-digest.ts";
 export * from "./agent-profile.ts";
 export * from "./mirror.ts";
 export * from "./avatar.ts";
+export * from "./video.ts";
+export * from "./team-video.ts";
