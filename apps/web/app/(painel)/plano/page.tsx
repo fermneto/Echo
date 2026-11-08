@@ -1,3 +1,4 @@
+import { scheduledKeys } from "@echo/domain";
 import { planFor, type PlanItem } from "@/lib/demo/plan";
 import { personIdFor } from "@/lib/agent";
 import { dayMonth } from "@/lib/daily-note";
@@ -37,8 +38,12 @@ export default async function PlanoPage({ searchParams }: { searchParams: Promis
   const firstName = me.name.trim().split(/\s+/)[0];
   const lead = agenda ? `O agente de ${firstName} organizou seus dias por prazo, dependências e carga. Você pode mudar o dia de qualquer tarefa. Só você vê este plano.` : null;
   const schedule = agenda ? <DaySchedule today={agenda.today} schedule={agenda.schedule} move={moverTarefa} /> : null;
-  // Com agenda, o prazo já aparece no dia da tarefa e não repete como pendência.
-  const notDue = (it: PlanItem) => !agenda || !(it.id.startsWith("due:") || it.dueIso);
+  // O prazo de tarefa que já está na agenda não repete como pendência; o de tarefa fora dela continua.
+  const onAgenda = agenda ? scheduledKeys(agenda.schedule) : new Set<string>();
+  const notDue = (it: PlanItem) => {
+    const key = it.id.startsWith("due:") ? it.id.slice(4) : it.dueIso ? it.id.toUpperCase() : null;
+    return !key || !onAgenda.has(key);
+  };
 
   if (!isDemoOrg(me.orgId)) {
     // Empresa conectada: o plano da manhã gravado pelo fluxo F5. Sem plano no banco, estado vazio, nunca o inventado.

@@ -15,16 +15,17 @@ function setup(tasks: Task[]) {
   const runs: { flow: string; result: string; tools?: string[] }[] = [];
   const pins: Record<string, Record<string, string>> = {};
   const local: string[] = [];
+  const accounts = { accounts: new Set(["marina", "yan", "carla"]) };
   const data = { people: async () => team, tasks: async () => tasks, absences: async () => [] } as unknown as AgentData;
   const flow = createWorkPlanning({
     data: () => data,
-    store: () => ({ pins: async (id) => pins[id] ?? {}, setPins: async (id, p) => void (pins[id] = p), assignLocalTask: async (id, to) => void local.push(`${id}:${to}`), hasSlack: async (id) => id !== "carla" }),
+    store: () => ({ pins: async (id) => pins[id] ?? {}, setPins: async (id, p) => void (pins[id] = p), assignLocalTask: async (id, to) => void local.push(`${id}:${to}`), hasSlack: async (id) => id !== "carla", trackerAccounts: async () => accounts.accounts }),
     outbox: () => ({ enqueue: async (a) => (outbox.push(a), { id: "1", duplicate: false }) }),
     recorder: { record: async (r) => void runs.push(r as never) },
     clock: new FixedClock(now),
     webUrl: "https://echo.test/",
   });
-  return { flow, outbox, runs, pins, local };
+  return { flow, outbox, runs, pins, local, store: accounts };
 }
 
 describe("distribuição de tarefas", () => {
@@ -36,6 +37,8 @@ describe("distribuição de tarefas", () => {
     expect(b.tasks.map((t) => t.key)).toEqual(["B"]);
     expect(b.tasks[0]!.blockedBy).toEqual([{ key: "A", owner: "Yan" }]);
     expect(b.tasks[0]!.starts).toEqual({ marina: null, yan: "2026-11-10", carla: null });
+    expect(b.tasks[0]).toMatchObject({ suggestedId: "yan", points: 2, inTracker: true });
+    expect(b.people[1]).toMatchObject({ localToday: "2026-11-09", hasTracker: true });
     expect(await flow.board("org", "yan")).toBeNull();
   });
 
@@ -49,6 +52,22 @@ describe("distribuição de tarefas", () => {
     expect(dm.text).toBe("Marina passou B para você: Título B. Início sugerido: Hoje, 09/11 (prazo 20/11). Você pode mudar o dia em Meu plano.");
     expect(JSON.stringify(dm.blocks)).toContain("Agente de Yan");
     expect(runs[0]).toMatchObject({ flow: "task_assign", result: "ok", tools: ["linear.assign", "slack.dm"] });
+  });
+
+  it("não sugere nem atribui tarefa do tracker a quem não tem conta lá", async () => {
+    const { flow, outbox, store } = setup([task("B")]);
+    store.accounts = new Set(["marina", "carla"]);
+    const b = (await flow.board("org", "marina"))!;
+    expect(b.people.find((p) => p.id === "yan")!.hasTracker).toBe(false);
+    expect(b.tasks[0]!.suggestedId).toBe("carla");
+    expect(await flow.assign("org", "marina", "B", "yan")).toEqual({ status: "refused", reason: "Esta pessoa não tem conta no tracker de tarefas." });
+    expect(outbox).toEqual([]);
+  });
+
+  it("não tira tarefa de quem já é responsável", async () => {
+    const { flow, outbox } = setup([task("B", { assigneeId: "x", state: "in_progress" })]);
+    expect((await flow.assign("org", "marina", "B", "yan")).status).toBe("refused");
+    expect(outbox).toEqual([]);
   });
 
   it("tarefa sem tracker muda só no Echo; sem Slack, sem aviso", async () => {

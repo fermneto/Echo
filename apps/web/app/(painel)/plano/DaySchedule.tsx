@@ -2,11 +2,11 @@
 
 import { type PersonSchedule, type ScheduleEntry, SCHEDULE_RULES, scheduleDayLabel, type SchedulePart } from "@echo/domain";
 import { useState, useTransition } from "react";
+import { dayMonth } from "@/lib/daily-note";
 
 export type MoveResult = { ok: true } | { ok: false; error: string };
 
 const PART: Record<SchedulePart, string> = { inteira: "Fazer", inicia: "Começar", continua: "Continuar", conclui: "Terminar" };
-const ddmm = (d: string) => `${d.slice(8, 10)}/${d.slice(5, 7)}`;
 const sentence = (s: string) => s.charAt(0).toUpperCase() + s.slice(1);
 
 /** Mudar o dia: a lista é a dos próximos dias de trabalho; a tarefa escolhida à mão pode voltar à sugestão. */
@@ -24,7 +24,7 @@ function MoveDay({ entry, today, dates, disabled, onMove }: { entry: ScheduleEnt
       <option value="">Mudar o dia</option>
       {dates.map((d) => (
         <option key={d} value={d}>
-          {scheduleDayLabel(d, today)}, {ddmm(d)}
+          {scheduleDayLabel(d, today)}, {dayMonth(d)}
         </option>
       ))}
       {entry.pinned && <option value="sugestao">Voltar à sugestão</option>}
@@ -54,7 +54,7 @@ export function DaySchedule({ today, schedule, move }: { today: string; schedule
     <section className="agenda" aria-label="Agenda dos próximos dias" aria-busy={pending}>
       <div className="agenda-today">
         <header className="agenda-head">
-          <h2 className="agenda-head__title">{now ? `${scheduleDayLabel(now.date, today)}${now.date === today ? "" : `, ${ddmm(now.date)}`}` : "Sem dias de trabalho"}</h2>
+          <h2 className="agenda-head__title">{now ? `${scheduleDayLabel(now.date, today)}${now.date === today ? "" : `, ${dayMonth(now.date)}`}` : "Sem dias de trabalho"}</h2>
           {now && (
             <span className="mono agenda-head__load">
               {now.points} de {SCHEDULE_RULES.pointsPerDay} pontos
@@ -97,7 +97,7 @@ export function DaySchedule({ today, schedule, move }: { today: string; schedule
             <div key={d.date} className="agenda-day">
               <header className="agenda-day__head">
                 <h3>{scheduleDayLabel(d.date, today)}</h3>
-                <span className="mono">{ddmm(d.date)}</span>
+                <span className="mono">{dayMonth(d.date)}</span>
               </header>
               {d.entries.length === 0 ? (
                 <p className="agenda-day__free">Livre</p>
@@ -132,6 +132,11 @@ export function DaySchedule({ today, schedule, move }: { today: string; schedule
                 <span className="agenda-side__why">
                   Espera {w.waitingOn.map((b) => (b.owner ? `${b.key} de ${b.owner}` : b.key)).join(", ") || "uma entrega sem previsão"}
                 </span>
+                {w.pinned && (
+                  <button type="button" className="link-inline agenda-side__reset" disabled={pending} onClick={() => onMove(w.key, null)}>
+                    Voltar à sugestão
+                  </button>
+                )}
               </li>
             ))}
           </ul>

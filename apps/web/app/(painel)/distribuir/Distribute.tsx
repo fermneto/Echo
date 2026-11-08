@@ -3,26 +3,17 @@
 import type { BoardTask, WorkBoard } from "@echo/agents";
 import { scheduleDayLabel } from "@echo/domain";
 import { useState, useTransition } from "react";
+import { dayMonth } from "@/lib/daily-note";
 import type { AssignResult } from "./actions";
 
-const ddmm = (d: string) => `${d.slice(8, 10)}/${d.slice(5, 7)}`;
 const firstName = (name: string) => name.trim().split(/\s+/)[0] ?? name;
 
-/** Sugestão por regra: quem começaria mais cedo, entre quem não está ausente. A liderança só entra se não houver mais ninguém. */
-function suggested(task: BoardTask, board: WorkBoard): string {
-  const free = board.people.filter((p) => !p.away && task.starts[p.id]);
-  const members = free.filter((p) => p.role === "member");
-  const options = members.length ? members : free;
-  options.sort((a, b) => task.starts[a.id]!.localeCompare(task.starts[b.id]!) || a.points - b.points);
-  return options[0]?.id ?? "";
-}
-
 function TaskRow({ task, board, assign }: { task: BoardTask; board: WorkBoard; assign: (key: string, personId: string) => Promise<AssignResult> }) {
-  const best = suggested(task, board);
+  const best = task.suggestedId ?? "";
   const [to, setTo] = useState(best);
   const [result, setResult] = useState<AssignResult | null>(null);
   const [pending, start] = useTransition();
-  const meta = [task.dueDate ? `Prazo ${ddmm(task.dueDate)}` : "Sem prazo", `${task.size ?? 2} ${(task.size ?? 2) === 1 ? "ponto" : "pontos"}`, ...(task.blockedBy.length ? [`Depende de ${task.blockedBy.map((b) => (b.owner ? `${b.key} de ${b.owner}` : b.key)).join(", ")}`] : [])];
+  const meta = [task.dueDate ? `Prazo ${dayMonth(task.dueDate)}` : "Sem prazo", `${task.points} ${task.points === 1 ? "ponto" : "pontos"}`, ...(task.blockedBy.length ? [`Depende de ${task.blockedBy.map((b) => (b.owner ? `${b.key} de ${b.owner}` : b.key)).join(", ")}`] : [])];
   return (
     <li className="board-task">
       <p className="board-task__title">
@@ -40,9 +31,10 @@ function TaskRow({ task, board, assign }: { task: BoardTask; board: WorkBoard; a
               <option value="">Escolha a pessoa</option>
               {board.people.map((p) => {
                 const day = task.starts[p.id];
+                const noAccount = task.inTracker && !p.hasTracker;
                 return (
-                  <option key={p.id} value={p.id} disabled={p.away}>
-                    {firstName(p.name)} · {p.away ? "ausente" : day ? `começaria ${scheduleDayLabel(day, board.today).toLowerCase()}, ${ddmm(day)}` : "sem dia nos próximos dias"}
+                  <option key={p.id} value={p.id} disabled={p.away || noAccount}>
+                    {firstName(p.name)} · {p.away ? "ausente" : noAccount ? "sem conta no tracker" : day ? `começaria ${scheduleDayLabel(day, p.localToday).toLowerCase()}, ${dayMonth(day)}` : "sem dia nos próximos dias"}
                     {p.id === best ? " · sugerida" : ""}
                   </option>
                 );
@@ -93,7 +85,7 @@ export function Distribute({ board, assign }: { board: WorkBoard; assign: (key: 
               {p.away && <p className="board-person__away">Ausente agora</p>}
               <p>{p.today.length ? `Hoje: ${p.today.map((t) => t.key).join(", ")}` : "Nada para hoje"}</p>
               <p>
-                {p.nextFree ? `Próximo espaço: ${scheduleDayLabel(p.nextFree, board.today).toLowerCase()}, ${ddmm(p.nextFree)}` : "Agenda cheia nos próximos dias"}
+                {p.nextFree ? `Próximo espaço: ${scheduleDayLabel(p.nextFree, p.localToday).toLowerCase()}, ${dayMonth(p.nextFree)}` : "Agenda cheia nos próximos dias"}
                 {p.waiting > 0 ? ` · ${p.waiting} esperando outra entrega` : ""}
               </p>
             </li>

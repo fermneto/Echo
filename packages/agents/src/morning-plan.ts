@@ -1,7 +1,7 @@
 // Plano da manhã (etapa 9, F5). Sem modelo: as regras coletam, ordenam e escrevem o motivo de cada item.
 // Envio privado pelo outbox; em Meu plano, só a própria pessoa reordena e descarta.
 import type { OutboxAction } from "@echo/actions";
-import { applyPlanEdits, type Clock, DAY, MORNING_RULES, morningPlan, type PersonSchedule, personSchedule, type PlanFinding, type PlanFix, type PlanItem, type PlanItemKind, type PlanQuestion, scheduleDayLabel, type SchedulePart, systemClock } from "@echo/domain";
+import { applyPlanEdits, type Clock, DAY, MORNING_RULES, morningPlan, type PersonSchedule, personSchedule, type PlanFinding, type PlanFix, type PlanItem, type PlanItemKind, type PlanQuestion, scheduledKeys, scheduleDayLabel, type SchedulePart, systemClock } from "@echo/domain";
 import type { AgentRun, RunRecorder } from "@echo/observability";
 import type { AgentData } from "./data.ts";
 import { actions, columns, context, dayMonth, divider, DOT, esc, header, linkButton, section, statusTag } from "./slack-format.ts";
@@ -56,12 +56,13 @@ const PART_LABEL: Record<SchedulePart, string> = { inteira: "fazer", inicia: "co
 
 /**
  * A mensagem da manhã é a agenda do dia: o que fazer hoje e por quê, quem espera a pessoa, os próximos dias e o que
- * está parado por outra entrega. Prazo já aparece na agenda, então não repete como pendência.
+ * está parado por outra entrega. O prazo de tarefa que já está na agenda não repete como pendência.
  */
 export function planMessage(plan: StoredPlan, webUrl: string, schedule?: PersonSchedule, agentName?: string): { text: string; blocks: unknown[] } {
   const today = schedule?.days.find((d) => d.date === plan.date);
   const next = (schedule?.days ?? []).filter((d) => d.date > plan.date).slice(0, 4);
-  const pending = schedule ? plan.items.filter((i) => i.kind !== "task_due" && i.kind !== "task_overdue") : plan.items;
+  const onAgenda = schedule ? scheduledKeys(schedule) : new Set<string>();
+  const pending = plan.items.filter((i) => !(i.id.startsWith("due:") && onAgenda.has(i.id.slice(4))));
   const shown = pending.slice(0, MORNING_RULES.maxItems);
   const more = pending.length - shown.length;
   const moreLine = more > 0 ? `E mais ${more} no painel.` : "";
@@ -122,7 +123,7 @@ export function createMorningPlan(deps: MorningPlanDeps) {
         store.fixesForAuthor(personId),
         data.pullRequests({ openOnly: true }),
         data.tasks({ assigneeId: personId, openOnly: true }),
-        data.tasks({ openOnly: true }),
+        data.tasks({ openOnly: true, all: true }),
         data.absences(),
         store.schedulePins?.(personId) ?? {},
       ]);

@@ -65,6 +65,13 @@ describe("plano da manhã", () => {
     expect(runs[0]!.model).toBeUndefined();
   });
 
+  it("prazo de tarefa fora da agenda continua como pendência", async () => {
+    const tasks: Task[] = [{ id: "r", key: "ECH-9", title: "x", assigneeId: "fernando", state: "in_review", dueDate: "2026-11-05", labels: [], hasLinearId: true }];
+    const { flow, outbox } = setup({ tasks });
+    await flow.build("org", "fernando", "2026-11-09");
+    expect((outbox[0]!.payload as { text: string }).text).toContain("• *ECH-9 passou do prazo*");
+  });
+
   it("mostra até 7 pendências e o que espera outra entrega", async () => {
     const questions = Array.from({ length: 9 }, (_, i): PlanQuestion => ({ id: `q${i}`, askerId: "eduardo", createdAt: new Date(NOW.getTime() - i * HOUR) }));
     const tasks: Task[] = [{ id: "a", key: "ECH-1", title: "x", assigneeId: "fernando", state: "todo", labels: [], hasLinearId: true, blockedBy: ["ECH-2"] }, { id: "b", key: "ECH-2", title: "y", assigneeId: "carla", state: "todo", labels: [], hasLinearId: true }];

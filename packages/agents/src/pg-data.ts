@@ -25,6 +25,8 @@ const OPEN_TASK_STATES = ["backlog", "todo", "in_progress", "in_review"];
 const OPEN_PR_STATES = ["open", "draft"];
 const opt = <T>(v: T | null | undefined): T | undefined => v ?? undefined;
 const ISO_DATE = /^\d{4}-\d{2}-\d{2}$/;
+/** Teto de segurança da leitura completa: bem acima das 500 tarefas abertas que a importação alcança. */
+const ALL_TASKS_LIMIT = 5_000;
 
 function toTask(r: typeof tasks.$inferSelect): Task {
   return {
@@ -155,7 +157,7 @@ export function createPgAgentData(db: Database, orgId: string): AgentData {
       const conds: SQL[] = [eq(tasks.orgId, orgId)];
       if (filter.assigneeId) conds.push(eq(tasks.assigneeId, filter.assigneeId));
       if (filter.openOnly) conds.push(inArray(tasks.state, OPEN_TASK_STATES));
-      const rows = await run((tx) => tx.select().from(tasks).where(and(...conds)).orderBy(tasks.key).limit(100));
+      const rows = await run((tx) => tx.select().from(tasks).where(and(...conds)).orderBy(tasks.key).limit(filter.all ? ALL_TASKS_LIMIT : 100));
       return rows.map(toTask);
     },
 

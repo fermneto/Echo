@@ -2,7 +2,7 @@
 // que é quem escreve no Linear ou no Jira); as regras de @echo/domain sugerem em que dia ela entra, e só a própria
 // pessoa muda esse dia. A agenda fica no Echo: nada dela vai para o tracker.
 import type { OutboxAction } from "@echo/actions";
-import { assignCheck, type Clock, localDate, type Person, personSchedule, type PersonSchedule, SCHEDULE_RULES, scheduleDayLabel, systemClock, type Task, validPin } from "@echo/domain";
+import { assignCheck, type Clock, localDate, onLeaveNow, type Person, personSchedule, type PersonSchedule, SCHEDULE_RULES, scheduleDayLabel, systemClock, type Task, taskPoints, validPin } from "@echo/domain";
 import type { AgentRun, RunRecorder } from "@echo/observability";
 import type { AgentData } from "./data.ts";
 import { actions, columns, context, dayMonth, DOT, esc, header, linkButton, section, statusTag } from "./slack-format.ts";
@@ -14,6 +14,8 @@ export interface WorkPlanningStore {
   /** Tarefa sem tracker (criada no Echo): não há o que o outbox escrever. */
   assignLocalTask(taskId: string, toId: string): Promise<void>;
   hasSlack(personId: string): Promise<boolean>;
+  /** Quem tem conta no tracker ligado na empresa: tarefa do tracker só vai para quem tem conta lá. */
+  trackerAccounts(): Promise<Set<string>>;
 }
 
 export interface WorkPlanningDeps {
@@ -30,6 +32,9 @@ export interface BoardPerson {
   name: string;
   role: Person["role"];
   away: boolean;
+  /** Data de hoje no fuso da pessoa: os dias dela são rotulados por ela. */
+  localToday: string;
+  hasTracker: boolean;
   /** Pontos já na agenda dos próximos dias e quanto cabe neles. */
   points: number;
   capacity: number;
@@ -42,15 +47,18 @@ export interface BoardPerson {
 export interface BoardTask {
   key: string;
   title: string;
-  size?: number | undefined;
+  points: number;
   dueDate?: string | undefined;
+  /** A tarefa existe no tracker: só recebe quem tem conta lá. */
+  inTracker: boolean;
+  /** Sugestão por regra: quem começaria mais cedo, com a menor carga. */
+  suggestedId?: string | undefined;
   blockedBy: { key: string; owner?: string | undefined }[];
   /** Pessoa → dia em que a tarefa entraria na agenda dela; null quando ficaria esperando ou não cabe. */
   starts: Record<string, string | null>;
 }
 
 export interface WorkBoard {
-  today: string;
   people: BoardPerson[];
   tasks: BoardTask[];
 }
@@ -69,6 +77,13 @@ function startOf(schedule: PersonSchedule, key: string) {
     if (entry) return { date: day.date, reason: entry.reason };
   }
   return null;
+}
+
+/** Quem está disponível e começaria mais cedo. A liderança só entra se não houver mais ninguém. */
+function suggestPerson(task: Pick<BoardTask, "inTracker" | "starts">, people: BoardPerson[]): string | undefined {
+  const free = people.filter((p) => !p.away && task.starts[p.id] && (!task.inTracker || p.hasTracker));
+  const members = free.filter((p) => p.role === "member");
+  return [...(members.length ? members : free)].sort((a, b) => task.starts[a.id]!.localeCompare(task.starts[b.id]!) || a.points - b.points)[0]?.id;
 }
 
 /** Aviso a quem recebe a tarefa: o que é, quem passou e quando o agente sugere começar. */
@@ -98,7 +113,7 @@ export function createWorkPlanning(deps: WorkPlanningDeps) {
 
   async function load(orgId: string) {
     const data = deps.data(orgId);
-    const [people, tasks, absences] = await Promise.all([data.people(), data.tasks({ openOnly: true }), data.absences()]);
+    const [people, tasks, absences] = await Promise.all([data.people(), data.tasks({ openOnly: true, all: true }), data.absences()]);
     return { people, tasks, absences };
   }
 
@@ -127,34 +142,43 @@ export function createWorkPlanning(deps: WorkPlanningDeps) {
       .sort((a, b) => (a.dueDate ?? "9999").localeCompare(b.dueDate ?? "9999") || a.key.localeCompare(b.key))
       .slice(0, MAX_BOARD_TASKS);
     const open = new Set(tasks.map((t) => t.key));
+    const accounts = await store.trackerAccounts();
+    const board: BoardPerson[] = team.map((p) => {
+      const s = plan(p, tasks);
+      const localToday = localDate(now, p.timezone);
+      return {
+        id: p.id,
+        name: p.name,
+        role: p.role,
+        away: onLeaveNow(p.id, absences, now),
+        localToday,
+        hasTracker: accounts.has(p.id),
+        points: s.days.reduce((n, d) => n + d.points, 0),
+        capacity: s.days.length * SCHEDULE_RULES.pointsPerDay,
+        nextFree: s.days.find((d) => d.points < SCHEDULE_RULES.pointsPerDay)?.date,
+        // Em ausência, o primeiro dia da agenda é o da volta: não é "hoje".
+        today: (s.days.find((d) => d.date === localToday)?.entries ?? []).map((e) => ({ key: e.key, title: e.title })),
+        waiting: s.waiting.length,
+      };
+    });
     return {
-      today: localDate(now, leader.timezone),
-      people: team.map((p) => {
-        const s = plan(p, tasks);
+      people: board,
+      tasks: free.map((t) => {
+        const starts = Object.fromEntries(team.map((p) => [p.id, startOf(plan(p, tasks.map((o) => (o.key === t.key ? { ...o, assigneeId: p.id } : o))), t.key)?.date ?? null]));
         return {
-          id: p.id,
-          name: p.name,
-          role: p.role,
-          away: absences.some((a) => a.personId === p.id && a.startsAt <= now && a.endsAt > now),
-          points: s.days.reduce((n, d) => n + d.points, 0),
-          capacity: s.days.length * SCHEDULE_RULES.pointsPerDay,
-          nextFree: s.days.find((d) => d.points < SCHEDULE_RULES.pointsPerDay)?.date,
-          // Em ausência, o primeiro dia da agenda é o da volta: não é "hoje".
-          today: (s.days.find((d) => d.date === localDate(now, p.timezone))?.entries ?? []).map((e) => ({ key: e.key, title: e.title })),
-          waiting: s.waiting.length,
+          key: t.key,
+          title: t.title,
+          points: taskPoints(t),
+          dueDate: t.dueDate,
+          inTracker: t.hasLinearId,
+          suggestedId: suggestPerson({ inTracker: t.hasLinearId, starts }, board),
+          blockedBy: (t.blockedBy ?? []).filter((k) => open.has(k)).map((k) => {
+            const owner = nameOf(tasks.find((o) => o.key === k)?.assigneeId);
+            return { key: k, owner: owner ? first(owner) : undefined };
+          }),
+          starts,
         };
       }),
-      tasks: free.map((t) => ({
-        key: t.key,
-        title: t.title,
-        size: t.size,
-        dueDate: t.dueDate,
-        blockedBy: (t.blockedBy ?? []).filter((k) => open.has(k)).map((k) => {
-          const owner = nameOf(tasks.find((o) => o.key === k)?.assigneeId);
-          return { key: k, owner: owner ? first(owner) : undefined };
-        }),
-        starts: Object.fromEntries(team.map((p) => [p.id, startOf(plan(p, tasks.map((o) => (o.key === t.key ? { ...o, assigneeId: p.id } : o))), t.key)?.date ?? null])),
-      })),
     };
   }
 
@@ -178,6 +202,7 @@ export function createWorkPlanning(deps: WorkPlanningDeps) {
 
       const outbox = deps.outbox(orgId);
       const store = deps.store(orgId);
+      if (task.hasLinearId && !(await store.trackerAccounts()).has(toId)) return done({ status: "refused", reason: "Esta pessoa não tem conta no tracker de tarefas." });
       const minute = Math.floor(now.getTime() / 60_000);
       const key = `task_assign:${task.id}:${toId}:${minute}`;
       const tools: string[] = [];
