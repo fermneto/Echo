@@ -6,6 +6,7 @@ import { asSystem, createDb, createPool, identities, installationRoutes, orgs, p
 import { and, eq } from "drizzle-orm";
 import { GithubApp } from "./github-client.ts";
 import { ingest } from "./ingest.ts";
+import { JiraTracker } from "./jira-client.ts";
 import { LinearTracker } from "./linear-client.ts";
 
 interface PessoaTeste {
@@ -18,6 +19,8 @@ interface PessoaTeste {
   github?: string;
   /** id do usuário no Linear */
   linear?: string;
+  /** accountId da pessoa no Jira Cloud */
+  jira?: string;
   /** matrícula no sistema de RH */
   rh?: string;
   /** conta no Google Workspace (e-mail), para a agenda */
@@ -65,6 +68,7 @@ for (const p of pessoas) await withOrg(db, orgId, async (db) => {
     p.slack ? { platform: "slack", externalId: p.slack, login: null } : null,
     p.github ? { platform: "github", externalId: `login:${p.github.toLowerCase()}`, login: p.github } : null,
     p.linear ? { platform: "linear", externalId: p.linear, login: null } : null,
+    p.jira ? { platform: "jira", externalId: p.jira, login: null } : null,
     p.rh ? { platform: "rh", externalId: p.rh, login: null } : null,
     p.google ? { platform: "google", externalId: p.google.toLowerCase(), login: null } : null,
     p.microsoft ? { platform: "microsoft", externalId: p.microsoft.toLowerCase(), login: null } : null,
@@ -83,6 +87,8 @@ const routes = [
   ["slack", env.DEMO_SLACK_TEAM_ID],
   ["github", env.DEMO_GITHUB_INSTALLATION_ID],
   ["linear", env.DEMO_LINEAR_ORG_ID],
+  // Site do Jira em minúsculas (ex.: acme.atlassian.net), como vem no endereço de cada issue.
+  ["jira", env.DEMO_JIRA_SITE?.toLowerCase()],
   ["google", env.DEMO_GOOGLE_DOMAIN],
   ["microsoft", env.DEMO_MICROSOFT_TENANT_ID],
   ["vercel", env.DEMO_VERCEL_TEAM_ID],
@@ -102,6 +108,12 @@ if (env.LINEAR_API_KEY || (env.LINEAR_CLIENT_ID && env.LINEAR_CLIENT_SECRET)) {
   const { tasks, truncated } = await linear.listOpenTasks();
   await ingest(db, orgId, tasks.map((task) => ({ kind: "task_upsert" as const, task })));
   console.log(`Linear: ${tasks.length}${truncated ? "+" : ""} tarefas abertas importadas (${tasks.map((t) => t.key).slice(0, 10).join(", ")})`);
+}
+if (env.JIRA_BASE_URL && env.JIRA_EMAIL && env.JIRA_API_TOKEN) {
+  const jira = new JiraTracker({ baseUrl: env.JIRA_BASE_URL, email: env.JIRA_EMAIL, apiToken: env.JIRA_API_TOKEN, ...(env.JIRA_STORY_POINTS_FIELD ? { storyPointsField: env.JIRA_STORY_POINTS_FIELD } : {}), ...(env.JIRA_JQL ? { jql: env.JIRA_JQL } : {}) });
+  const { tasks, truncated } = await jira.listOpenTasks();
+  await ingest(db, orgId, tasks.map((task) => ({ kind: "task_upsert" as const, task })));
+  console.log(`Jira (${jira.site}): ${tasks.length}${truncated ? "+" : ""} tarefas abertas importadas (${tasks.map((t) => t.key).slice(0, 10).join(", ")})`);
 }
 if (env.GITHUB_APP_ID && env.GITHUB_PRIVATE_KEY && env.DEMO_GITHUB_INSTALLATION_ID) {
   const gh = new GithubApp({ appId: env.GITHUB_APP_ID, privateKey: env.GITHUB_PRIVATE_KEY }).forInstallation(env.DEMO_GITHUB_INSTALLATION_ID);

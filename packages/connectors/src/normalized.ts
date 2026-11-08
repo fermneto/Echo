@@ -2,7 +2,7 @@
 // EXTERNOS; quem é quem no Echo é resolvido no ingest pela tabela identities, sem adivinhar.
 import type { PrState, TaskState, WorkEventType } from "@echo/domain";
 
-export type Platform = "github" | "slack" | "linear";
+export type Platform = "github" | "slack" | "linear" | "jira";
 
 export interface ExternalActor {
   platform: Platform;
@@ -28,6 +28,7 @@ export interface ExternalWorkEvent {
 
 export interface ExternalTask {
   key: string;
+  /** Id da tarefa no tracker (Linear ou Jira); o nome ficou do primeiro tracker. */
   linearId: string;
   title: string;
   assignee?: ExternalActor | undefined;

@@ -45,6 +45,8 @@ export const apiSchema = baseSchema.extend({
   GITHUB_WEBHOOK_SECRET: optionalString,
   SLACK_SIGNING_SECRET: optionalString,
   LINEAR_WEBHOOK_SECRET: optionalString,
+  /** Segredo do webhook do Jira Cloud (X-Hub-Signature). */
+  JIRA_WEBHOOK_SECRET: optionalString,
   /** Segredo do webhook de deploys da Vercel (etapa 19). */
   VERCEL_WEBHOOK_SECRET: optionalString,
   /** Chave das credenciais guardadas (openssl rand -hex 32), igual em web, api e worker. */
@@ -129,6 +131,14 @@ export const workerSchema = baseSchema.extend({
   LINEAR_CLIENT_SECRET: optionalString,
   /** Alternativa para testes: chave pessoal de API do Linear (lin_api_…). */
   LINEAR_API_KEY: optionalString,
+  /** Jira Cloud (etapa 21): site, conta de serviço e token de API. Com o Linear ligado, o Linear vale. */
+  JIRA_BASE_URL: optionalString.pipe(z.url().optional()),
+  JIRA_EMAIL: optionalString,
+  JIRA_API_TOKEN: optionalString,
+  /** Campo dos story points neste site (padrão: customfield_10016). */
+  JIRA_STORY_POINTS_FIELD: optionalString,
+  /** Filtro JQL dos projetos importados (ex.: project in (ECH)). */
+  JIRA_JQL: optionalString,
   /** Google Agenda: conta de serviço com delegação no domínio (o admin do Workspace autoriza o escopo). */
   GOOGLE_SERVICE_ACCOUNT_EMAIL: optionalString,
   GOOGLE_SERVICE_ACCOUNT_KEY: optionalString,

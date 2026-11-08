@@ -3,7 +3,7 @@ import { LogoCarousel } from "./LogoCarousel";
 
 /**
  * Integrações: "hoje" é o que já tem conector em packages/connectors (GitHub, Slack, Linear,
- * agenda e CI/CD); "em breve" são as próximas etapas de docs/engenharia.md. Não marcar como
+ * Jira, agenda e CI/CD); "em breve" são as próximas etapas de docs/engenharia.md. Não marcar como
  * "hoje" o que ainda é plano.
  */
 
@@ -22,7 +22,7 @@ export const INTEGRATIONS: readonly Integration[] = [
   { name: "Outlook", status: "hoje" },
   { name: "GitHub Actions", status: "hoje", path: siGithubactions.path },
   { name: "Vercel", status: "hoje", path: siVercel.path },
-  { name: "Jira", status: "em breve", path: siJira.path },
+  { name: "Jira", status: "hoje", path: siJira.path },
   { name: "GitLab", status: "em breve", path: siGitlab.path },
   { name: "Microsoft Teams", status: "em breve" },
   { name: "Notion", status: "em breve", path: siNotion.path },

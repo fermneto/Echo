@@ -308,6 +308,40 @@ describe.skipIf(!url)("executor do outbox (Postgres real)", () => {
     expect((await get(other!.id)).state).toBe("failed");
   });
 
+  it("com o Jira ligado, a tarefa vai para a conta da pessoa no Jira; sem conta lá, falha com motivo", async () => {
+    // Empresa à parte que usa Jira em vez de Linear: o mesmo "linear.assign" vale para o tracker ligado.
+    const [org] = await db.insert(orgs).values({ name: `Teste Jira ${Math.random().toString(36).slice(2, 7)}` }).returning();
+    const o = org!.id;
+    try {
+      const wh = { days: [1, 2, 3, 4, 5], start: "09:00", end: "18:00" };
+      const [carla] = await db.insert(people).values({ orgId: o, name: "Carla", timezone: "America/Sao_Paulo", workHours: wh }).returning();
+      const [yan] = await db.insert(people).values({ orgId: o, name: "Yan", timezone: "America/Sao_Paulo", workHours: wh }).returning();
+      await db.insert(identities).values([
+        { orgId: o, personId: carla!.id, platform: "jira", externalId: "acc-carla" },
+        // Conta só no Linear não serve para tarefa do Jira.
+        { orgId: o, personId: yan!.id, platform: "linear", externalId: "lin-yan" },
+      ]);
+      await db.insert(tasks).values({ orgId: o, key: "PAG-7", linearId: "10007", title: "Conciliação", state: "todo" });
+      const jiraCalls: string[] = [];
+      const jira: IssueWriter = {
+        platform: "jira",
+        assignIssue: async (issue, user) => void jiraCalls.push(`jira.assign ${issue} → ${user}`),
+        comment: async (issue, body) => (jiraCalls.push(`jira.comment ${issue}: ${body}`), { id: "c1" }),
+      };
+      const jiraDeps = { db: app, writers: async () => ({ issues: jira }) };
+
+      await enqueueAction(app, o, { type: "linear.assign", target: "jira:PAG-7", idempotencyKey: "jira:carla", payload: { taskKey: "PAG-7", toPersonId: carla!.id }, approvedBy: carla!.id });
+      await enqueueAction(app, o, { type: "linear.comment", target: "jira:PAG-7", idempotencyKey: "jira:comentario", payload: { taskKey: "PAG-7", body: "Plano aprovado." }, approvedBy: carla!.id });
+      await enqueueAction(app, o, { type: "linear.assign", target: "jira:PAG-7", idempotencyKey: "jira:yan", payload: { taskKey: "PAG-7", toPersonId: yan!.id }, approvedBy: carla!.id });
+      expect(await drainActions(jiraDeps, o)).toMatchObject({ done: 2, failed: 1 });
+      expect(jiraCalls.sort()).toEqual(["jira.assign 10007 → acc-carla", "jira.comment 10007: Plano aprovado."]);
+      const [failed] = await db.select().from(outboxActions).where(and(eq(outboxActions.orgId, o), eq(outboxActions.idempotencyKey, "jira:yan")));
+      expect(failed).toMatchObject({ state: "failed", error: "pessoa sem conta no Jira" });
+    } finally {
+      await db.delete(orgs).where(eq(orgs.id, o));
+    }
+  });
+
   it("EXECUTABLE_TYPES é exatamente a lista de casos do executor", async () => {
     // Empresa à parte, sem plataformas ligadas: cada ação falha, mas só as sem caso no switch caem no default.
     const [org] = await db.insert(orgs).values({ name: `Teste tipos ${Math.random().toString(36).slice(2, 7)}` }).returning();

@@ -4,6 +4,7 @@ import { ConfigError, loadConfig } from "@echo/config";
 import { asSystem, createDb, createPool, identities, installationRoutes, orgs, people, withOrg } from "@echo/db";
 import { and, eq, sql } from "drizzle-orm";
 import { GithubApp } from "./github-client.ts";
+import { JiraTracker } from "./jira-client.ts";
 import { LinearTracker } from "./linear-client.ts";
 import { platformsFromEnv } from "./platforms.ts";
 import { SlackChat } from "./slack-client.ts";
@@ -158,6 +159,23 @@ if (api) {
     add("Linear", "LINEAR_API_KEY ou LINEAR_CLIENT_ID e LINEAR_CLIENT_SECRET", "falta", undefined, "linear.md");
   }
   add("Linear", "pessoas com conta do Linear", (idCount.get("linear") ?? 0) > 0 ? "ok" : "falta", String(idCount.get("linear") ?? 0), "linear.md");
+}
+
+// Jira Cloud (opcional, no lugar do Linear)
+if (has("JIRA_BASE_URL") || has("JIRA_API_TOKEN")) {
+  if (!has("JIRA_BASE_URL", "JIRA_EMAIL", "JIRA_API_TOKEN")) add("Jira", "JIRA_BASE_URL, JIRA_EMAIL e JIRA_API_TOKEN", "falta", undefined, "jira.md");
+  else {
+    const jira = new JiraTracker({ baseUrl: env.JIRA_BASE_URL!, email: env.JIRA_EMAIL!, apiToken: env.JIRA_API_TOKEN!, ...(env.JIRA_JQL ? { jql: env.JIRA_JQL } : {}) });
+    try {
+      const { tasks, truncated } = await jira.listOpenTasks();
+      add("Jira", "credencial aceita", "ok", `${tasks.length}${truncated ? "+" : ""} tarefas abertas`);
+      routeCheck("Jira", "jira", "DEMO_JIRA_SITE", jira.site, "jira.md");
+    } catch (err) {
+      add("Jira", "credencial", "erro", msg(err), "jira.md");
+    }
+  }
+  if (!env.JIRA_WEBHOOK_SECRET) add("Jira", "JIRA_WEBHOOK_SECRET", "falta", "sem ele, /webhooks/jira responde 503", "jira.md");
+  add("Jira", "pessoas com conta do Jira", (idCount.get("jira") ?? 0) > 0 ? "ok" : "falta", String(idCount.get("jira") ?? 0), "jira.md");
 }
 
 // Anthropic (só o formato: conferir de verdade gasta, e isso é o teste A2)
