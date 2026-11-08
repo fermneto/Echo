@@ -67,13 +67,6 @@ const ROLES = [
   { role: "Empresa", gain: "Menos espera, menos retrabalho, mais previsibilidade." },
 ];
 
-const GAINS = [
-  { what: "Dúvida sobre o trabalho de um colega", before: "Espera a pessoa voltar", after: "Resposta na hora, com a fonte" },
-  { what: "Revisão de PR", before: "Começa quando o revisor chega", after: "Primeira análise pronta de manhã" },
-  { what: "Começar o dia", before: "Procurar o que ficou pendente", after: "Agenda pronta, na ordem e com o motivo" },
-  { what: "Férias de alguém", before: "Repartir tarefas na conversa", after: "Plano por regra, sem sobrecarregar ninguém" },
-];
-
 const CITY: Record<string, [number, number]> = {
   FOR: [-3.73, -38.53],
   JNB: [-26.2, 28.05],
@@ -287,7 +280,6 @@ export default function LandingPage() {
           echo<span className="lp-logo__dot" aria-hidden="true" />
         </Link>
         <nav className="lp-nav__links" aria-label="Seções">
-          <a href="#ganhos">Produtividade</a>
           <a href="#como-funciona">Como funciona</a>
           <a href="#nunca">O que nunca faz</a>
           <a href="#para-quem">Para quem</a>
@@ -336,31 +328,28 @@ export default function LandingPage() {
           </div>
         </section>
 
-        <section className="lp-integrations" aria-labelledby="integracoes">
-          <div className="lp-integrations__inner">
-            <div className="lp-integrations__copy">
-              <h2 id="integracoes" className="lp-integrations__title">
-                Conecta onde a equipe já trabalha.
-              </h2>
-              <p className="lp-integrations__lead">
-                GitHub, Slack, Linear, Jira, agenda e CI hoje, com Claude por trás. GitLab, Teams e Notion a seguir.
-              </p>
-            </div>
-            <IntegrationsCarousel />
+        <section className="lp-section lp-section--perto" id="como-funciona" aria-labelledby="integracoes">
+          <div className="lp-section__intro">
+            <h2 id="integracoes" className="lp-headline lp-headline--inteira">
+              Conecta onde a equipe já trabalha.
+            </h2>
+            <p className="lp-lead">GitHub, Slack, Linear, Jira, Google Calendar, Outlook, GitHub Actions e Vercel, com Claude por trás.</p>
           </div>
+          <IntegrationsCarousel />
         </section>
 
-        <section className="lp-section" id="em-acao" aria-labelledby="em-acao-titulo">
+        <section className="lp-section lp-section--perto" id="em-acao" aria-labelledby="em-acao-titulo">
           <div className="lp-section__intro">
             <h2 id="em-acao-titulo" className="lp-headline">
               O Echo em ação, entre fusos.
             </h2>
-            <p className="lp-lead">Uma noite entre fusos: Fernando dorme em Fortaleza, Eduardo trabalha em Joanesburgo e Tóquio vive a tarde. Cada momento diz quem decide.</p>
+            <p className="lp-lead">Uma noite entre fusos: Fernando dorme em Fortaleza, Eduardo trabalha em Joanesburgo e Tóquio vive a tarde. O Echo responde na hora, adianta a revisão e deixa o dia de cada pessoa organizado. Cada momento diz quem decide.</p>
           </div>
           <CardStack items={MOMENTS} label="Momentos do Echo entre fusos" />
+          <WaitRace />
         </section>
 
-        <section className="lp-section" id="como-funciona" aria-labelledby="ciclo">
+        <section className="lp-section" aria-labelledby="ciclo">
           <div className="lp-section__intro">
             <h2 id="ciclo" className="lp-headline">
               Um dia inteiro coberto, e cada decisão com dono.
@@ -380,35 +369,6 @@ export default function LandingPage() {
               </li>
             ))}
           </ol>
-        </section>
-
-        <section className="lp-section" id="ganhos" aria-labelledby="ganhos-titulo">
-          <div className="lp-section__intro">
-            <h2 id="ganhos-titulo" className="lp-headline">
-              A espera vira trabalho.
-            </h2>
-            <p className="lp-lead">Entre fusos, uma dúvida simples pode custar meio dia. O Echo responde na hora, adianta a revisão e deixa o dia de cada pessoa organizado.</p>
-          </div>
-          <WaitRace />
-          <table className="lp-gains">
-            <thead>
-              <tr>
-                <td />
-                <th scope="col">Antes</th>
-                <th scope="col">Com o Echo</th>
-              </tr>
-            </thead>
-            <tbody>
-              {GAINS.map((g) => (
-                <tr key={g.what}>
-                  <th scope="row">{g.what}</th>
-                  <td className="lp-gains__before">{g.before}</td>
-                  <td className="lp-gains__after">{g.after}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-          <p className="lp-gains__foot">O painel mede a espera evitada e as revisões da sua equipe, só em totais.</p>
         </section>
 
         <section className="lp-section lp-split" aria-labelledby="ajuda">
@@ -521,9 +481,6 @@ export default function LandingPage() {
             <div>
               <p className="lp-footer__head">Produto</p>
               <ul role="list">
-                <li>
-                  <a href="#ganhos">Produtividade</a>
-                </li>
                 <li>
                   <a href="#como-funciona">Como funciona</a>
                 </li>

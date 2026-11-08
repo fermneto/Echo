@@ -25,7 +25,7 @@ export function distribute<T>(items: readonly T[], columns: number): T[][] {
 
 function Logo({ logo }: { logo: CarouselLogo }) {
   return (
-    <span className={`logo-slot__logo${logo.status === "hoje" ? " is-live" : ""}`}>
+    <span className="logo-slot__logo">
       {logo.path ? (
         <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
           <path d={logo.path} fill="currentColor" />
@@ -36,7 +36,6 @@ function Logo({ logo }: { logo: CarouselLogo }) {
       <span className="logo-slot__name">
         {/* Sem ícone, o nome já está escrito acima. */}
         {logo.path && logo.name}
-        {logo.status === "em breve" && <span className="logo-slot__soon">em breve</span>}
       </span>
     </span>
   );

@@ -4,7 +4,7 @@ import { LogoCarousel } from "./LogoCarousel";
 /**
  * Integrações: "hoje" é o que já tem conector em packages/connectors (GitHub, Slack, Linear,
  * Jira, agenda e CI/CD); "em breve" são as próximas etapas de docs/engenharia.md. Não marcar como
- * "hoje" o que ainda é plano.
+ * "hoje" o que ainda é plano. Na tela os logos aparecem iguais; o estado só é lido por leitores de tela.
  */
 
 type Integration = { name: string; status: "hoje" | "em breve"; path?: string };

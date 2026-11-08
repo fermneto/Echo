@@ -24,17 +24,6 @@ export function LandingMotion() {
         },
       });
 
-      gsap.set(".lp-gains tbody tr", { opacity: 0, y: 10 });
-      gsap.set(".lp-gains__after", { opacity: 0, x: -10 });
-      ScrollTrigger.batch(".lp-gains tbody tr", {
-        start: "top 86%",
-        once: true,
-        onEnter: (rows) => {
-          gsap.to(rows, { opacity: 1, y: 0, duration: 0.5, ease: EASE_IN, stagger: 0.1 });
-          gsap.to(rows.map((r) => r.querySelector(".lp-gains__after")), { opacity: 1, x: 0, duration: 0.6, ease: EASE_IN, stagger: 0.1, delay: 0.25 });
-        },
-      });
-
       const report = document.querySelector(".lp-win--static");
       const count = report?.querySelector<HTMLElement>("[data-count]");
       if (report && count) {
