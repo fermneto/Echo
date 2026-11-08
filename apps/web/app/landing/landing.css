@@ -253,15 +253,6 @@
   font-size: 13px;
   color: var(--color-fog);
 }
-.lp-pill {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  letter-spacing: -0.02em;
-  color: var(--color-fog);
-  border: 1px solid var(--color-iron);
-  border-radius: var(--rounded-pill);
-  padding: 1px 8px;
-}
 .lp-source {
   align-self: flex-start;
   font-family: var(--font-mono);
@@ -699,39 +690,30 @@
   }
 }
 
-/* Última célula do ciclo: leva à demo */
-.lp-day__cta-wrap {
-  padding: 0;
-}
-.lp-day__cta-link {
+/* Fechamento: o último convite antes do rodapé */
+.lp-closing {
+  width: min(var(--lp-width), calc(100% - 2 * var(--space-gutter)));
+  margin: var(--space-section) auto 0;
+  padding: var(--space-section) 0;
+  border-top: 1px solid var(--color-line);
   display: flex;
-  flex-direction: column;
+  align-items: flex-end;
   justify-content: space-between;
-  gap: var(--space-sm);
-  height: 100%;
-  padding: var(--space-xl);
-  text-decoration: none;
-  background: var(--color-charcoal);
-  transition: background var(--duration-fast) var(--ease-swap);
+  gap: var(--space-2xl);
 }
-.lp-day__cta-link:hover {
-  background: var(--color-edge);
+.lp-closing .lp-lead {
+  margin: var(--space-lg) 0 0;
+  max-width: 52ch;
 }
-.lp-day__cta-link:focus-visible {
-  outline: 2px solid var(--color-cloud);
-  outline-offset: -4px;
+.lp-closing .lp-btn {
+  flex: none;
 }
-.lp-day__cta-link .lp-day__what {
-  font-family: var(--font-display);
-  font-size: 20px;
-  font-weight: 500;
-  line-height: 1.3;
-  max-width: 16ch;
+@media (max-width: 760px) {
+  .lp-closing {
+    flex-direction: column;
+    align-items: stretch;
+  }
 }
-.lp-day__cta-link .lp-day__who {
-  border-top-color: var(--color-iron);
-}
-
 
 /* Herói: o globo da equipe */
 .lp-hero__globe {

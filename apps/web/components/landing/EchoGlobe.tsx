@@ -434,7 +434,7 @@ export function EchoGlobe({ points, arcs, focusLongitude = -5, theta = 0.32 }: {
 
   return (
     <div className="globe" ref={wrapRef}>
-      <canvas ref={canvasRef} className={`globe__canvas${ready ? " is-ready" : ""}`} aria-label="Globo com a equipe da demonstração em Fortaleza, Joanesburgo e Tóquio" role="img" />
+      <canvas ref={canvasRef} className={`globe__canvas${ready ? " is-ready" : ""}`} aria-label="Globo com a equipe em Fortaleza, Joanesburgo e Tóquio" role="img" />
       {points.map((p, i) => (
         <button
           key={p.id}

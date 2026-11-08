@@ -56,7 +56,6 @@ function Moment({
           <PixelSprite look={lookFor(who)} mode={twin === "away" ? "away" : twin ? "twin" : "person"} size={30} />
           <span className="moment__title">{title}</span>
         </span>
-        <span className="lp-pill">Exemplo</span>
       </header>
       <Clocks at={at} where={where} tone={tone} />
       <div className="moment__body">{children}</div>
