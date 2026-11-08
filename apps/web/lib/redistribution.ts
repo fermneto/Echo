@@ -39,7 +39,7 @@ export function loadLabel(load: { load: number; limit: number } | undefined): st
   return `carga ${pts(load.load)} de ${pts(load.limit)} pts`;
 }
 
-/** Etiqueta de cada item, honesta sobre o que já mudou no Linear ou no GitHub. */
+/** Etiqueta de cada item, honesta sobre o que já mudou nas tarefas (Linear ou Jira) ou no GitHub. */
 export function itemChip(state: PanelPlan["items"][number]["state"]): { label: string; tone: Tone } {
   switch (state) {
     case "proposed":
@@ -73,7 +73,7 @@ function outcome(plan: PanelPlan, timeZone: string): PlanView["outcome"] {
   const loose = count("unassigned");
   const parts = [
     done ? `${plural(done, "mudança feita", "mudanças feitas")}` : "",
-    pending ? `${plural(pending, "em andamento", "em andamento")} no Linear e no GitHub` : "",
+    pending ? `${plural(pending, "em andamento", "em andamento")} nas tarefas e no GitHub` : "",
     problems ? `${plural(problems, "item precisa", "itens precisam")} de outra pessoa` : "",
     loose ? `${plural(loose, "item segue", "itens seguem")} sem responsável` : "",
   ].filter(Boolean);
@@ -113,7 +113,7 @@ export function confirmText(items: ItemView[], excluded: ReadonlySet<string>, ad
   const moving = kept.filter((i) => i.to);
   const receivers = [...new Set(moving.map((i) => i.to!))];
   const loose = kept.length - moving.length;
-  const title = moving.length ? `Aplicar ${plural(moving.length, "mudança", "mudanças")} no Linear e no GitHub?` : "Aprovar sem mudanças?";
+  const title = moving.length ? `Aplicar ${plural(moving.length, "mudança", "mudanças")} nas tarefas e no GitHub?` : "Aprovar sem mudanças?";
   const text = [
     receivers.length ? `${names(receivers)} ${receivers.length === 1 ? "recebe" : "recebem"} as tarefas e ${receivers.length === 1 ? "é avisado" : "são avisados"} no Slack. Cada um pode recusar com motivo.` : "",
     loose ? `${plural(loose, "item segue", "itens seguem")} sem responsável, com o motivo.` : "",
