@@ -95,7 +95,7 @@ Em caso de divergência entre os documentos do repositório, vale esta ordem: `l
 | Fim do expediente | Nota do dia | Rascunha a nota do dia: onde a pessoa parou, o que travou, o que está liberado e o que está reservado. A nota abre como página interativa, montada pelo Claude a partir dos fatos. | A pessoa confere e publica na própria página. A nota não vai para o RH. |
 | Noite | Revisão | Revisa os PRs em lote, prepara a análise para o revisor e deixa a correção pronta em uma versão separada. | O autor aprova de manhã. |
 | Início e fim do expediente | Resumo | Envia à pessoa, em particular, o que o agente respondeu, as propostas recebidas e as decisões pendentes. O agente não aceita nem recusa nada em nome dela. | A pessoa decide e responde a quem propôs. |
-| Manhã | Plano | Monta o plano: aprovações, correções prontas, dúvidas e prazos, numa página interativa com fusos e carga. | A pessoa reordena, descarta e aprova na página. |
+| Manhã | Plano | Monta o plano: aprovações, correções prontas, dúvidas e prazos, numa página interativa com fusos e carga. | A pessoa confere e aprova na página. |
 | Férias, ausência ou nova demanda | Redistribuição | O gêmeo do líder consulta os outros gêmeos e monta um plano sem sobrecarga. | O líder aprova, e quem recebe pode recusar com motivo. |
 | Sexta-feira | Relatório | Gera o relatório semanal de entregas e atuações, com vídeos curtos das features entregues, gravados por um agente Claude no preview. Cada relatório começa onde o anterior parou. | A pessoa é avisada, confere, comenta e aprova os vídeos. Segue ao RH 3 dias depois do aviso. |
 
@@ -712,14 +712,14 @@ _Artefato no painel — Mensagem direta · Echo → Fernando (Slack + Painel)_
 
 ### Vídeos e resumos interativos · Plano da manhã interativo
 
-_Reordenar e aprovar na página — Painel · /resumos/plano-2026-11-07 (Painel)_
+_Conferir e aprovar na página — Painel · /resumos/plano-2026-11-07 (Painel)_
 
 > _(página interativa)_ **Plano de Fernando · 7/11**4 itens Fortaleza 08:45Joanesburgo 13:45Tóquio 20:45 correção pronta PR da ECH-128 Aprovaresperando você Eduardo perguntou sobre `ech-128-tempo-limite` Responderrevisão PR 34 de Carla, há 2 diasprazo ECH-140 na sexta Carga 8,7 de 12 pontos
 >
 
 **Por trás:**
 
-- Ordem por regra: quem espera, prazo, gravidade. A pessoa arrasta para reordenar, e a escolha vale para o dia.
+- Ordem por regra: quem espera, prazo, gravidade.
 - Aprovar a correção passa pelo `actions`, como no Meu plano.
 - A barra de carga vem de `capacityCard`, não do modelo.
 

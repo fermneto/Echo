@@ -115,7 +115,7 @@ export function confirmText(items: ItemView[], excluded: ReadonlySet<string>, ad
   const loose = kept.length - moving.length;
   const title = moving.length ? `Aplicar ${plural(moving.length, "mudança", "mudanças")} nas tarefas e no GitHub?` : "Aprovar sem mudanças?";
   const text = [
-    receivers.length ? `${names(receivers)} ${receivers.length === 1 ? "recebe" : "recebem"} as tarefas e ${receivers.length === 1 ? "é avisado" : "são avisados"} no Slack. Cada um pode recusar com motivo.` : "",
+    receivers.length ? `${names(receivers)} ${receivers.length === 1 ? "recebe" : "recebem"} as tarefas e ${receivers.length === 1 ? "é avisado" : "são avisados"} no Slack.` : "",
     loose ? `${plural(loose, "item segue", "itens seguem")} sem responsável, com o motivo.` : "",
     excluded.size ? `${plural(excluded.size, "item fica", "itens ficam")} de fora.` : "",
   ]

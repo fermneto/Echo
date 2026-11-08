@@ -137,7 +137,7 @@ export function Redistribution({
                 <button type="button" className="button-outline" onClick={() => setPhase("registrar")}>
                   Descartar
                 </button>
-                <p className="muted plan-card__note">Nada muda até você aprovar. Quem recebe pode recusar com motivo.</p>
+                <p className="muted plan-card__note">Nada muda até você aprovar.</p>
               </div>
             )}
 
@@ -147,7 +147,7 @@ export function Redistribution({
                   Aplicar {plan.length} mudanças nas tarefas e no GitHub?
                 </p>
                 <p className="plan-confirm__text">
-                  {names(receivers)} {receivers.length === 1 ? "recebe" : "recebem"} as tarefas e {receivers.length === 1 ? "é avisado" : "são avisados"} no Slack. Cada um pode recusar com motivo, e você pode desfazer.
+                  {names(receivers)} {receivers.length === 1 ? "recebe" : "recebem"} as tarefas e {receivers.length === 1 ? "é avisado" : "são avisados"} no Slack. Você pode desfazer.
                 </p>
                 <div className="plan-card__actions">
                   <button type="button" className="button-pill" onClick={() => apply(true)} disabled={pending}>

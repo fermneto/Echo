@@ -158,7 +158,7 @@ export function planBlocks(title: string, items: StoredPlanItem[], l: Lookup, we
   ];
 }
 
-/** Aviso a quem recebe o trabalho, com o caminho para recusar a um clique. */
+/** Aviso a quem recebe o trabalho, com o botão para abrir Redistribuição no painel. */
 const handoverBlocks = (text: string, webUrl: string) => [section(esc(text)), actions(linkButton("abrir_redistribuicao", "Abrir Redistribuição", `${webUrl.replace(/\/$/, "")}/redistribuicao`))];
 
 // ---------- Fluxo
@@ -289,13 +289,13 @@ export function createRedistribution(deps: RedistributionDeps) {
       const text =
         plan.trigger === "return"
           ? `${task.key} voltou para você, com aprovação de ${firstName(ctx.people, approver.id)}.`
-          : `${firstName(ctx.people, approver.id)} aprovou: ${task.key} passa para você${span}. ${item.reason} Se não puder assumir, recuse com o motivo em Redistribuição.`;
+          : `${firstName(ctx.people, approver.id)} aprovou: ${task.key} passa para você${span}. ${item.reason}`;
       await outbox.enqueue({ type: "slack.dm", target: `person:${toId}`, payload: { personId: toId, text, ...(plan.trigger === "return" ? {} : { blocks: handoverBlocks(text, deps.webUrl) }) }, idempotencyKey: `${key}:dm` });
     } else if (item.prId) {
       const pr = ctx.lookup.prs.get(item.prId);
       if (!pr) return;
       await outbox.enqueue({ type: "github.set_reviewers", target: `github:${pr.repository}#${pr.number}`, payload: { repo: pr.repository, number: pr.number, personIds: [toId], planItemId: item.id }, idempotencyKey: `${key}:reviewers`, approvedBy: approver.id });
-      const text = `${firstName(ctx.people, approver.id)} aprovou: a revisão do PR ${pr.number} passa para você${span}. Se não puder, recuse com o motivo em Redistribuição.`;
+      const text = `${firstName(ctx.people, approver.id)} aprovou: a revisão do PR ${pr.number} passa para você${span}.`;
       await outbox.enqueue({
         type: "slack.dm",
         target: `person:${toId}`,

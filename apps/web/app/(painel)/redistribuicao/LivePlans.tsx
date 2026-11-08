@@ -234,7 +234,7 @@ function PlanCard({ plan, people: team }: { plan: PlanView; people: Person[] }) 
           <button type="button" className="button-outline" onClick={() => run(() => descartarPlano(plan.id))} disabled={pending}>
             {pending ? "Descartando…" : "Descartar"}
           </button>
-          <p className="muted plan-card__note">Nada muda até você aprovar. Quem recebe pode recusar com motivo.</p>
+          <p className="muted plan-card__note">Nada muda até você aprovar.</p>
         </div>
       )}
 
