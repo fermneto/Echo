@@ -1,4 +1,4 @@
-import type { Person, PersonRole } from "@echo/domain";
+import type { AvatarTraits, Person, PersonRole } from "@echo/domain";
 
 /**
  * Tipos do painel em cima dos contratos de `@echo/domain` e `@echo/agents`.
@@ -26,6 +26,6 @@ export type Persona = Person & {
   location?: [number, number];
   /** Persona fictícia (só Fernando, Eduardo e Yan são pessoas reais, com trabalho sintético). */
   simulated?: boolean;
-  /** Formato do topo da cabeça do bonequinho, quando não está em looks.ts. */
-  hair?: "short" | "long" | "curly" | "bun" | "square";
+  /** Traços do bonequinho, quando vêm do cadastro (foto enviada pelo RH); sem eles, looks.ts. */
+  avatar?: AvatarTraits;
 };

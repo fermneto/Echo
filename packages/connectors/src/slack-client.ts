@@ -158,7 +158,7 @@ export class SlackChat implements ChatPlatform {
    * Aviso temporário no tópico ("Agente de Fernando consultando…"). É mensagem comum, e não efêmera,
    * porque o Slack não deixa o bot apagar mensagem efêmera; quem chama apaga com deleteMessage.
    */
-  async postNotice(input: { channel: string; threadTs?: string; agentName: string; text: string }): Promise<{ channel: string; ts: string } | null> {
+  async postNotice(input: { channel: string; threadTs?: string; agentName: string; text: string; iconUrl?: string }): Promise<{ channel: string; ts: string } | null> {
     const data = await this.call<{ channel?: string; ts?: string }>("chat.postMessage", {
       channel: input.channel,
       text: fitText(input.text),
@@ -166,6 +166,7 @@ export class SlackChat implements ChatPlatform {
       unfurl_links: false,
       unfurl_media: false,
       ...(input.threadTs ? { thread_ts: input.threadTs } : {}),
+      ...(input.iconUrl ? { icon_url: input.iconUrl } : {}),
     });
     return data.ts ? { channel: data.channel ?? input.channel, ts: data.ts } : null;
   }

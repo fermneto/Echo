@@ -441,7 +441,8 @@ _IA e custos_
 | Correção | Managed Agents | Claude Sonnet 5.5 | Médio |
 | Relatório | Tempo real | Claude Sonnet 5.5 | Baixo |
 | Contradições entre notas | Uma vez por dia | Claude Haiku 5.5 | Baixo |
-| Cadastro por currículo | Durante o pedido | Claude | Baixo |
+| Cadastro: currículo | Durante o pedido, na nossa infraestrutura (Ollama, CPU) | Qwen3 4B Instruct (modelo aberto, o mesmo da triagem) | — |
+| Cadastro: foto vira bonequinho | Durante o pedido, traços de lista fechada | Claude Haiku 5.5 | Baixo |
 | Resumo do dia interativo | Depois do rascunho da nota, no worker (Ollama, CPU) | Qwen3 4B Instruct (modelo aberto) | — |
 | Roteiro e gravação do vídeo da entrega | Managed Agents com navegador | Claude Sonnet 5.5 | Médio |
 

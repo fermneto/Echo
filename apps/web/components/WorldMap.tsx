@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { WORLD_MAP_PNG } from "./landing/worldMap";
+import type { Look } from "@/lib/demo/looks";
 import { PixelSprite, type SpriteMode } from "./PixelSprite";
 
 /**
@@ -23,7 +24,7 @@ export type MapPerson = {
   holder: string;
   tone: "on" | "twin" | "wait";
   mode: SpriteMode;
-  hair: "short" | "long" | "curly" | "bun" | "square";
+  look: Look;
 };
 export type MapCrew = {
   key: string;
@@ -526,7 +527,7 @@ export function WorldMap({ crews, zones, arcs, nowIso, canAsk = true }: { crews:
                     setSelected((s) => (s?.person === p.id && s.pinned ? null : { crew: c.key, person: p.id, pinned: true }));
                   }}
                 >
-                  <PixelSprite look={{ hair: p.hair }} mode={p.mode} size={22} />
+                  <PixelSprite look={p.look} mode={p.mode} size={22} />
                 </button>
               ))}
               {c.people.length > MAX_SPRITES && (
@@ -589,7 +590,7 @@ export function WorldMap({ crews, zones, arcs, nowIso, canAsk = true }: { crews:
           <ul className="wmap__card-list" role="list">
             {crew.people.map((p) => (
               <li key={p.id}>
-                <PixelSprite look={{ hair: p.hair }} mode={p.mode} size={22} />
+                <PixelSprite look={p.look} mode={p.mode} size={22} />
                 <span className="wmap__card-row">
                   <span className="wmap__card-row-name">{p.name}</span>
                   <span className="mono muted wmap__card-row-status">
@@ -616,7 +617,7 @@ export function WorldMap({ crews, zones, arcs, nowIso, canAsk = true }: { crews:
           onPointerLeave={hoverClose}
         >
           <div className="wmap__card-head">
-            <PixelSprite look={{ hair: person.hair }} mode={person.mode} size={30} />
+            <PixelSprite look={person.look} mode={person.mode} size={30} />
             <div>
               <p className="wmap__card-name">{person.name}</p>
               <p className="muted wmap__card-title">{person.title}</p>

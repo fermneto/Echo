@@ -85,6 +85,13 @@
       "when": 1794085558343,
       "tag": "0011_resumo_do_dia",
       "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1794096761825,
+      "tag": "0012_bonequinho",
+      "breakpoints": true
     }
   ]
 }

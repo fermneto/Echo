@@ -18,6 +18,9 @@
 2. Em [api.slack.com/apps](https://api.slack.com/apps): **Create New App** → **From a manifest** → escolha o espaço → cole `infra/slack-manifest.yml`, trocando `<API>` e `<PAINEL>` pelos endereços do [túnel](ambiente.md).
 3. **Install to Workspace**.
 4. Crie o canal da equipe (ex.: `#time-produto`) e rode `/invite @Echo` nele.
+5. Em **Basic Information → Display Information**, envie `infra/slack-app-icon.png` como ícone do app (o bonequinho do Echo).
+
+Cada resposta de agente sai com o bonequinho da pessoa (`icon_url` apontando para `WEB_URL/api/avatar/<empresa>/<pessoa>`). O Slack só busca a imagem em endereço público com https: com `WEB_URL` em localhost, aparece o ícone do app.
 
 O manifesto já traz os escopos do bot (`app_mentions:read`, `channels:history`, `chat:write`, `chat:write.customize`, `users:read`, `im:history`, `im:write`, `reactions:read`), o escopo de usuário `openid`, os eventos (`app_mention`, `message.channels`, `message.im`, `reaction_added`), a Interactivity e a Redirect URL do login.
 

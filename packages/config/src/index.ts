@@ -69,6 +69,9 @@ export const webSchema = baseSchema.extend({
   PANEL_URL: optionalString.pipe(z.url().optional()),
   /** Espaço do Slack da empresa, para o login ir direto a ele (opcional). */
   DEMO_SLACK_TEAM_ID: optionalString,
+  /** Modelo aberto (Ollama) que lê o currículo no cadastro pelo RH. Sem ele, cargo e habilidades ficam para a ficha. */
+  SLM_OLLAMA_URL: optionalString.pipe(z.string().regex(/^(https?:\/\/)?[\w.-]+(:\d+)?\/?$/, "use http://host:porta ou host:porta").optional()),
+  SLM_MODEL: z.string().min(1).default("qwen3:4b-instruct"),
 });
 
 export const workerSchema = baseSchema.extend({

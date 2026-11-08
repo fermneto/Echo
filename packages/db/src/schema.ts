@@ -62,6 +62,8 @@ export const people = pgTable("people", {
   areas: jsonb("areas").$type<string[]>().notNull().default([]),
   languages: jsonb("languages").$type<string[]>().notNull().default([]),
   awayInstructions: text("away_instructions"),
+  /** Traços do bonequinho (lista fechada de packages/domain, conferida na leitura), lidos da foto no cadastro. A foto não é guardada. */
+  avatar: jsonb("avatar").$type<Record<string, string>>(),
   /** Expediente sugerido pela agenda; vale só depois que a pessoa confirma no painel. */
   workHoursSuggested: jsonb("work_hours_suggested").$type<{ days: number[]; start: string; end: string; timezone: string; source: string }>(),
   active: boolean("active").notNull().default(true),

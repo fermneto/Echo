@@ -15,6 +15,14 @@ export function demoMode(): boolean {
 }
 
 /**
+ * Entrou como persona da demonstração (cookie escolhido em /entrar, sem login): pode ver tudo que o papel
+ * permite, mas nada do que faz é gravado no banco nem chama modelo pago.
+ */
+export function isDemoSession(me: { id: string }): boolean {
+  return demoMode() && findPersona(me.id) !== undefined;
+}
+
+/**
  * Pessoa logada: persona da demonstração (DEMO_MODE) ou quem entrou com o Slack.
  * A sessão do Slack guarda só ids; a pessoa é lida do banco a cada página, então desligamento
  * ou troca de papel valem na hora.

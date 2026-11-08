@@ -1268,8 +1268,8 @@
   margin-bottom: 3px;
 }
 /* No mapa, cada bonequinho fica numa plaquinha escura: não se mistura aos pontos coloridos e não pede filtro caro. */
-.wmap__people .sprite .dot-off {
-  opacity: 0;
+.wmap__people .sprite {
+  filter: none;
 }
 .wmap__person,
 .wmap__more {

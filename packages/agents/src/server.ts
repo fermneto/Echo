@@ -16,6 +16,8 @@ import { createPgPlanStore, createPgReviewStore } from "./pg-night.ts";
 import { ollamaJson, ollamaTriage } from "./triage-ollama.ts";
 import { createDaySummary, type DaySummary, type DaySummaryDeps } from "./day-summary.ts";
 import { createPgArtifactStore } from "./pg-artifacts.ts";
+import { onboardPerson } from "./onboarding.ts";
+import { createPgOnboardingStore } from "./pg-onboarding.ts";
 import { createFix, type Fix, type FixCodeHost } from "./fix.ts";
 import { createManagedFixSandbox, fixAgentParams, fixEnvironmentParams } from "./managed-fix.ts";
 import { createPgFixStore } from "./pg-fix.ts";
@@ -33,6 +35,7 @@ export { createPgDailyNoteStore } from "./pg-notes.ts";
 export { createPgPlanStore, createPgReviewStore } from "./pg-night.ts";
 export { ollamaBaseUrl, ollamaJson, ollamaTriage } from "./triage-ollama.ts";
 export { createPgArtifactStore } from "./pg-artifacts.ts";
+export { createPgOnboardingStore, readAvatar } from "./pg-onboarding.ts";
 export { createPgFixStore } from "./pg-fix.ts";
 export { createPgRedistributionStore } from "./pg-redistribution.ts";
 export { createPgReportStore } from "./pg-report.ts";
@@ -308,4 +311,15 @@ export async function defaultAnswer(): Promise<(req: AnswerRequest) => Promise<A
   const db = createDb(createPool(url, 4, { defaultScope: "none" }));
   cached = createAnswer(serverAnswerDeps(db, process.env.ANTHROPIC_API_KEY || undefined));
   return cached;
+}
+
+/** Cadastro pelo RH: currículo no modelo aberto (se houver Ollama) e foto no Claude (se houver chave). */
+export function serverOnboarding(db: Database, opts: { apiKey?: string | undefined; ollama?: { url: string; model: string; timeoutMs: number } | undefined }) {
+  return onboardPerson({
+    store: createPgOnboardingStore(db),
+    slm: opts.ollama ? ollamaJson({ baseUrl: opts.ollama.url, model: opts.ollama.model }) : null,
+    vision: opts.apiKey ? anthropicModelCall(opts.apiKey) : null,
+    recorder: createDbRunRecorder(db),
+    ...(opts.ollama ? { timeoutMs: opts.ollama.timeoutMs } : {}),
+  });
 }

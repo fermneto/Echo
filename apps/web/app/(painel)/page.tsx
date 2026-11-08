@@ -4,6 +4,7 @@ import { ECHO_SUGGESTIONS } from "@/lib/demo/echo";
 import { WAITING } from "@/lib/demo/feed";
 import { teamScope } from "@/lib/scope";
 import { scopeLabel, TeamPicker } from "@/components/TeamPicker";
+import { lookFor } from "@/lib/demo/looks";
 import type { Persona } from "@/lib/demo/types";
 import { currentDecisions } from "@/lib/decisions-store";
 import { pendingPlans } from "@/lib/redistribution-server";
@@ -50,7 +51,7 @@ function buildMap(team: readonly Persona[], now: Date) {
         holder: holderLine(p),
         tone: toneOf(p),
         mode: toneOf(p) === "on" ? "person" : toneOf(p) === "twin" ? "twin" : "away",
-        hair: p.hair ?? "short",
+        look: p.avatar ?? lookFor(p.id),
       })),
     };
   });
