@@ -55,9 +55,11 @@ export const cookieOptions = (maxAge: number) => ({ httpOnly: true, sameSite: "l
 /** Para onde voltar depois do login com o Slack (só caminho interno do painel). */
 export const RETURN_COOKIE = "echo_voltar";
 
-/** Caminho interno seguro: começa com "/", sem "//", sem barra invertida e sem esquema. Senão, null. */
+/** Caminho interno seguro: começa com "/", sem "//", sem barra invertida, sem esquema e sem caractere de controle. Senão, null. */
 export function safeReturnPath(value: string | null | undefined): string | null {
   if (!value || value.length > 300) return null;
   if (!value.startsWith("/") || value.startsWith("//") || value.includes("\\") || /^\/[a-z]+:/i.test(value)) return null;
+  // O navegador apaga tab e quebra de linha da URL: "/\t/mal.example" viraria "//mal.example".
+  if (/[\u0000-\u001f\u007f]/.test(value)) return null;
   return value;
 }
