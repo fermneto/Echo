@@ -124,9 +124,20 @@ const endOfDayTimer = setInterval(() => void runEndOfDay(), cfg.END_OF_DAY_SCAN_
 const triage = slm ? { ...slm, timeoutMs: cfg.TRIAGE_TIMEOUT_MS } : undefined;
 const night = await registerNight(queue, {
   // Diff lido do GitHub da empresa (instalação do app). Sem instalação, nenhum PR tem diff e a noite não envia lote.
-  night: serverNightReview(db, cfg.ANTHROPIC_API_KEY, (orgId) => ({
-    getDiff: async (repo, number) => (await (await githubForOrg(db, platforms, orgId))?.getPullRequestDiff(repo, number)) ?? null,
-  }), triage),
+  // A instalação é resolvida uma vez por empresa em cada noite (`diffs(orgId)` é chamado uma vez por execução);
+  // se a consulta falhar, a próxima chamada tenta de novo.
+  night: serverNightReview(db, cfg.ANTHROPIC_API_KEY, (orgId) => {
+    let gh: ReturnType<typeof githubForOrg> | undefined;
+    return {
+      getDiff: async (repo, number) => {
+        gh ??= githubForOrg(db, platforms, orgId).catch((err: unknown) => {
+          gh = undefined;
+          throw err;
+        });
+        return (await (await gh)?.getPullRequestDiff(repo, number)) ?? null;
+      },
+    };
+  }, triage),
   morning: serverMorningPlan(db, cfg.WEB_URL),
   orgIds: () => allOrgIds(db),
   dueMorning: (now) => dueMorning(db, now),
