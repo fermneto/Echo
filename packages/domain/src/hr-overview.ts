@@ -12,11 +12,30 @@ export const HR_OVERVIEW_RULES = {
   /** Estados que já seguiram ao RH. Rascunho e conferência não entram. */
   sentStates: ["sent", "sent_without_notice"] as readonly string[],
   minPeople: GAINS_RULES.minPeople,
+  /** Concluídas há até tantos dias entram no progresso; as mais antigas já saíram do quadro. */
+  progressDoneDays: 14,
+  /** Tamanho de tarefa sem estimativa, igual ao da carga. */
+  defaultSize: 2,
 } as const;
 
 export type HrPerson = { id: string; teamId?: string | undefined; role: string; active: boolean; name: string; timezone: string };
 export type HrReport = { personId: string; week: string; state: string; metrics: Pick<WeeklyMetrics, "deliveries" | "reviews" | "helps"> };
 export type HrAbsence = { personId: string; kind: string; startsAt: Date; endsAt: Date };
+/** Tarefa do Linear ou Jira: só responsável, estado, tamanho e quando mudou. Nada de título. */
+export type HrTask = { assigneeId?: string | undefined; state: string; size?: number | null | undefined; updatedAt: Date };
+
+/** Progresso do trabalho da equipe agora, em tarefas e em pontos (tamanho). Nada por pessoa. */
+export type HrProgress = {
+  /** Concluídas nos últimos `progressDoneDays` dias. */
+  done: number;
+  review: number;
+  doing: number;
+  todo: number;
+  total: number;
+  points: { done: number; total: number };
+  /** Parte concluída, em pontos, de 0 a 100 (inteiro). */
+  percent: number;
+};
 
 export type HrWeek = {
   week: string;
@@ -32,7 +51,7 @@ export type HrWeek = {
 };
 
 export type HrTeam =
-  | { id: string; name: string; status: "ok"; people: number; weeks: HrWeek[]; away: { name: string; until: Date }[] }
+  | { id: string; name: string; status: "ok"; people: number; weeks: HrWeek[]; away: { name: string; until: Date }[]; progress: HrProgress }
   | { id: string; name: string; status: "too_small"; people: number; min: number };
 
 export type HrOverview = {
@@ -50,6 +69,29 @@ export function recentWeeks(today: string, n: number = HR_OVERVIEW_RULES.weeks):
   return Array.from({ length: n }, (_, i) => isoWeek(addDays(monday, (i - n + 1) * 7)));
 }
 
+const DAY = 86_400_000;
+
+/** Tarefas de quem é da equipe, por estado. Canceladas e concluídas há mais de `progressDoneDays` dias ficam fora. */
+export function teamProgress(tasks: readonly HrTask[], memberIds: ReadonlySet<string>, now: Date): HrProgress {
+  const p: HrProgress = { done: 0, review: 0, doing: 0, todo: 0, total: 0, points: { done: 0, total: 0 }, percent: 0 };
+  const since = now.getTime() - HR_OVERVIEW_RULES.progressDoneDays * DAY;
+  for (const t of tasks) {
+    if (!t.assigneeId || !memberIds.has(t.assigneeId) || t.state === "canceled") continue;
+    if (t.state === "done" && t.updatedAt.getTime() < since) continue;
+    const size = typeof t.size === "number" && t.size > 0 ? t.size : HR_OVERVIEW_RULES.defaultSize;
+    if (t.state === "done") {
+      p.done += 1;
+      p.points.done += size;
+    } else if (t.state === "in_review") p.review += 1;
+    else if (t.state === "in_progress") p.doing += 1;
+    else p.todo += 1;
+    p.total += 1;
+    p.points.total += size;
+  }
+  p.percent = p.points.total ? Math.round((p.points.done / p.points.total) * 100) : 0;
+  return p;
+}
+
 const emptyWeek = (week: string): HrWeek => ({ week, monday: weekMonday(week)!, deliveries: 0, reviews: 0, helps: 0, twins: 0, sent: 0 });
 
 export function hrOverview(input: {
@@ -59,6 +101,8 @@ export function hrOverview(input: {
   /** Perguntas respondidas pelo gêmeo: dono e quando. */
   twinAnswers: readonly { ownerId: string; answeredAt: Date }[];
   absences: readonly HrAbsence[];
+  /** Tarefas atuais (sem elas, o progresso sai zerado). */
+  tasks?: readonly HrTask[];
   weeks: readonly string[];
   now: Date;
 }): HrOverview {
@@ -87,7 +131,7 @@ export function hrOverview(input: {
       .filter((a) => ids.has(a.personId) && a.startsAt <= now && a.endsAt > now)
       .map((a) => ({ name: ids.get(a.personId)!.name, until: a.endsAt }))
       .sort((a, b) => a.until.getTime() - b.until.getTime());
-    return { id: t.id, name: t.name, status: "ok", people: ppl.length, weeks: weeks.map((w) => byWeek.get(w)!), away };
+    return { id: t.id, name: t.name, status: "ok", people: ppl.length, weeks: weeks.map((w) => byWeek.get(w)!), away, progress: teamProgress(input.tasks ?? [], new Set(ids.keys()), now) };
   });
 
   const total = weeks.map((w) => {

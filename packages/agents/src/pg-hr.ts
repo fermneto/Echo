@@ -1,8 +1,8 @@
 // Visão das equipes para o RH em Postgres. Toda consulta em withOrg com filtro explícito de org_id. Só ids, datas,
-// estados e os números dos relatórios enviados: nenhum texto de pergunta, nota ou relatório sai daqui.
-import { absences, type Database, people, questions, teams, weeklyReports, withOrg } from "@echo/db";
+// estados, tamanhos e os números dos relatórios enviados: nenhum texto de pergunta, nota, tarefa ou relatório sai daqui.
+import { absences, type Database, people, questions, tasks, teams, weeklyReports, withOrg } from "@echo/db";
 import { HR_OVERVIEW_RULES, type HrOverview, hrOverview, localDate, recentWeeks, weekMonday } from "@echo/domain";
-import { and, eq, gt, gte, inArray, isNotNull, lte } from "drizzle-orm";
+import { and, eq, gt, gte, inArray, isNotNull, lte, ne } from "drizzle-orm";
 
 const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) && v >= 0 ? v : 0);
 
@@ -35,6 +35,10 @@ export async function readHrOverview(db: Database, orgId: string, teamIds: reado
       .select({ personId: absences.personId, kind: absences.kind, startsAt: absences.startsAt, endsAt: absences.endsAt })
       .from(absences)
       .where(and(eq(absences.orgId, orgId), inArray(absences.personId, ids), lte(absences.startsAt, now), gt(absences.endsAt, now)));
+    const work = await tx
+      .select({ assigneeId: tasks.assigneeId, state: tasks.state, size: tasks.size, updatedAt: tasks.updatedAt, externalUpdatedAt: tasks.externalUpdatedAt })
+      .from(tasks)
+      .where(and(eq(tasks.orgId, orgId), inArray(tasks.assigneeId, ids), ne(tasks.state, "canceled")));
 
     return hrOverview({
       teams: ts.sort((a, b) => a.name.localeCompare(b.name, "pt-BR")),
@@ -45,6 +49,8 @@ export async function readHrOverview(db: Database, orgId: string, teamIds: reado
       }),
       twinAnswers: answers.flatMap((a) => (a.ownerId && a.answeredAt ? [{ ownerId: a.ownerId, answeredAt: a.answeredAt }] : [])),
       absences: away,
+      // Quando mudou no Linear/Jira vale mais que a última gravação local (o seed e a reconciliação regravam tudo).
+      tasks: work.map((t) => ({ assigneeId: t.assigneeId ?? undefined, state: t.state, size: t.size, updatedAt: t.externalUpdatedAt ?? t.updatedAt })),
       weeks,
       now,
     });
