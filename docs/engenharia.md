@@ -167,8 +167,8 @@ _Bordas:_ Se o modelo falhar ou passar do teto de custo, a página sai com o lay
 | Componente | Função | Se cair |
 |---|---|---|
 | `api` | Recebe avisos de Slack, GitHub e Linear | As plataformas tentam de novo por um tempo limitado |
-| `worker` | Respostas, notas, planos, relatórios e agenda | Os trabalhos esperam na fila |
-| `reviewer` | Correções de código | As correções atrasam, sem afetar respostas |
+| `worker` | Respostas, notas, planos, relatórios, agenda e correções de código | Os trabalhos esperam na fila |
+| `echo-triage` | Modelo aberto: triagem da noite, resumo do dia, juiz da delegação e currículo do cadastro | Vale a regra; nenhuma correção é unida pela delegação |
 | Postgres | Guarda o estado | Sistema fora do ar |
 | `web` | Painel | Painel indisponível, Slack e agentes funcionando |
 
@@ -225,7 +225,7 @@ _Arquitetura_
 | Fila | pg-boss atrás de `JobQueue` | Sem serviço extra, troca por SQS depois |
 | Respostas | Claude API com ferramentas | Rápido, barato e controlável |
 | Revisão | API de lotes | 50% de desconto aceitando demora |
-| Correção | Claude Managed Agents | Ambiente descartável, sem os segredos do `reviewer` |
+| Correção | Claude Managed Agents, acompanhado pelo `worker` | Ambiente descartável, sem os segredos do `worker` |
 | Evento | Render (Railway como alternativa) | Rápido para pôr no ar |
 | Produção | AWS ECS Fargate, RDS, SQS, Secrets Manager | Mesmos containers, mais isolamento |
 | Rastreio | Langfuse e `agent_runs` | Custo, tempo e auditoria |
@@ -235,8 +235,8 @@ _Arquitetura_
 | `apps/web` | Next.js: painel, aprovações, notas e relatório |
 |---|---|
 | `apps/api` | Hono: webhooks, OAuth e API do painel |
-| `apps/worker` | Fila, agenda e fluxos |
-| `apps/reviewer` | Correção de código e gravação dos vídeos com Managed Agents |
+| `apps/worker` | Fila, agenda e fluxos, inclusive a correção de código com Managed Agents |
+| `apps/reviewer` | Gravação dos vídeos com Managed Agents (etapa 27); hoje só responde ao ping da fila |
 | `packages/domain` | Regras puras: disponibilidade, carga, entregas, crédito, custo |
 | `packages/db` | Drizzle: esquema, migrações e isolamento |
 | `packages/brain` | Notas, busca, versões, espelho Git e permissões |
@@ -274,8 +274,9 @@ _No evento · Render_
 
 - `echo-web`: serviço web, link para jurados.
 - `echo-api`: serviço web, migração no `preDeployCommand`.
-- `echo-worker`: processo em segundo plano.
-- `echo-reviewer`: processo em segundo plano.
+- `echo-worker`: processo em segundo plano. Roda também a correção de código.
+- `echo-triage`: serviço privado com o Ollama e o Qwen3 4B Instruct.
+- `echo-reviewer`: fora do Blueprint (bloco comentado) até ter trabalho próprio, os vídeos.
 - `echo-db`: Postgres gerenciado.
 - Repositório `brains` no GitHub.
 
@@ -464,7 +465,7 @@ Erro, tempo esgotado ou saída inválida: vale a regra.
 - completa por regra todo fato que o modelo deixou de fora (um bloqueio nunca some);
 - com formato errado ou nenhum bloco aproveitável, usa o layout padrão.
 
-O painel mostra o resumo em `/resumos` (só a própria pessoa), com números, nomes e chaves vindos dos fatos. A mensagem do Slack da nota ganha o botão "Abrir resumo do dia". Cada resumo grava `daily_artifact` em `agent_runs` (custo zero por token). Medido em CPU local: ~25 a 75 s por resumo, ~500 a 700 tokens de entrada e ~150 a 450 de saída. Com o esquema JSON aninhado em `format`, o Ollama só gerava espaços: o resumo usa `format: "json"` com o formato no texto do pedido, e o validador garante o resto.
+O painel mostra o resumo em `/resumos` (só a própria pessoa), com números, nomes e chaves vindos dos fatos. No privado do Slack, o resumo chega como imagem PNG com o mesmo visual da página, desenhada no worker por satori e resvg (`packages/agents/src/summary-image.ts`, sem navegador), com o botão "Abrir resumo do dia". A imagem e a reserva do envio usam a mesma chave: um DM por pessoa e dia. Cada resumo grava `daily_artifact` em `agent_runs` (custo zero por token). Medido em CPU local: ~25 a 75 s por resumo, ~500 a 700 tokens de entrada e ~150 a 450 de saída. Com o esquema JSON aninhado em `format`, o Ollama só gerava espaços: o resumo usa `format: "json"` com o formato no texto do pedido, e o validador garante o resto.
 
 Escolha do modelo (6 PRs de teste, CPU): Qwen3 4B Instruct acertou os 6, em ~14 s por PR. Qwen2.5-Coder 1.5B (2 GB de RAM) acertou os riscos, mas nunca marcou revisão leve, e sem as perguntas sim/não chegou a obedecer a um "responda trivial" no diff; a regra de texto dirigido a um modelo cobre esse caso.
 
@@ -495,9 +496,9 @@ Os dois modelos confundem a situação do item com o conteúdo dele ("ECH-171 us
 **Delegação da correção (juiz pequeno).** `people.delegation` é o texto livre da pessoa sobre até onde o agente decide por ela, com a data da versão em `delegation_updated_at` (só muda quando o texto muda). Hoje cobre uma decisão: unir no PR do autor a correção pronta (`DelegableDecision = "aplicar_correcao"`). Em `fix.sync`, quando a correção passa a `ready`:
 1. `delegatedFixGate` (`packages/domain`): delegação escrita, testes `passou`, até 5 arquivos, nenhum caminho sensível da revisão noturna. Falhou: fica com o autor, sem chamar modelo.
 2. `runDelegation` (`packages/agents/src/delegation.ts`): o juiz recebe só o texto da delegação e fatos estruturados (repositório, PR, arquivos, testes), nunca o diff, o título ou os achados; responde `{cabe, motivo}` presos ao esquema. As instruções listam `NEVER_DELEGATED` e mandam responder `false` na dúvida. Erro, tempo esgotado ou saída inválida: fica com o autor.
-3. Cabendo, a união segue pelo mesmo `decide` do painel (`fixMergeCheck`: rascunho e PR sem mudança), com `approvedBy` = autor e `fix_runs.decided_via = 'delegacao'` e o motivo em `delegation_note`. O autor recebe `slack.dm` com o motivo e como desfazer.
+3. Cabendo, a união segue pelo mesmo `decide` do painel (`fixMergeCheck`: rascunho e PR sem mudança), com `approvedBy` = autor e `fix_runs.decided_via = 'delegacao'` e o motivo em `delegation_note`. O outbox grava no `audit_log`, na mesma transação, a aprovação com o autor como ator (`person:<id>`) e a origem `delegacao` (`approve:github.merge_fix:delegacao`). O autor recebe `slack.dm` com o motivo e como desfazer.
 
-Não cabendo, `delegation_note` guarda o porquê. Cada tentativa grava `fix_delegation` em `agent_runs` (custo zero por token). Sem `SLM_OLLAMA_URL` no reviewer, não há delegação: toda correção espera o autor. A tela fica em `/pessoas/[id]` ("Seu agente"), só para a própria pessoa (`salvarPerfilDoAgente`, `packages/agents/src/pg-profile.ts`), com a lista "Decisões do seu agente" (`readAgentDecisions`). O motivo de não cobrir vai em `PlanFix.delegationNote`, no motivo do item da correção do plano da manhã e em Meu plano (`readPlanFixes`). Em Custo e execuções, `fix_delegation` aparece como "Delegação da correção (modelo aberto)". Sem banco, o painel guarda o texto num cookie (`echo_seu_agente`) e mostra decisões de exemplo.
+Não cabendo, `delegation_note` guarda o porquê. Cada tentativa grava `fix_delegation` em `agent_runs` (custo zero por token). Sem `SLM_OLLAMA_URL` no worker, não há delegação: toda correção espera o autor. A tela fica em `/pessoas/[id]` ("Seu agente"), só para a própria pessoa (`salvarPerfilDoAgente`, `packages/agents/src/pg-profile.ts`), com a lista "Decisões do seu agente" (`readAgentDecisions`). O motivo de não cobrir vai em `PlanFix.delegationNote`, no motivo do item da correção do plano da manhã e em Meu plano (`readPlanFixes`). Em Custo e execuções, `fix_delegation` aparece como "Delegação da correção (modelo aberto)". Sem banco, o painel guarda o texto num cookie (`echo_seu_agente`) e mostra decisões de exemplo.
 
 ### Ferramentas do agente (somente leitura)
 
@@ -645,7 +646,12 @@ pnpm typecheck && pnpm test
 pnpm e2e # história da demo no navegador
 pnpm evals # segurança do agente, com Claude real
 pnpm db:generate # migração depois de mudar schema.ts
+pnpm nota:agora # fim do expediente na hora (rascunho da nota e resumo do dia)
+pnpm noite:agora # revisão noturna na hora
+pnpm manha:agora # plano da manhã na hora
 ```
+
+Os três comandos `:agora` só põem na fila do worker o mesmo job da agenda; o worker faz o resto. Por padrão, pulam a empresa de demonstração (`--todas` inclui).
 
 Para receber avisos das plataformas no computador, use um túnel apenas durante o desenvolvimento. Nada em produção depende dele.
 
@@ -891,14 +897,14 @@ Correção em ambiente isolado e PR em rascunho
 2. Só achados de alta confiança e correção pequena. PR de fork, branch padrão ou versão já alterada ficam de fora.
 3. Token do GitHub de 1 hora, só leitura e só daquele repositório, no proxy de Git, fora do ambiente. Rede limitada a registros de pacotes.
 4. O agente devolve o `git diff` e `fix.json`. Fora do ambiente, a plataforma aplica e confere: até 5 arquivos, só do PR ou de teste, sem CI, dependências ou segredos.
-5. Cria `echo/fix-pr-<n>`, abre PR em rascunho, e o autor aprova ou recusa em Meu plano.
+5. Cria `echo/fix-pr-<n>`, abre PR em rascunho, e o autor aprova ou recusa em Meu plano ou nos botões Aplicar e Recusar do privado do Slack.
 6. Limites: US$ 2 por correção e US$ 10 por pessoa no mês. Para em 80% do limite da empresa.
 
 7. Delegação (opcional): com o texto da delegação do autor e o juiz no Ollama, a correção pronta que passa nas travas fixas e cabe no texto é unida pela delegação, registrada como aprovação do autor (ver "Delegação da correção" em IA e custos).
 
 - **Testes:** Conferência de arquivos permitidos e união só se o rascunho não mudou. Delegação: travas antes do juiz, juiz que não cabe ou falha deixa com o autor, rascunho alterado recusa.
 - **Pronto quando:** Um erro plantado gera uma correção aprovável, unida pela aprovação do autor.
-- **Como está ligado:** o reviewer usa o GitHub App da empresa (`fixHostOf`, em `packages/connectors`) para ler o PR e pedir o token só leitura, e está no Blueprint (`echo-reviewer`). O rascunho (`github.draft_pr`) é montado pela API do GitHub, aplicando o diff sobre a versão revisada sem git (`applyPatch`), e a união (`github.merge_fix`) confere de novo a versão aprovada; as duas são ações do outbox, executadas pelo worker, e o resultado do rascunho fica em `outbox_actions.result`. Em Meu plano, o autor aprova ou recusa a correção real (`decidirCorrecao`), e o painel confere o rascunho com o mesmo GitHub App (`GITHUB_APP_ID` também no `echo-web`).
+- **Como está ligado:** a correção roda no worker (`apps/worker/src/fix.ts`, desde o #61): a sessão fica na nuvem do Managed Agents, e o worker só acompanha. Ele usa o GitHub App da empresa (`fixHostOf`, em `packages/connectors`) para ler o PR e pedir o token só leitura. `FIX_AGENT_ID` e `FIX_ENVIRONMENT_ID` vão no `echo-worker`. O rascunho (`github.draft_pr`) é montado pela API do GitHub, aplicando o diff sobre a versão revisada sem git (`applyPatch`), e a união (`github.merge_fix`) confere de novo a versão aprovada; as duas são ações do outbox, executadas pelo worker, e o resultado do rascunho fica em `outbox_actions.result`. Em Meu plano, o autor aprova ou recusa a correção real (`decidirCorrecao`), e o painel confere o rascunho com o mesmo GitHub App (`GITHUB_APP_ID` também no `echo-web`).
 
 ### Etapa 11 · Redistribuição
 
@@ -1261,7 +1267,7 @@ Um agente Claude grava a feature entregue na semana
 ### Render (Etapa 1)
 
 1. Criar a conta e ligar o repositório.
-2. Blueprint apontando para `infra/render.yaml`: cria `echo-db`, `echo-web`, `echo-api`, `echo-worker` e `echo-reviewer`.
+2. Blueprint apontando para `infra/render.yaml`: cria `echo-db`, `echo-web`, `echo-api`, `echo-worker` e `echo-triage`. O `echo-reviewer` fica comentado até ter trabalho próprio.
 3. Variáveis com `sync: false` só são pedidas na criação. As novas entram pelo painel de cada serviço.
 4. Anotar os endereços públicos de `echo-web` e `echo-api`.
 
@@ -1328,7 +1334,7 @@ Um agente Claude grava a feature entregue na semana
 | Variável | Serviços | Origem |
 |---|---|---|
 | DATABASE_URL | web, api, worker, reviewer | Blueprint |
-| ANTHROPIC_API_KEY | web, worker, reviewer | Anthropic |
+| ANTHROPIC_API_KEY | web, worker | Anthropic |
 | ENCRYPTION_KEY | web, api, worker | Gerada, igual nos três |
 | SESSION_SECRET | web | Gerada pelo Blueprint |
 | DEMO_MODE | web | true no evento |
@@ -1340,15 +1346,16 @@ Um agente Claude grava a feature entregue na semana
 | SLACK_SIGNING_SECRET | api | Slack |
 | SLACK_BOT_TOKEN | api, worker | Slack |
 | GITHUB_WEBHOOK_SECRET | api | GitHub |
-| GITHUB_APP_ID | web, worker, reviewer | GitHub |
-| GITHUB_PRIVATE_KEY | web, worker, reviewer | GitHub |
+| GITHUB_APP_ID | web, worker | GitHub |
+| GITHUB_PRIVATE_KEY | web, worker | GitHub |
 | LINEAR_WEBHOOK_SECRET | api | Linear |
 | LINEAR_CLIENT_ID | worker | Linear |
 | LINEAR_CLIENT_SECRET | worker | Linear |
 | BRAINS_REPOSITORY | worker | <org>-teste/brains |
 | DEMO_ALWAYS_AWAY | api, worker | Opcional, para ensaiar de dia |
-| FIX_AGENT_ID | reviewer | Provision |
-| FIX_ENVIRONMENT_ID | reviewer | Provision |
+| FIX_AGENT_ID | worker | Provision |
+| FIX_ENVIRONMENT_ID | worker | Provision |
+| SLM_OLLAMA_URL | web, worker | echo-triage (host:porta) |
 | LANGFUSE_PUBLIC_KEY | api, worker | Langfuse |
 | LANGFUSE_SECRET_KEY | api, worker | Langfuse |
 | LANGFUSE_BASE_URL | api, worker | Langfuse, opcional |
