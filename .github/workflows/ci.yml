@@ -39,6 +39,17 @@ jobs:
       - run: pnpm db:migrate
       - run: pnpm test
       - run: pnpm build
+      # História da demo no navegador (etapa 16): sem modelo e sem plataformas, contra o seed.
+      - run: pnpm --filter @echo/e2e exec playwright install --with-deps chromium
+      - run: pnpm e2e
+      - if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: e2e-relatorio
+          path: |
+            e2e/playwright-report
+            e2e/test-results
+          retention-days: 7
 
   images:
     name: Imagem ${{ matrix.app }}
