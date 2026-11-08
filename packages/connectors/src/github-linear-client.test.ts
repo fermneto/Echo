@@ -138,6 +138,52 @@ describe("GitHub App", () => {
     expect((await gh.findPullRequestByBranch("org-teste/app", "ech-128-tempo-limite"))?.number).toBe(42);
   });
 
+  it("checks: check runs paginados e commit statuses antigos; qualquer falha de um dos dois é falha", async () => {
+    const run = (name: string, conclusion: string | null, status = "completed") => ({ name, status, conclusion });
+    const page = (n: number, total: number, last: ReturnType<typeof run>[]) => ({ total_count: total, check_runs: n === 1 ? Array.from({ length: 100 }, (_, i) => run(`c${i}`, "success")) : last });
+    const pageOf = (path: string) => Number(/[?&]page=(\d+)/.exec(path)![1]);
+    const status = (context: string, state: string) => ({ context, state });
+    const host = (runs: (p: number) => unknown, statuses: unknown[]) => {
+      const f = fakeFetch({
+        "POST /app/installations/9/access_tokens": () => Response.json({ token: "t", expires_at: new Date(NOW + 3600_000).toISOString() }),
+        "GET /repos/a/b/commits/sha1/check-runs*": ({ path }) => Response.json(runs(pageOf(path))),
+        "GET /repos/a/b/commits/sha1/status*": () => Response.json({ state: "x", total_count: statuses.length, statuses }),
+      });
+      return { ...f, gh: new GithubApp({ appId: "1", privateKey, fetch: f.fetch, now: () => NOW }).forInstallation("9") };
+    };
+
+    // Tudo verde nas duas fontes, com a segunda página dos check runs lida.
+    const ok = host((p) => page(p, 101, [run("lint", "success")]), [status("ci/legado", "success")]);
+    expect(await ok.gh.getChecks("a/b", "sha1")).toMatchObject({ state: "success", total: 102, failed: [], running: 0 });
+    expect(ok.calls.filter((c) => c.path.includes("/check-runs")).map((c) => pageOf(c.path))).toEqual([1, 2]);
+
+    // A falha está só na segunda página: antes, com 100 por vez, ficava verde.
+    expect(await host((p) => page(p, 101, [run("e2e", "failure")]), []).gh.getChecks("a/b", "sha1")).toMatchObject({ state: "failure", failed: ["e2e"] });
+    // Commit status antigo com failure ou error vira falha, mesmo com todos os check runs verdes.
+    expect(await host(() => ({ total_count: 1, check_runs: [run("lint", "success")] }), [status("jenkins", "error")]).gh.getChecks("a/b", "sha1")).toMatchObject({ state: "failure", failed: ["jenkins"] });
+    expect(await host(() => ({ total_count: 0, check_runs: [] }), [status("ci/a", "success"), status("ci/b", "failure")]).gh.getChecks("a/b", "sha1")).toMatchObject({ state: "failure", failed: ["ci/b"] });
+    // Rodando em qualquer um dos dois: ainda não é verde.
+    expect(await host(() => ({ total_count: 1, check_runs: [run("lint", "success")] }), [status("ci/legado", "pending")]).gh.getChecks("a/b", "sha1")).toMatchObject({ state: "pending", running: 1 });
+    expect(await host(() => ({ total_count: 1, check_runs: [run("lint", null, "in_progress")] }), [status("ci/legado", "success")]).gh.getChecks("a/b", "sha1")).toMatchObject({ state: "pending", running: 1 });
+    // Só statuses antigos verdes: verde; nada em nenhum dos dois: none; só neutros: neutral.
+    expect((await host(() => ({ total_count: 0, check_runs: [] }), [status("ci/legado", "success")]).gh.getChecks("a/b", "sha1")).state).toBe("success");
+    expect((await host(() => ({ total_count: 0, check_runs: [] }), []).gh.getChecks("a/b", "sha1")).state).toBe("none");
+    expect((await host(() => ({ total_count: 1, check_runs: [run("opcional", "skipped")] }), []).gh.getChecks("a/b", "sha1")).state).toBe("neutral");
+
+    // Mais de 10 páginas: lê só 10 e o resto conta como rodando, nunca verde.
+    const many = host(() => ({ total_count: 1500, check_runs: Array.from({ length: 100 }, (_, i) => run(`c${i}`, "success")) }), []);
+    expect(await many.gh.getChecks("a/b", "sha1")).toMatchObject({ state: "pending", running: 500 });
+    expect(many.calls.filter((c) => c.path.includes("/check-runs"))).toHaveLength(10);
+
+    // Sem leitura dos statuses (ex.: 403): o erro sobe, quem chama trata como "não sei".
+    const f = fakeFetch({
+      "POST /app/installations/9/access_tokens": () => Response.json({ token: "t", expires_at: new Date(NOW + 3600_000).toISOString() }),
+      "GET /repos/a/b/commits/sha1/check-runs*": () => Response.json({ total_count: 1, check_runs: [run("lint", "success")] }),
+      "GET /repos/a/b/commits/sha1/status*": () => Response.json({ message: "Resource not accessible by integration" }, { status: 403 }),
+    });
+    await expect(new GithubApp({ appId: "1", privateKey, fetch: f.fetch, now: () => NOW }).forInstallation("9").getChecks("a/b", "sha1")).rejects.toBeInstanceOf(GithubApiError);
+  });
+
   it("limite de taxa: espera curta uma vez; espera longa falha com erro claro", async () => {
     let n = 0;
     const short = fakeFetch({

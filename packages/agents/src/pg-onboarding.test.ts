@@ -50,7 +50,7 @@ describe.skipIf(!url)("cadastro pelo RH, em Postgres", () => {
     expect(await readAvatar(db, other, r.personId)).toBeUndefined();
     // Quem cadastrou fica no audit_log, e conta para o limite por hora só da própria empresa.
     const audit = await asSystem(createDb(admin), (tx) => tx.select().from(auditLog).where(eq(auditLog.target, `person:${r.personId}`)));
-    expect(audit.map((a) => [a.actor, a.action])).toEqual([[`person:${actor}`, "pessoa:cadastrar"]]);
+    expect(audit.map((a) => [a.actor, a.action]).sort()).toEqual([[`person:${actor}`, "pessoa:cadastrar"], [`person:${actor}`, "pessoa:contas:nenhuma"]]);
     const store = createPgOnboardingStore(db);
     expect(await store.recentCount(org, new Date(Date.now() - 3_600_000))).toBe(1);
     expect(await store.recentCount(other, new Date(Date.now() - 3_600_000))).toBe(0);

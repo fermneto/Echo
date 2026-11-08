@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { canAskTwin, canEditProfile, canLinkAccounts, canSee, canSeePerson, navFor, ROUTES, visibleTeamIds, type RouteId } from "./access";
+import { canAskTwin, canEditProfile, canLinkAccounts, canSee, linkablePlatforms, canSeePerson, navFor, ROUTES, visibleTeamIds, type RouteId } from "./access";
 import { TEAM } from "./demo/team";
 import { TEAMS } from "./demo/teams";
 
@@ -32,11 +32,6 @@ describe("canSee", () => {
     expect(canSee("member", "equipes", demo)).toBe(false);
   });
 
-  it("simulador só existe na demonstração", () => {
-    expect(canSee("member", "simulador", { demo: true })).toBe(true);
-    expect(canSee("member", "simulador", { demo: false })).toBe(false);
-  });
-
   it("toda rota tem ao menos um papel", () => {
     for (const def of Object.values(ROUTES)) expect(def.roles.length).toBeGreaterThan(0);
   });
@@ -49,14 +44,14 @@ describe("navFor", () => {
     expect(nav.flatMap((g) => g.items.map((i) => i.href))).not.toContain("/notas");
   });
 
-  it("sem demonstração, o grupo Demo some", () => {
-    expect(navFor("leader", { demo: false }).map((g) => g.label)).not.toContain("Demo");
+  it("não há grupo Demo no menu, nem na demonstração", () => {
+    for (const demo of [true, false]) expect(navFor("leader", { demo }).map((g) => g.label)).not.toContain("Demo");
   });
 
-  it("Meu dia traz o plano, a nota do dia e o resumo; a demonstração termina com o Simulador", () => {
+  it("Meu dia traz o plano, a nota do dia e o resumo; o menu termina em Gestão", () => {
     const nav = navFor("member", demo);
     expect(nav.find((g) => g.label === "Meu dia")?.items.map((i) => i.href)).toEqual(["/plano", "/nota-do-dia", "/resumos"]);
-    expect(nav.at(-1)).toMatchObject({ label: "Demo", items: [{ href: "/simulador" }] });
+    expect(nav.at(-1)?.label).toBe("Gestão");
   });
 });
 
@@ -140,5 +135,33 @@ describe("quem liga as contas da pessoa", () => {
     expect(canLinkAccounts({ id: "c", role: "member", teamId: "t1" }, target)).toBe(false);
     expect(canLinkAccounts({ id: "l", role: "leader", teamId: "t2" }, target)).toBe(false);
     expect(canLinkAccounts({ id: "l", role: "leader", teamId: "t1" }, { id: "rh", role: "hr", teamId: "t1" })).toBe(false);
+  });
+});
+
+describe("em quais plataformas cada papel liga as contas", () => {
+  const member = { id: "p", role: "member" as const, teamId: "t1" };
+  const leader = { id: "l", role: "leader" as const, teamId: "t1" };
+
+  it("a liderança sobre si mesma é recusada em todas as plataformas", () => {
+    expect(linkablePlatforms(leader, leader)).toEqual([]);
+    expect(canLinkAccounts(leader, { id: "l", role: "leader", teamId: "t1" })).toBe(false);
+  });
+
+  it("a liderança não liga nem troca o Slack de um membro da equipe", () => {
+    expect(linkablePlatforms(leader, member)).not.toContain("slack");
+  });
+
+  it("a liderança liga e troca o GitHub (e o Linear) de um membro da equipe", () => {
+    expect(linkablePlatforms(leader, member)).toEqual(["github", "linear"]);
+  });
+
+  it("o RH liga tudo, de qualquer pessoa", () => {
+    for (const target of [member, leader, { id: "rh2", role: "hr" as const }]) expect(linkablePlatforms({ id: "rh", role: "hr" }, target)).toEqual(["slack", "github", "linear"]);
+  });
+
+  it("a própria pessoa, colega ou liderança de outra equipe: nenhuma plataforma", () => {
+    expect(linkablePlatforms(member, member)).toEqual([]);
+    expect(linkablePlatforms({ id: "c", role: "member", teamId: "t1" }, member)).toEqual([]);
+    expect(linkablePlatforms({ id: "l2", role: "leader", teamId: "t2" }, member)).toEqual([]);
   });
 });

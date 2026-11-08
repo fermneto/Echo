@@ -64,6 +64,7 @@ curl -s -o /dev/null -w "%{http_code}\n" -X POST https://<API>/webhooks/vercel -
 | Sintoma | Causa provável |
 |---|---|
 | `checks_state` não muda | O GitHub App sem o evento **Check suite**, ou sem permissão *Checks: Read* |
+| Delegação sempre "Esperando o CI" | O GitHub App sem *Commit statuses: Read*: a leitura ao vivo junta check runs e commit statuses e, sem um dos dois, não confirma o verde |
 | Vercel 401 | `VERCEL_WEBHOOK_SECRET` diferente do segredo do webhook |
 | O deploy chega, mas não aparece | `DEMO_VERCEL_TEAM_ID` não ligado: o aviso de time desconhecido é descartado |
 | "em produção" fica falso depois do merge | Ainda não há deploy de produção `ready` depois do merge, ou o projeto não está ligado ao repositório |

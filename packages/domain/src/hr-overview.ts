@@ -1,6 +1,6 @@
 // Visão das equipes para o RH: entregas, revisões e ajudas dos relatórios já enviados, respostas dos gêmeos e quem
 // está fora, somados por equipe e por semana. Só totais de equipe com ao menos `GAINS_RULES.minPeople` pessoas:
-// nada por pessoa, sem nota e sem ranking.
+// nada por pessoa, sem nota e sem ranking. Quem está fora aparece só com o nome e a volta, nunca com o motivo.
 import { GAINS_RULES } from "./gains.ts";
 import { isoWeek, weekMonday } from "./report.ts";
 import type { WeeklyMetrics } from "./rules.ts";
@@ -51,7 +51,7 @@ export type HrWeek = {
 };
 
 export type HrTeam =
-  | { id: string; name: string; status: "ok"; people: number; weeks: HrWeek[]; away: { name: string; kind: string; until: Date }[]; progress: HrProgress }
+  | { id: string; name: string; status: "ok"; people: number; weeks: HrWeek[]; away: { name: string; until: Date }[]; progress: HrProgress }
   | { id: string; name: string; status: "too_small"; people: number; min: number };
 
 export type HrOverview = {
@@ -129,7 +129,7 @@ export function hrOverview(input: {
     }
     const away = input.absences
       .filter((a) => ids.has(a.personId) && a.startsAt <= now && a.endsAt > now)
-      .map((a) => ({ name: ids.get(a.personId)!.name, kind: a.kind, until: a.endsAt }))
+      .map((a) => ({ name: ids.get(a.personId)!.name, until: a.endsAt }))
       .sort((a, b) => a.until.getTime() - b.until.getTime());
     return { id: t.id, name: t.name, status: "ok", people: ppl.length, weeks: weeks.map((w) => byWeek.get(w)!), away, progress: teamProgress(input.tasks ?? [], new Set(ids.keys()), now) };
   });
