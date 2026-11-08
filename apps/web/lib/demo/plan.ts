@@ -41,12 +41,3 @@ const PLANS: Record<string, PlanItem[]> = {
 export function planFor(id: string): PlanItem[] {
   return PLANS[id] ?? [];
 }
-
-/** Move um item uma posição para cima (-1) ou para baixo (+1). */
-export function move<T>(list: readonly T[], index: number, delta: -1 | 1): T[] {
-  const to = index + delta;
-  if (to < 0 || to >= list.length) return [...list];
-  const next = [...list];
-  [next[index], next[to]] = [next[to]!, next[index]!];
-  return next;
-}

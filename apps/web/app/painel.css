@@ -1935,7 +1935,7 @@
 }
 .plan-item {
   display: grid;
-  grid-template-columns: auto 1fr auto;
+  grid-template-columns: auto 1fr;
   align-items: center;
   gap: var(--space-xl);
   padding: var(--space-lg) var(--space-xl);
@@ -1966,8 +1966,7 @@
 .plan-item.is-done .plan-item__title {
   color: var(--color-fog);
 }
-.plan-item__undo,
-.plan-item__drop {
+.plan-item__undo {
   font-size: 13px;
   color: var(--color-fog);
 }
@@ -1976,7 +1975,7 @@
   padding: 6px 14px;
   font-size: 12px;
 }
-/* Botão só de ícone: reordenar e ações secundárias. */
+/* Botão só de ícone: ações secundárias. */
 .icon-button {
   display: grid;
   place-items: center;
@@ -2014,19 +2013,6 @@
 .plan-item__kind.is-wait {
   color: var(--color-signal-wait);
 }
-.plan-item__actions {
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-  align-self: start;
-}
-.plan-item__drop {
-  margin-left: var(--space-sm);
-}
-.plan-dropped {
-  margin-top: var(--space-lg);
-  font-size: 14px;
-}
 .link-inline {
   background: none;
   border: 0;
@@ -2046,15 +2032,6 @@
 }
 .plan-empty p {
   margin: 0;
-}
-@media (max-width: 760px) {
-  .plan-item {
-    grid-template-columns: auto 1fr;
-  }
-  .plan-item__actions {
-    grid-column: 1 / -1;
-    flex-wrap: wrap;
-  }
 }
 
 /* Relatórios */
