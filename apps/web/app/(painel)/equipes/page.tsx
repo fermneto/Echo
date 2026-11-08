@@ -1,9 +1,9 @@
 import { addDays, type HrOverview, type HrTeam, type HrWeek, localDate, recentWeeks } from "@echo/domain";
-import { scopeLabel, TeamPicker } from "@/components/TeamPicker";
+import { TeamPicker } from "@/components/TeamPicker";
 import { panelDb } from "@/lib/db";
 import { demoHrOverview } from "@/lib/demo/hr";
 import { gainsOrgId } from "@/lib/gains";
-import { teamScope } from "@/lib/scope";
+import { scopeLabel, teamScope } from "@/lib/scope";
 import { requireAccess } from "@/lib/session";
 import { type TrendTeam, TeamTrends, type TrendWeek } from "./TeamTrends";
 
@@ -155,7 +155,7 @@ export default async function EquipesPage() {
       {view.teams.length === 0 ? (
         <p className="note muted">Nenhuma equipe acompanhada. Escolha acima as equipes que quer ver.</p>
       ) : ok.length === 0 ? (
-        <p className="note muted">As equipes de {scopeLabel(scope)} têm menos de 3 pessoas: sem totais, para não mostrar o resultado de alguém.</p>
+        <p className="note muted">Você vê {scopeLabel(scope)}, e cada equipe tem menos de 3 pessoas: sem totais, para não mostrar o resultado de alguém.</p>
       ) : (
         <>
           {f ? (
