@@ -1,7 +1,7 @@
-import { TEAMS } from "@/lib/demo/teams";
 import { panelDb } from "@/lib/db";
 import { BUDGET, formatUsd } from "@/lib/demo/runs";
 import { gainsOrgId } from "@/lib/gains";
+import { teamsFor } from "@/lib/scope";
 import { requireAccess } from "@/lib/session";
 import { accessMatrix, CONNECTIONS, type ConnectionKind, connectionRows, costSteps, ROLE_LABEL, ROLES } from "@/lib/settings";
 import { cadastrarPessoa } from "./actions";
@@ -29,7 +29,7 @@ async function load(orgId: string): Promise<Loaded> {
 /** Configuração (etapa 15): conexões, limite de custo e quem vê o quê. Liderança e RH, só leitura. */
 export default async function ConfiguracaoPage() {
   const persona = await requireAccess("configuracao");
-  const { routes, limitUsd, roles, orgName } = await load(persona.orgId);
+  const [{ routes, limitUsd, roles, orgName }, teams] = await Promise.all([load(persona.orgId), teamsFor(persona)]);
   const rows = connectionRows(routes);
   const on = rows.filter((r) => r.state === "on").length;
 
@@ -76,7 +76,7 @@ export default async function ConfiguracaoPage() {
             </h2>
             <span className="mono muted">Foto e currículo ficam só neste pedido</span>
           </div>
-          <CadastroPessoa action={cadastrarPessoa} teams={TEAMS} />
+          <CadastroPessoa action={cadastrarPessoa} teams={teams} />
           <p className="card__foot">
             O currículo é lido por um modelo aberto na nossa infraestrutura e vira cargo, habilidades, áreas e idiomas, sem dados pessoais. A foto vira traços de uma lista fechada (cabelo, pele, óculos, roupa), sem gênero, idade ou origem.
           </p>

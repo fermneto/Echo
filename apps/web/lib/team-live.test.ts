@@ -2,7 +2,7 @@ import type { Absence, Person } from "@echo/domain";
 import { describe, expect, it, vi } from "vitest";
 import { DEMO_PERSON_IDS } from "./agent";
 import { TEAM } from "./demo/team";
-import { availabilityFrom, countsOf, loadTeam, whenLabel, withLiveAvailability } from "./team-live";
+import { availabilityFrom, countsOf, loadTeam, loadTeams, whenLabel, withLiveAvailability } from "./team-live";
 
 const WEEK = { days: [1, 2, 3, 4, 5], start: "09:00", end: "18:00" };
 const row = (id: string, timezone: string, workHours = WEEK): Person => ({ id: DEMO_PERSON_IDS[id]!, orgId: "org", name: id, role: "member", timezone, workHours, skills: [], areas: [], active: true });
@@ -69,6 +69,28 @@ describe("equipe com o banco", () => {
     const err = vi.spyOn(console, "error").mockImplementation(() => {});
     expect(await loadTeam(NOW, { hasDb: true, read: () => Promise.reject(new Error("fora do ar")) })).toBe(TEAM);
     expect(err).toHaveBeenCalled();
+    err.mockRestore();
+  });
+
+  it("empresa conectada: só as pessoas do banco da empresa, nunca a equipe da demonstração", async () => {
+    const ana: Person = { id: "11111111-1111-4111-8111-111111111111", orgId: "org-real", name: "Ana Prado", role: "member", timezone: "America/Fortaleza", workHours: WEEK, skills: [], areas: [], active: true };
+    const read = vi.fn(async () => ({ people: [ana], absences: [] }));
+    const team = await loadTeam(NOW, { orgId: "org-real", hasDb: true, read });
+    expect(read).toHaveBeenCalledWith("org-real");
+    expect(team.map((p) => p.name)).toEqual(["Ana Prado"]);
+    expect(team[0]).toMatchObject({ registered: true, availability: { kind: "off" } });
+    const err = vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(await loadTeam(NOW, { orgId: "org-real", hasDb: true, read: () => Promise.reject(new Error("fora do ar")) })).toEqual([]);
+    err.mockRestore();
+    expect(await loadTeam(NOW, { orgId: "org-real", hasDb: false })).toEqual([]);
+    // A persona da demonstração continua com a equipe da demo.
+    expect(await loadTeam(NOW, { orgId: "demo", hasDb: false })).toBe(TEAM);
+  });
+
+  it("equipes da empresa conectada; com falha, nenhuma", async () => {
+    expect(await loadTeams("org-real", { read: async () => [{ id: "t1", name: "Plataforma" }] })).toEqual([{ id: "t1", name: "Plataforma" }]);
+    const err = vi.spyOn(console, "error").mockImplementation(() => {});
+    expect(await loadTeams("org-real", { read: () => Promise.reject(new Error("fora do ar")) })).toEqual([]);
     err.mockRestore();
   });
 

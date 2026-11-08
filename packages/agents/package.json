@@ -10,7 +10,8 @@
     "./perguntas": "./src/pg-questions.ts",
     "./execucoes": "./src/pg-runs.ts",
     "./enquanto-fora": "./src/pg-away-log.ts",
-    "./redistribuicao": "./src/pg-redistribution-view.ts"
+    "./redistribuicao": "./src/pg-redistribution-view.ts",
+    "./painel": "./src/pg-panel.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",

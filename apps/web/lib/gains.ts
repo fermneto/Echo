@@ -3,6 +3,11 @@ import type { GainsResult } from "@echo/domain";
 /** Personas da demonstração usam a empresa do seed (seed/src/demo.ts → DEMO_IDS.org). */
 export const DEMO_ORG_ID = "00000000-0000-4000-8000-000000000001";
 
+/** A persona escolhida em /entrar é da empresa "demo"; quem entrou pelo Slack tem o id real da empresa. */
+export function isDemoOrg(orgId: string): boolean {
+  return orgId === "demo";
+}
+
 export function gainsOrgId(orgId: string): string {
   return orgId === "demo" ? DEMO_ORG_ID : orgId;
 }

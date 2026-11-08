@@ -22,7 +22,7 @@ export async function perguntarEcho(prev: AskState, formData: FormData): Promise
   if (!question) return { ...prev, error: "Escreva uma pergunta." };
   const db = panelDb();
   if (!db || isAvailabilityQuestion(question)) {
-    const { people } = await teamScope(me, await loadTeam(new Date()));
+    const { people } = await teamScope(me, await loadTeam(new Date(), { orgId: me.orgId }));
     if (!db) await new Promise((r) => setTimeout(r, 900));
     return { turns: [...prev.turns, { question, reply: askEchoDemo(question, people, await currentNotes()) }] };
   }
