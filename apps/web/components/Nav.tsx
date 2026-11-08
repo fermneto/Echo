@@ -9,8 +9,12 @@ import { EASE_IN, gsap, leave, prefersReduced, useGSAP } from "@/lib/motion";
 /**
  * Abas do painel: Início e grupos que abrem um menu com uma linha sobre cada tela.
  * Um destaque desliza atrás da aba sob o ponteiro; o menu abre a partir da aba, com os itens
- * entrando em sequência, e fecha mais rápido do que abre.
+ * entrando em sequência, e fecha mais rápido do que abre. Com mouse, o menu abre ao passar por cima;
+ * no toque e no teclado, pelo clique.
  */
+
+/** Pausa antes de fechar ao tirar o mouse: dá tempo de atravessar o vão entre a aba e o menu. */
+const CLOSE_DELAY_MS = 180;
 export function Nav({ groups }: { groups: NavGroup[] }) {
   const pathname = usePathname();
   const [open, setOpen] = useState<string | null>(null);
@@ -20,6 +24,15 @@ export function Nav({ groups }: { groups: NavGroup[] }) {
   const glow = useRef<HTMLSpanElement>(null);
   const menu = useRef<HTMLUListElement>(null);
   const { contextSafe } = useGSAP({ scope: ref });
+  const closeTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  /** O menu aberto veio do hover: o clique na aba não deve fechá-lo logo em seguida. */
+  const byHover = useRef(false);
+
+  const cancelClose = () => {
+    if (closeTimer.current) clearTimeout(closeTimer.current);
+    closeTimer.current = null;
+  };
+  useEffect(() => cancelClose, []);
 
   useEffect(() => setOpen(null), [pathname]);
 
@@ -82,6 +95,28 @@ export function Nav({ groups }: { groups: NavGroup[] }) {
 
   const isActive = (href: string) => (href === "/" ? pathname === "/" : pathname.startsWith(href));
   const hover = { onPointerEnter: (e: React.PointerEvent<HTMLElement>) => e.pointerType === "mouse" && moveGlow(e.currentTarget) };
+  const groupHover = (label: string) => ({
+    onPointerEnter: (e: React.PointerEvent<HTMLElement>) => {
+      if (e.pointerType !== "mouse") return;
+      cancelClose();
+      if (open !== label) byHover.current = true;
+      setOpen(label);
+    },
+    onPointerLeave: (e: React.PointerEvent<HTMLElement>) => {
+      if (e.pointerType !== "mouse") return;
+      cancelClose();
+      closeTimer.current = setTimeout(() => setOpen((cur) => (cur === label ? null : cur)), CLOSE_DELAY_MS);
+    },
+  });
+  const toggle = (label: string, expanded: boolean) => {
+    cancelClose();
+    if (expanded && byHover.current) {
+      byHover.current = false;
+      return;
+    }
+    byHover.current = false;
+    setOpen(expanded ? null : label);
+  };
 
   return (
     <nav className="tabs" ref={ref} aria-label="Painel" onPointerLeave={hideGlow}>
@@ -93,8 +128,8 @@ export function Nav({ groups }: { groups: NavGroup[] }) {
         const active = g.items.some((i) => isActive(i.href));
         const expanded = open === g.label;
         return (
-          <div key={g.label} className="tabs__group">
-            <button type="button" className={`tabs__tab label-caps${active ? " is-active" : ""}`} aria-expanded={expanded} onClick={() => setOpen(expanded ? null : g.label)} {...hover}>
+          <div key={g.label} className="tabs__group" {...groupHover(g.label)}>
+            <button type="button" className={`tabs__tab label-caps${active ? " is-active" : ""}`} aria-expanded={expanded} onClick={() => toggle(g.label, expanded)} {...hover}>
               {g.label}
               <svg className="tabs__chevron" viewBox="0 0 10 10" aria-hidden="true">
                 <path d="m2.5 4 2.5 2.5L7.5 4" fill="none" stroke="currentColor" strokeWidth="1.2" strokeLinecap="round" strokeLinejoin="round" />
