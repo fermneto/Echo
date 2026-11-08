@@ -77,6 +77,7 @@ const endOfDay = await registerEndOfDay(queue, {
   summary: serverDaySummary(db, slm ? { ...slm, timeoutMs: cfg.SUMMARY_TIMEOUT_MS } : undefined, cfg.WEB_URL, (a) => renderSummaryPng(a, { stateLabel: "Resumo" })),
   scan: (now) => dueEndOfDay(db, now),
   interactions,
+  onRespondError: (err) => log.warn({ err: String(err) }, "falha ao responder o clique da nota do dia"),
 });
 // Correção (etapa 10): achados da revisão noturna viram correção no Managed Agents, rascunho no GitHub pelo
 // outbox e Aplicar/Recusar no privado do autor. Sem FIX_AGENT_ID e FIX_ENVIRONMENT_ID, nenhuma sessão abre;

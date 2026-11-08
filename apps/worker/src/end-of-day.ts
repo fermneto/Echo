@@ -1,4 +1,5 @@
-import type { DaySummary, EndOfDay } from "@echo/agents";
+import { confirmReply, type DaySummary, type EndOfDay } from "@echo/agents";
+import { respondToInteraction } from "@echo/connectors";
 import { QUEUES, DEDUPE_SECONDS, type JobQueue } from "@echo/jobs";
 import { HOUR, NOTE_RULES } from "@echo/domain";
 
@@ -27,6 +28,10 @@ export interface EndOfDayWiring {
    * como mais um tratador; sem ele (testes), registra o consumidor direto na fila.
    */
   interactions?: { add(name: string, run: (job: SlackInteractionJob) => Promise<unknown>): void };
+  /** Resposta ao clique pelo `response_url` do Slack (testes trocam). */
+  respond?: (url: string, body: object) => Promise<void>;
+  /** Falha ao responder o clique não desfaz a confirmação: só vai para o log. */
+  onRespondError?: (err: unknown) => void;
 }
 
 /**
@@ -55,6 +60,11 @@ export async function registerEndOfDay(queue: JobQueue, w: EndOfDayWiring): Prom
   // Confirmada pelo Slack: o resumo é montado de novo com o que a pessoa declarou.
   const confirmed = async (orgId: string, payload: unknown) => {
     const r = await w.flow.confirmFromSlack(orgId, payload);
+    // Sem resposta, o Slack mantém a mensagem com o botão e quem clicou não vê que a nota foi confirmada.
+    const p = payload as { response_url?: unknown; message?: { text?: unknown; blocks?: unknown } };
+    if (r && typeof p?.response_url === "string") {
+      await (w.respond ?? respondToInteraction)(p.response_url, confirmReply(r, p.message ?? {})).catch((err) => w.onRespondError?.(err));
+    }
     if (w.summary && r?.status === "confirmed") await queue.send<DailyNoteJob>(QUEUES.daySummary, { orgId, personId: r.note.personId, date: r.note.date }, { singletonKey: `${orgId}:${r.note.personId}:${r.note.date}:confirmada` });
     return r;
   };

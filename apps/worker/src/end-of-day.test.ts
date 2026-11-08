@@ -1,6 +1,6 @@
 import { InMemoryQueue, QUEUES } from "@echo/jobs";
 import { describe, expect, it } from "vitest";
-import { registerEndOfDay, type DailyNoteJob } from "./end-of-day.ts";
+import { registerEndOfDay, type DailyNoteJob, type EndOfDayWiring } from "./end-of-day.ts";
 
 describe("registerEndOfDay", () => {
   it("agenda → rascunho → prazo de 2 h; repetir a agenda não duplica; Confirmar chega ao fluxo", async () => {
@@ -62,5 +62,53 @@ describe("registerEndOfDay", () => {
     await tick();
     await queue.send(QUEUES.slackInteraction, { orgId: "org", payload: { type: "block_actions" } });
     expect(summaries).toEqual(["org:fernando:2026-11-06", "org:fernando:2026-11-06"]);
+  });
+});
+
+describe("Confirmar a nota do dia pelo Slack responde ao clique", () => {
+  const note = { personId: "fernando", date: "2026-11-08", released: [], reserved: [], state: "confirmed" as const, createdAt: new Date() };
+  const message = {
+    text: "Nota do dia",
+    blocks: [
+      { type: "section", text: { type: "mrkdwn", text: "Nota do dia" } },
+      { type: "actions", elements: [{ type: "button", action_id: "confirmar_nota" }, { type: "button", action_id: "editar_nota", url: "https://painel/nota-do-dia" }] },
+    ],
+  };
+  const click = { type: "block_actions", response_url: "https://hooks.slack.com/actions/T/1/x", message, user: { id: "UFER" }, actions: [{ action_id: "confirmar_nota", value: "{}" }] };
+  async function run(outcome: Awaited<ReturnType<EndOfDayWiring["flow"]["confirmFromSlack"]>>) {
+    const queue = new InMemoryQueue();
+    const replies: { url: string; body: any }[] = [];
+    await registerEndOfDay(queue, {
+      scan: async () => [],
+      flow: { draft: async () => ({ status: "skipped", reason: "x" }), expire: async () => ({ state: null, changed: false }), confirmFromSlack: async () => outcome },
+      respond: async (url, body) => void replies.push({ url, body }),
+    });
+    await queue.send(QUEUES.slackInteraction, { orgId: "org", payload: click });
+    return replies;
+  }
+
+  it("confirmada: troca a mensagem, sem o botão Confirmar e com o estado", async () => {
+    const [r] = await run({ status: "confirmed", note });
+    expect(r!.url).toBe(click.response_url);
+    expect(r!.body.replace_original).toBe(true);
+    const actions = r!.body.blocks.find((b: any) => b.type === "actions");
+    expect(actions.elements.map((e: any) => e.action_id)).toEqual(["editar_nota"]);
+    expect(JSON.stringify(r!.body.blocks.at(-1))).toContain("Nota confirmada");
+  });
+
+  it("clique repetido numa nota já confirmada também tira o botão", async () => {
+    const [r] = await run({ status: "already", reason: "nota já confirmada" });
+    expect(r!.body.replace_original).toBe(true);
+    expect(JSON.stringify(r!.body.blocks)).not.toContain("confirmar_nota");
+    expect(JSON.stringify(r!.body.blocks.at(-1))).toContain("já estava confirmada");
+  });
+
+  it("outra pessoa ou nota que mudou: só quem clicou vê o motivo, a mensagem fica", async () => {
+    expect((await run({ status: "denied", reason: "x" }))[0]!.body).toMatchObject({ replace_original: false, response_type: "ephemeral", text: "Só a própria pessoa confirma a nota do dia." });
+    expect((await run({ status: "already", reason: "a nota mudou antes da confirmação" }))[0]!.body.response_type).toBe("ephemeral");
+  });
+
+  it("clique que não é da nota não responde", async () => {
+    expect(await run(null)).toEqual([]);
   });
 });

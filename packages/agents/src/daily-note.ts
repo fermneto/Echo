@@ -246,6 +246,26 @@ export function draftMessage(note: DailyNote, names: Map<string, string>, webUrl
   };
 }
 
+/**
+ * Resposta ao clique de Confirmar (pelo `response_url` do Slack), por regra. Confirmada, ou já confirmada antes:
+ * a mensagem é trocada pela mesma, sem o botão Confirmar e com a linha do estado. Recusa: só quem clicou vê o motivo.
+ */
+export function confirmReply(outcome: ConfirmOutcome, original: { text?: unknown; blocks?: unknown }): Record<string, unknown> {
+  const settled = outcome.status === "confirmed" || (outcome.status === "already" && outcome.reason === "nota já confirmada");
+  if (!settled) {
+    const text = outcome.status === "denied" ? "Só a própria pessoa confirma a nota do dia." : outcome.status === "not_found" ? "Esta nota do dia não existe mais." : "A nota mudou antes da confirmação. Abra o painel para conferir e confirmar.";
+    return { replace_original: false, response_type: "ephemeral", text };
+  }
+  const status = outcome.status === "confirmed" ? "*Nota confirmada.* O que você liberou e reservou passa a valer para o seu agente." : "*Esta nota já estava confirmada.*";
+  const blocks = (Array.isArray(original.blocks) ? original.blocks : []).flatMap((b) => {
+    const block = b as { type?: string; elements?: { action_id?: string }[] };
+    if (block?.type !== "actions") return [b];
+    const elements = (block.elements ?? []).filter((e) => e?.action_id !== CONFIRM_ACTION_ID);
+    return elements.length ? [{ ...block, elements }] : [];
+  });
+  return { replace_original: true, text: typeof original.text === "string" ? original.text : "Nota do dia", blocks: [...blocks, { type: "context", elements: [{ type: "mrkdwn", text: status }] }] };
+}
+
 /** Clique de Confirmar vindo do Slack (já verificado pela API). Null quando não é o botão da nota. */
 export function noteConfirmAction(payload: unknown): { slackUserId: string; personId: string; date: string } | null {
   const p = payload as { type?: string; user?: { id?: string }; actions?: { action_id?: string; value?: string }[] };
