@@ -74,14 +74,14 @@ describe("confirmText", () => {
   it("conta só o que muda de mãos e avisa o que segue sem responsável", () => {
     expect(confirmText(items, new Set())).toEqual({
       title: "Aplicar 2 mudanças nas tarefas e no GitHub?",
-      text: "Carla e Eduardo recebem as tarefas e são avisados no Slack. Cada um pode recusar com motivo. 1 item segue sem responsável, com o motivo.",
+      text: "Carla e Eduardo recebem as tarefas e são avisados no Slack. 1 item segue sem responsável, com o motivo.",
       changes: 2,
     });
   });
   it("itens deixados de fora saem da conta", () => {
     const r = confirmText(items, new Set(["i2", "i3"]));
     expect(r.title).toBe("Aplicar 1 mudança nas tarefas e no GitHub?");
-    expect(r.text).toBe("Carla recebe as tarefas e é avisado no Slack. Cada um pode recusar com motivo. 2 itens ficam de fora.");
+    expect(r.text).toBe("Carla recebe as tarefas e é avisado no Slack. 2 itens ficam de fora.");
   });
 });
 

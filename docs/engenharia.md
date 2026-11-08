@@ -68,7 +68,7 @@ _Bordas:_ Falha ao criar o lote: até 3 tentativas, 30 min de espera. Lote criad
 4. Cada item traz o motivo, escrito por regra.
 5. Até 7 itens, com "ver mais" no painel.
 6. Envio privado no Slack.
-7. Em Meu plano, a pessoa reordena e descarta.
+7. Em Meu plano, a pessoa confere e aprova.
 
 _Bordas:_ Sem modelo: mais barato e sem como inventar um dado.
 
@@ -881,7 +881,7 @@ Revisão em lote e plano da manhã
 2. Uma chamada por PR na API de lotes. Achados com arquivo, linha, gravidade, explicação, sugestão e confiança.
 3. Comentário no PR pelo `outbox`, identificado como análise automática, nunca aprovação.
 4. Falha ao criar o lote: até 3 tentativas, sem reenviar um lote criado.
-5. Plano da manhã por regra, até 7 itens, enviado em privado, com reordenar e descartar em Meu plano.
+5. Plano da manhã por regra, até 7 itens, enviado em privado e mostrado em Meu plano.
 
 - **Testes:** Filtro, idempotência do comentário e ordenação do plano.
 - **Pronto quando:** Um PR real recebe análise, e o plano da manhã mostra o item.
@@ -1199,7 +1199,7 @@ Nota do dia, plano da manhã e resumo da ausência como artefatos
 2. As regras calculam os fatos, como hoje. O Claude (Haiku) recebe os fatos como dado e devolve uma especificação em JSON: que componentes usar, em que ordem e com que textos, referenciando cada fato pelo id.
 3. Números, datas e nomes são inseridos pelo código a partir dos ids. O validador recusa texto com número, primeira pessoa como o trabalhador ou fato sem id. Se recusar, vale um layout padrão feito por regra.
 4. O painel renderiza a página em `/resumos/<id>`, privada da pessoa. A mensagem do Slack continua curta, com o botão "Abrir resumo interativo".
-5. As interações gravam pelas rotas que já existem: confirmar a nota, marcar liberado ou reservado (só a dona), reordenar e descartar itens do plano, aprovar correção (pelo `actions`), responder a quem propôs.
+5. As interações gravam pelas rotas que já existem: confirmar a nota, marcar liberado ou reservado (só a dona), aprovar correção (pelo `actions`), responder a quem propôs.
 6. Opcional: modo de página livre, em que o Claude escreve HTML como num Artifact do claude.ai. Roda em iframe com `sandbox`, CSP sem rede e dados passados pelo código. Usar só depois de a especificação por componentes estar estável.
 7. Publicar como Artifact no claude.ai só se houver API oficial para produtos de terceiros. Confirmar na documentação atual antes de prometer.
 
