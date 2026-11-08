@@ -88,6 +88,44 @@ describe("morningDue", () => {
   it("de férias, sem plano: espera a volta", () => {
     const vacation = [{ personId: "f", startsAt: new Date("2026-11-06T00:00:00Z"), endsAt: new Date("2026-11-13T00:00:00Z"), kind: "vacation" as const }];
     expect(morningDue(fernando, vacation, new Date("2026-11-09T11:45:00Z"))).toBeNull();
+    // Volta na sexta, 13/11: o plano sai de novo no primeiro expediente depois das férias.
+    expect(morningDue(fernando, vacation, new Date("2026-11-13T11:45:00Z"))?.date).toBe("2026-11-13");
+  });
+  it("qualquer ausência no início do expediente bloqueia; a que acaba antes ou começa depois, não", () => {
+    for (const kind of ["vacation", "leave", "unexpected", "ooo"] as const) {
+      const a = [{ personId: "f", startsAt: new Date("2026-11-09T00:00:00Z"), endsAt: new Date("2026-11-10T00:00:00Z"), kind }];
+      expect(morningDue(fernando, a, new Date("2026-11-09T11:45:00Z"))).toBeNull();
+    }
+    const endsBefore = [{ personId: "f", startsAt: new Date("2026-11-08T00:00:00Z"), endsAt: new Date("2026-11-09T11:00:00Z"), kind: "leave" as const }];
+    expect(morningDue(fernando, endsBefore, new Date("2026-11-09T11:45:00Z"))?.date).toBe("2026-11-09");
+    const afternoon = [{ personId: "f", startsAt: new Date("2026-11-09T17:00:00Z"), endsAt: new Date("2026-11-10T00:00:00Z"), kind: "ooo" as const }];
+    expect(morningDue(fernando, afternoon, new Date("2026-11-09T11:45:00Z"))?.date).toBe("2026-11-09");
+    const someoneElse = [{ personId: "e", startsAt: new Date("2026-11-06T00:00:00Z"), endsAt: new Date("2026-11-13T00:00:00Z"), kind: "vacation" as const }];
+    expect(morningDue(fernando, someoneElse, new Date("2026-11-09T11:45:00Z"))?.date).toBe("2026-11-09");
+  });
+  it("dias de trabalho da pessoa: domingo conta se estiver na lista, e o dia fora dela não tem plano", () => {
+    // Como na empresa de teste: domingo a segunda e quarta a sábado, sem terça.
+    const yan = person("y", "Yan", { workHours: { days: [0, 1, 3, 4, 5, 6], start: "09:00", end: "18:00" } });
+    expect(morningDue(yan, [], new Date("2026-11-08T11:45:00Z"))?.date).toBe("2026-11-08"); // domingo
+    expect(morningDue(yan, [], new Date("2026-11-10T11:45:00Z"))).toBeNull(); // terça
+  });
+  it("cada pessoa no próprio fuso, no mesmo instante", () => {
+    const at = new Date("2026-11-09T11:45:00Z"); // 08h45 em Fortaleza, 08h45 em São Paulo, 13h45 em Joanesburgo
+    const eduardo = person("e", "Eduardo", { timezone: "America/Sao_Paulo" });
+    const joana = person("j", "Joana", { timezone: "Africa/Johannesburg" });
+    expect(morningDue(fernando, [], at)?.startsAt).toEqual(new Date("2026-11-09T12:00:00Z"));
+    expect(morningDue(eduardo, [], at)?.startsAt).toEqual(new Date("2026-11-09T12:00:00Z"));
+    expect(morningDue(joana, [], at)).toBeNull(); // já passou das 2 h depois das 09h
+  });
+  it("inativo e RH não têm plano", () => {
+    const at = new Date("2026-11-09T11:45:00Z");
+    expect(morningDue(person("x", "X", { active: false }), [], at)).toBeNull();
+    expect(morningDue(person("r", "R", { role: "hr" }), [], at)).toBeNull();
+  });
+  it("expediente perto da meia-noite: a janela continua depois da virada do dia local", () => {
+    const night = person("n", "Noturno", { workHours: { days: [1, 2, 3, 4, 5], start: "23:30", end: "23:59" } });
+    // Segunda 23h30 em Fortaleza = terça 02h30 UTC. À 00h30 de terça (local), o plano ainda é o de segunda.
+    expect(morningDue(night, [], new Date("2026-11-10T03:30:00Z"))).toEqual({ date: "2026-11-09", startsAt: new Date("2026-11-10T02:30:00Z") });
   });
 });
 
