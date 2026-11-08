@@ -124,6 +124,12 @@ services:
       # Respostas, nota do dia, revisão noturna e relatório. Sem ela, o agente responde só por regra.
       - key: ANTHROPIC_API_KEY
         sync: false
+      # Correção (etapa 10) no Managed Agents: IDs de `pnpm --filter @echo/reviewer provision`. Sem eles, não há
+      # correção (a revisão noturna continua).
+      - key: FIX_AGENT_ID
+        sync: false
+      - key: FIX_ENVIRONMENT_ID
+        sync: false
       # Repositório do espelho das notas, no formato org/brains.
       - key: BRAINS_REPOSITORY
         sync: false
@@ -167,9 +173,8 @@ services:
       paths:
         - infra/Dockerfile.ollama
 
-  # Correção em ambiente isolado (etapa 10). Fora do plano gratuito: é outro worker pago (starter).
-  # Para ligar, descomente e preencha ANTHROPIC_API_KEY, FIX_AGENT_ID e FIX_ENVIRONMENT_ID
-  # (IDs de `pnpm --filter @echo/reviewer provision`).
+  # Reviewer (vídeos, mais tarde). A correção (etapa 10) roda no echo-worker: a sessão fica na nuvem do Managed
+  # Agents, então não precisa de outro serviço pago. Este bloco fica comentado até o reviewer ter trabalho próprio.
   # - type: worker
   #   name: echo-reviewer
   #   runtime: docker
@@ -187,8 +192,3 @@ services:
   #     - key: ANTHROPIC_API_KEY
   #       sync: false
   #     - fromGroup: echo-shared
-  #     # Correção (etapa 10): IDs de `pnpm --filter @echo/reviewer provision`.
-  #     - key: FIX_AGENT_ID
-  #       sync: false
-  #     - key: FIX_ENVIRONMENT_ID
-  #       sync: false

@@ -1,9 +1,9 @@
 // Executor do outbox: a ÚNICA peça que altera GitHub, Linear ou Slack.
 // Cada ação tem chave única (não roda duas vezes), é reservada por atualização condicional
 // (dois workers não executam a mesma) e só roda aprovada — exceto as listadas em REQUIRES_APPROVAL como false.
-import { FileChangedError, SlackApiError, type ChatPlatform, type CodeWriter, type IssueWriter } from "@echo/connectors";
+import { FileChangedError, GithubApiError, SlackApiError, type ChatPlatform, type CodeWriter, type IssueWriter } from "@echo/connectors";
 import { asSystem, auditLog, brainNotes, identities, outboxActions, people, planItems, tasks, withOrg, type Database, type Tx } from "@echo/db";
-import { isMirrorExportable, soleTeam } from "@echo/domain";
+import { isMirrorExportable, PatchConflictError, soleTeam } from "@echo/domain";
 import { and, asc, eq, inArray, lt, sql } from "drizzle-orm";
 import { REQUIRES_APPROVAL, type ActionType, type OutboxAction } from "./index.ts";
 
@@ -16,8 +16,8 @@ export interface ActionPayloads {
   "linear.comment": { taskKey: string; body: string };
   "github.comment": { repo: string; number: number; body: string };
   "github.set_reviewers": { repo: string; number: number; personIds: string[]; planItemId?: string };
-  "github.draft_pr": Record<string, unknown>;
-  "github.merge_fix": Record<string, unknown>;
+  "github.draft_pr": { repo: string; prNumber: number; base: string; baseSha: string; branch: string; title: string; body: string; patch: string; draft?: boolean };
+  "github.merge_fix": { repo: string; number: number; sha: string; base: string; prNumber: number };
   "github.mirror_write": { repo: string; noteId: string; path: string; content: string; previousSha?: string };
   "github.mirror_delete": { repo: string; noteId: string; path: string; sha: string };
   "slack.post": { channel: string; text: string; threadTs?: string; agentName?: string };
@@ -99,7 +99,8 @@ async function taskLinearId(tx: Tx, orgId: string, taskKey: string): Promise<{ i
   return { id: t.id, linearId: t.linearId };
 }
 
-async function run(deps: ExecutorDeps, row: Row): Promise<void> {
+/** Executa a ação. O que devolve fica em `outbox_actions.result` (ex.: número e versão do rascunho). */
+async function run(deps: ExecutorDeps, row: Row): Promise<unknown> {
   const { db } = deps;
   const orgId = row.orgId;
   const w = await deps.writers(orgId);
@@ -129,6 +130,25 @@ async function run(deps: ExecutorDeps, row: Row): Promise<void> {
       const p = row.payload as ActionPayloads["github.comment"];
       await need("code", "GitHub").comment(p.repo, p.number, p.body);
       return;
+    }
+    case "github.draft_pr": {
+      const p = row.payload as ActionPayloads["github.draft_pr"];
+      try {
+        return await need("code", "GitHub").createFixDraft({ repo: p.repo, base: p.base, baseSha: p.baseSha, branch: p.branch, title: p.title, body: p.body, patch: p.patch });
+      } catch (err) {
+        if (err instanceof PatchConflictError) throw new PermanentActionError(`o diff não se aplica ao código: ${err.message}`);
+        throw err;
+      }
+    }
+    case "github.merge_fix": {
+      const p = row.payload as ActionPayloads["github.merge_fix"];
+      try {
+        return await need("code", "GitHub").mergeFix({ repo: p.repo, base: p.base, sha: p.sha, message: `Correção do Echo (#${p.number}) aprovada pelo autor do PR #${p.prNumber}` });
+      } catch (err) {
+        // 409: conflito com a branch do PR; 404: branch ou versão sumiu. Tentar de novo não resolve.
+        if (err instanceof GithubApiError && (err.status === 409 || err.status === 404)) throw new PermanentActionError(err.status === 409 ? "conflito com a branch do PR" : "branch ou versão não encontrada");
+        throw err;
+      }
     }
     case "github.set_reviewers": {
       const p = row.payload as ActionPayloads["github.set_reviewers"];
@@ -241,9 +261,9 @@ export async function drainActions(deps: ExecutorDeps, orgId: string): Promise<{
     if (!row) continue;
     const planItemId = (row.payload as { planItemId?: string }).planItemId;
     try {
-      await run(deps, row);
+      const result = await run(deps, row);
       await withOrg(db, orgId, async (tx) => {
-        await tx.update(outboxActions).set({ state: "done", error: null }).where(eq(outboxActions.id, row.id));
+        await tx.update(outboxActions).set({ state: "done", error: null, ...(result !== undefined ? { result } : {}) }).where(eq(outboxActions.id, row.id));
         if (planItemId) await tx.update(planItems).set({ state: "done" }).where(and(eq(planItems.orgId, orgId), eq(planItems.id, planItemId)));
         await tx.insert(auditLog).values({ orgId, actor: "echo:actions", action: `execute:${row.type}`, target: row.target });
       });

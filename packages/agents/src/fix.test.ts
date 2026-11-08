@@ -5,7 +5,7 @@ import { FixedClock, type FixTarget, type PullHead } from "@echo/domain";
 import { LogRunRecorder } from "@echo/observability";
 import { describe, expect, it } from "vitest";
 import type { AgentData } from "./data.ts";
-import { createFix, draftBody, type FixCandidate, type FixCodeHost, type FixSandboxInput, type FixSandboxResult, type FixState, type FixStore, type StoredFix, validFixReport } from "./fix.ts";
+import { createFix, draftBody, FIX_APPROVE_ACTION_ID, FIX_DECLINE_ACTION_ID, fixClick, type FixCandidate, type FixCodeHost, type FixSandboxInput, type FixSandboxResult, type FixState, type FixStore, type StoredFix, validFixReport } from "./fix.ts";
 import type { Finding } from "./night-review.ts";
 
 const NOW = new Date("2026-11-09T06:00:00Z");
@@ -107,7 +107,10 @@ describe("correção", () => {
     // Só o autor aprova; a união leva a versão do rascunho e a aprovação registrada.
     expect(await s.flow.decide("org", "eduardo", "fix1", "approve")).toEqual({ status: "denied" });
     expect(await s.flow.decide("org", "fernando", "fix1", "approve")).toEqual({ status: "approved" });
-    expect(s.outbox[1]).toMatchObject({ type: "github.merge_fix", approvedBy: "fernando", idempotencyKey: "fix_merge:fix1", payload: { repo: "org/app", number: 45, sha: "d45", base: "ech-128-filtro" } });
+    // Rascunho pronto: o autor recebe Aplicar/Recusar no privado (sem aprovação: é só aviso).
+    expect(s.outbox[1]).toMatchObject({ type: "slack.dm", idempotencyKey: "fix_ready_dm:fix1", payload: { personId: "fernando" } });
+    expect(JSON.stringify(s.outbox[1]!.payload)).toContain("não é uma aprovação");
+    expect(s.outbox[2]).toMatchObject({ type: "github.merge_fix", approvedBy: "fernando", idempotencyKey: "fix_merge:fix1", payload: { repo: "org/app", number: 45, sha: "d45", base: "ech-128-filtro" } });
     expect(await s.flow.decide("org", "fernando", "fix1", "approve")).toMatchObject({ status: "refused", reason: "nao_esta_pronta" });
 
     s.outboxRows.set("fix_merge:fix1", { state: "done", result: { merged: true } });
@@ -126,6 +129,15 @@ describe("correção", () => {
     expect(s.outbox.filter((a) => a.type === "github.merge_fix")).toEqual([]);
     expect(await s.flow.decide("org", "fernando", "fix1", "decline")).toEqual({ status: "declined" });
     expect(s.fixes.get("fix1")!.state).toBe("declined");
+  });
+
+  it("clique no Slack: só Aplicar/Recusar com id válido, e quem clica é a pessoa da conta do Slack", () => {
+    const click = (action_id: string, value: string, user = "UFER") => ({ type: "block_actions", user: { id: user }, actions: [{ action_id, value }] });
+    const id = "00000000-0000-4000-8000-000000000001";
+    expect(fixClick(click(FIX_APPROVE_ACTION_ID, id))).toEqual({ slackUserId: "UFER", fixId: id, decision: "approve" });
+    expect(fixClick(click(FIX_DECLINE_ACTION_ID, id))?.decision).toBe("decline");
+    expect(fixClick(click("confirmar_nota", id))).toBeNull();
+    expect(fixClick(click(FIX_APPROVE_ACTION_ID, "não é id"))).toBeNull();
   });
 
   it("diff com arquivo fora do PR ou de CI é recusado, sem rascunho", async () => {

@@ -74,9 +74,22 @@ export const webSchema = baseSchema.extend({
   SLM_MODEL: z.string().min(1).default("qwen3:4b-instruct"),
 });
 
+/** Correção (etapa 10): roda no worker; o reviewer aceita as mesmas variáveis. */
+const fix = {
+  // Agente e ambiente da correção no Managed Agents, criados uma vez com `pnpm --filter @echo/reviewer provision`.
+  // Sem eles, não há correção.
+  FIX_AGENT_ID: optionalString.pipe(z.string().startsWith("agent_", "precisa começar com agent_").optional()),
+  FIX_ENVIRONMENT_ID: optionalString.pipe(z.string().startsWith("env_", "precisa começar com env_").optional()),
+  // Intervalo da busca por revisões a corrigir e por rascunhos prontos.
+  FIX_SCAN_MS: z.coerce.number().int().min(10_000).default(300_000),
+  // Tempo máximo de uma correção no ambiente isolado.
+  FIX_TIMEOUT_MS: z.coerce.number().int().min(60_000).max(3_600_000).default(1_200_000),
+};
+
 export const workerSchema = baseSchema.extend({
   ...database,
   ...anthropic,
+  ...fix,
   /** Token do bot do Slack (xoxb-…). Sem ele, o worker não fala no Slack. */
   SLACK_BOT_TOKEN: optionalString,
   /** Só para desenvolvimento e testes: outro endereço para a Web API do Slack (ex.: um Slack falso local). */
@@ -124,14 +137,7 @@ export const workerSchema = baseSchema.extend({
 export const reviewerSchema = baseSchema.extend({
   ...database,
   ...anthropic,
-  // Agente e ambiente da correção no Managed Agents, criados uma vez com `pnpm --filter @echo/reviewer provision`.
-  // Sem eles, não há correção.
-  FIX_AGENT_ID: optionalString.pipe(z.string().startsWith("agent_", "precisa começar com agent_").optional()),
-  FIX_ENVIRONMENT_ID: optionalString.pipe(z.string().startsWith("env_", "precisa começar com env_").optional()),
-  // Intervalo da busca por revisões a corrigir e por rascunhos prontos.
-  FIX_SCAN_MS: z.coerce.number().int().min(10_000).default(300_000),
-  // Tempo máximo de uma correção no ambiente isolado.
-  FIX_TIMEOUT_MS: z.coerce.number().int().min(60_000).max(3_600_000).default(1_200_000),
+  ...fix,
 });
 
 export const schemas = { api: apiSchema, web: webSchema, worker: workerSchema, reviewer: reviewerSchema } as const;

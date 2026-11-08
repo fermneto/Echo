@@ -161,7 +161,7 @@ export function serverMorningPlan(db: Database, webUrl: string): MorningPlan {
  * FIX_ENVIRONMENT_ID, não há ambiente; sem a porta do GitHub (Integrações), não há correção. `decide` (Meu plano)
  * só precisa da porta do GitHub.
  */
-export function serverFix(db: Database, opts: { apiKey?: string | undefined; agentId?: string | undefined; environmentId?: string | undefined; timeoutMs?: number; codeHost: (orgId: string) => FixCodeHost | null }): Fix {
+export function serverFix(db: Database, opts: { apiKey?: string | undefined; agentId?: string | undefined; environmentId?: string | undefined; timeoutMs?: number; codeHost: (orgId: string) => FixCodeHost | null | Promise<FixCodeHost | null> }): Fix {
   const sandbox =
     opts.apiKey && opts.agentId && opts.environmentId
       ? createManagedFixSandbox(new Anthropic({ apiKey: opts.apiKey, maxRetries: 2 }), { agentId: opts.agentId, environmentId: opts.environmentId, ...(opts.timeoutMs ? { timeoutMs: opts.timeoutMs } : {}) })
@@ -170,6 +170,7 @@ export function serverFix(db: Database, opts: { apiKey?: string | undefined; age
     data: (orgId) => createPgAgentData(db, orgId),
     fixes: (orgId) => createPgFixStore(db, orgId),
     codeHost: opts.codeHost,
+    personBySlackUser: (orgId, slackUserId) => createPgDailyNoteStore(db, orgId).personBySlackUser(slackUserId),
     sandbox,
     outbox: (orgId) => createPgOutbox(db, orgId),
     recorder: createDbRunRecorder(db),

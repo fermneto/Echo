@@ -214,3 +214,95 @@ export function fixMergeCheck(input: { by: string; authorId: string | undefined;
   if (!input.pr || input.pr.state !== "open") return { ok: false, reason: "pr_fechado" };
   return { ok: true };
 }
+
+// ---------- Aplicação do diff conferido (para o rascunho)
+
+export interface FilePatch {
+  path: string;
+  status: DiffFile["status"];
+  /** Linhas dos trechos (@@ … e o que vem depois), sem o cabeçalho do arquivo. */
+  hunks: string[];
+}
+
+/** Separa o diff unificado por arquivo, com os trechos de cada um. */
+export function splitUnifiedDiff(patch: string): FilePatch[] {
+  const meta = parseUnifiedDiff(patch);
+  const out: FilePatch[] = [];
+  let cur: FilePatch | null = null;
+  let inHunk = false;
+  for (const line of patch.replace(/\r\n/g, "\n").split("\n")) {
+    if (/^diff --git /.test(line)) {
+      const m = meta[out.length];
+      cur = { path: m?.path ?? "", status: m?.status ?? "modified", hunks: [] };
+      out.push(cur);
+      inHunk = false;
+      continue;
+    }
+    if (!cur) continue;
+    if (line.startsWith("@@")) {
+      inHunk = true;
+      cur.hunks.push(line);
+      continue;
+    }
+    if (inHunk && (line.startsWith("+") || line.startsWith("-") || line.startsWith(" ") || line.startsWith("\\") || line === "")) cur.hunks.push(line);
+    else inHunk = false;
+  }
+  // A linha vazia no fim vem da quebra final do diff, não é contexto (o git escreve contexto vazio como " ").
+  for (const f of out) while (f.hunks.at(-1) === "") f.hunks.pop();
+  return out;
+}
+
+export class PatchConflictError extends Error {
+  override name = "PatchConflictError";
+}
+
+/**
+ * Aplica os trechos de um arquivo sobre o conteúdo original. Cada linha de contexto e de remoção tem de bater
+ * exatamente com o original, na posição do cabeçalho do trecho; se não bater, nada é aplicado (o rascunho falha).
+ */
+export function applyFilePatch(original: string, hunks: readonly string[]): string {
+  const endsWithNewline = original === "" || original.endsWith("\n");
+  const src = original === "" ? [] : (endsWithNewline ? original.slice(0, -1) : original).split("\n");
+  const out: string[] = [];
+  let pos = 0;
+  let noNewlineAtEnd = !endsWithNewline;
+  let i = 0;
+  while (i < hunks.length) {
+    const head = /^@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@/.exec(hunks[i]!);
+    if (!head) throw new PatchConflictError(`trecho inválido: ${hunks[i]}`);
+    const oldStart = Number(head[1]);
+    const oldCount = head[2] === undefined ? 1 : Number(head[2]);
+    // Com 0 linhas antigas, o número é a linha DEPOIS da qual se insere.
+    const start = oldCount === 0 ? oldStart : oldStart - 1;
+    if (start < pos || start > src.length) throw new PatchConflictError(`trecho fora do arquivo: ${hunks[i]}`);
+    out.push(...src.slice(pos, start));
+    pos = start;
+    i++;
+    let last: "old" | "new" | "both" = "both";
+    while (i < hunks.length && !hunks[i]!.startsWith("@@")) {
+      const line = hunks[i]!;
+      const body = line.slice(1);
+      if (line.startsWith(" ") || line === "") {
+        if (src[pos] !== (line === "" ? "" : body)) throw new PatchConflictError(`contexto não bate na linha ${pos + 1}`);
+        out.push(src[pos]!);
+        pos++;
+        last = "both";
+      } else if (line.startsWith("-")) {
+        if (src[pos] !== body) throw new PatchConflictError(`remoção não bate na linha ${pos + 1}`);
+        pos++;
+        last = "old";
+      } else if (line.startsWith("+")) {
+        out.push(body);
+        last = "new";
+      } else if (line.startsWith("\\")) {
+        // "\ No newline at end of file" vale para a linha anterior: original, nova ou as duas.
+        if (last !== "old") noNewlineAtEnd = true;
+        if (last === "old") noNewlineAtEnd = false;
+      }
+      i++;
+    }
+  }
+  out.push(...src.slice(pos));
+  if (out.length === 0) return "";
+  return out.join("\n") + (noNewlineAtEnd ? "" : "\n");
+}
