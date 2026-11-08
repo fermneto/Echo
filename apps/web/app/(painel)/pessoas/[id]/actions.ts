@@ -2,9 +2,10 @@
 
 import { loadConfig } from "@echo/config";
 import { revalidatePath } from "next/cache";
-import { canAskTwin, canEditProfile, canLinkAccounts } from "@/lib/access";
-import { conflictMessage, parseAccountsForm } from "@/lib/accounts-form";
-import { slackMembers } from "@/lib/accounts-server";
+import { canAskTwin, canEditProfile, linkablePlatforms } from "@/lib/access";
+import { accountValues, conflictMessage, parseAccountsForm, SLACK_FORMAT_ONLY_NOTE } from "@/lib/accounts-form";
+import { slackDirectory } from "@/lib/accounts-server";
+import { membersOf, slackDirectoryFor } from "@/lib/slack-directory";
 import type { ContasState } from "@/lib/accounts-state";
 import { askAgent, panelRequest, personIdFor, recordIn } from "@/lib/agent";
 import { saveDemoProfile } from "@/lib/agent-profile-store";
@@ -93,21 +94,31 @@ export async function salvarContas(_prev: ContasState, formData: FormData): Prom
   if (!me) return { status: "error", error: "Entre de novo para editar." };
   const target = await visibleTarget(me, String(formData.get("pessoa") ?? ""));
   if (!target || !target.registered) return { status: "error", error: "Pessoa não encontrada." };
-  if (!canLinkAccounts(me, target)) return { status: "error", error: "Só o RH e a liderança da equipe ligam as contas da pessoa." };
+  // Por plataforma, conferido aqui e não só na tela: o Slack só o RH; GitHub e Linear também a liderança da
+  // equipe; ninguém fora do RH mexe nas próprias contas.
+  const platforms = linkablePlatforms(me, target);
+  if (!platforms.length) return { status: "error", error: "Só o RH e a liderança da equipe ligam as contas da pessoa, e ninguém fora do RH liga as próprias." };
   if (isDemoSession(me)) return { status: "error", error: "Demonstração: as contas não são gravadas." };
   const db = panelDb();
   if (!db) return { status: "error", error: "O painel não tem banco ligado (DATABASE_URL)." };
   const orgId = gainsOrgId(me.orgId);
-  const parsed = parseAccountsForm(formData, await slackMembers(db, orgId));
+  const slack = await slackDirectoryFor({ demo: false, canLinkSlack: platforms.includes("slack"), read: () => slackDirectory(db, orgId) });
+  const parsed = parseAccountsForm(formData, membersOf(slack), platforms);
   if (!parsed.ok) return { status: "error", error: parsed.error };
-  const { saveAccounts } = await import("@echo/agents/server");
-  const r = await saveAccounts(db, orgId, target.id, parsed.links, personIdFor(me.id));
-  if (r.status === "not_found") return { status: "error", error: "Pessoa não encontrada." };
-  if (r.status === "conflict") return { status: "error", error: conflictMessage(r.platform, r.otherName) };
-  revalidatePath(`/pessoas/${target.id}`);
-  const values: Record<string, string> = {};
-  for (const l of parsed.links) values[l.platform] = l.login ?? l.externalId;
-  return { status: "saved", values };
+  try {
+    const { readAccounts, saveAccounts } = await import("@echo/agents/server");
+    // Só as plataformas permitidas são trocadas; as outras (o Slack, para a liderança) ficam como estão.
+    const r = await saveAccounts(db, orgId, target.id, parsed.links, personIdFor(me.id), platforms);
+    if (r.status === "not_found") return { status: "error", error: "Pessoa não encontrada." };
+    if (r.status === "conflict") return { status: "error", error: conflictMessage(r.platform, r.otherName) };
+    revalidatePath(`/pessoas/${target.id}`);
+    const note = slack.status === "failed" && parsed.links.some((l) => l.platform === "slack") ? SLACK_FORMAT_ONLY_NOTE : undefined;
+    return { status: "saved", values: accountValues(await readAccounts(db, orgId, target.id)), ...(note ? { note } : {}) };
+  } catch (err) {
+    // Sem o erro cru na tela nem os ids no log.
+    console.error("contas: falha ao salvar", err instanceof Error ? err.name : "erro");
+    return { status: "error", error: "Não foi possível salvar as contas agora. Confira a ficha e tente de novo." };
+  }
 }
 
 /**
