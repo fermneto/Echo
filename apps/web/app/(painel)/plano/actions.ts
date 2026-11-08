@@ -5,6 +5,8 @@ import { revalidatePath } from "next/cache";
 import { panelDb } from "@/lib/db";
 import { panelIds } from "@/lib/redistribution-server";
 import { requireAccess } from "@/lib/session";
+import { workPlanningFlow } from "@/lib/work-planning";
+import type { MoveResult } from "./DaySchedule";
 import type { FixDecisionView } from "./PlanList";
 
 const REFUSED: Record<string, string> = {
@@ -45,5 +47,21 @@ export async function decidirCorrecao(fixId: string, decision: "approve" | "decl
       return { final: false, message: "O GitHub não está ligado no painel (GITHUB_APP_ID). Nada foi decidido." };
     case "refused":
       return { final: true, message: REFUSED[r.reason] ?? "A correção não pôde ser unida." };
+  }
+}
+
+/** A própria pessoa muda o dia de uma tarefa na agenda (`date` null: volta à sugestão). Nada vai ao tracker. */
+export async function moverTarefa(taskKey: string, date: string | null): Promise<MoveResult> {
+  const me = await requireAccess("plano");
+  try {
+    const flow = await workPlanningFlow();
+    if (!flow) return { ok: false, error: "A agenda não está disponível agora." };
+    const { orgId, personId } = panelIds(me);
+    const r = await flow.move(orgId, personId, personId, taskKey, date);
+    revalidatePath("/plano");
+    return r.status === "moved" ? { ok: true } : { ok: false, error: r.reason };
+  } catch (err) {
+    console.error("tarefa não mudou de dia", err instanceof Error ? err.message : String(err));
+    return { ok: false, error: "Não deu para mudar o dia agora. Tente de novo em instantes." };
   }
 }

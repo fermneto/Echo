@@ -146,6 +146,7 @@ async function upsertTask(tx: Tx, orgId: string, t: ExternalTask): Promise<void>
     dueDate: t.dueDate ?? null,
     size: t.size ?? null,
     labels: t.labels,
+    ...(t.blockedBy ? { blockedBy: t.blockedBy } : {}),
     externalUpdatedAt: t.updatedAt,
     updatedAt: new Date(),
   };

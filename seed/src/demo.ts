@@ -304,6 +304,13 @@ export function buildDemo(now: Date): DemoData {
     task("ECH-139", "Estorno parcial no checkout", { assigneeId: P.bruno, state: "todo", size: 3, area: "pagamentos", labels: ["pagamentos"] }),
     task("ECH-135", "Webhook de confirmação do gateway", { assigneeId: P.carla, state: "in_progress", size: 2, area: "pagamentos", labels: ["pagamentos"] }),
     task("ECH-160", "Página de status da integração", { state: "todo", size: 2, area: "web", labels: ["web"] }),
+    // Agenda: dependências de outra pessoa e da própria, e o que a liderança ainda vai distribuir.
+    task("ECH-162", "Contrato do evento de estorno", { assigneeId: P.carla, state: "todo", size: 1, area: "pagamentos", labels: ["pagamentos"], dueDate: localDate(ahead(1 * DAY), fortaleza) }),
+    task("ECH-145", "Reembolso depois do tempo limite", { assigneeId: P.fernando, state: "todo", size: 1, area: "pagamentos", labels: ["pagamentos"], blockedBy: ["ECH-128"] }),
+    task("ECH-146", "Alerta de estorno no gateway", { assigneeId: P.fernando, state: "todo", size: 1, area: "pagamentos", labels: ["pagamentos"], blockedBy: ["ECH-162"] }),
+    task("ECH-161", "Filtro por período no histórico", { assigneeId: P.yan, state: "todo", size: 1, area: "web", labels: ["web"], blockedBy: ["ECH-142"] }),
+    task("ECH-163", "Exportar pedidos em CSV", { state: "todo", size: 2, area: "api", labels: ["api"], dueDate: localDate(ahead(4 * DAY), fortaleza), blockedBy: ["ECH-142"] }),
+    task("ECH-164", "Mensagens de erro do formulário de endereço", { state: "todo", size: 1, area: "web", labels: ["web"] }),
     ...progressTasks(),
   ];
 

@@ -75,6 +75,8 @@ export const people = pgTable("people", {
   /** Traços do bonequinho (lista fechada de packages/domain, conferida na leitura), lidos da foto no cadastro. A foto não é guardada. */
   avatar: jsonb("avatar").$type<Record<string, string>>(),
   /** Expediente sugerido pela agenda; vale só depois que a pessoa confirma no painel. */
+  /** Tarefa → dia escolhido pela própria pessoa na agenda. Só ela escreve; não vai ao tracker. */
+  schedulePins: jsonb("schedule_pins").$type<Record<string, string>>().notNull().default({}),
   workHoursSuggested: jsonb("work_hours_suggested").$type<{ days: number[]; start: string; end: string; timezone: string; source: string }>(),
   active: boolean("active").notNull().default(true),
   offboardedAt: ts("offboarded_at"),
@@ -157,6 +159,8 @@ export const tasks = pgTable("tasks", {
   size: integer("size"),
   area: text("area"),
   labels: jsonb("labels").$type<string[]>().notNull().default([]),
+  /** Chaves das tarefas que precisam terminar antes desta, das relações do Linear ou do Jira. */
+  blockedBy: jsonb("blocked_by").$type<string[]>().notNull().default([]),
   externalUpdatedAt: ts("external_updated_at"),
   updatedAt: updatedAt(),
 }, (t) => [uniqueIndex("tasks_key").on(t.orgId, t.key)]);

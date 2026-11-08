@@ -38,6 +38,7 @@ function toTask(r: typeof tasks.$inferSelect): Task {
     area: opt(r.area),
     labels: r.labels,
     hasLinearId: r.linearId !== null,
+    blockedBy: r.blockedBy,
   };
 }
 

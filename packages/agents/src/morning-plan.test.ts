@@ -25,7 +25,7 @@ function setup(opts: { tasks?: Task[]; questions?: PlanQuestion[]; findings?: Pl
     updateItems: async (p, d, items) => { const x = plans.get(`${p}:${d}`); if (!x) return false; plans.set(`${p}:${d}`, { ...x, items }); return true; },
     slackUserOf: async (p) => (p === "fernando" ? "U-FER" : null),
   };
-  const data = { people: async () => people, pullRequests: async () => prs, tasks: async () => opts.tasks ?? [] } as unknown as AgentData;
+  const data = { people: async () => people, pullRequests: async () => prs, tasks: async () => opts.tasks ?? [], absences: async () => [] } as unknown as AgentData;
   const flow = createMorningPlan({
     data: () => data,
     plans: () => store,
@@ -52,10 +52,29 @@ describe("plano da manhã", () => {
     const text = (outbox[0]!.payload as { text: string }).text;
     expect(text.split("\n")[0]).toBe("*Seu plano de hoje*");
     expect(text).toContain("• *PR 34 de Carla espera sua revisão* — revisão pedida a você, há 2 dias");
-    expect(text.match(/^• /gm)).toHaveLength(7);
-    expect(text).toContain("E mais 3 no painel.");
+    // Prazo aparece na agenda, não repete como pendência.
+    expect(text.match(/^• /gm)).toHaveLength(2);
+    expect(text).toContain("fazer ECH-20: x (prazo 10/11)");
+    const all = JSON.stringify((outbox[0]!.payload as { blocks: unknown[] }).blocks);
+    expect(all).toContain("AGENDA DO DIA");
+    expect(all).toContain("Agente de Fernando");
+    expect(all).toContain("Hoje, nesta ordem");
+    expect(all).toContain("*Amanhã*");
+    expect(all).toContain("Esperam você");
     expect(runs[0]).toMatchObject({ flow: "morning_plan", result: "ok", tools: ["slack.dm"] });
     expect(runs[0]!.model).toBeUndefined();
+  });
+
+  it("mostra até 7 pendências e o que espera outra entrega", async () => {
+    const questions = Array.from({ length: 9 }, (_, i): PlanQuestion => ({ id: `q${i}`, askerId: "eduardo", createdAt: new Date(NOW.getTime() - i * HOUR) }));
+    const tasks: Task[] = [{ id: "a", key: "ECH-1", title: "x", assigneeId: "fernando", state: "todo", labels: [], hasLinearId: true, blockedBy: ["ECH-2"] }, { id: "b", key: "ECH-2", title: "y", assigneeId: "carla", state: "todo", labels: [], hasLinearId: true }];
+    const { flow, outbox } = setup({ questions, tasks });
+    await flow.build("org", "fernando", "2026-11-09");
+    const { text, blocks } = outbox[0]!.payload as { text: string; blocks: unknown[] };
+    expect(text).toContain("E mais 3 no painel.");
+    expect(JSON.stringify(blocks)).toContain("Esperando outra entrega");
+    expect(JSON.stringify(blocks)).toContain("`ECH-1` espera `ECH-2` de Carla");
+    expect(JSON.stringify(blocks)).toContain("Nenhuma tarefa na agenda.");
   });
 
   it("chave única por pessoa e data; RH sem plano; sem item, sem mensagem", async () => {

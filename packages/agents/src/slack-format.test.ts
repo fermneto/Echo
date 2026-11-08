@@ -99,7 +99,7 @@ describe("blocos do Slack", () => {
     const item = (id: string, kind: "fix_ready" | "review_request" | "ci_failed", text: string) => ({ id, kind, text, reason: "motivo", ref: id });
     const { blocks } = planMessage({ personId: "p", date: "2026-11-09", items: [item("a", "fix_ready", "Correção <pronta>"), item("b", "review_request", "Revisar"), item("c", "ci_failed", "CI")] }, "https://echo.test");
     expectValid(blocks);
-    const texts = (blocks as Block[]).filter((b) => b.type === "section").map((b) => b.text!.text);
+    const texts = (blocks as Block[]).filter((b) => b.type === "section" && b.text!.text.startsWith(":")).map((b) => b.text!.text);
     expect(texts).toEqual([":large_blue_circle: *Correção &lt;pronta&gt;*\nmotivo", ":large_yellow_circle: *Revisar*\nmotivo", ":red_circle: *CI*\nmotivo"]);
   });
 

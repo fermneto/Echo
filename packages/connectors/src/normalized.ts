@@ -36,6 +36,8 @@ export interface ExternalTask {
   dueDate?: string | undefined;
   size?: number | undefined;
   labels: string[];
+  /** Chaves do que precisa terminar antes. Sem valor: o aviso não trouxe as relações, e fica o que já estava. */
+  blockedBy?: string[] | undefined;
   updatedAt: Date;
   completedAt?: Date | undefined;
 }
