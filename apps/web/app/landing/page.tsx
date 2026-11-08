@@ -17,7 +17,7 @@ export const metadata = {
   description: "Cada pessoa da equipe tem um gêmeo digital que responde quando ela dorme, revisa à noite e deixa o plano pronto de manhã.",
 };
 
-/* Conteúdo: docs/produto.md. Exemplos de produto são sintéticos e marcados como "Exemplo". */
+/* Conteúdo: docs/produto.md. Pessoas e conversas são ilustrativas, com dados sintéticos. */
 
 
 const DAY = [
@@ -25,7 +25,8 @@ const DAY = [
   { when: "Pessoa citada e fora", what: "Resposta", text: "Responde colegas citando a fonte, sempre identificado como agente. O status é olhado na hora da menção e não fica guardado.", who: "Quem perguntou decide o que fazer." },
   { when: "Fim do expediente", what: "Nota do dia", text: "Rascunha onde a pessoa parou, o que travou, o que está liberado e o que está reservado, e manda o resumo do dia como imagem no privado.", who: "A pessoa confere e publica." },
   { when: "Noite", what: "Revisão", text: "Revisa os PRs em lote e deixa a correção pronta numa versão separada.", who: "O autor aprova de manhã, ou antes, se deixou isso escrito numa delegação." },
-  { when: "Manhã", what: "Plano", text: "Aprovações, correções prontas, dúvidas e prazos numa página, com fusos e carga.", who: "A pessoa confere e aprova." },
+  { when: "Manhã", what: "Plano", text: "A agenda do dia em ordem, com prazos, dependências, correções prontas e quem espera por você.", who: "A pessoa muda o dia de qualquer tarefa." },
+  { when: "Tarefa nova", what: "Distribuição", text: "O líder vê a carga de cada pessoa e atribui. O agente encaixa a tarefa na agenda dela.", who: "O líder decide quem recebe." },
   { when: "Férias ou nova demanda", what: "Redistribuição", text: "O Echo monta um plano por regra, respeitando áreas e carga, sem sobrecarregar ninguém.", who: "O líder aprova." },
   { when: "Sexta-feira", what: "Relatório", text: "Entregas e atuações da semana, com crédito por cada ajuda a um colega, e o vídeo da semana da equipe.", who: "A pessoa confere antes; segue ao RH 3 dias depois." },
 ];
@@ -250,10 +251,6 @@ const ARCS: GlobeArc[] = [
 // A landing é um exemplo roteirizado: fica no instante da história, não no relógio real.
 const COUNTS = worldCounts(DEMO_NOW);
 
-function Pill() {
-  return <span className="lp-pill">Exemplo</span>;
-}
-
 export default function LandingPage() {
   return (
     <div className="lp">
@@ -271,7 +268,7 @@ export default function LandingPage() {
             Entrar
           </Link>
           <Link href="/entrar" className="lp-btn lp-btn--paper lp-btn--sm">
-            Testar a demo
+            Começar
           </Link>
         </div>
       </header>
@@ -284,11 +281,11 @@ export default function LandingPage() {
               A resposta não precisa esperar até amanhã.
             </h1>
             <p className="lp-lead">
-              O Echo dá a cada pessoa um agente que conhece o trabalho dela. Ele responde aos colegas na ausência dela, adianta revisões à noite e ajuda a liderança a redistribuir tarefas sem sobrecarregar ninguém.
+              O Echo dá a cada pessoa um agente que conhece o trabalho dela. Ele responde aos colegas na ausência dela, adianta revisões à noite, organiza o dia de cada um e ajuda a liderança a distribuir tarefas sem sobrecarregar ninguém.
             </p>
             <div className="lp-actions">
               <Link href="/entrar" className="lp-btn lp-btn--paper">
-                Testar a demo
+                Começar
               </Link>
               <a href="#como-funciona" className="lp-btn lp-btn--ghost">
                 Ver como funciona
@@ -298,7 +295,7 @@ export default function LandingPage() {
 
           <div className="lp-hero__globe">
             <EchoGlobe points={ALL_POINTS} arcs={ARCS} focusLongitude={-12} theta={0.3} />
-            <ul className="lp-legend" aria-label="Equipe da demonstração agora">
+            <ul className="lp-legend" aria-label="Equipe agora">
               <li>
                 <span className="lp-dot" aria-hidden="true" /> {COUNTS.on} trabalhando
               </li>
@@ -335,7 +332,7 @@ export default function LandingPage() {
             <h2 id="em-acao-titulo" className="lp-headline">
               O Echo em ação, entre fusos.
             </h2>
-            <p className="lp-lead">Uma noite da equipe da demo: Fernando dorme em Fortaleza, Eduardo trabalha em Joanesburgo e Tóquio vive a tarde. Cada momento diz quem decide.</p>
+            <p className="lp-lead">Uma noite entre fusos: Fernando dorme em Fortaleza, Eduardo trabalha em Joanesburgo e Tóquio vive a tarde. Cada momento diz quem decide.</p>
           </div>
           <CardStack items={MOMENTS} label="Momentos do Echo entre fusos" />
         </section>
@@ -359,13 +356,6 @@ export default function LandingPage() {
                 </p>
               </li>
             ))}
-            <li className="lp-day__item lp-day__cta-wrap">
-              <Link href="/entrar?persona=eduardo" className="lp-day__cta-link">
-                <span className="lp-mono lp-day__when">Agora mesmo</span>
-                <span className="lp-day__what">Veja a noite de Fernando na demo</span>
-                <span className="lp-day__who">Entrar como Eduardo →</span>
-              </Link>
-            </li>
           </ol>
         </section>
 
@@ -380,7 +370,7 @@ export default function LandingPage() {
           </div>
           <article className="lp-win lp-win--static">
             <header className="lp-win__head">
-              Relatório da semana · Carla <Pill />
+              Relatório da semana · Carla
             </header>
             <div className="lp-win__body">
               <p className="lp-row">
@@ -426,7 +416,7 @@ export default function LandingPage() {
             <h2 id="quem" className="lp-headline">
               Para equipes que trabalham em fusos diferentes.
             </h2>
-            <p className="lp-lead">O RH contrata, vendo a espera entre fusos como problema de operação e previsibilidade. O líder de tecnologia autoriza os acessos.</p>
+            <p className="lp-lead">Para o RH, a espera entre fusos deixa de ser um problema de operação. O líder de tecnologia autoriza os acessos.</p>
           </div>
           <dl className="lp-roles">
             {ROLES.map((r) => (
@@ -438,6 +428,17 @@ export default function LandingPage() {
           </dl>
         </section>
 
+        <section className="lp-closing" aria-labelledby="comecar">
+          <div>
+            <h2 id="comecar" className="lp-headline-lg">
+              Deixe o trabalho andar enquanto sua equipe dorme.
+            </h2>
+            <p className="lp-lead">Conecte o GitHub, o Slack e o Linear ou o Jira. Cada pessoa ganha um agente que conhece o trabalho dela.</p>
+          </div>
+          <Link href="/entrar" className="lp-btn lp-btn--paper">
+            Começar
+          </Link>
+        </section>
       </main>
 
       <footer className="lp-footer">
@@ -480,11 +481,8 @@ export default function LandingPage() {
               </ul>
             </div>
             <div>
-              <p className="lp-footer__head">Demo</p>
+              <p className="lp-footer__head">Conta</p>
               <ul role="list">
-                <li>
-                  <Link href="/entrar">Testar a demo</Link>
-                </li>
                 <li>
                   <Link href="/entrar">Entrar</Link>
                 </li>
@@ -494,8 +492,8 @@ export default function LandingPage() {
         </div>
 
         <p className="lp-footer__legal">
-          Os nomes e as conversas desta página são exemplos, com dados sintéticos. GitHub, Linear, Jira, Slack e Claude são marcas de seus donos.
-          <span className="lp-mono">Converge Challenge · Canastra Ventures · Powered by Claude</span>
+          Pessoas e conversas desta página são ilustrativas. GitHub, Linear, Jira, Slack e Claude são marcas de seus donos.
+          <span className="lp-mono">Powered by Claude</span>
         </p>
       </footer>
     </div>

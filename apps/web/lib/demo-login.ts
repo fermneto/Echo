@@ -38,7 +38,7 @@ export function demoUsernames(): string[] {
 }
 
 /**
- * Persona pedida pelo link `/entrar?persona=…` (a landing manda `?persona=eduardo`), para preencher o campo Usuário.
+ * Persona pedida pelo link `/entrar?persona=…`, para preencher o campo Usuário.
  * Só aceita uma persona conhecida (pelo id, sem diferença de maiúscula nem de acento); o resto é ignorado.
  */
 export function demoPersonaParam(raw: string | string[] | undefined): string | undefined {
