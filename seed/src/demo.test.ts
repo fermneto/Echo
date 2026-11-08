@@ -47,6 +47,11 @@ describe("empresa de demonstração", () => {
     }
   });
 
+  it("deixa a semana que acabou de fechar para o relatório pelo fluxo (cena 4)", () => {
+    // A semana anterior à de `now` termina no máximo 7 dias antes; o histórico do seed acaba antes dela.
+    for (const r of demo.weeklyReports) expect(new Date(r.coveredPeriod.to).getTime()).toBeLessThanOrEqual(now.getTime() - 7 * 24 * 3_600_000);
+  });
+
   it("dá um papel por persona: Marina lidera, Rita é do RH", () => {
     const role = (id: string) => demo.people.find((p) => p.id === id)?.role ?? "member";
     expect(role(P.marina)).toBe("leader");

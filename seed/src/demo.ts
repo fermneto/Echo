@@ -493,7 +493,9 @@ export function buildDemo(now: Date): DemoData {
   const reporters = people.filter((p) => p.role !== "hr");
   const plural = (v: number, one: string, many: string) => `${v} ${v === 1 ? one : many}`;
   const weeklyReports: DemoData["weeklyReports"] = [];
-  for (let back = 7; back >= 1; back--) {
+  // A semana que acabou de fechar fica de fora: é a do relatório pelo fluxo (agenda do worker, `relatorio:agora`
+  // e cena 4), que a pessoa confere e comenta antes de seguir ao RH.
+  for (let back = 8; back >= 2; back--) {
     const monday = addDays(thisMonday, -7 * back);
     const week = isoWeek(monday);
     for (const p of reporters) {
