@@ -38,7 +38,7 @@ describe("registerNight", () => {
     const { wiring, calls, sent } = setup("2026-11-09T05:02:00Z");
     expect(await (await wiring).tick()).toEqual({ night: 1, morning: 1 });
     expect(calls).toEqual(["lote:org", "buscar:org", "plano:org:fernando:2026-11-09"]);
-    expect(sent.find((s) => s.name === QUEUES.nightReview)?.opts).toEqual({ singletonKey: "org:2026-11-09", singletonSeconds: 86_400, retryLimit: 2, retryDelaySeconds: 1800 });
+    expect(sent.find((s) => s.name === QUEUES.nightReview)?.opts).toEqual({ singletonKey: "org:2026-11-09", singletonSeconds: 86_400, retryLimit: 2, retryDelaySeconds: 1800, expireInSeconds: 7200 });
   });
 
   it("fora da hora da noite, só busca os lotes e monta os planos", async () => {

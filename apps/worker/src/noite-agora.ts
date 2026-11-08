@@ -8,6 +8,7 @@ import { createPgAgentData } from "@echo/agents/server";
 import { loadConfig } from "@echo/config";
 import { asSystem, createDb, createPool, installationRoutes, orgs } from "@echo/db";
 import { PgBossQueue, QUEUES } from "@echo/jobs";
+import { NIGHT_JOB_EXPIRE_SECONDS } from "./night.ts";
 
 const all = process.argv.slice(2).includes("--todas");
 
@@ -27,7 +28,7 @@ for (const org of list) {
   const prs = await createPgAgentData(db, org.id).pullRequests({ openOnly: true });
   const open = prs.filter((p) => p.state === "open");
   // Chave própria por minuto: não ocupa a da agenda da noite (`<org>:<dia>`).
-  const queued = await queue.send(QUEUES.nightReview, { orgId: org.id }, { singletonKey: `${org.id}:agora:${stamp}` });
+  const queued = await queue.send(QUEUES.nightReview, { orgId: org.id }, { singletonKey: `${org.id}:agora:${stamp}`, expireInSeconds: NIGHT_JOB_EXPIRE_SECONDS });
   console.log(`\n${org.name}: ${queued ? "revisão na fila" : "já na fila neste minuto"} (${open.length} PR aberto(s), ${prs.length - open.length} rascunho(s))`);
   for (const p of open) console.log(`  ${p.repository}#${p.number} ${p.title}`);
 }
