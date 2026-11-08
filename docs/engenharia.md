@@ -1412,8 +1412,8 @@ pnpm org:create "Empresa" "Pessoa do RH" # convite de uso único, 7 dias
 pnpm org:github # liga a instalação do GitHub
 pnpm org:invite # novo convite para o RH
 
-# recriar a demonstração no banco da Render
-DATABASE_URL='?sslmode=require' pnpm db:seed
+# recriar a demonstração no banco da Render (a URL fica nos segredos do GitHub)
+gh workflow run deploy.yml -f recriar_demo=true
 ```
 
 Endereços por empresa: `/webhooks/slack/o/<id>`, `/webhooks/slack/o/<id>/interacoes`, `/webhooks/linear/o/<id>` e `/webhooks/rh/o/<id>`.
