@@ -2,7 +2,7 @@
 // certa, traços gravados e lidos de volta, e nada visível para outra empresa.
 import { randomUUID } from "node:crypto";
 import type { AvatarTraits } from "@echo/domain";
-import { asSystem, createDb, createPool, type Database, orgs, people } from "@echo/db";
+import { asSystem, auditLog, createDb, createPool, type Database, orgs, people } from "@echo/db";
 import { appRoleUrl } from "@echo/db/testing";
 import { LogRunRecorder } from "@echo/observability";
 import { eq } from "drizzle-orm";
@@ -41,11 +41,18 @@ describe.skipIf(!url)("cadastro pelo RH, em Postgres", () => {
       slm: { model: "qwen3:4b-instruct", json: async () => ({ raw: { cargo: "Designer", habilidades: ["Figma"], areas: ["mobile"], idiomas: ["inglês"] } }) },
       vision: async () => ({ model: "claude-haiku-5-5", stop_reason: "end_turn", usage: { input_tokens: 1, output_tokens: 1 }, content: [{ type: "text", text: JSON.stringify(traits) }] }) as never,
     });
-    const r = await flow({ orgId: org, name: "Ana Teste", timezone: "America/Sao_Paulo", workHours: { days: [1, 2, 3, 4, 5], start: "09:00", end: "18:00" }, resumeText: "Figma", photo: { mediaType: "image/png", base64: "AA==" } });
+    const actor = randomUUID();
+    const r = await flow({ orgId: org, actorId: actor, name: "Ana Teste", timezone: "America/Sao_Paulo", workHours: { days: [1, 2, 3, 4, 5], start: "09:00", end: "18:00" }, resumeText: "Figma", photo: { mediaType: "image/png", base64: "AA==" } });
 
     const [row] = await asSystem(createDb(admin), (tx) => tx.select().from(people).where(eq(people.id, r.personId)));
     expect(row).toMatchObject({ orgId: org, name: "Ana Teste", role: "member", jobTitle: "Designer", skills: ["Figma"], areas: ["mobile"], languages: ["inglês"], avatar: traits });
     expect(await readAvatar(db, org, r.personId)).toEqual(traits);
     expect(await readAvatar(db, other, r.personId)).toBeUndefined();
+    // Quem cadastrou fica no audit_log, e conta para o limite por hora só da própria empresa.
+    const audit = await asSystem(createDb(admin), (tx) => tx.select().from(auditLog).where(eq(auditLog.target, `person:${r.personId}`)));
+    expect(audit.map((a) => [a.actor, a.action])).toEqual([[`person:${actor}`, "pessoa:cadastrar"]]);
+    const store = createPgOnboardingStore(db);
+    expect(await store.recentCount(org, new Date(Date.now() - 3_600_000))).toBe(1);
+    expect(await store.recentCount(other, new Date(Date.now() - 3_600_000))).toBe(0);
   });
 });
