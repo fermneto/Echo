@@ -5,7 +5,7 @@ import type { OutboxAction } from "@echo/actions";
 import { AWAY_DIGEST_RULES, awayDigest, type AwayDigestDue, type Clock, type DigestItem, type DigestSection, digestPurgeBefore, type Person, systemClock } from "@echo/domain";
 import type { AgentRun, RunRecorder } from "@echo/observability";
 import type { AgentData } from "./data.ts";
-import { actions, context, divider, DOT, esc, header, linkButton, sectionsOf } from "./slack-format.ts";
+import { actions, context, divider, DOT, esc, header, linkButton, quote, sectionsOf } from "./slack-format.ts";
 
 export interface DigestStore {
   /** Último resumo entregue à pessoa (o mais recente `digested_at`). */
@@ -36,6 +36,8 @@ const first = (name: string) => name.split(" ")[0] ?? name;
 /** Âmbar: ainda espera a pessoa. Azul: o agente já cobriu. */
 const DIGEST_DOT: Record<DigestSection["key"], string> = { propostas: DOT.wait, decisoes: DOT.wait, sem_resposta: DOT.wait, respondidas: DOT.agent };
 
+const PROPOSALS_NOTE = "O agente não aceitou, recusou nem marcou nada por você.";
+
 /** Texto da mensagem privada: quatro seções, até 20 itens em cada, o resto no painel. */
 export function digestMessage(sections: DigestSection[], people: Pick<Person, "id" | "name">[], webUrl: string): { text: string; blocks: unknown[] } {
   const nameOf = (id: string | undefined) => {
@@ -50,18 +52,18 @@ export function digestMessage(sections: DigestSection[], people: Pick<Person, "i
       lines.push(s.key === "respondidas" && i.reply ? `${ask} → ${i.reply}` : ask);
     }
     if (s.total > s.items.length) lines.push(`E mais ${s.total - s.items.length} no painel.`);
-    if (s.key === "propostas" && s.total) lines.push("_O agente não aceitou, recusou nem marcou nada por você._");
+    if (s.key === "propostas" && s.total) lines.push(`_${PROPOSALS_NOTE}_`);
   }
   const blocks: unknown[] = [header("Enquanto você estava fora"), context(sections.map((s) => `${esc(s.title)} \`${s.total}\``).join(" · "))];
   for (const s of sections) {
     if (!s.total) continue;
     const items = s.items.map((i) => {
       const ask = `*${esc(nameOf(i.askerId))}:* ${esc(i.request || "mensagem sem texto guardado")}`;
-      return s.key === "respondidas" && i.reply ? `${ask}\n> ${esc(i.reply)}` : ask;
+      return s.key === "respondidas" && i.reply ? `${ask}\n${quote(esc(i.reply))}` : ask;
     });
     blocks.push(divider(), ...sectionsOf([`${DIGEST_DOT[s.key]} *${esc(s.title)}*`, ...items]));
     if (s.total > s.items.length) blocks.push(context(`E mais ${s.total - s.items.length} no painel.`));
-    if (s.key === "propostas") blocks.push(context("O agente não aceitou, recusou nem marcou nada por você."));
+    if (s.key === "propostas") blocks.push(context(PROPOSALS_NOTE));
   }
   blocks.push(actions(linkButton("abrir_resumo", "Abrir no painel", `${webUrl.replace(/\/$/, "")}/plano`, true)));
   return { text: lines.join("\n"), blocks };

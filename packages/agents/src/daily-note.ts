@@ -31,7 +31,7 @@ import type { ModelCall } from "./answer.ts";
 import { modelCostUsd, type Usage } from "./cost.ts";
 import type { AgentData } from "./data.ts";
 import { MODELS } from "./index.ts";
-import { actions, columns, context, dayMonth, divider, DOT, esc, header, linkButton, section, statusTag } from "./slack-format.ts";
+import { actions, columns, context, dayMonth, divider, DOT, esc, header, linkButton, quote, section, statusTag } from "./slack-format.ts";
 import { firstName } from "./tools.ts";
 import { validateAnswer } from "./validator.ts";
 
@@ -213,7 +213,7 @@ export function blockedText(blockers: NoteBlocker[]): string | undefined {
 }
 
 function markText(m: BranchMark, names: Map<string, string>, kind: "released" | "reserved"): string {
-  const to = kind === "released" && m.to ? ` para ${names.get(m.to) ?? "outra pessoa"}` : "";
+  const to = kind === "released" && m.to ? ` para ${esc(names.get(m.to) ?? "outra pessoa")}` : "";
   const reason = m.reason ? ` (${esc(m.reason.replace(/\.$/, ""))})` : "";
   return `\`${esc(m.branch)}\`${to}${reason}`;
 }
@@ -242,8 +242,8 @@ export function draftMessage(note: DailyNote, names: Map<string, string>, webUrl
     blocks: [
       header(`Nota do dia, ${dayMonth(note.date)}`),
       statusTag(DOT.agent, "RASCUNHO", owner ? `Agente de ${esc(owner)}` : "Echo", NOTE_STATUS_BLOCK),
-      section(`*Onde parou*\n> ${stopped}`),
-      section(blocked ? `${DOT.wait} *O que travou*\n${blocked.replace(/\.$/, "").split("; ").map((b) => `• ${b}`).join("\n")}` : "*O que travou*\nNada apontado pelas regras."),
+      section(`*Onde parou*\n${quote(stopped)}`),
+      section(note.blocked ? `${DOT.wait} *O que travou*\n${note.blocked.replace(/\.$/, "").split("; ").map((b) => `• ${esc(b)}`).join("\n")}` : "*O que travou*\nNada apontado pelas regras."),
       divider(),
       columns(`*Liberado (ainda válido)*\n${released.join("\n") || "Nada"}`, `*Reservado*\n${reserved.join("\n") || "Nada"}`),
       context(deadline, NOTE_DEADLINE_BLOCK),

@@ -24,7 +24,7 @@ import type { AgentData } from "./data.ts";
 import { DELEGATION_RULES, type DelegationModel, runDelegation } from "./delegation.ts";
 import { MODELS } from "./index.ts";
 import { APPROVAL_PATTERN, cleanText, type Finding, PEOPLE_PATTERN, SEVERITY_LABEL } from "./night-review.ts";
-import { context, DOT, esc, header, section, statusTag } from "./slack-format.ts";
+import { context, DOT, esc, header, quote, section, statusTag } from "./slack-format.ts";
 
 // ---------- Portas
 
@@ -532,17 +532,19 @@ export function createFix(deps: FixDeps) {
     if (r.status !== "approved") {
       return toPerson(`Ficou com você: a delegação cobria, mas a conferência do rascunho recusou (${"reason" in r ? r.reason : r.status}).`, { ...usage, result: "skipped", error: `conferência: ${r.status}`, tools });
     }
+    const agent = `Agente de ${owner.name.split(" ")[0]}`;
+    const undo = "Para desfazer, reverta o commit da união no PR. Para mudar o que o agente decide por você, edite a delegação no painel.";
     await deps.outbox(orgId).enqueue({
       type: "slack.dm",
       target: `person:${fix.pr.authorId}`,
       payload: {
         personId: fix.pr.authorId,
-        text: `Agente de ${owner.name}: a correção do PR #${fix.pr.number} (${fix.pr.repository}) foi unida pela sua delegação${since}, com o CI do rascunho verde. Motivo: ${out.verdict.motivo} Para desfazer, reverta o commit da união no PR. Para mudar o que o agente decide por você, edite a delegação no painel.`,
+        text: `${agent}: a correção do PR #${fix.pr.number} (${fix.pr.repository}) foi unida pela sua delegação${since}, com o CI do rascunho verde. Motivo: ${out.verdict.motivo} ${undo}`,
         blocks: [
           header(`Correção unida no PR #${fix.pr.number}`),
-          statusTag(DOT.agent, `AGENTE DE ${esc(owner.name.toUpperCase())}`, `\`${fix.pr.repository}\` · pela sua delegação${since} · CI do rascunho verde`),
-          section(`*Motivo*\n> ${esc(out.verdict.motivo)}`),
-          context("Para desfazer, reverta o commit da união no PR. Para mudar o que o agente decide por você, edite a delegação no painel."),
+          statusTag(DOT.agent, "UNIDA", `${esc(agent)} · \`${fix.pr.repository}\` · pela sua delegação${since} · CI do rascunho verde`),
+          section(`*Motivo*\n${quote(esc(out.verdict.motivo))}`),
+          context(undo),
         ],
       },
       idempotencyKey: `fix_delegated:${fixId}`,

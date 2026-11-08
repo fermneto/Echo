@@ -204,12 +204,15 @@ async function modelReportText(call: ModelCall, facts: Facts, timeoutMs: number)
   }
 }
 
+const NOTICE_NOTE = 'Você pode conferir e escrever uma observação. Ela entra marcada como "informado por você", sem mudar os números.';
+const reportUrl = (webUrl: string, week: string) => `${webUrl.replace(/\/$/, "")}/relatorios?semana=${week}`;
+
 /** Aviso privado, montado em código, com os números das regras. */
 export function noticeText(m: WeeklyMetrics, week: string, webUrl: string): string {
   return [
     `*Seu relatório da semana está pronto.* ${plural(m.commits, "commit", "commits")}, ${plural(m.deliveries, "entrega direta", "entregas diretas")}, ${plural(m.helps, "ajuda a colegas", "ajudas a colegas")}, ${plural(m.reviews, "revisão", "revisões")}.`,
-    `Você pode conferir e escrever uma observação. Ela entra marcada como "informado por você", sem mudar os números. O relatório segue ao RH em ${REPORT_RULES.sendAfterNoticeDays} dias.`,
-    `Conferir no painel: ${webUrl.replace(/\/$/, "")}/relatorios?semana=${week}`,
+    `${NOTICE_NOTE} O relatório segue ao RH em ${REPORT_RULES.sendAfterNoticeDays} dias.`,
+    `Conferir no painel: ${reportUrl(webUrl, week)}`,
   ].join("\n");
 }
 
@@ -220,8 +223,8 @@ export function noticeBlocks(m: WeeklyMetrics, week: string, webUrl: string): un
     header("Seu relatório da semana está pronto"),
     statusTag(DOT.wait, "ESPERA SUA CONFERÊNCIA", `\`${week}\` · segue ao RH em ${REPORT_RULES.sendAfterNoticeDays} dias`),
     columns(stat("Commits", m.commits), stat("Entregas diretas", m.deliveries), stat("Ajudas a colegas", m.helps), stat("Revisões", m.reviews)),
-    context('Você pode conferir e escrever uma observação. Ela entra marcada como "informado por você", sem mudar os números.'),
-    actions(linkButton("abrir_relatorio", "Conferir no painel", `${webUrl.replace(/\/$/, "")}/relatorios?semana=${week}`, true)),
+    context(NOTICE_NOTE),
+    actions(linkButton("abrir_relatorio", "Conferir no painel", reportUrl(webUrl, week), true)),
   ];
 }
 

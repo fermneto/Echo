@@ -46,7 +46,25 @@ describe("getPresence", () => {
 
 describe("formato da resposta", () => {
   it("converte Markdown comum para o Slack sem tocar em código", () => {
-    expect(toMrkdwn("## **Estado**\n- item **forte**\n- [PR](https://x.y/1)\nveja `**cru**` - fim\n```\n# fica\n```")).toBe("*Estado*\n• item *forte*\n• <https://x.y/1|PR>\nveja `**cru**` - fim\n```\n# fica\n```");
+    expect(toMrkdwn("## **Estado**\n- item **forte**\n- [PR](https://x.y/1)\nveja `**cru**` - fim\n```\n# fica\n```")).toBe("*Estado*\n• item *forte*\n• PR (https://x.y/1)\nveja `**cru**` - fim\n```\n# fica\n```");
+  });
+
+  it("converte negrito com código dentro", () => {
+    expect(toMrkdwn("**Branch `ech-131` liberada**")).toBe("*Branch `ech-131` liberada*");
+  });
+
+  it("nenhuma marcação do Slack passa, e link nunca esconde a URL", () => {
+    expect(toMrkdwn("<!channel> veja <https://falso.exemplo|o PR> e [Abrir](https://falso.exemplo/a?b=1&c=2)")).toBe("&lt;!channel&gt; veja &lt;https://falso.exemplo|o PR&gt; e Abrir (https://falso.exemplo/a?b=1&amp;c=2)");
+  });
+
+  it("escapa aviso e fonte, que podem repetir conteúdo de terceiros", () => {
+    const all = JSON.stringify(answerBlocks({ text: "Sim.", warnings: ["<!here>"], sources: [{ label: "PR <@U1>" }] }));
+    expect(all).toContain("&lt;!here&gt;");
+    expect(all).toContain("PR &lt;@U1&gt;");
+  });
+
+  it("corte não deixa entidade pela metade", () => {
+    expect(fitText(`${"y".repeat(8)}&amp;zzz`, 12, "…")).toBe(`${"y".repeat(8)}…`);
   });
 
   it("avisos e autoria ficam no rodapé, com fontes", () => {

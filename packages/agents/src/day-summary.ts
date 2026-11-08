@@ -9,7 +9,7 @@ import { type Clock, HOUR, type Task, type WorkEvent, systemClock } from "@echo/
 import type { AgentRun, RunRecorder } from "@echo/observability";
 import type { AgentData } from "./data.ts";
 import type { DailyNoteStore, NoteOutbox } from "./daily-note.ts";
-import { DOT, esc } from "./slack-format.ts";
+import { dayMonth, DOT, esc } from "./slack-format.ts";
 import { firstName } from "./tools.ts";
 import type { JsonModel } from "./triage-ollama.ts";
 
@@ -108,7 +108,7 @@ const modelName = (tag: string) => (tag.startsWith("qwen3:4b") ? "Qwen3 4B" : ta
  */
 export function summaryMessage(a: StoredArtifact, url: string): { text: string; blocks: unknown[] } {
   const byId = new Map(a.facts.facts.map((f) => [f.id, f]));
-  const dd = `${a.facts.date.slice(8, 10)}/${a.facts.date.slice(5, 7)}`;
+  const dd = dayMonth(a.facts.date);
   const by = a.state === "rendered" && a.model ? `layout por ${modelName(a.model)} (modelo aberto)` : "layout padrão, por regra";
   const blocks: unknown[] = [
     { type: "header", text: { type: "plain_text", text: `Resumo do seu dia, ${dd}` } },
@@ -219,7 +219,7 @@ export function createDaySummary(deps: DaySummaryDeps) {
             imageError = `imagem: ${err instanceof Error ? err.message : String(err)}`.slice(0, 200);
           }
         }
-        const dd = `${date.slice(8, 10)}/${date.slice(5, 7)}`;
+        const dd = dayMonth(date);
         const r = png
           ? await deps.outbox(orgId).enqueue({
               type: "slack.dm_image",

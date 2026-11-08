@@ -3,7 +3,8 @@ import { describe, expect, it } from "vitest";
 import { digestMessage } from "./away-digest.ts";
 import { confirmReply, draftMessage } from "./daily-note.ts";
 import { planMessage } from "./morning-plan.ts";
-import { columns, esc, header, section, sectionsOf } from "./slack-format.ts";
+import { planBlocks } from "./redistribution.ts";
+import { columns, esc, header, quote, section, sectionsOf } from "./slack-format.ts";
 
 type Block = { type: string; block_id?: string; text?: { text: string }; fields?: { text: string }[]; elements?: { text?: unknown; action_id?: string }[] };
 
@@ -38,6 +39,29 @@ describe("blocos do Slack", () => {
     expect(parts.length).toBeGreaterThan(1);
     expect(parts.flatMap((p) => p.text!.text.split("\n"))).toHaveLength(40);
     expectValid(parts);
+  });
+
+  it("o corte não deixa entidade, código ou negrito pela metade", () => {
+    expect((section(`${"x".repeat(2996)}&amp;zzzz`) as Block).text!.text).toBe(`${"x".repeat(2996)}…`);
+    expect((section(`${"x".repeat(2990)}\`codigo-longo\``) as Block).text!.text).toBe(`${"x".repeat(2990)}…`);
+    expect((section(`${"x".repeat(2990)}*negrito longo*`) as Block).text!.text).toBe(`${"x".repeat(2990)}…`);
+  });
+
+  it("a citação cobre todas as linhas", () => {
+    expect(quote("a\nb")).toBe("> a\n> b");
+  });
+
+  it("a trava com & não quebra a entidade", () => {
+    const { blocks } = draftMessage({ ...note, blocked: "A & B aguarda; C travou." }, names, "https://echo.test");
+    expect((blocks as Block[])[3]!.text!.text).toBe(":large_yellow_circle: *O que travou*\n• A &amp; B aguarda\n• C travou");
+  });
+
+  it("plano de redistribuição escapa nomes e respeita os limites", () => {
+    const lookup = { tasks: new Map([["t", { key: "ECH-1" }]]), prs: new Map(), people: [{ id: "p", name: "A<B Silva" }] };
+    const blocks = planBlocks("Plano", [{ taskId: "t", toId: "p", reason: "motivo" }] as never, lookup as never, "https://echo.test/", "x");
+    expectValid(blocks);
+    expect(JSON.stringify(blocks)).toContain("*A&lt;B*");
+    expect(JSON.stringify(blocks)).toContain("https://echo.test/redistribuicao#plano-x");
   });
 
   it("escapa marcação do Slack em conteúdo de terceiros", () => {

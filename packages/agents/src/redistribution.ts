@@ -23,7 +23,7 @@ import {
 } from "@echo/domain";
 import type { AgentRun, RunRecorder } from "@echo/observability";
 import type { AgentData } from "./data.ts";
-import { actions, context, DOT, esc, header, linkButton, section, sectionsOf, statusTag } from "./slack-format.ts";
+import { actions, context, dayMonth, DOT, esc, header, linkButton, section, sectionsOf, statusTag } from "./slack-format.ts";
 
 // ---------- Portas
 
@@ -119,7 +119,6 @@ const firstName = (people: Person[], id: string | undefined) => {
   const p = people.find((x) => x.id === id);
   return p ? (p.name.trim().split(/\s+/)[0] ?? p.name) : "alguém";
 };
-const ddmm = (d: string) => `${d.slice(8, 10)}/${d.slice(5, 7)}`;
 
 export function absenceTitle(absent: Person, people: Person[], absence: StoredAbsence | null, trigger: PlanTrigger): string {
   const who = firstName(people, absent.id);
@@ -128,7 +127,7 @@ export function absenceTitle(absent: Person, people: Person[], absence: StoredAb
   if (!absence) return `Plano para ${who}`;
   const from = localDate(absence.startsAt, absent.timezone);
   const to = localDate(new Date(absence.endsAt.getTime() - 1), absent.timezone);
-  const span = from === to ? ddmm(from) : `${from.slice(8, 10)} a ${ddmm(to)}`;
+  const span = from === to ? dayMonth(from) : `${from.slice(8, 10)} a ${dayMonth(to)}`;
   return `${trigger === "complement" ? "Plano complementar para" : "Plano para"} ${KIND_LABEL[absence.kind]} de ${who} (${span})`;
 }
 
@@ -136,23 +135,26 @@ type Lookup = { tasks: Map<string, Task>; prs: Map<string, PullRequest>; people:
 const itemLabel = (i: { taskId?: string; prId?: string }, l: Lookup) =>
   i.taskId ? (l.tasks.get(i.taskId)?.key ?? "Tarefa") : `Revisão do PR ${l.prs.get(i.prId ?? "")?.number ?? "?"}`;
 
+const PLAN_HOLD = "Nada muda até você aprovar.";
+const planUrl = (webUrl: string, planId: string) => `${webUrl.replace(/\/$/, "")}/redistribuicao#plano-${planId}`;
+
 export function planText(title: string, items: StoredPlanItem[], l: Lookup, webUrl: string, planId: string): string {
   const lines = items.map((i) =>
     i.toId ? `• ${itemLabel(i, l)} → ${firstName(l.people, i.toId)}. ${i.reason}` : `• ${itemLabel(i, l)} sem responsável. ${i.reason}`,
   );
-  return [`*${title}*`, ...lines, "Nada muda até você aprovar.", `Abrir no painel: ${webUrl.replace(/\/$/, "")}/redistribuicao#plano-${planId}`].join("\n");
+  return [`*${title}*`, ...lines, PLAN_HOLD, `Abrir no painel: ${planUrl(webUrl, planId)}`].join("\n");
 }
 
 /** O plano em blocos para a liderança: cada item com responsável e motivo, e o botão para decidir no painel. */
 export function planBlocks(title: string, items: StoredPlanItem[], l: Lookup, webUrl: string, planId: string): unknown[] {
   const lines = items.map((i) =>
-    i.toId ? `\`${itemLabel(i, l)}\` → *${firstName(l.people, i.toId)}*\n${esc(i.reason)}` : `${DOT.wait} \`${itemLabel(i, l)}\` sem responsável\n${esc(i.reason)}`,
+    i.toId ? `\`${esc(itemLabel(i, l))}\` → *${esc(firstName(l.people, i.toId))}*\n${esc(i.reason)}` : `${DOT.wait} \`${esc(itemLabel(i, l))}\` sem responsável\n${esc(i.reason)}`,
   );
   return [
     header(title),
-    statusTag(DOT.wait, "ESPERA SUA APROVAÇÃO", "Nada muda até você aprovar."),
+    statusTag(DOT.wait, "ESPERA SUA APROVAÇÃO", PLAN_HOLD),
     ...sectionsOf(lines),
-    actions(linkButton("abrir_redistribuicao", "Abrir no painel", `${webUrl.replace(/\/$/, "")}/redistribuicao#plano-${planId}`, true)),
+    actions(linkButton("abrir_redistribuicao", "Abrir no painel", planUrl(webUrl, planId), true)),
   ];
 }
 
@@ -266,7 +268,7 @@ export function createRedistribution(deps: RedistributionDeps) {
     const store = deps.store(orgId);
     const key = `redistribution:${item.id}:${toId}`;
     const absent = ctx.people.find((p) => p.id === plan.absentId)!;
-    const span = absence ? ` durante ${KIND_LABEL[absence.kind]} de ${firstName(ctx.people, absent.id)} (até ${ddmm(localDate(new Date(absence.endsAt.getTime() - 1), absent.timezone))})` : "";
+    const span = absence ? ` durante ${KIND_LABEL[absence.kind]} de ${firstName(ctx.people, absent.id)} (até ${dayMonth(localDate(new Date(absence.endsAt.getTime() - 1), absent.timezone))})` : "";
     const why = plan.trigger === "return" ? `, na volta de ${firstName(ctx.people, toId)}` : span;
     if (item.taskId) {
       const task = ctx.lookup.tasks.get(item.taskId);
@@ -439,7 +441,7 @@ export function createRedistribution(deps: RedistributionDeps) {
           payload: {
             personId: plan.approvedBy,
             text: [`Plano aprovado por ${firstName(ctx.people, plan.approvedBy)} executado.`, ...lines].join(" "),
-            blocks: [header("Plano executado"), context(`Aprovado por ${firstName(ctx.people, plan.approvedBy)}`), ...sectionsOf(lines.map((l) => `• ${esc(l)}`))],
+            blocks: [header("Plano executado"), context(`Aprovado por ${esc(firstName(ctx.people, plan.approvedBy))}`), ...sectionsOf(lines.map((l) => `• ${esc(l)}`))],
           },
           idempotencyKey: `redistribution_done:${plan.id}:${plan.items.map((i) => i.state[0]).join("")}`,
         });

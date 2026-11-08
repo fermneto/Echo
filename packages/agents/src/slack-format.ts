@@ -9,12 +9,21 @@ const MAX_HEADER = 150;
 const MAX_SECTION = 3_000;
 const MAX_FIELD = 2_000;
 
-const cut = (text: string, max: number) => (text.length <= max ? text : `${text.slice(0, max - 1)}…`);
+/** Corta sem deixar entidade, link, código ou negrito pela metade, o que desfaria a formatação do fim do bloco. */
+function cut(text: string, max: number): string {
+  if (text.length <= max) return text;
+  let out = text.slice(0, max - 1).replace(/(&[a-z]*|<[^>]*)$/, "");
+  for (const mark of ["`", "*"]) if (out.split(mark).length % 2 === 0) out = out.slice(0, out.lastIndexOf(mark));
+  return `${out}…`;
+}
 
 /** Conteúdo de terceiros em texto mrkdwn: sem isso, `<!channel>` ou `<url|texto>` viram marcação. */
 export const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
 export const dayMonth = (date: string) => `${date.slice(8, 10)}/${date.slice(5, 7)}`;
+
+/** Citação em todas as linhas: o `>` do Slack só vale para a linha em que está. */
+export const quote = (text: string) => text.split("\n").map((line) => `> ${line}`).join("\n");
 
 export const header = (text: string) => ({ type: "header", text: { type: "plain_text", text: cut(text, MAX_HEADER) } });
 export const section = (text: string) => ({ type: "section", text: { type: "mrkdwn", text: cut(text, MAX_SECTION) } });

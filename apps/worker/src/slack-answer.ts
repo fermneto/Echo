@@ -149,7 +149,7 @@ export async function handleSlackMessage(d: SlackAnswerDeps, job: { orgId: strin
     const r = await d.answer({ orgId, askerId: asker.id, ...(owner ? { ownerId: owner.id } : {}), text, channel: "slack" });
     const lang = r.language ?? asked;
     const reply = toMrkdwn(r.text);
-    const body = [reply, ...r.warnings.map((w) => `_${REPLY_TEXT[lang].warning}: ${w}_`)].join("\n\n");
+    const body = toMrkdwn([r.text, ...r.warnings.map((w) => `_${REPLY_TEXT[lang].warning}: ${w}_`)].join("\n\n"));
     const blocks = answerBlocks({ text: reply, warnings: r.warnings, agentName: r.agentName, sources: r.sources, questionId: claimed.id, lang });
     await d.chat.postAgentReply({ channel: m.channel, threadTs, agentName: r.agentName, text: body, ...(blocks ? { blocks } : {}), ...icon });
     await withOrg(d.db, orgId, (tx) =>
