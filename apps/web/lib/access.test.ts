@@ -26,6 +26,12 @@ describe("canSee", () => {
     }
   });
 
+  it("visão das equipes: só o RH", () => {
+    expect(canSee("hr", "equipes", demo)).toBe(true);
+    expect(canSee("leader", "equipes", demo)).toBe(false);
+    expect(canSee("member", "equipes", demo)).toBe(false);
+  });
+
   it("simulador só existe na demonstração", () => {
     expect(canSee("member", "simulador", { demo: true })).toBe(true);
     expect(canSee("member", "simulador", { demo: false })).toBe(false);
