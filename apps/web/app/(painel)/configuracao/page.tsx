@@ -101,7 +101,7 @@ export default async function ConfiguracaoPage() {
           </div>
           <CadastroPessoa action={cadastrarPessoa} teams={teams ?? []} slackMembers={membersOf(slack)} platforms={platforms} slackFailed={slack.status === "failed"} />
           <p className="card__foot">
-            O currículo é lido por um modelo aberto na nossa infraestrutura e vira cargo, habilidades, áreas e idiomas, sem dados pessoais. A foto vira traços de uma lista fechada (cabelo, pele, óculos, roupa), sem gênero, idade ou origem.
+            O currículo é lido pelo Claude Haiku, pela API da Anthropic, e vira cargo, habilidades, áreas e idiomas, sem dados pessoais; o texto não é guardado. A foto vira traços de uma lista fechada (cabelo, pele, óculos, roupa), sem gênero, idade ou origem.
           </p>
         </section>
       ) : null}
