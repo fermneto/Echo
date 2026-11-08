@@ -690,6 +690,219 @@
   }
 }
 
+/* Produtividade: a mesma pergunta em duas linhas do tempo */
+.lp-race {
+  margin: 0;
+  padding: var(--space-2xl);
+  border: 1px solid var(--color-edge);
+  border-radius: var(--rounded-xl);
+  background: var(--color-black);
+}
+.lp-race__head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: var(--space-2xl);
+  margin-bottom: var(--space-2xl);
+}
+.lp-race__ask {
+  margin: 0;
+  max-width: 34ch;
+  font-size: 18px;
+  line-height: 1.45;
+  color: var(--color-paper);
+}
+.lp-race__total {
+  flex: none;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 4px;
+  text-align: right;
+}
+.lp-race__n {
+  font-family: var(--font-display);
+  font-size: clamp(56px, 8vw, 96px);
+  font-weight: 500;
+  line-height: 0.95;
+  letter-spacing: -0.035em;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-signal-wait);
+}
+.lp-race__unit {
+  font-size: 14px;
+  color: var(--color-fog);
+}
+.lp-race__rows {
+  display: grid;
+  gap: var(--space-lg);
+}
+.lp-race__row {
+  display: grid;
+  grid-template-columns: 112px minmax(0, 1fr);
+  align-items: start;
+  gap: var(--space-lg);
+}
+.lp-race__k {
+  font-size: 14px;
+  line-height: 14px;
+  color: var(--color-paper);
+}
+.lp-race__track {
+  position: relative;
+  height: 14px;
+  border-radius: var(--rounded-sm);
+  background: var(--color-chip);
+}
+.lp-race__bar {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  transform-origin: left center;
+}
+.lp-race__bar.is-wait {
+  left: 0;
+  right: 0;
+  border-radius: var(--rounded-sm);
+  background: var(--color-signal-wait);
+}
+.lp-race__bar.is-answer {
+  left: 0;
+  width: 3%;
+  min-width: 10px;
+  border-radius: var(--rounded-sm) 0 0 var(--rounded-sm);
+  background: var(--color-signal-twin);
+}
+.lp-race__bar.is-work {
+  left: max(3%, 10px);
+  right: 0;
+  border-radius: 0 var(--rounded-sm) var(--rounded-sm) 0;
+  background: var(--color-signal-on);
+}
+.lp-race__ping {
+  position: absolute;
+  top: -5px;
+  left: -5px;
+  width: 24px;
+  height: 24px;
+  border: 1px solid var(--color-signal-twin);
+  border-radius: 50%;
+  opacity: 0;
+  pointer-events: none;
+}
+.lp-race__notes {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-lg);
+}
+.lp-race__note {
+  margin: var(--space-sm) 0 0;
+  font-size: 14px;
+  color: var(--color-fog);
+}
+.lp-race__note--right {
+  text-align: right;
+}
+.lp-race__axis {
+  position: relative;
+  height: 16px;
+  border-top: 1px solid var(--color-line);
+  padding-top: var(--space-sm);
+}
+.lp-race__axis .lp-mono {
+  position: absolute;
+  transform: translateX(-50%);
+  font-size: 12px;
+  color: var(--color-ash);
+}
+.lp-race__axis .lp-mono:first-child {
+  transform: none;
+}
+.lp-race__axis .lp-mono:last-child {
+  transform: translateX(-100%);
+}
+.lp-gains {
+  width: 100%;
+  margin-top: var(--space-2xl);
+  border-collapse: collapse;
+  text-align: left;
+}
+.lp-gains thead th {
+  padding-bottom: var(--space-md);
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--color-ash);
+}
+.lp-gains tbody tr {
+  border-top: 1px solid var(--color-line);
+}
+.lp-gains tbody th,
+.lp-gains tbody td {
+  padding: var(--space-lg) var(--space-lg) var(--space-lg) 0;
+  font-size: 16px;
+  line-height: 1.4;
+  vertical-align: top;
+}
+.lp-gains tbody th {
+  width: 34%;
+  font-weight: 500;
+  color: var(--color-cloud);
+}
+.lp-gains__before {
+  width: 30%;
+  color: var(--color-ash);
+}
+.lp-gains__after {
+  color: var(--color-paper);
+}
+.lp-gains__foot {
+  margin: var(--space-lg) 0 0;
+  font-size: 14px;
+  color: var(--color-fog);
+}
+@media (max-width: 760px) {
+  .lp-race {
+    padding: var(--space-lg);
+  }
+  .lp-race__head {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: var(--space-lg);
+  }
+  .lp-race__total {
+    align-items: flex-start;
+    text-align: left;
+  }
+  .lp-race__row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: var(--space-sm);
+  }
+  .lp-race__row > span:empty {
+    display: none;
+  }
+  .lp-race__notes {
+    flex-direction: column;
+    gap: 0;
+  }
+  .lp-gains thead {
+    display: none;
+  }
+  .lp-gains tbody tr,
+  .lp-gains tbody th,
+  .lp-gains tbody td {
+    display: block;
+    width: auto;
+  }
+  .lp-gains tbody tr {
+    padding: var(--space-lg) 0;
+  }
+  .lp-gains tbody th,
+  .lp-gains tbody td {
+    padding: 2px 0;
+  }
+}
+
 /* Fechamento: o último convite antes do rodapé */
 .lp-closing {
   width: min(var(--lp-width), calc(100% - 2 * var(--space-gutter)));

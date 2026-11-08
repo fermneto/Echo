@@ -7,6 +7,8 @@ import { DotField } from "@/components/landing/DotField";
 import { CardStack } from "@/components/landing/CardStack";
 import { MOMENTS } from "@/components/landing/moments";
 import { IntegrationsCarousel } from "@/components/landing/integrations";
+import { LandingMotion } from "@/components/landing/LandingMotion";
+import { WaitRace } from "@/components/landing/WaitRace";
 import { PixelSprite, type SpriteMode } from "@/components/PixelSprite";
 import { lookFor } from "@/lib/demo/looks";
 import { WORLD, worldCounts, worldState, type WorldMember } from "@/lib/demo/world";
@@ -62,6 +64,13 @@ const ROLES = [
   { role: "Líder", gain: "Redistribuição montada e visão do que está parado." },
   { role: "RH", gain: "Relatório semanal legível, sem precisar interpretar commits." },
   { role: "Empresa", gain: "Menos espera, menos retrabalho, mais previsibilidade." },
+];
+
+const GAINS = [
+  { what: "Dúvida sobre o trabalho de um colega", before: "Espera a pessoa voltar", after: "Resposta na hora, com a fonte" },
+  { what: "Revisão de PR", before: "Começa quando o revisor chega", after: "Primeira análise pronta de manhã" },
+  { what: "Começar o dia", before: "Procurar o que ficou pendente", after: "Agenda pronta, na ordem e com o motivo" },
+  { what: "Férias de alguém", before: "Repartir tarefas na conversa", after: "Plano por regra, sem sobrecarregar ninguém" },
 ];
 
 const CITY: Record<string, [number, number]> = {
@@ -277,6 +286,7 @@ export default function LandingPage() {
           echo<span className="lp-logo__dot" aria-hidden="true" />
         </Link>
         <nav className="lp-nav__links" aria-label="Seções">
+          <a href="#ganhos">Produtividade</a>
           <a href="#como-funciona">Como funciona</a>
           <a href="#nunca">O que nunca faz</a>
           <a href="#para-quem">Para quem</a>
@@ -292,6 +302,7 @@ export default function LandingPage() {
       </header>
 
       <main className="lp-main">
+        <LandingMotion />
         <DotField />
         <section className="lp-hero" aria-labelledby="tese">
           <div className="lp-hero__copy">
@@ -377,13 +388,42 @@ export default function LandingPage() {
           </ol>
         </section>
 
+        <section className="lp-section" id="ganhos" aria-labelledby="ganhos-titulo">
+          <div className="lp-section__intro">
+            <h2 id="ganhos-titulo" className="lp-headline">
+              A espera vira trabalho.
+            </h2>
+            <p className="lp-lead">Entre fusos, uma dúvida simples pode custar meio dia. O Echo responde na hora, adianta a revisão e deixa o dia de cada pessoa organizado.</p>
+          </div>
+          <WaitRace />
+          <table className="lp-gains">
+            <thead>
+              <tr>
+                <td />
+                <th scope="col">Antes</th>
+                <th scope="col">Com o Echo</th>
+              </tr>
+            </thead>
+            <tbody>
+              {GAINS.map((g) => (
+                <tr key={g.what}>
+                  <th scope="row">{g.what}</th>
+                  <td className="lp-gains__before">{g.before}</td>
+                  <td className="lp-gains__after">{g.after}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <p className="lp-gains__foot">O painel mede a espera evitada e as revisões da sua equipe, só em totais.</p>
+        </section>
+
         <section className="lp-section lp-split" aria-labelledby="ajuda">
           <div className="lp-section__intro">
             <h2 id="ajuda" className="lp-headline">
               Quem ajuda os outros finalmente aparece.
             </h2>
             <p className="lp-lead">
-              Uma revisão que mudou o código, um colega destravado, uma reação de obrigado no Slack. Cada ajuda vira crédito, sempre com fonte ou confirmação de quem foi ajudado.
+              Destravar um colega também é produtividade. Uma revisão que mudou o código, uma dúvida resolvida, uma reação de obrigado no Slack: cada ajuda vira crédito, sempre com fonte ou confirmação de quem foi ajudado.
             </p>
           </div>
           <article className="lp-win lp-win--static">
@@ -401,7 +441,9 @@ export default function LandingPage() {
               </p>
               <p className="lp-row">
                 <span>Ajudas a colegas</span>
-                <span className="lp-mono lp-on">5 confirmadas</span>
+                <span className="lp-mono lp-on">
+                  <span data-count="5">5</span> confirmadas
+                </span>
               </p>
               <p className="lp-row lp-row--note">
                 <span>&ldquo;Fiz 100 entregas&rdquo;</span>
@@ -484,6 +526,9 @@ export default function LandingPage() {
             <div>
               <p className="lp-footer__head">Produto</p>
               <ul role="list">
+                <li>
+                  <a href="#ganhos">Produtividade</a>
+                </li>
                 <li>
                   <a href="#como-funciona">Como funciona</a>
                 </li>
