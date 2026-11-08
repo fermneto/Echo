@@ -77,7 +77,8 @@ describe.skipIf(!url)("espelho no worker", () => {
     expect(brains.blobs.get(note!.sha!)).toContain("Revisão até 24 h.");
 
     expect(await mirrorOrg(deps, orgId)).toEqual({ imported: 0, exported: 0, removed: 0, warnings: 0 });
-    expect(runs.runs.filter((r) => r.flow === "brain_mirror")).toHaveLength(2);
+    // A segunda rodada não mudou nada: não vira linha em agent_runs.
+    expect(runs.runs.filter((r) => r.flow === "brain_mirror").map((r) => r.result)).toEqual(["ok"]);
   });
 
   it("sem BRAINS_REPOSITORY ou sem GitHub ligado, não faz nada", async () => {
