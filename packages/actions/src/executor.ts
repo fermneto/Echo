@@ -5,7 +5,9 @@ import { FileChangedError, GithubApiError, SlackApiError, type ChatPlatform, typ
 import { asSystem, auditLog, brainNotes, identities, outboxActions, people, planItems, tasks, withOrg, type Database, type Tx } from "@echo/db";
 import { isMirrorExportable, PatchConflictError, soleTeam } from "@echo/domain";
 import { and, asc, eq, inArray, lt, sql } from "drizzle-orm";
-import { REQUIRES_APPROVAL, type ActionType, type OutboxAction } from "./index.ts";
+import { approvalAudit, draftPrRefusal, type ApprovalSource, type DraftPrPayload } from "./guards.ts";
+import { insertAction } from "./pg.ts";
+import type { ActionType, OutboxAction } from "./index.ts";
 
 export const MAX_ATTEMPTS = 3;
 const MAX_PER_RUN = 20;
@@ -16,7 +18,7 @@ export interface ActionPayloads {
   "linear.comment": { taskKey: string; body: string };
   "github.comment": { repo: string; number: number; body: string };
   "github.set_reviewers": { repo: string; number: number; personIds: string[]; planItemId?: string };
-  "github.draft_pr": { repo: string; prNumber: number; base: string; baseSha: string; branch: string; title: string; body: string; patch: string; draft?: boolean };
+  "github.draft_pr": DraftPrPayload;
   "github.merge_fix": { repo: string; number: number; sha: string; base: string; prNumber: number };
   "github.mirror_write": { repo: string; noteId: string; path: string; content: string; previousSha?: string };
   "github.mirror_delete": { repo: string; noteId: string; path: string; sha: string };
@@ -46,31 +48,11 @@ type Row = typeof outboxActions.$inferSelect;
 /** Coloca uma ação no outbox. A mesma chave não cria uma segunda ação. */
 export async function enqueueAction<T extends ActionType>(db: Database, orgId: string, action: OutboxAction<ActionPayloads[T]> & { type: T }): Promise<{ id: string; duplicate: boolean }> {
   // Sem aprovação, a ação que exige aprovação fica "pending" até approveAction.
-  return withOrg(db, orgId, async (tx) => {
-  const [row] = await tx
-    .insert(outboxActions)
-    .values({
-      orgId,
-      type: action.type,
-      target: action.target,
-      payload: action.payload,
-      idempotencyKey: action.idempotencyKey,
-      approvedBy: action.approvedBy ?? null,
-      state: action.approvedBy || !REQUIRES_APPROVAL[action.type] ? "approved" : "pending",
-    })
-    .onConflictDoNothing()
-    .returning({ id: outboxActions.id });
-  if (row) return { id: row.id, duplicate: false };
-  const [existing] = await tx
-    .select({ id: outboxActions.id })
-    .from(outboxActions)
-    .where(and(eq(outboxActions.orgId, orgId), eq(outboxActions.idempotencyKey, action.idempotencyKey)));
-  return { id: existing!.id, duplicate: true };
-  });
+  return withOrg(db, orgId, (tx) => insertAction(tx, orgId, action));
 }
 
 /** Aprovação registrada: quem aprovou fica na ação e na auditoria. */
-export async function approveAction(db: Database, orgId: string, actionId: string, approverId: string): Promise<boolean> {
+export async function approveAction(db: Database, orgId: string, actionId: string, approverId: string, source?: ApprovalSource): Promise<boolean> {
   return withOrg(db, orgId, async (tx) => {
     const [row] = await tx
       .update(outboxActions)
@@ -78,7 +60,7 @@ export async function approveAction(db: Database, orgId: string, actionId: strin
       .where(and(eq(outboxActions.orgId, orgId), eq(outboxActions.id, actionId), eq(outboxActions.state, "pending")))
       .returning({ type: outboxActions.type, target: outboxActions.target });
     if (!row) return false;
-    await tx.insert(auditLog).values({ orgId, actor: `person:${approverId}`, action: `approve:${row.type}`, target: row.target });
+    await tx.insert(auditLog).values(approvalAudit({ orgId, approverId, type: row.type, target: row.target, ...(source ? { source } : {}) }));
     return true;
   });
 }
@@ -133,6 +115,9 @@ async function run(deps: ExecutorDeps, row: Row): Promise<unknown> {
     }
     case "github.draft_pr": {
       const p = row.payload as ActionPayloads["github.draft_pr"];
+      // Sem aprovação e com escrita forçada na branch: confere branch e diff de novo antes de qualquer chamada.
+      const refusal = draftPrRefusal(p);
+      if (refusal) throw new PermanentActionError(refusal);
       try {
         return await need("code", "GitHub").createFixDraft({ repo: p.repo, base: p.base, baseSha: p.baseSha, branch: p.branch, title: p.title, body: p.body, patch: p.patch });
       } catch (err) {

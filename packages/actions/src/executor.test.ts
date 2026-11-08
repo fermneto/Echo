@@ -41,7 +41,7 @@ describe.skipIf(!url)("executor do outbox (Postgres real)", () => {
       return { sha };
     },
     createFixDraft: async (i) => {
-      if (i.patch === "conflito") throw new PatchConflictError("contexto não bate na linha 3");
+      if (i.patch.includes("conflito")) throw new PatchConflictError("contexto não bate na linha 3");
       calls.push(`github.draft ${i.repo} ${i.branch} → ${i.base} sobre ${i.baseSha}`);
       return { number: 77, headSha: "draftsha" };
     },
@@ -229,18 +229,27 @@ describe.skipIf(!url)("executor do outbox (Postgres real)", () => {
   });
   it("correção: rascunho sem aprovação guarda número e versão; união só aprovada; diff que não se aplica falha de vez", async () => {
     calls.length = 0;
-    const draft = { repo: "org/app", prNumber: 1, base: "feat", baseSha: "abc", branch: "echo/fix-pr-1", title: "t", body: "b", patch: "diff" };
+    const patch = (line: string) => ["diff --git a/src/a.ts b/src/a.ts", "--- a/src/a.ts", "+++ b/src/a.ts", "@@ -1 +1 @@", "-a", `+${line}`, ""].join("\n");
+    const draft = { repo: "org/app", prNumber: 1, base: "feat", baseSha: "abc", branch: "echo/fix-pr-1", title: "t", body: "b", patch: patch("b"), prFiles: ["src/a.ts"] };
     await enqueueAction(app, orgId, { type: "github.draft_pr", target: "github:org/app#1", idempotencyKey: "fix_draft:f1", payload: draft });
-    await enqueueAction(app, orgId, { type: "github.draft_pr", target: "github:org/app#2", idempotencyKey: "fix_draft:f2", payload: { ...draft, patch: "conflito" } });
+    await enqueueAction(app, orgId, { type: "github.draft_pr", target: "github:org/app#2", idempotencyKey: "fix_draft:f2", payload: { ...draft, patch: patch("conflito") } });
+    // Sem aprovação e com escrita forçada: branch que não é echo/fix-pr-N e diff malformado nem chegam ao GitHub.
+    await enqueueAction(app, orgId, { type: "github.draft_pr", target: "github:org/app#3", idempotencyKey: "fix_draft:f3", payload: { ...draft, branch: "feat" } });
+    await enqueueAction(app, orgId, { type: "github.draft_pr", target: "github:org/app#4", idempotencyKey: "fix_draft:f4", payload: { ...draft, patch: ["diff --git X", "@@ -0,0 +1 @@", "+x", draft.patch].join("\n") } });
     const merge = await enqueueAction(app, orgId, { type: "github.merge_fix", target: "github:org/app#77", idempotencyKey: "fix_merge:f1", payload: { repo: "org/app", number: 77, sha: "draftsha", base: "feat", prNumber: 1 } });
     await drainActions(deps(), orgId); // o teste anterior deixa uma ação de volta na fila
     const rows = await db.select().from(outboxActions).where(eq(outboxActions.orgId, orgId));
     const byKey = (k: string) => rows.find((r) => r.idempotencyKey === k)!;
     expect(byKey("fix_draft:f1")).toMatchObject({ state: "done", result: { number: 77, headSha: "draftsha" } });
     expect(byKey("fix_draft:f2")).toMatchObject({ state: "failed", error: "o diff não se aplica ao código: contexto não bate na linha 3" });
+    expect(byKey("fix_draft:f3")).toMatchObject({ state: "failed", error: expect.stringMatching(/^branch recusada/) });
+    expect(byKey("fix_draft:f4")).toMatchObject({ state: "failed", error: expect.stringMatching(/^diff recusado: diff malformado/) });
     expect(byKey("fix_merge:f1").state).toBe("pending");
-    expect(await approveAction(app, orgId, merge.id, ids.car!)).toBe(true);
-    await enqueueAction(app, orgId, { type: "github.merge_fix", target: "github:org/app#78", idempotencyKey: "fix_merge:f2", payload: { repo: "org/app", number: 78, sha: "mudou", base: "feat", prNumber: 2 }, approvedBy: ids.car! });
+    expect(await approveAction(app, orgId, merge.id, ids.car!, "painel")).toBe(true);
+    await enqueueAction(app, orgId, { type: "github.merge_fix", target: "github:org/app#78", idempotencyKey: "fix_merge:f2", payload: { repo: "org/app", number: 78, sha: "mudou", base: "feat", prNumber: 2 }, approvedBy: ids.car!, approvalSource: "slack" });
+    // As duas aprovações ficam no audit_log com a pessoa e a origem.
+    const audit = await db.select().from(auditLog).where(and(eq(auditLog.orgId, orgId), eq(auditLog.actor, `person:${ids.car}`)));
+    expect(audit.map((a) => `${a.action} ${a.target}`).sort()).toEqual(["approve:github.merge_fix:painel github:org/app#77", "approve:github.merge_fix:slack github:org/app#78"]);
     expect(await drainActions(deps(), orgId)).toEqual({ done: 1, failed: 1, retried: 0 });
     expect(calls.filter((c) => c.startsWith("github."))).toEqual(["github.draft org/app echo/fix-pr-1 → feat sobre abc", "github.merge draftsha → feat"]);
   });

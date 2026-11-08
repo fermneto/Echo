@@ -120,6 +120,11 @@ describe("GitHub App", () => {
     expect(bodies.ref).toEqual({ sha: "fix1", force: true }); // branch do Echo que já existia
     expect(bodies.pr).toMatchObject({ head: "echo/fix-pr-5", base: "feat-x", draft: true });
     await expect(gh.createFixDraft({ repo: "a/b", base: "feat-x", baseSha: "base1", branch: "echo/fix-pr-5", title: "t", body: "b", patch: patch.replace(" a\n", " z\n") })).rejects.toThrow(/contexto não bate/);
+    // Branch que não é do Echo nem chega a ler o código; diff malformado é recusado antes de escrever.
+    delete bodies.tree;
+    await expect(gh.createFixDraft({ repo: "a/b", base: "feat-x", baseSha: "base1", branch: "feat-x", title: "t", body: "b", patch })).rejects.toThrow(/não é do Echo/);
+    await expect(gh.createFixDraft({ repo: "a/b", base: "feat-x", baseSha: "base1", branch: "echo/fix-pr-5", title: "t", body: "b", patch: ["diff --git X", "@@ -0,0 +1 @@", "+x", patch].join("\n") })).rejects.toThrow(/diff malformado/);
+    expect(bodies.tree).toBeUndefined();
 
     expect(await gh.mergeFix({ repo: "a/b", base: "feat-x", sha: "fix1", message: "m" })).toEqual({ sha: "m1" });
     expect(bodies.merge).toEqual({ base: "feat-x", head: "fix1", commit_message: "m" });

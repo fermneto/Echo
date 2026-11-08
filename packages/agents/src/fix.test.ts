@@ -64,6 +64,7 @@ function setup(opts: { sandbox?: Partial<FixSandboxResult>; target?: Partial<Fix
     data: () => data,
     fixes: () => store,
     codeHost: () => (opts.host === false ? null : host),
+    personBySlackUser: async (_o, slackUserId) => (slackUserId === "UFER" ? "fernando" : null),
     sandbox: {
       run: async (input) => {
         sandboxCalls.push(input);
@@ -110,7 +111,7 @@ describe("correção", () => {
     // Rascunho pronto: o autor recebe Aplicar/Recusar no privado (sem aprovação: é só aviso).
     expect(s.outbox[1]).toMatchObject({ type: "slack.dm", idempotencyKey: "fix_ready_dm:fix1", payload: { personId: "fernando" } });
     expect(JSON.stringify(s.outbox[1]!.payload)).toContain("não é uma aprovação");
-    expect(s.outbox[2]).toMatchObject({ type: "github.merge_fix", approvedBy: "fernando", idempotencyKey: "fix_merge:fix1", payload: { repo: "org/app", number: 45, sha: "d45", base: "ech-128-filtro" } });
+    expect(s.outbox[2]).toMatchObject({ type: "github.merge_fix", approvedBy: "fernando", approvalSource: "painel", idempotencyKey: "fix_merge:fix1", payload: { repo: "org/app", number: 45, sha: "d45", base: "ech-128-filtro" } });
     expect(await s.flow.decide("org", "fernando", "fix1", "approve")).toMatchObject({ status: "refused", reason: "nao_esta_pronta" });
 
     s.outboxRows.set("fix_merge:fix1", { state: "done", result: { merged: true } });
@@ -138,6 +139,25 @@ describe("correção", () => {
     expect(fixClick(click(FIX_DECLINE_ACTION_ID, id))?.decision).toBe("decline");
     expect(fixClick(click("confirmar_nota", id))).toBeNull();
     expect(fixClick(click(FIX_APPROVE_ACTION_ID, "não é id"))).toBeNull();
+  });
+
+  it("Aplicar no Slack: a união leva a pessoa e a origem para o audit_log; conta sem pessoa é recusada e registrada", async () => {
+    const s = setup();
+    await s.flow.run("org", "rv1");
+    // O rascunho leva os arquivos do PR: o executor confere o diff de novo antes de escrever.
+    expect(s.outbox[0]!.payload).toMatchObject({ prFiles: ["src/filtros.ts"], branch: "echo/fix-pr-44" });
+    s.outboxRows.set("fix_draft:fix1", { state: "done", result: { number: 45, headSha: "d45" } });
+    await s.flow.sync("org");
+    s.pulls.set(45, { state: "open", headSha: "d45" });
+    const click = (user: string) => ({ type: "block_actions", user: { id: user }, actions: [{ action_id: FIX_APPROVE_ACTION_ID, value: "00000000-0000-4000-8000-000000000001" }] });
+
+    const before = s.runs.length;
+    expect(await s.flow.decideFromSlack("org", click("UOUTRO"))).toEqual({ status: "denied" });
+    expect(s.runs.slice(before)).toMatchObject([{ flow: "fix_decision", result: "refused", error: "conta do Slack sem pessoa no Echo" }]);
+
+    // O id do botão é um uuid; o store falso usa "fix1", então a decisão vai direto pelo fluxo com a origem Slack.
+    expect(await s.flow.decide("org", "fernando", "fix1", "approve", "slack")).toEqual({ status: "approved" });
+    expect(s.outbox.find((a) => a.type === "github.merge_fix")).toMatchObject({ approvedBy: "fernando", approvalSource: "slack" });
   });
 
   it("diff com arquivo fora do PR ou de CI é recusado, sem rascunho", async () => {

@@ -16,6 +16,8 @@ export type ActionType =
   | "slack.dm"
   | "slack.dm_image";
 
+import type { ApprovalSource } from "./guards.ts";
+
 export interface OutboxAction<P = Record<string, unknown>> {
   type: ActionType;
   target: string; // ex.: "linear:ECH-133", "github:org-teste/app#42"
@@ -23,6 +25,8 @@ export interface OutboxAction<P = Record<string, unknown>> {
   /** Chave única: a mesma ação nunca roda duas vezes. */
   idempotencyKey: string;
   approvedBy?: string; // obrigatório quando REQUIRES_APPROVAL[type]
+  /** Por onde a pessoa aprovou (vai para o audit_log junto com `approvedBy`). */
+  approvalSource?: ApprovalSource;
 }
 
 export interface ActionExecutor {
@@ -46,4 +50,5 @@ export const REQUIRES_APPROVAL: Record<ActionType, boolean> = {
 };
 
 export { approveAction, drainActions, enqueueAction, MAX_ATTEMPTS, orgsWithApprovedActions, PermanentActionError, releaseStuckActions, type ActionPayloads, type ExecutorDeps } from "./executor.ts";
+export { approvalAudit, draftPrRefusal, type ApprovalSource, type DraftPrPayload } from "./guards.ts";
 export { writersFromEnv, type PlatformEnv } from "./writers.ts";
