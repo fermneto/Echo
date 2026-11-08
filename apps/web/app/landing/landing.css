@@ -1,5 +1,10 @@
 /* Landing pública em /landing. Mesmas cores e tokens do painel. */
 
+/* Os links do topo rolam até a seção. Só nesta página, e o globals.css desliga para quem pede menos movimento. */
+html:has(.lp) {
+  scroll-behavior: smooth;
+}
+
 .lp {
   --lp-width: var(--width-landing);
   background: var(--color-canvas);
