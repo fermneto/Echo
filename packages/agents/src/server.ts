@@ -14,7 +14,7 @@ import { createMorningPlan, type MorningPlan } from "./morning-plan.ts";
 import { type BatchApi, createNightReview, type NightReview, type ReviewSource } from "./night-review.ts";
 import { createPgPlanStore, createPgReviewStore } from "./pg-night.ts";
 import { ollamaJson, ollamaTriage } from "./triage-ollama.ts";
-import { createDaySummary, type DaySummary } from "./day-summary.ts";
+import { createDaySummary, type DaySummary, type DaySummaryDeps } from "./day-summary.ts";
 import { createPgArtifactStore } from "./pg-artifacts.ts";
 import { onboardPerson } from "./onboarding.ts";
 import { createPgOnboardingStore } from "./pg-onboarding.ts";
@@ -131,7 +131,7 @@ export function serverNightReview(db: Database, apiKey: string | undefined, diff
  * Resumo do dia (etapa 26): depois do rascunho da nota, o modelo aberto do Ollama monta a especificação do
  * resumo. Sem `ollama`, layout padrão por regra.
  */
-export function serverDaySummary(db: Database, ollama?: { url: string; model: string; timeoutMs: number }, webUrl?: string): DaySummary {
+export function serverDaySummary(db: Database, ollama?: { url: string; model: string; timeoutMs: number }, webUrl?: string, renderImage?: DaySummaryDeps["renderImage"]): DaySummary {
   return createDaySummary({
     data: (orgId) => createPgAgentData(db, orgId),
     notes: (orgId) => createPgDailyNoteStore(db, orgId),
@@ -141,6 +141,8 @@ export function serverDaySummary(db: Database, ollama?: { url: string; model: st
     timeoutMs: ollama?.timeoutMs,
     outbox: (orgId) => createPgOutbox(db, orgId),
     webUrl,
+    // A imagem (satori + resvg, binário nativo) é ligada só no worker, por @echo/agents/imagem: o painel não a empacota.
+    ...(renderImage ? { renderImage } : {}),
   });
 }
 

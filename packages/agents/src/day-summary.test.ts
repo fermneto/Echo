@@ -151,4 +151,38 @@ describe("createDaySummary", () => {
     expect(all).toContain("&lt;script&gt; &amp; PR");
     expect(all).toContain("layout padrão, por regra");
   });
+
+  it("com imagem, a mensagem vai como arquivo (com blocos de reserva); se o render falhar, vai em blocos", async () => {
+    const run = async (renderImage: () => Promise<Buffer>) => {
+      const outbox: OutboxAction[] = [];
+      const recorder = new LogRunRecorder();
+      const data = { people: async () => people, tasks: async () => tasks, pullRequests: async () => prs, events: async () => events } as unknown as AgentData;
+      const notes = { get: async () => note, slackUserOf: async () => "U1" } as unknown as DailyNoteStore;
+      await createDaySummary({
+        data: () => data,
+        notes: () => notes,
+        artifacts: () => ({ save: async () => {}, get: async () => null }),
+        model: null,
+        recorder,
+        clock: new FixedClock(NOW),
+        outbox: () => ({ enqueue: async (a) => (outbox.push(a), { id: "1", duplicate: false }) }),
+        webUrl: "https://echo.test",
+        renderImage,
+      }).generate("org", "fernando", "2026-11-06");
+      return { outbox, run: recorder.runs[0]! };
+    };
+    const ok = await run(async () => Buffer.from([137, 80, 78, 71]));
+    expect(ok.outbox[0]).toMatchObject({ type: "slack.dm_image", idempotencyKey: "day_summary:fernando:2026-11-06", payload: { filename: "resumo-2026-11-06.png", pngBase64: "iVBORw==" } });
+    const p = ok.outbox[0]!.payload as { comment: string; blocks: unknown[] };
+    expect(p.comment).toContain("Agente de Fernando");
+    expect(p.comment).toContain("https://echo.test/resumos?data=2026-11-06");
+    expect(p.blocks.length).toBeGreaterThan(2);
+    expect(ok.run.tools).toEqual(["slack.dm_image"]);
+
+    const failed = await run(async () => { throw new Error("fonte ausente"); });
+    expect(failed.outbox[0]).toMatchObject({ type: "slack.dm", idempotencyKey: "day_summary:fernando:2026-11-06" });
+    expect(failed.run.error).toContain("imagem: fonte ausente");
+    // Imagem e reserva usam a mesma chave: o outbox recusa o segundo DM do mesmo dia.
+    expect(failed.outbox[0]!.idempotencyKey).toBe(ok.outbox[0]!.idempotencyKey);
+  });
 });

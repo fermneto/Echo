@@ -5,6 +5,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./server": "./src/server.ts",
+    "./imagem": "./src/summary-image.ts",
     "./ganhos": "./src/pg-gains.ts",
     "./perguntas": "./src/pg-questions.ts",
     "./execucoes": "./src/pg-runs.ts",
@@ -17,6 +18,10 @@
   },
   "dependencies": {
     "@anthropic-ai/sdk": "catalog:",
+    "@fontsource/geist-sans": "catalog:",
+    "@fontsource/inter": "catalog:",
+    "@fontsource/jetbrains-mono": "catalog:",
+    "@resvg/resvg-js": "catalog:",
     "@echo/actions": "workspace:*",
     "@echo/artifacts": "workspace:*",
     "@echo/brain": "workspace:*",
@@ -25,6 +30,7 @@
     "@echo/domain": "workspace:*",
     "@echo/observability": "workspace:*",
     "drizzle-orm": "catalog:",
+    "satori": "catalog:",
     "zod": "catalog:"
   },
   "devDependencies": {

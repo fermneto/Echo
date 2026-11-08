@@ -1,4 +1,4 @@
-import { FileChangedError, type ChatPlatform, type CodeWriter, type IssueWriter } from "@echo/connectors";
+import { FileChangedError, SlackApiError, type ChatPlatform, type CodeWriter, type IssueWriter } from "@echo/connectors";
 import { auditLog, brainNotes, createDb, createPool, identities, orgs, outboxActions, people, planItems, redistributionPlans, tasks } from "@echo/db";
 import { and, eq } from "drizzle-orm";
 import { appRoleUrl } from "@echo/db/testing";
@@ -48,7 +48,12 @@ describe.skipIf(!url)("executor do outbox (Postgres real)", () => {
   const chat = {
     postAgentReply: async (i: { channel: string; text: string; agentName: string }) => (calls.push(`slack.post ${i.channel} [${i.agentName}]: ${i.text}`), { ts: "1" }),
     sendDm: async (u: string, i: { text: string; blocks?: unknown[] }) => void calls.push(`slack.dm ${u}: ${i.text}${i.blocks ? ` [${i.blocks.length} blocos]` : ""}`),
+    sendDmFile: async (u: string, i: { filename: string; data: Uint8Array; comment: string }) => {
+      if (fileScopeMissing) throw new SlackApiError("files.getUploadURLExternal", "missing_scope");
+      calls.push(`slack.file ${u}: ${i.filename} (${i.data.byteLength} bytes) ${i.comment}`);
+    },
   } as unknown as ChatPlatform;
+  let fileScopeMissing = false;
   // Montado na hora do uso: a conexão `app` só existe depois do beforeAll.
   const deps = () => ({ db: app, writers: async () => ({ issues, code, chat }) });
 
@@ -141,6 +146,18 @@ describe.skipIf(!url)("executor do outbox (Postgres real)", () => {
       "github.reviewers org-teste/app#36: carla-dev",
       "slack.dm UCAR: A ECH-133 agora é sua. [1 blocos]",
     ]);
+  });
+
+  it("imagem no privado sem aprovação; sem permissão de arquivo no Slack, vai a versão em blocos", async () => {
+    calls.length = 0;
+    const payload = { personId: ids.car!, filename: "resumo-2026-11-07.png", title: "Resumo do dia, 07/11", comment: "Resumo do seu dia", pngBase64: Buffer.from([137, 80, 78, 71]).toString("base64"), text: "Resumo do seu dia, 07/11", blocks: [{ type: "header" }, { type: "section" }] };
+    await enqueueAction(app, orgId, { type: "slack.dm_image", target: "person:carla", idempotencyKey: "img1", payload });
+    expect((await drainActions(deps(), orgId)).done).toBe(1);
+    fileScopeMissing = true;
+    await enqueueAction(app, orgId, { type: "slack.dm_image", target: "person:carla", idempotencyKey: "img2", payload });
+    expect((await drainActions(deps(), orgId)).done).toBe(1);
+    fileScopeMissing = false;
+    expect(calls).toEqual(["slack.file UCAR: resumo-2026-11-07.png (4 bytes) Resumo do seu dia", "slack.dm UCAR: Resumo do seu dia, 07/11 [2 blocos]"]);
   });
 
   it("espelho: escreve no brains sem aprovação, guarda o sha e nunca sobrescreve um arquivo que mudou no Git", async () => {
