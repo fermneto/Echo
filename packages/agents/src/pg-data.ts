@@ -109,6 +109,8 @@ export function createPgAgentData(db: Database, orgId: string): AgentData {
           skills: r.skills,
           areas: r.areas,
           active: r.active,
+          jobTitle: opt(r.jobTitle),
+          languages: r.languages,
           avatar: r.avatar ? parseAvatarTraits(r.avatar, traitsFromSeed(r.id)).traits : undefined,
         }),
       );

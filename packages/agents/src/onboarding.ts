@@ -158,6 +158,11 @@ export function cleanResume(raw: unknown): ResumeProfile {
   };
 }
 
+/** O mesmo validador para o perfil editado à mão na ficha: limites iguais e nenhum dado pessoal. */
+export function cleanProfile(p: ResumeProfile): ResumeProfile {
+  return cleanResume({ cargo: p.jobTitle, habilidades: p.skills, areas: p.areas, idiomas: p.languages });
+}
+
 async function readResume(slm: JsonModel, text: string, timeoutMs: number): Promise<{ profile: ResumeProfile; inputTokens?: number; outputTokens?: number }> {
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);

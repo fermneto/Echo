@@ -198,6 +198,7 @@ export async function answer(req: AnswerRequest): Promise<AnswerResult> {
   return (await defaultAnswer())(req);
 }
 export {
+  cleanProfile,
   cleanResume,
   EMPTY_PROFILE,
   ONBOARDING_LIMIT,

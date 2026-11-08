@@ -66,4 +66,15 @@ describe("cadastro do RH: formulário", () => {
     expect(await err({ ...ok, curriculo: new File([new Uint8Array(2 * 1024 * 1024 + 1)], "cv.pdf", { type: "application/pdf" }) })).toBe("Currículo em PDF maior que 2 MB.");
     expect(await err({ ...ok, curriculo: new File(["x"], "cv.docx", { type: "application/vnd.openxmlformats-officedocument.wordprocessingml.document" }) })).toMatch(/PDF, \.txt, \.md/);
   });
+  it("equipe: obrigatória para quem não é do RH, e só das equipes da empresa", async () => {
+    const teams = ["t1", "t2"];
+    const r = await parseOnboardingForm(form({ ...ok, equipe: "t2" }), teams);
+    expect(r.ok && r.fields.teamId).toBe("t2");
+    const missing = await parseOnboardingForm(form(ok), teams);
+    expect(missing.ok ? null : missing.error).toBe("Escolha a equipe da pessoa.");
+    const other = await parseOnboardingForm(form({ ...ok, equipe: "t9" }), teams);
+    expect(other.ok ? null : other.error).toBe("Equipe desconhecida.");
+    const hr = await parseOnboardingForm(form({ ...ok, papel: "hr" }), teams);
+    expect(hr.ok && hr.fields.teamId).toBeUndefined();
+  });
 });

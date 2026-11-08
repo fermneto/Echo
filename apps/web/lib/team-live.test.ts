@@ -47,6 +47,23 @@ describe("equipe com o banco", () => {
     expect(countsOf(team).total).toBe(TEAM.length);
   });
 
+  it("quem foi cadastrado no painel entra no fim, com cidade pelo fuso e perfil do banco", () => {
+    const ana: Person = { id: "11111111-1111-4111-8111-111111111111", orgId: "org", name: "Ana Teste", role: "member", teamId: "t1", timezone: "Europe/Lisbon", workHours: WEEK, skills: ["Figma"], areas: ["mobile"], active: true, jobTitle: "Designer", languages: ["inglês"] };
+    const recife: Person = { ...ana, id: "22222222-2222-4222-8222-222222222222", name: "Bruna Teste", timezone: "America/Recife", jobTitle: undefined };
+    const inactive: Person = { ...ana, id: "33333333-3333-4333-8333-333333333333", name: "Caio Teste", active: false };
+    const team = withLiveAvailability(TEAM, [fernando, recife, ana, inactive], [], NOW);
+    expect(team).toHaveLength(TEAM.length + 2);
+    const [first, second] = team.slice(TEAM.length);
+    expect(first).toMatchObject({ id: ana.id, name: "Ana Teste", title: "Designer", city: "Lisboa", cityCode: "LIS", location: [38.72, -9.14], teamId: "t1", registered: true, skills: ["Figma"], languages: ["inglês"] });
+    // 06:12 em Lisboa, antes do expediente: o gêmeo cobre, como para qualquer pessoa.
+    expect(first!.availability).toEqual({ kind: "off", returns: "hoje às 9h, horário de Lisboa" });
+    // Fuso fora da lista: a cidade sai do nome do fuso, sem ponto no mapa.
+    expect(second).toMatchObject({ name: "Bruna Teste", title: "", city: "Recife", cityCode: "REC", registered: true });
+    expect(second!.location).toBeUndefined();
+    // As personas da demo não viram cadastradas.
+    expect(team.filter((p) => p.registered)).toHaveLength(2);
+  });
+
   it("sem banco, a equipe da demonstração; com falha na leitura, também", async () => {
     expect(await loadTeam(NOW, { hasDb: false })).toBe(TEAM);
     const err = vi.spyOn(console, "error").mockImplementation(() => {});

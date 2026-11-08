@@ -4,7 +4,9 @@ import { loadConfig } from "@echo/config";
 import { revalidatePath } from "next/cache";
 import { panelDb } from "@/lib/db";
 import { gainsOrgId } from "@/lib/gains";
-import { type CadastroState, parseOnboardingForm } from "@/lib/onboarding-form";
+import { TEAMS } from "@/lib/demo/teams";
+import { parseOnboardingForm } from "@/lib/onboarding-form";
+import type { CadastroState } from "@/lib/onboarding-options";
 import { personIdFor } from "@/lib/agent";
 import { currentPersona, isDemoSession } from "@/lib/session";
 
@@ -17,10 +19,11 @@ import { currentPersona, isDemoSession } from "@/lib/session";
 export async function cadastrarPessoa(_prev: CadastroState, form: FormData): Promise<CadastroState> {
   const me = await currentPersona();
   if (!me || (me.role !== "hr" && me.role !== "leader")) return { status: "error", error: "Só o RH e a liderança cadastram pessoas." };
-  const parsed = await parseOnboardingForm(form);
+  const parsed = await parseOnboardingForm(form, TEAMS.map((t) => t.id));
   if (!parsed.ok) return { status: "error", error: parsed.error };
   const f = parsed.fields;
   if (me.role === "leader" && f.role === "hr") return { status: "error", error: "A liderança cadastra pessoas da equipe; o papel de RH só o RH dá." };
+  if (me.role === "leader" && f.teamId !== me.teamId) return { status: "error", error: "A liderança só cadastra pessoas na própria equipe." };
 
   if (isDemoSession(me)) {
     const { traitsFromSeed } = await import("@echo/domain");
@@ -46,7 +49,7 @@ export async function cadastrarPessoa(_prev: CadastroState, form: FormData): Pro
     ollama: cfg.SLM_OLLAMA_URL ? { url: cfg.SLM_OLLAMA_URL, model: cfg.SLM_MODEL, timeoutMs: 60_000 } : undefined,
   });
   try {
-    const r = await onboard({ orgId: gainsOrgId(me.orgId), actorId: personIdFor(me.id), name: f.name, role: f.role, timezone: f.timezone, workHours: f.workHours, ...(f.resumeText ? { resumeText: f.resumeText } : {}), ...(f.photo ? { photo: f.photo } : {}) });
+    const r = await onboard({ orgId: gainsOrgId(me.orgId), actorId: personIdFor(me.id), name: f.name, role: f.role, ...(f.teamId ? { teamId: f.teamId } : {}), timezone: f.timezone, workHours: f.workHours, ...(f.resumeText ? { resumeText: f.resumeText } : {}), ...(f.photo ? { photo: f.photo } : {}) });
     const notes = [
       r.photo === "model"
         ? "Bonequinho feito a partir da foto. A foto não foi guardada."
@@ -64,7 +67,8 @@ export async function cadastrarPessoa(_prev: CadastroState, form: FormData): Pro
             : "Leitura do currículo desligada neste ambiente (sem SLM_OLLAMA_URL): cargo e habilidades ficam para preencher na ficha.",
     ];
     revalidatePath("/equipe");
-    return { status: "done", name: f.name, avatar: r.avatar, ...r.profile, notes, saved: true };
+    revalidatePath("/");
+    return { status: "done", personId: r.personId, name: f.name, avatar: r.avatar, ...r.profile, notes, saved: true };
   } catch (err) {
     const { OnboardingLimitError, ONBOARDING_LIMIT } = await import("@echo/agents");
     if (err instanceof OnboardingLimitError) return { status: "error", error: `A empresa chegou ao limite de ${ONBOARDING_LIMIT.perHour} cadastros por hora. Tente de novo mais tarde.` };

@@ -8,8 +8,8 @@ import { LogRunRecorder } from "@echo/observability";
 import { eq } from "drizzle-orm";
 import type pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { onboardPerson } from "./onboarding.ts";
-import { createPgOnboardingStore, readAvatar } from "./pg-onboarding.ts";
+import { cleanProfile, onboardPerson } from "./onboarding.ts";
+import { createPgOnboardingStore, readAvatar, updateProfile } from "./pg-onboarding.ts";
 
 const url = process.env.DATABASE_URL;
 const traits: AvatarTraits = { hair: "bun", hairColor: "teal", skin: "s4", eyewear: "none", facialHair: "none", top: "jacket", topColor: "orange", headwear: "none" };
@@ -54,5 +54,18 @@ describe.skipIf(!url)("cadastro pelo RH, em Postgres", () => {
     const store = createPgOnboardingStore(db);
     expect(await store.recentCount(org, new Date(Date.now() - 3_600_000))).toBe(1);
     expect(await store.recentCount(other, new Date(Date.now() - 3_600_000))).toBe(0);
+  });
+
+  it("perfil editado na ficha: grava validado, registra quem editou e não atravessa empresa", async () => {
+    const id = randomUUID();
+    await asSystem(createDb(admin), (tx) => tx.insert(people).values({ id, orgId: org, name: "Bia Teste", role: "member", timezone: "Europe/Lisbon", workHours: { days: [1], start: "09:00", end: "18:00" } }));
+    const profile = cleanProfile({ jobTitle: "Analista de dados", skills: ["SQL", "bia@exemplo.com"], areas: ["dados"], languages: ["Inglês"] });
+    expect(await updateProfile(db, org, id, profile, "rh-1")).toBe(true);
+    expect(await updateProfile(db, other, id, profile, "rh-1")).toBe(false);
+
+    const [row] = await asSystem(createDb(admin), (tx) => tx.select().from(people).where(eq(people.id, id)));
+    expect(row).toMatchObject({ jobTitle: "Analista de dados", skills: ["SQL"], areas: ["dados"], languages: ["inglês"] });
+    const audit = await asSystem(createDb(admin), (tx) => tx.select().from(auditLog).where(eq(auditLog.target, `person:${id}`)));
+    expect(audit.map((a) => [a.orgId, a.actor, a.action])).toEqual([[org, "person:rh-1", "perfil:editar"]]);
   });
 });

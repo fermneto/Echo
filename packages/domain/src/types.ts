@@ -23,6 +23,9 @@ export interface Person {
   skills: string[];
   areas: string[];
   active: boolean;
+  /** Cargo e idiomas declarados no cadastro (perfil fechado, sem dados pessoais). */
+  jobTitle?: string | undefined;
+  languages?: string[] | undefined;
   /** Traços do bonequinho (avatar.ts), quando vieram da foto no cadastro. */
   avatar?: AvatarTraits | undefined;
 }

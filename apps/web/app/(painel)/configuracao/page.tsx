@@ -1,3 +1,4 @@
+import { TEAMS } from "@/lib/demo/teams";
 import { panelDb } from "@/lib/db";
 import { BUDGET, formatUsd } from "@/lib/demo/runs";
 import { gainsOrgId } from "@/lib/gains";
@@ -75,7 +76,7 @@ export default async function ConfiguracaoPage() {
             </h2>
             <span className="mono muted">Foto e currículo ficam só neste pedido</span>
           </div>
-          <CadastroPessoa action={cadastrarPessoa} />
+          <CadastroPessoa action={cadastrarPessoa} teams={TEAMS} />
           <p className="card__foot">
             O currículo é lido por um modelo aberto na nossa infraestrutura e vira cargo, habilidades, áreas e idiomas, sem dados pessoais. A foto vira traços de uma lista fechada (cabelo, pele, óculos, roupa), sem gênero, idade ou origem.
           </p>

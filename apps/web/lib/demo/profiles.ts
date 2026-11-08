@@ -110,5 +110,7 @@ const PROFILES: Record<string, Profile> = {
 };
 
 export function profileFor(p: Persona): Profile {
+  // Cadastrada no painel: o perfil vem do banco (currículo lido no cadastro ou editado na ficha).
+  if (p.registered) return { work: [], notes: [], skills: p.skills.length ? [{ label: "Do perfil", items: p.skills }] : [], tools: [], languages: p.languages ?? [] };
   return PROFILES[p.id] ?? { work: [], notes: [], skills: [], about: `${p.title}. Persona simulada, sem trabalho registrado na demo.`, tools: [], languages: [] };
 }

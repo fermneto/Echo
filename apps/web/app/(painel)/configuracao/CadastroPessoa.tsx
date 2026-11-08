@@ -2,7 +2,8 @@
 
 import { useActionState } from "react";
 import { PixelSprite } from "@/components/PixelSprite";
-import { type CadastroState, PHOTO_ACCEPT, RESUME_ACCEPT, ROLE_OPTIONS, ZONES } from "@/lib/onboarding-form";
+import Link from "next/link";
+import { type CadastroState, PHOTO_ACCEPT, RESUME_ACCEPT, ROLE_OPTIONS, ZONES } from "@/lib/onboarding-options";
 
 const DAYS = [
   { n: 1, label: "Seg" },
@@ -15,7 +16,7 @@ const DAYS = [
 ];
 
 /** Cadastro pelo RH: dados do expediente, foto e currículo. O resultado mostra o bonequinho e o contexto lido. */
-export function CadastroPessoa({ action }: { action: (prev: CadastroState, form: FormData) => Promise<CadastroState> }) {
+export function CadastroPessoa({ action, teams }: { action: (prev: CadastroState, form: FormData) => Promise<CadastroState>; teams: readonly { id: string; name: string }[] }) {
   const [state, submit, pending] = useActionState(action, { status: "idle" } as CadastroState);
 
   return (
@@ -33,6 +34,17 @@ export function CadastroPessoa({ action }: { action: (prev: CadastroState, form:
                 {r.label}
               </option>
             ))}
+          </select>
+        </label>
+        <label className="onboard__field">
+          <span className="field-row__k">Equipe</span>
+          <select className="field" name="equipe" defaultValue={teams[0]?.id ?? ""}>
+            {teams.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name}
+              </option>
+            ))}
+            <option value="">Sem equipe (só para o papel RH)</option>
           </select>
         </label>
         <label className="onboard__field">
@@ -89,7 +101,9 @@ export function CadastroPessoa({ action }: { action: (prev: CadastroState, form:
             <div className="onboard__stage">
               <PixelSprite look={state.avatar} mode="person" size={132} label={`Bonequinho de ${state.name}`} />
             </div>
-            <p className="onboard__name">{state.name}</p>
+            <p className="onboard__name">
+              {state.personId ? <Link href={`/pessoas/${state.personId}`}>{state.name}</Link> : state.name}
+            </p>
             <p className="mono muted onboard__title">{state.jobTitle ?? "Cargo a preencher"}</p>
             {state.skills.length || state.areas.length || state.languages.length ? (
               <ul className="chips onboard__chips" role="list">
