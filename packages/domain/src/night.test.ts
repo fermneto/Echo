@@ -166,6 +166,8 @@ describe("morningPlan", () => {
     const fixes = [{ fixId: "f1", pr: { repository: "r/app", number: 44 }, draftPrNumber: 45, readyAt: new Date(now.getTime() - 5 * HOUR), tests: "passou" as const }];
     const [first] = morningPlan({ ...input, fixes }).items;
     expect(first).toEqual({ id: "fix:f1", kind: "fix_ready", text: "Correção pronta no seu PR 44, aguardando sua aprovação", reason: "testes relatados pelo agente passaram; a CI do rascunho 45 confirma", ref: "fix:f1" });
+    const [kept] = morningPlan({ ...input, fixes: [{ ...fixes[0]!, delegationNote: "Ficou com você: caminho sensível: src/pagamentos/cobranca.ts." }] }).items;
+    expect(kept!.reason).toBe("testes relatados pelo agente passaram; a CI do rascunho 45 confirma. Ficou com você: caminho sensível: src/pagamentos/cobranca.ts.");
   });
 
   it("até 7 itens, com o resto em 'ver mais'; descartado fica fora", () => {

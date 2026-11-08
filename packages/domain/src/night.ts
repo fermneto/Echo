@@ -178,6 +178,8 @@ export interface PlanFix {
   readyAt: Date;
   /** Resultado dos testes relatado pelo agente; a CI do rascunho é quem confirma. */
   tests: "passou" | "falhou" | "nao_rodou";
+  /** Por que a delegação escrita da pessoa não cobriu esta correção ("Ficou com você: …"), quando ela tem delegação. */
+  delegationNote?: string | undefined;
 }
 
 export type PlanItemKind = "fix_ready" | "question" | "review_request" | "task_due" | "task_overdue" | "finding" | "ci_failed" | "own_pr_waiting";
@@ -233,7 +235,7 @@ export function morningPlan(input: MorningPlanInput): { items: PlanItem[]; more:
     ranked.push({
       group: 0,
       key: f.readyAt.getTime() - 1e15,
-      item: { id: `fix:${f.fixId}`, kind: "fix_ready", text: `Correção pronta no seu PR ${f.pr.number}, aguardando sua aprovação`, reason: `${tests}; a CI do rascunho ${f.draftPrNumber} confirma`, ref: `fix:${f.fixId}` },
+      item: { id: `fix:${f.fixId}`, kind: "fix_ready", text: `Correção pronta no seu PR ${f.pr.number}, aguardando sua aprovação`, reason: `${tests}; a CI do rascunho ${f.draftPrNumber} confirma${f.delegationNote ? `. ${f.delegationNote}` : ""}`, ref: `fix:${f.fixId}` },
     });
   }
   for (const q of input.questions) {

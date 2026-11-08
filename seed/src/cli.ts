@@ -8,7 +8,7 @@ if (!url) {
   process.exit(1);
 }
 
-const pool = createPool(url, 1);
+const pool = createPool(url, 1, { defaultScope: "system" });
 try {
   const summary = await resetDemo(createDb(pool));
   console.log(`Empresa de demonstração recriada (${summary.orgId}).`);

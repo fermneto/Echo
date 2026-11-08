@@ -54,8 +54,12 @@ export const apiSchema = baseSchema.extend({
   API_PORT: port(3001),
 });
 
+/** Roteador de custo: consulta simples ao gêmeo sai por regra, sem o Sonnet. false manda tudo ao modelo. */
+const router = { ANSWER_ROUTER: bool.default(true) };
+
 export const webSchema = baseSchema.extend({
   ...anthropic,
+  ...router,
   PORT: port(3000).optional(),
   WEB_PORT: port(3000),
   /** Banco: necessário para o login com o Slack (sem ele, só o login por persona da demo). */
@@ -69,10 +73,33 @@ export const webSchema = baseSchema.extend({
   PANEL_URL: optionalString.pipe(z.url().optional()),
   /** Espaço do Slack da empresa, para o login ir direto a ele (opcional). */
   DEMO_SLACK_TEAM_ID: optionalString,
+  /** GitHub App (o mesmo do worker): Meu plano confere o rascunho da correção antes de aprovar. */
+  GITHUB_APP_ID: optionalString,
+  GITHUB_PRIVATE_KEY: optionalString,
   /** Modelo aberto (Ollama) que lê o currículo no cadastro pelo RH. Sem ele, cargo e habilidades ficam para a ficha. */
   SLM_OLLAMA_URL: optionalString.pipe(z.string().regex(/^(https?:\/\/)?[\w.-]+(:\d+)?\/?$/, "use http://host:porta ou host:porta").optional()),
   SLM_MODEL: z.string().min(1).default("qwen3:4b-instruct"),
 });
+
+/**
+ * Modelo aberto pequeno (Ollama): triagem da revisão noturna e resumo do dia (worker) e juiz da delegação da
+ * correção (worker). Endereço do serviço: URL ou host:porta (a Render entrega host:porta). Sem ele, esses fluxos
+ * usam só a regra, e nenhuma correção é unida pela delegação.
+ */
+const slm = {
+  SLM_OLLAMA_URL: optionalString.pipe(z.string().regex(/^(https?:\/\/)?[\w.-]+(:\d+)?\/?$/, "use http://host:porta ou host:porta").optional()),
+  /** Tag do modelo no Ollama (Apache 2.0). */
+  SLM_MODEL: z.string().min(1).default("qwen3:4b-instruct"),
+  /** Tempo máximo da triagem de um PR e do juiz da delegação (CPU, ~15 a 30 s; a primeira chamada também carrega o modelo). */
+  TRIAGE_TIMEOUT_MS: z.coerce.number().int().min(1000).max(300_000).default(120_000),
+  /**
+   * SSLM do roteador de custo da resposta (mesmo Ollama), para a dúvida da regra. Vazio = desligado (padrão): o
+   * Qwen3 0.6B e o 4B erraram demais na checagem (docs/engenharia.md). O modelo precisa estar no Ollama.
+   */
+  SSLM_MODEL: optionalString,
+  /** Tempo máximo do SSLM; passou disso, a pergunta segue para o Sonnet. */
+  SSLM_TIMEOUT_MS: z.coerce.number().int().min(500).max(60_000).default(8_000),
+};
 
 /** Correção (etapa 10): roda no worker; o reviewer aceita as mesmas variáveis. */
 const fix = {
@@ -121,15 +148,8 @@ export const workerSchema = baseSchema.extend({
   // Ensaio de dia: quem é citado é tratado como ausente, sem olhar o status do Slack (só para a demo).
   DEMO_ALWAYS_AWAY: bool.default(false),
   NIGHT_REVIEW_UTC_HOUR: z.coerce.number().int().min(0).max(23).default(5),
-  /**
-   * Modelo aberto pequeno (Ollama) da triagem da revisão noturna e do resumo do dia. Endereço do serviço: URL ou
-   * host:porta (a Render entrega host:porta). Sem ele, os dois fluxos usam só a regra.
-   */
-  SLM_OLLAMA_URL: optionalString.pipe(z.string().regex(/^(https?:\/\/)?[\w.-]+(:\d+)?\/?$/, "use http://host:porta ou host:porta").optional()),
-  /** Tag do modelo no Ollama (Apache 2.0). */
-  SLM_MODEL: z.string().min(1).default("qwen3:4b-instruct"),
-  /** Tempo máximo da triagem de um PR (CPU, ~15 a 30 s; o primeiro PR da noite também carrega o modelo). */
-  TRIAGE_TIMEOUT_MS: z.coerce.number().int().min(1000).max(300_000).default(120_000),
+  ...slm,
+  ...router,
   /** Tempo máximo do resumo do dia (a saída é maior que a da triagem). */
   SUMMARY_TIMEOUT_MS: z.coerce.number().int().min(1000).max(900_000).default(300_000),
 });

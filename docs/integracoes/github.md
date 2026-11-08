@@ -5,15 +5,15 @@
 - **Recebe** push, PR (aberto, fechado e unido), revisão, comentário de revisão e o resultado dos checks (`check_suite`) por webhook assinado. Grava os fatos em `work_events`, o espelho em `pull_requests` e o crédito por coautoria e por revisão atendida em `contributions`.
 - **Lê ao vivo**, pelo GitHub App: PR com arquivos (e o `mergeable`, que vem nulo enquanto o GitHub calcula), PR de uma branch, último commit, PRs abertos e checks de um commit.
 - **Reconcilia** a cada 10 minutos: commits de 7 dias, PRs abertos, arquivos dos PRs que mudaram e o estado dos que saíram da lista. Também pede o reenvio das entregas que falharam.
-- **Escreve só pelo outbox:** comentário de análise no PR (sem aprovação, e nunca aprovando o PR) e pedido de revisores (com aprovação).
+- **Escreve só pelo outbox:** comentário de análise no PR (sem aprovação, e nunca aprovando o PR), pedido de revisores (com aprovação) e o espelho das notas no repositório `brains` (sem aprovação, nunca sobrescrevendo uma edição feita no Git).
 
 **Nunca:** aprova PR, faz merge ou guarda logs da CI.
 
-**PRs:** #5 (adaptador), #7 (escritas aprovadas), #8 (reconciliação), #15 (checks).
+**PRs:** #5 (adaptador), #7 (escritas aprovadas), #8 (reconciliação), #15 (checks), #29 (espelho das notas).
 
 ## Criar o app
 
-1. Crie uma organização de teste (ex.: `<org>-teste`) com um repositório **público** `app`, só com dados sintéticos.
+1. Crie uma organização de teste (ex.: `<org>-teste`) com um repositório **público** `app`, só com dados sintéticos, e um repositório **privado** `brains`, vazio, para o espelho das notas.
 2. **Settings → Developer settings → GitHub Apps → New GitHub App:**
    - **Webhook URL:** `https://<API>/webhooks/github`.
    - **Webhook secret:** `openssl rand -hex 20`, que vai para `GITHUB_WEBHOOK_SECRET`.
@@ -24,7 +24,7 @@
    ```bash
    awk 'NF {printf "%s\\n", $0}' chave.pem   # cole o resultado entre aspas em GITHUB_PRIVATE_KEY
    ```
-4. **Install App** na organização de teste, só no repositório `app`.
+4. **Install App** na organização de teste, só nos repositórios `app` e `brains`.
 
 ## Variáveis
 
@@ -34,7 +34,7 @@
 | `GITHUB_APP_ID` | worker | página do app |
 | `GITHUB_PRIVATE_KEY` | worker | a chave `.pem` em uma linha |
 | `DEMO_GITHUB_INSTALLATION_ID` | `.env` | `pnpm integracoes:conferir` |
-| `BRAINS_REPOSITORY` | worker | opcional: repositório do espelho das notas (push nele não é trabalho) |
+| `BRAINS_REPOSITORY` | worker | `<org>-teste/brains`: repositório do espelho das notas (push nele não é trabalho, mas sincroniza as notas) |
 
 ## Conferir
 
@@ -95,6 +95,28 @@ pnpm integracoes:reconciliar
 
 Esperado: o PR como `merged`, um `pr_merged` e o commit novo em `work_events`. Rodar de novo não duplica nada.
 
+### G5. Espelho das notas no Obsidian (precisa do #29)
+
+1. Com `BRAINS_REPOSITORY` no `.env` do worker, rode `pnpm integracoes:reconciliar`. Esperado: as notas da empresa aparecem no repositório `brains`, uma pasta por agente, com `tipo` e `visibilidade` no cabeçalho. As notas privadas não vão para o repositório.
+2. Clone o repositório e abra a pasta como cofre no Obsidian (**Open folder as vault**).
+3. Edite uma nota sua e faça push. Esperado em segundos (pelo aviso do push): a versão nova aparece no painel, em Notas, com você como autor.
+
+```sql
+select path, version, sha is not null as sincronizada, mirror_conflict_at from brain_notes order by updated_at desc limit 5;
+select v.version, v.author_kind, p.name from brain_note_versions v left join people p on p.id = v.author_id order by v.created_at desc limit 5;
+select action, target from audit_log where actor = 'echo:espelho' order by created_at desc limit 10;
+```
+
+Casos que devem ser recusados com aviso (`mirror:*` na auditoria), sem mudar a nota:
+- push de uma conta do GitHub que não está em `DEMO_IDENTITIES` → `mirror:conta_nao_ligada`;
+- edição da nota de outra pessoa, sem ser da liderança da equipe dela → `mirror:sem_permissao`;
+- arquivo novo, que não existe no Echo → `mirror:desconhecido`;
+- arquivo com maiúscula, acento ou espaço no nome → `mirror:nome_invalido`.
+
+**Conflito:** mude uma nota pelo Echo e, antes da rodada seguinte, edite a mesma nota no Obsidian. Esperado: vale a sua edição, a versão do Echo fica no histórico e a nota ganha `mirror_conflict_at`, com o aviso `mirror:conflito`.
+
+**Arquivo apagado no Git:** a nota não é apagada. Ela ganha `mirror_conflict_at`, o aviso `mirror:removido`, e não é recriada sozinha.
+
 ## Problemas comuns
 
 | Sintoma | Causa provável |
@@ -104,4 +126,5 @@ Esperado: o PR como `merged`, um `pr_merged` e o commit novo em `work_events`. R
 | O aviso chega, mas não grava | `DEMO_GITHUB_INSTALLATION_ID` não ligado: a instalação desconhecida é descartada |
 | Commit sem pessoa | O login do autor não está em `DEMO_IDENTITIES`, ou o commit não está ligado a uma conta do GitHub (o Echo não adivinha pelo nome) |
 | 403 ao comentar | O app não tem *Pull requests: Read and write*, ou não está instalado no repositório |
+| Notas não aparecem no `brains` | Falta `BRAINS_REPOSITORY` no worker, o app não está instalado no `brains`, ou falta *Contents: Read and write* (`pnpm integracoes:diagnostico` mostra qual) |
 | "limite de taxa" | Muitas consultas ao vivo: a reconciliação já limita a 10 detalhes por repositório a cada rodada |
