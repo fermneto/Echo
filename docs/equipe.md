@@ -2,7 +2,7 @@
 
 Quatro frentes em paralelo. Cada frente é dona de pastas próprias, para quase não haver conflito de merge. Os pontos de contato entre as frentes são os **contratos** em `packages/*/src/index.ts`. Mudar um contrato exige avisar o time antes.
 
-Situação em **7/11/2026, 21h**. O que bloqueia, o que configurar e o que testar está em [`pendencias.md`](pendencias.md).
+Situação em **8/11/2026**, com a `main` no merge do #78. O que bloqueia, o que configurar e o que testar está em [`pendencias.md`](pendencias.md).
 
 ## Prazos
 
@@ -27,21 +27,21 @@ Situação em **7/11/2026, 21h**. O que bloqueia, o que configurar e o que testa
 
 ## Frente 1: Integrações com aplicativos
 
-**Dona de:** `packages/connectors`, `apps/api` (webhooks, OAuth e aviso de RH), `packages/actions` (executor do outbox) e a configuração das plataformas (GitHub App, Slack, Linear, agenda e Vercel).
+**Dona de:** `packages/connectors`, `apps/api` (webhooks, OAuth e aviso de RH), `packages/actions` (executor do outbox) e a configuração das plataformas (GitHub App, Slack, Linear, Jira, agenda e Vercel).
 
-**Entregue:** webhooks com assinatura e sem duplicar (etapa 3), adaptadores do GitHub, Linear e Slack, reconciliação, executor do outbox (comentário, revisores, Linear, Slack, espelho, rascunho e união da correção), login no painel com o Slack e aviso de RH (etapa 15), agenda (etapa 18), CI/CD (etapa 19) e espelho das notas (etapa 14).
+**Entregue:** webhooks com assinatura e sem duplicar (etapa 3), adaptadores do GitHub, Linear e Slack, reconciliação, executor do outbox (comentário, revisores, Linear, Slack, espelho, rascunho e união da correção), login no painel com o Slack e aviso de RH (etapa 15), agenda (etapa 18), CI/CD (etapa 19), espelho das notas (etapa 14) e o Jira Cloud no lugar do Linear (etapa 21, #77), com token de API de conta de serviço (`JIRA_*`) e as mesmas ações aprovadas `linear.assign` e `linear.comment`.
 
-**Falta até a entrega:** os testes A a L contra as plataformas de verdade (`pendencias.md`, seção 4.2).
+**Falta até a entrega:** os testes A a L contra as plataformas de verdade (`pendencias.md`, seção 4.2). Sem bloquear: as duas sugestões da revisão do #77 para o webhook do Jira (B15).
 
 **Pronto quando:** um push real aparece em `work_events`, o reenvio não duplica e uma menção real no Slack recebe a resposta "Agente de Fernando".
 
 ## Frente 2: Funções (regras e agentes)
 
-**Dona de:** `packages/domain`, `packages/brain`, `packages/agents`, `packages/db` (esquema, migrações e RLS), `seed/`, os fluxos em `apps/worker` e `apps/reviewer` (correção e delegação), além do uso do modelo aberto (triagem, resumo do dia e juiz da delegação).
+**Dona de:** `packages/domain`, `packages/brain`, `packages/agents`, `packages/db` (esquema, migrações e RLS), `seed/`, os fluxos em `apps/worker` (inclusive a correção e a delegação, que rodam no worker desde o #61), além do uso do modelo aberto (triagem, resumo do dia e juiz da delegação).
 
-**Entregue:** isolamento com RLS e escopo `"none"` por padrão (etapa 2), regras fixas (4), cérebro (5), resposta com validador (6), quem sabe (7), nota do dia (8), revisão noturna e plano da manhã (9), correção em ambiente isolado ligada ao GitHub (10), redistribuição (11), relatório com crédito por ajuda (12), ganhos (13), resumo do dia por modelo aberto (26) e "Seu agente": estilo e delegação escritos pela pessoa, com o juiz pequeno (#50).
+**Entregue:** isolamento com RLS e escopo `"none"` por padrão (etapa 2), regras fixas (4), cérebro (5), resposta com validador (6), quem sabe (7), nota do dia (8), revisão noturna e plano da manhã (9), correção em ambiente isolado ligada ao GitHub (10), redistribuição (11), relatório com crédito por ajuda (12), ganhos (13), resumo do dia por modelo aberto (26), que chega como imagem no privado do Slack, e "Seu agente": estilo e delegação escritos pela pessoa, com o juiz pequeno (#50). A regra 1 com a delegação foi decidida em 8/11 e está no `CLAUDE.md`.
 
-**Falta até a entrega:** o merge do #50, o ok das outras frentes na proposta da regra 1 (B11) e o juiz da delegação com o Qwen3 de verdade.
+**Falta até a entrega:** nada bloqueante. O #50 entrou, a regra 1 foi decidida (B11) e o juiz da delegação passou com o Qwen3 de verdade (6 de 6).
 
 **Pronto quando:** uma pergunta no painel ou no Slack recebe a resposta "Agente de Fernando" com fontes, a nota confirmada muda essa resposta, e um erro plantado num PR vira uma correção aprovável.
 
@@ -49,9 +49,9 @@ Situação em **7/11/2026, 21h**. O que bloqueia, o que configurar e o que testa
 
 **Dona de:** `apps/web` (telas, estilos e componentes) e `packages/artifacts`. Mudança de tela feita por outra frente (por exemplo, o card "Seu agente" e os botões da correção em Meu plano) passa pela revisão visual desta frente.
 
-**Entregue:** login por persona, ficha da pessoa com "Pergunte ao gêmeo", simulador, notas, Meu plano, Redistribuição, Relatórios, Ganhos, Custo e execuções, Resumos (etapa 26), landing e identidade visual.
+**Entregue:** telas com dados reais para quem é de empresa conectada, com o recorte que fica só na própria pessoa se a leitura das equipes falhar (#73), login por persona, ficha da pessoa com "Pergunte ao gêmeo", simulador, notas, Meu plano, Redistribuição, Relatórios, Ganhos, Custo e execuções, Resumos (etapa 26), landing e identidade visual.
 
-**Falta até a entrega:** a revisão visual do card "Seu agente" (`apps/web/components/AgentProfileForm.tsx`) e dos botões Aprovar e Recusar da correção (`apps/web/app/(painel)/plano/PlanList.tsx`).
+**Falta até a entrega:** a revisão visual do card "Seu agente" (`apps/web/components/AgentProfileForm.tsx`) e dos botões Aprovar e Recusar da correção (`apps/web/app/(painel)/plano/PlanList.tsx`); as equipes escolhidas pelo RH no "Pergunte ao Echo" com banco (B13); e o tratamento de erro do banco em `/redistribuicao`, `/execucoes` e `/resumos` (B14).
 
 **Pronto quando:** o roteiro de 3 minutos da aba Demo pode ser clicado do começo ao fim.
 
@@ -59,14 +59,13 @@ Situação em **7/11/2026, 21h**. O que bloqueia, o que configurar e o que testa
 
 **Dona de:** `evals/`, os testes ponta a ponta (Playwright), `.github/workflows`, `infra/` (Blueprint da Render e imagens, inclusive a do modelo aberto) e a submissão.
 
-**Entregue:** CI e deploy pela Render via Actions, com a migração antes do código; os 15 casos fixos de segurança e 3 de idioma (inglês e espanhol), que passam com o modelo real (18 de 18).
+**Entregue:** CI e deploy pela Render via Actions, com a migração antes do código; `pnpm e2e`, a história da demo no navegador com Playwright, sem modelo, na CI (#75, B12); a fila sem jobs repetidos pela agenda (#74); os 15 casos fixos de segurança e 3 de idioma (inglês e espanhol), que passam com o modelo real (18 de 18).
 
 **Falta até a entrega:**
 
 | O quê | Detalhe |
 |---|---|
-| Render | Criar o `echo-reviewer` do Blueprint e preencher as variáveis (B7) |
-| `pnpm e2e` | História da demo no navegador, sem modelo, na CI (B12) |
+| Render | Preencher `FIX_AGENT_ID` e `FIX_ENVIRONMENT_ID` no `echo-worker` (B7). O `echo-reviewer` não é mais necessário para a correção |
 | Submissão | Roteiro ensaiado com cronômetro, vídeo, README e lista de ferramentas usadas (incluindo o Claude Code) |
 | Negócio | Problema e quanto custa (espera entre fusos), tamanho de mercado, "por que agora", concorrentes (Viven, Twin1) e quem paga (o RH). Pitch de 3 minutos, texto da submissão e Desafio Tako |
 | Prêmio | Domínio próprio, landing page e e-mail corporativo no mesmo domínio, exigidos para resgatar os créditos AWS |
@@ -80,7 +79,7 @@ Situação em **7/11/2026, 21h**. O que bloqueia, o que configurar e o que testa
 | Esquema do banco | `packages/db/src/schema.ts` | Funções (RLS) | Todos |
 | Tipos e regras puras | `packages/domain/src/index.ts` | Funções | Integrações, Web |
 | Portas das plataformas (leitura e escrita) | `packages/connectors/src/index.ts` | Integrações | Funções, Actions |
-| Porta da correção (`FixCodeHost`) | `packages/agents/src/fix.ts`, com `fixHostOf` em `packages/connectors` | Funções e Integrações | Reviewer, Web |
+| Porta da correção (`FixCodeHost`) | `packages/agents/src/fix.ts`, com `fixHostOf` em `packages/connectors` | Funções e Integrações | Worker, Web |
 | Cérebro | `packages/brain/src/index.ts` | Funções | Web |
 | Saída do agente e validador | `packages/agents/src/index.ts` | Funções | Avaliador, Web |
 | Ações aprovadas (outbox) | `packages/actions/src/index.ts` | Integrações | Funções, Web |
@@ -89,5 +88,5 @@ Situação em **7/11/2026, 21h**. O que bloqueia, o que configurar e o que testa
 
 ## Se o tempo apertar
 
-- **Cortar nesta ordem:** a delegação (sem `SLM_OLLAMA_URL` no reviewer, toda correção espera o autor), a correção em ambiente isolado (o reviewer fora da Render; a revisão noturna continua comentando) e o Linear real (fica simulado).
+- **Cortar nesta ordem:** a delegação (sem `SLM_OLLAMA_URL` no worker, toda correção espera o autor; mas a triagem e o resumo do dia também passam a sair só por regra), a correção em ambiente isolado (sem `FIX_AGENT_ID` e `FIX_ENVIRONMENT_ID` no worker; a revisão noturna continua comentando) e o Linear real (fica simulado).
 - **Não cortar:** a resposta com fonte, o plano da manhã, a redistribuição aprovada e o relatório com crédito pelas ajudas.
