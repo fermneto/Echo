@@ -13,7 +13,8 @@ export type ActionType =
   | "github.mirror_write"
   | "github.mirror_delete"
   | "slack.post"
-  | "slack.dm";
+  | "slack.dm"
+  | "slack.dm_image";
 
 export interface OutboxAction<P = Record<string, unknown>> {
   type: ActionType;
@@ -41,6 +42,7 @@ export const REQUIRES_APPROVAL: Record<ActionType, boolean> = {
   "github.mirror_delete": false,
   "slack.post": false,
   "slack.dm": false,
+  "slack.dm_image": false,
 };
 
 export { approveAction, drainActions, enqueueAction, MAX_ATTEMPTS, orgsWithApprovedActions, PermanentActionError, releaseStuckActions, type ActionPayloads, type ExecutorDeps } from "./executor.ts";
