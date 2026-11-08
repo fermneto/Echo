@@ -1,5 +1,5 @@
 import { renderSummaryPng } from "@echo/agents/imagem";
-import { allOrgIds, createGithubGainsHistory, serverFix, dueAwayDigests, dueEndOfDay, dueMorning, needsGainsBaseline, serverAwayDigest, serverDaySummary, serverEndOfDay, serverGains, serverMorningPlan, serverNightReview, serverRedistribution, serverWeeklyReport, dueWeeklyReports } from "@echo/agents/server";
+import { allOrgIds, createGithubGainsHistory, serverFix, dueAwayDigests, dueEndOfDay, dueMorning, needsGainsBaseline, serverAwayDigest, serverDaySummary, serverEndOfDay, serverGains, serverMorningPlan, serverNightReview, serverRedistribution, serverWeeklyReport, dueWeeklyReports, readAvatar } from "@echo/agents/server";
 import { ensureProductNote } from "@echo/brain/pg";
 import { loadConfig } from "@echo/config";
 import { createDb, createPool } from "@echo/db";
@@ -12,6 +12,7 @@ import { giveUpStaleQuestions, handleSlackInteraction, handleSlackMessage } from
 import { createInteractionRouter } from "./slack-interactions.ts";
 import type { SlackMessageJob } from "./inbox.ts";
 import { registerActions } from "./actions.ts";
+import { outboxAgentIcon } from "./agent-icon.ts";
 import { registerInbox } from "./inbox.ts";
 import { registerMirror } from "./mirror.ts";
 import { createWorkerRunRecorder } from "./runs.ts";
@@ -37,7 +38,8 @@ await queue.start();
 // Ingestão, outbox, espelho e reconciliação: execuções no log e em agent_runs (as rodadas sem efeito ficam de fora).
 const runs = createWorkerRunRecorder(db, log);
 await registerInbox(db, queue, runs, { brainsRepository: cfg.BRAINS_REPOSITORY });
-const stopActions = await registerActions({ db, writers: writersFromEnv(db, cfg) }, queue, runs, log);
+// O que sai pelo outbox em nome de um gêmeo leva o bonequinho dele, como as respostas ao vivo.
+const stopActions = await registerActions({ db, writers: writersFromEnv(db, cfg), agentIcon: outboxAgentIcon(cfg.WEB_URL, (orgId, personId) => readAvatar(db, orgId, personId)) }, queue, runs, log);
 // F2: resposta no Slack com o fluxo da frente Funções (answer de @echo/agents).
 const interactions = createInteractionRouter(log);
 let giveUp: ReturnType<typeof setInterval> | undefined;
@@ -86,6 +88,8 @@ const fix = serverFix(db, {
   environmentId: cfg.FIX_ENVIRONMENT_ID,
   timeoutMs: cfg.FIX_TIMEOUT_MS,
   codeHost: async (orgId) => (await githubForOrg(db, platforms, orgId)) ?? null,
+  // Juiz da delegação da correção: o mesmo modelo aberto da triagem. Sem ele, nenhuma correção é unida pela delegação.
+  judge: cfg.SLM_OLLAMA_URL ? { url: cfg.SLM_OLLAMA_URL, model: cfg.SLM_MODEL, timeoutMs: cfg.TRIAGE_TIMEOUT_MS } : undefined,
 });
 interactions.add("correcao", async (job) => {
   const r = await fix.decideFromSlack(job.orgId, job.payload);

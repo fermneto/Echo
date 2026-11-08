@@ -41,7 +41,7 @@ let orgId: string | null = null;
 const routes = new Map<string, string>();
 const idCount = new Map<string, number>();
 if (env.DATABASE_URL) {
-  const pool = createPool(env.DATABASE_URL, 2);
+  const pool = createPool(env.DATABASE_URL, 2, { defaultScope: "system" });
   const db = createDb(pool);
   try {
     const [{ n } = { n: 0 }] = await asSystem(db, (tx) => tx.execute<{ n: number }>(sql`select count(*)::int as n from information_schema.tables where table_name = 'deployments'`)).then((r) => r.rows);

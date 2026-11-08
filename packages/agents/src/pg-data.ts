@@ -15,6 +15,7 @@ import {
   withOrg,
   workEvents,
 } from "@echo/db";
+import { cleanAgentText } from "@echo/domain";
 import type { Absence, AbsenceKind, Contribution, ContributionKind, DailyNote, DailyNoteState, Person, PersonRole, PrState, PullRequest, Task, TaskState, WorkEvent, WorkEventType } from "@echo/domain";
 import { parseAvatarTraits, traitsFromSeed } from "@echo/domain";
 import { and, desc, eq, gte, inArray, isNull, sql, type SQL } from "drizzle-orm";
@@ -109,6 +110,7 @@ export function createPgAgentData(db: Database, orgId: string): AgentData {
           skills: r.skills,
           areas: r.areas,
           active: r.active,
+          agentStyle: cleanAgentText(r.agentStyle) ?? undefined,
           jobTitle: opt(r.jobTitle),
           languages: r.languages,
           avatar: r.avatar ? parseAvatarTraits(r.avatar, traitsFromSeed(r.id)).traits : undefined,
