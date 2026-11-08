@@ -274,15 +274,20 @@ export async function allOrgIds(db: Database): Promise<string[]> {
   return (await asSystem(db, (tx) => tx.select({ id: orgs.id }).from(orgs))).map((o) => o.id);
 }
 
-/** Quem está perto do início do expediente agora, em todas as empresas (plano da manhã). */
+/**
+ * Quem está perto do início do expediente agora e ainda não tem o plano da data, em todas as empresas.
+ * Quem já tem plano fica fora: a `singletonKey` não segura o job depois de concluído (pg-boss, fila padrão),
+ * e sem este filtro a agenda poria um job por passada na janela, cada um com uma linha "pulado" em agent_runs.
+ */
 export async function dueMorning(db: Database, now: Date): Promise<{ orgId: string; personId: string; date: string }[]> {
   const due: { orgId: string; personId: string; date: string }[] = [];
   for (const orgId of await allOrgIds(db)) {
     const data = createPgAgentData(db, orgId);
+    const plans = createPgPlanStore(db, orgId);
     const [people, absences] = await Promise.all([data.people(), data.absences()]);
     for (const person of people) {
       const d = morningDue(person, absences, now);
-      if (d) due.push({ orgId, personId: person.id, date: d.date });
+      if (d && !(await plans.get(person.id, d.date))) due.push({ orgId, personId: person.id, date: d.date });
     }
   }
   return due;

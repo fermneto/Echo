@@ -133,11 +133,15 @@ export const severityRank = (s: FindingSeverity) => SEVERITY_ORDER[s];
 
 // ---------- Agenda da manhã
 
-/** Data local de hoje se agora está entre 30 min antes do expediente e 2 h depois do início. Férias: nada. */
+/**
+ * Data local do expediente se agora está entre 30 min antes do início e 2 h depois dele. Férias: nada.
+ * Olha ontem, hoje e amanhã no fuso: o expediente que começa perto da meia-noite tem a janela em dois dias.
+ */
 export function morningDue(person: Person, absences: Absence[], now: Date): { date: string; startsAt: Date } | null {
   if (!person.active || person.role === "hr") return null;
   const tz = person.timezone;
-  for (const date of [localDate(now, tz), localDate(new Date(now.getTime() + DAY), tz)]) {
+  const today = localDate(now, tz);
+  for (const date of [addDays(today, -1), today, addDays(today, 1)]) {
     if (!person.workHours.days.includes(weekdayOf(date))) continue;
     const startsAt = zonedTime(date, person.workHours.start, tz);
     const from = startsAt.getTime() - MORNING_RULES.leadMinutes * MINUTE;
