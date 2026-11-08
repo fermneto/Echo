@@ -2,13 +2,12 @@
 // equipe: entregas, ajudas entre colegas, gêmeos em ação e trechos das telas novas gravados no preview. Os números
 // vêm só dos relatórios já liberados ao RH, depois da conferência da pessoa ou do prazo (regras); o Claude Haiku só escreve frases curtas, conferidas por regra; o Sonnet
 // escreve o roteiro de cada trecho, também conferido. Uma sessão do Managed Agents grava os trechos e a página
-// animada, e o Echo confere tudo fora do ambiente. Vai direto para a equipe e a liderança, no painel e no privado do
-// Slack (pelo outbox; o RH vê só no painel). Sem nota, sem
+// animada, e o Echo confere tudo fora do ambiente. Vai direto para a equipe e a liderança no painel e, com canal
+// configurado, numa postagem no canal da equipe no Slack (pelo outbox), para comentarem juntos. Sem nota, sem
 // ranking: a semana é da equipe.
 import type Anthropic from "@anthropic-ai/sdk";
 import type { OutboxAction } from "@echo/actions";
 import {
-  type Absence,
   type Clock,
   costLevel,
   planScenes,
@@ -19,11 +18,11 @@ import {
   scriptIssues,
   stretchScenes,
   systemClock,
-  type Person,
   TEAM_VIDEO_RULES,
   teamRecordingIssues,
+  teamVideoChannel,
   teamVideoMessage,
-  teamVideoRecipients,
+  teamVideoPostKey,
   teamTextIssues,
   type TeamWeekFacts,
   type TeamWeekTexts,
@@ -71,8 +70,8 @@ export interface TeamVideoStore {
   transition(orgId: string, id: string, from: TeamVideoState, to: TeamVideoState, patch?: TeamVideoPatch): Promise<boolean>;
   /** Gasto do mês e limite da empresa, para parar em 80% como a correção. */
   budget(orgId: string, since: Date): Promise<{ spentUsd: number; monthlyLimitUsd: number }>;
-  /** Quem pode receber o vídeo no Slack: pessoas da equipe e o líder dela, ausências e quem tem conta no Slack. */
-  audience(orgId: string, teamId: string): Promise<{ leaderId: string | null; people: Person[]; absences: Absence[]; slackIds: string[] }>;
+  /** Canais do Slack configurados no painel: o da equipe e o de reserva da empresa. */
+  channels(orgId: string, teamId: string): Promise<{ team: string | null; org: string | null }>;
 }
 
 export interface RecordInput {
@@ -118,18 +117,15 @@ export interface VideoDeps {
   webUrl?: string | undefined;
 }
 
-/** Chave do envio: um vídeo por pessoa, nunca dois. */
-export const teamVideoDmKey = (videoId: string, personId: string) => `team_video:${videoId}:${personId}`;
-
-/** Ação do outbox com o vídeo da semana para uma pessoa (texto por regra, em `teamVideoMessage`). */
-export function teamVideoDmAction(input: { videoId: string; personId: string; storageKey: string; teamName: string; weekLabel: string; week: string; webUrl?: string | undefined; idempotencyKey?: string }): OutboxAction {
+/** Ação do outbox com o vídeo da semana no canal (texto por regra, em `teamVideoMessage`; uma postagem por vídeo). */
+export function teamVideoPostAction(input: { videoId: string; channel: string; storageKey: string; teamName: string; weekLabel: string; week: string; webUrl?: string | undefined }): OutboxAction {
   const reportsUrl = input.webUrl ? `${input.webUrl.replace(/\/$/, "")}/relatorios` : undefined;
   const m = teamVideoMessage({ teamName: input.teamName, weekLabel: input.weekLabel, week: input.week, reportsUrl });
   return {
-    type: "slack.dm_video",
-    target: `person:${input.personId}`,
-    payload: { personId: input.personId, videoId: input.videoId, storageKey: input.storageKey, ...m },
-    idempotencyKey: input.idempotencyKey ?? teamVideoDmKey(input.videoId, input.personId),
+    type: "slack.post_video",
+    target: `slack:${input.channel}`,
+    payload: { channel: input.channel, videoId: input.videoId, storageKey: input.storageKey, ...m },
+    idempotencyKey: teamVideoPostKey(input.videoId),
   };
 }
 
@@ -292,20 +288,16 @@ export function createVideo(deps: VideoDeps) {
   }
 
   /**
-   * Um `slack.dm_video` por pessoa que recebe (regra `teamVideoRecipients`): ativos da equipe e liderança, sem RH,
-   * sem quem está ausente agora e sem quem não tem Slack. A chave por vídeo e pessoa impede o segundo envio.
+   * Uma postagem `slack.post_video` no canal da equipe (ou no de reserva da empresa), para a equipe assistir e
+   * comentar junto. Sem canal configurado, o vídeo fica só no painel: nunca vai para o privado de ninguém.
    */
-  async function deliver(orgId: string, row: TeamVideoRow, facts: TeamWeekFacts, storageKey: string, now: Date): Promise<{ sent: number; error?: string }> {
-    if (!deps.outbox) return { sent: 0 };
-    const a = await deps.store.audience(orgId, row.teamId);
-    const { to } = teamVideoRecipients({ teamId: row.teamId, leaderId: a.leaderId, people: a.people, absences: a.absences, slackIds: new Set(a.slackIds), now });
-    const outbox = deps.outbox(orgId);
-    let sent = 0;
-    for (const personId of to) {
-      const res = await outbox.enqueue(teamVideoDmAction({ videoId: row.id, personId, storageKey, teamName: facts.teamName, weekLabel: facts.weekLabel, week: row.week, webUrl: deps.webUrl }));
-      if (!res.duplicate) sent++;
-    }
-    return { sent };
+  async function deliver(orgId: string, row: TeamVideoRow, facts: TeamWeekFacts, storageKey: string): Promise<{ sent: boolean; error?: string }> {
+    if (!deps.outbox) return { sent: false };
+    const c = await deps.store.channels(orgId, row.teamId);
+    const channel = teamVideoChannel({ teamChannel: c.team, orgChannel: c.org });
+    if (!channel) return { sent: false };
+    const res = await deps.outbox(orgId).enqueue(teamVideoPostAction({ videoId: row.id, channel, storageKey, teamName: facts.teamName, weekLabel: facts.weekLabel, week: row.week, webUrl: deps.webUrl }));
+    return { sent: !res.duplicate };
   }
 
   /** Grava o vídeo da semana de uma equipe. Qualquer falha deixa `failed`; o relatório de cada pessoa segue igual. */
@@ -371,9 +363,9 @@ export function createVideo(deps: VideoDeps) {
       await deps.deleteFile?.(r.video.fileId).catch(() => undefined);
       return { status: "skipped", reason: "vídeo mudou de estado" };
     }
-    // Pronto: vai também no privado do Slack de quem vê o vídeo pela equipe. Falha no envio não desfaz o vídeo.
-    const sent = await deliver(orgId, row, prep.story.facts, r.video.fileId, now).catch((err: unknown) => ({ sent: 0, error: `envio no Slack: ${message(err)}` }));
-    await deps.recorder.record({ ...runBase, result: "ok", ...(sent.sent ? { tools: ["slack.dm_video"] } : {}), ...(sent.error ? { error: sent.error } : {}) });
+    // Pronto: vai também no canal da equipe no Slack, se houver. Falha no envio não desfaz o vídeo.
+    const sent = await deliver(orgId, row, prep.story.facts, r.video.fileId).catch((err: unknown) => ({ sent: false, error: `envio no Slack: ${message(err)}` }));
+    await deps.recorder.record({ ...runBase, result: "ok", ...(sent.sent ? { tools: ["slack.post_video"] } : {}), ...(sent.error ? { error: sent.error } : {}) });
     return { status: "ready", id };
   }
 

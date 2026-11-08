@@ -113,6 +113,13 @@
       "when": 1794116404757,
       "tag": "0015_ci_da_delegacao",
       "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1794118842116,
+      "tag": "0016_canal_do_video",
+      "breakpoints": true
     }
   ]
 }

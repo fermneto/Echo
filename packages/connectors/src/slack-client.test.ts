@@ -165,6 +165,25 @@ describe("sendDmFile", () => {
     expect(JSON.parse((seen[3]!.body as { files: string }).files)).toEqual([{ id: "F1", title: "Resumo do dia, 07/11" }]);
   });
 
+  it("no canal: sem abrir conversa, completa o upload no canal; fora do canal, o not_in_channel sobe", async () => {
+    const seen: { url: string; body: Record<string, string> | number }[] = [];
+    let member = true;
+    const fetch = async (url: string, init: RequestInit) => {
+      const ct = new Headers(init.headers).get("content-type") ?? "";
+      seen.push({ url, body: ct.startsWith("application/x-www-form-urlencoded") ? Object.fromEntries(new URLSearchParams(String(init.body))) : (init.body as Uint8Array).byteLength });
+      if (url.endsWith("/files.getUploadURLExternal")) return Response.json({ ok: true, upload_url: "https://files.slack.test/upload/v1/vid", file_id: "F2" });
+      if (url.startsWith("https://files.slack.test/")) return new Response("OK");
+      if (url.endsWith("/files.completeUploadExternal")) return Response.json(member ? { ok: true } : { ok: false, error: "not_in_channel" });
+      return Response.json({ ok: false, error: "unknown_method" });
+    };
+    const chat = new SlackChat({ token: "xoxb-teste", fetch, sleep: async () => {} });
+    await chat.sendChannelFile("C0PRODUTO1", { filename: "video.mp4", data: new Uint8Array([0, 0, 0, 24]), title: "Vídeo da semana", comment: "Comentem aqui na thread." });
+    expect(seen.map((s) => s.url.split("/").pop())).toEqual(["files.getUploadURLExternal", "vid", "files.completeUploadExternal"]);
+    expect(seen[2]!.body).toMatchObject({ channel_id: "C0PRODUTO1", initial_comment: "Comentem aqui na thread." });
+    member = false;
+    await expect(chat.sendChannelFile("C0OUTRO001", { filename: "video.mp4", data: new Uint8Array([1]), title: "t", comment: "c" })).rejects.toMatchObject({ code: "not_in_channel" });
+  });
+
   it("sem files:write, o erro do Slack sobe com o código (o executor manda a versão em texto)", async () => {
     const fetch = async (url: string) => (url.endsWith("/conversations.open") ? Response.json({ ok: true, channel: { id: "D1" } }) : Response.json({ ok: false, error: "missing_scope" }));
     const chat = new SlackChat({ token: "xoxb-teste", fetch, sleep: async () => {} });

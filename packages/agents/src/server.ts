@@ -2,9 +2,9 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { createPgBrainStore } from "@echo/brain/pg";
 import { createPgOutbox } from "@echo/actions/pg";
-import { agentRuns, asSystem, createDb, createPool, type Database, identities, orgs, people, withOrg } from "@echo/db";
-import { and, eq } from "drizzle-orm";
-import { awayDigestDue, digestPurgeBefore, endOfDayDue, morningDue, parseGainsBaseline, reportsDue } from "@echo/domain";
+import { agentRuns, asSystem, createDb, createPool, type Database, orgs, withOrg } from "@echo/db";
+import { eq } from "drizzle-orm";
+import { awayDigestDue, digestPurgeBefore, parseSlackChannelId, endOfDayDue, morningDue, parseGainsBaseline, reportsDue } from "@echo/domain";
 import type { AgentRun, RunRecorder } from "@echo/observability";
 import { type AnswerDeps, createAnswer, type ModelCall } from "./answer.ts";
 import type { AnswerRequest, AnswerResult } from "./index.ts";
@@ -22,7 +22,7 @@ import { createPgAvatarStore, createPgOnboardingStore } from "./pg-onboarding.ts
 import { adjustAvatar, redoAvatar } from "./redo-avatar.ts";
 import { createManagedVideoSandbox, downloadVideoFile, filesDeleter, videoAgentParams, videoEnvironmentParams } from "./managed-video.ts";
 import { createPgTeamVideoStore } from "./pg-video.ts";
-import { createVideo, teamVideoDmAction, type Video } from "./video.ts";
+import { createVideo, teamVideoPostAction, type Video } from "./video.ts";
 import { createFix, type Fix, type FixCodeHost } from "./fix.ts";
 import { createManagedFixSandbox, fixAgentParams, fixEnvironmentParams } from "./managed-fix.ts";
 import { createPgFixStore, pgDelegationOf } from "./pg-fix.ts";
@@ -41,7 +41,7 @@ export { createPgDailyNoteStore } from "./pg-notes.ts";
 export { createPgPlanStore, createPgReviewStore } from "./pg-night.ts";
 export { ollamaBaseUrl, ollamaJson, ollamaTriage } from "./triage-ollama.ts";
 export { createPgArtifactStore } from "./pg-artifacts.ts";
-export { expireTeamVideos, failStuckTeamVideos, latestTeamVideos, queuedTeamVideos, queueTeamVideos, teamVideoForStream, type TeamVideoView } from "./pg-video.ts";
+export { expireTeamVideos, failStuckTeamVideos, latestTeamVideos, queuedTeamVideos, queueTeamVideos, readVideoChannels, saveVideoChannel, teamVideoForStream, type TeamVideoView, type VideoChannelsView } from "./pg-video.ts";
 export { videoAgentParams, videoEnvironmentParams, VIDEO_RUNNER } from "./managed-video.ts";
 export { createPgAvatarStore, createPgOnboardingStore, readAvatar, updateProfile } from "./pg-onboarding.ts";
 export { AccountConflictError, type PersonAccounts, readAccounts, saveAccounts, type SaveAccountsResult } from "./pg-accounts.ts";
@@ -384,7 +384,7 @@ export function serverVideo(db: Database, opts: { apiKey?: string | undefined; a
     deleteFile,
     model: opts.apiKey ? anthropicModelCall(opts.apiKey) : null,
     recorder: createDbRunRecorder(db),
-    // Pronto, o vídeo vai também no privado do Slack de quem vê pela equipe (slack.dm_video, sem bytes no outbox).
+    // Pronto, o vídeo sai também no canal da equipe no Slack (slack.post_video, sem bytes no outbox), se houver canal.
     outbox: (orgId) => createPgOutbox(db, orgId),
     webUrl: opts.webUrl,
   });
@@ -397,7 +397,7 @@ export async function videoFile(apiKey: string, fileId: string): Promise<Respons
 }
 
 /**
- * Leitura do mp4 para o executor do outbox (slack.dm_video), na hora do envio. `null`: o arquivo não existe mais
+ * Leitura do mp4 para o executor do outbox (slack.post_video), na hora do envio. `null`: o arquivo não existe mais
  * na Files API (vencido ou apagado), e repetir não adianta.
  */
 export function videoBytesReader(apiKey: string): (orgId: string, storageKey: string) => Promise<Uint8Array | null> {
@@ -413,25 +413,21 @@ export function videoBytesReader(apiKey: string): (orgId: string, storageKey: st
 }
 
 /**
- * Teste de ponta a ponta (`pnpm video:agora --enviar <nome>`): acha a pessoa na empresa de teste antes de gravar,
- * para não gastar a sessão com um nome errado.
+ * Teste de ponta a ponta (`pnpm video:agora --canal [C…]`): acha a empresa de teste e o canal antes de gravar, para
+ * não gastar a sessão à toa. Vale o canal pedido; sem ele, o de reserva configurado na empresa.
  */
-export async function testVideoRecipient(db: Database, orgName: string, personName: string): Promise<{ orgId: string; personId: string; hasSlack: boolean }> {
-  const [org] = await asSystem(db, (tx) => tx.select({ id: orgs.id }).from(orgs).where(eq(orgs.name, orgName)));
+export async function testVideoChannel(db: Database, orgName: string, wanted?: string): Promise<{ orgId: string; channel: string }> {
+  const [org] = await asSystem(db, (tx) => tx.select({ id: orgs.id, channel: orgs.slackChannelId }).from(orgs).where(eq(orgs.name, orgName)));
   if (!org) throw new Error(`empresa "${orgName}" não encontrada`);
-  const found = await withOrg(db, org.id, async (tx) => {
-    const [p] = await tx.select({ id: people.id }).from(people).where(and(eq(people.orgId, org.id), eq(people.name, personName)));
-    if (!p) return null;
-    const [slack] = await tx.select({ id: identities.id }).from(identities).where(and(eq(identities.orgId, org.id), eq(identities.personId, p.id), eq(identities.platform, "slack")));
-    return { personId: p.id, hasSlack: Boolean(slack) };
-  });
-  if (!found) throw new Error(`pessoa "${personName}" não está em "${orgName}"`);
-  return { orgId: org.id, ...found };
+  const channel = wanted ? parseSlackChannelId(wanted) : parseSlackChannelId(org.channel);
+  if (wanted && !channel) throw new Error(`"${wanted}" não é um id de canal público do Slack (C…)`);
+  if (!channel) throw new Error(`"${orgName}" não tem canal do vídeo configurado: passe --canal C…`);
+  return { orgId: org.id, channel };
 }
 
-/** Põe na outbox da empresa de teste o slack.dm_video do vídeo gravado; o worker envia com a mesma chave. */
-export async function enqueueTestTeamVideoDm(db: Database, to: { orgId: string; personId: string }, input: { storageKey: string; teamName: string; weekLabel: string; week: string; webUrl?: string | undefined }): Promise<{ id: string; duplicate: boolean }> {
-  const action = teamVideoDmAction({ videoId: `teste:${input.storageKey}`, personId: to.personId, storageKey: input.storageKey, teamName: input.teamName, weekLabel: input.weekLabel, week: input.week, webUrl: input.webUrl });
+/** Põe na outbox da empresa de teste o slack.post_video do vídeo gravado; o worker posta com a mesma chave. */
+export async function enqueueTestTeamVideoPost(db: Database, to: { orgId: string; channel: string }, input: { storageKey: string; teamName: string; weekLabel: string; week: string; webUrl?: string | undefined }): Promise<{ id: string; duplicate: boolean }> {
+  const action = teamVideoPostAction({ videoId: `teste:${input.storageKey}`, channel: to.channel, storageKey: input.storageKey, teamName: input.teamName, weekLabel: input.weekLabel, week: input.week, webUrl: input.webUrl });
   return createPgOutbox(db, to.orgId).enqueue(action);
 }
 

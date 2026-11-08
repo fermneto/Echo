@@ -18,6 +18,8 @@ export const orgs = pgTable("orgs", {
   gainsBaseline: jsonb("gains_baseline"),
   repositoriesOpenToTeam: jsonb("repositories_open_to_team").$type<string[]>().notNull().default([]),
   isDemo: boolean("is_demo").notNull().default(false),
+  /** Canal do Slack (C…) de reserva para o vídeo da semana: vale para equipe sem canal e empresa sem equipes. */
+  slackChannelId: text("slack_channel_id"),
   createdAt: createdAt(),
 });
 
@@ -46,6 +48,8 @@ export const teams = pgTable("teams", {
   name: text("name").notNull(),
   leaderId: uuid("leader_id"),
   loadLimit: integer("load_limit").notNull().default(12),
+  /** Canal do Slack (C…) da equipe, onde sai o vídeo da semana para a equipe assistir e comentar junto. */
+  slackChannelId: text("slack_channel_id"),
 });
 
 /** Pessoas. Sem tempo online. */

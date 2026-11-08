@@ -39,7 +39,7 @@ await queue.start();
 const runs = createWorkerRunRecorder(db, log);
 await registerInbox(db, queue, runs, { brainsRepository: cfg.BRAINS_REPOSITORY, jiraStoryPointsField: cfg.JIRA_STORY_POINTS_FIELD });
 // O que sai pelo outbox em nome de um gêmeo leva o bonequinho dele, como as respostas ao vivo.
-// O vídeo da semana (slack.dm_video) é lido da Files API na hora do envio, com a chave da empresa.
+// O vídeo da semana (slack.post_video) é lido da Files API na hora do envio, com a chave da empresa.
 const stopActions = await registerActions(
   {
     db,
@@ -119,7 +119,7 @@ const fixTimer = setInterval(() => void runFix(), cfg.FIX_SCAN_MS);
 
 // Vídeo da semana da equipe (etapa 27): sessão no Managed Agents. Sem VIDEO_AGENT_ID e VIDEO_ENVIRONMENT_ID,
 // nenhuma sessão abre e os relatórios seguem sem vídeo; a arrumação do armazenamento roda mesmo assim.
-// Pronto, o vídeo vai também no privado do Slack da equipe e da liderança, pelo outbox.
+// Pronto, o vídeo sai também no canal da equipe no Slack (ou no da empresa), pelo outbox.
 const video = serverVideo(db, { apiKey: cfg.ANTHROPIC_API_KEY, agentId: cfg.VIDEO_AGENT_ID, environmentId: cfg.VIDEO_ENVIRONMENT_ID, timeoutMs: cfg.VIDEO_TIMEOUT_MS, webUrl: cfg.WEB_URL });
 const videos = await registerVideo(queue, {
   video,

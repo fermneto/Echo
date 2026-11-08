@@ -2,7 +2,7 @@
 // Exceções registradas (sem aprovação): comentário da análise noturna no PR (nunca aprovação) e o espelho das
 // notas no repositório brains, que só copia notas que toda a empresa já lê, nunca sobrescreve uma edição do Git
 // e tira do repositório a nota que deixou de poder estar lá. As mensagens do Echo no Slack (aviso, privado, imagem
-// e vídeo da semana) também saem sem aprovação: só informam e nunca mudam tarefa, número ou código.
+// e o vídeo da semana no canal da equipe) também saem sem aprovação: só informam e nunca mudam tarefa, número ou código.
 
 export type ActionType =
   | "linear.assign"
@@ -16,7 +16,7 @@ export type ActionType =
   | "slack.post"
   | "slack.dm"
   | "slack.dm_image"
-  | "slack.dm_video";
+  | "slack.post_video";
 
 import type { ApprovalSource } from "./guards.ts";
 
@@ -49,7 +49,7 @@ export const REQUIRES_APPROVAL: Record<ActionType, boolean> = {
   "slack.post": false,
   "slack.dm": false,
   "slack.dm_image": false,
-  "slack.dm_video": false,
+  "slack.post_video": false,
 };
 
 export { approveAction, drainActions, enqueueAction, EXECUTABLE_TYPES, MAX_ATTEMPTS, noExecutorError, orgsWithApprovedActions, PermanentActionError, releaseStuckActions, retryActionsWithoutExecutor, type ActionPayloads, type ExecutorDeps } from "./executor.ts";
