@@ -48,7 +48,7 @@ describe("planView", () => {
     });
     const v = planView(p, TZ);
     expect(v.outcome?.title).toBe("Plano aprovado por Marina em 07/11 18:40. Aplicando.");
-    expect(v.outcome?.text).toBe("1 mudança feita; 1 em andamento no Linear e no GitHub; 1 item segue sem responsável. A mudança está na auditoria, em Custo e execuções.");
+    expect(v.outcome?.text).toBe("1 mudança feita; 1 em andamento nas tarefas e no GitHub; 1 item segue sem responsável. A mudança está na auditoria, em Custo e execuções.");
     expect(v.items.map((i) => i.chip.label)).toEqual(["aplicado", "aplicando", "sem responsável"]);
     expect(v.items.some((i) => i.excludable || i.load)).toBe(false);
   });
@@ -73,14 +73,14 @@ describe("confirmText", () => {
   const items = planView(plan(), TZ).items;
   it("conta só o que muda de mãos e avisa o que segue sem responsável", () => {
     expect(confirmText(items, new Set())).toEqual({
-      title: "Aplicar 2 mudanças no Linear e no GitHub?",
+      title: "Aplicar 2 mudanças nas tarefas e no GitHub?",
       text: "Carla e Eduardo recebem as tarefas e são avisados no Slack. Cada um pode recusar com motivo. 1 item segue sem responsável, com o motivo.",
       changes: 2,
     });
   });
   it("itens deixados de fora saem da conta", () => {
     const r = confirmText(items, new Set(["i2", "i3"]));
-    expect(r.title).toBe("Aplicar 1 mudança no Linear e no GitHub?");
+    expect(r.title).toBe("Aplicar 1 mudança nas tarefas e no GitHub?");
     expect(r.text).toBe("Carla recebe as tarefas e é avisado no Slack. Cada um pode recusar com motivo. 2 itens ficam de fora.");
   });
 });

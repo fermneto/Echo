@@ -123,7 +123,7 @@ export default async function PessoaPage({ params }: { params: Promise<{ id: str
                   ))}
                 </ul>
               ) : (
-                <p className="muted">{persona.registered ? "Nenhuma tarefa nem PR aberto no GitHub ou no Linear." : "Nada registrado no GitHub ou no Linear para esta pessoa na demo."}</p>
+                <p className="muted">{persona.registered ? "Nenhuma tarefa nem PR aberto." : "Nada registrado no GitHub ou no Linear para esta pessoa na demo."}</p>
               )}
               {profile.activity && <p className="card__foot mono">{profile.activity}</p>}
             </section>

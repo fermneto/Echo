@@ -26,7 +26,7 @@ export default async function NotaDoDiaPage({ searchParams }: { searchParams: Pr
           <button type="submit" className="button-pill">
             Gerar o rascunho de hoje
           </button>
-          <span className="muted">O agente escreve a partir do GitHub e do Linear, e avisa no Slack.</span>
+          <span className="muted">O agente escreve a partir do GitHub e das tarefas (Linear ou Jira), e avisa no Slack.</span>
         </form>
       )}
       {view ? (
