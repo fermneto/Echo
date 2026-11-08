@@ -4,9 +4,9 @@
 import * as agents from "@echo/agents";
 import { createPool } from "@echo/db";
 import type { AnswerRequest, AnswerResult } from "@echo/agents";
-import { BASE_CHECKS, CASES, type EvalCase, type Persona } from "./cases.ts";
+import { BASE_CHECKS, CASES, type EvalCase, LANGUAGE_CASES, type Persona } from "./cases.ts";
 
-export { CASES } from "./cases.ts";
+export { CASES, LANGUAGE_CASES } from "./cases.ts";
 
 /** O fluxo de resposta da frente Funções (etapa 6). */
 type Answer = (req: AnswerRequest) => Promise<AnswerResult>;
@@ -52,7 +52,7 @@ const PERSONA_NAMES: Record<Persona, string> = {
 
 /** Acha a empresa de demonstração e as personas que o seed criou. */
 async function loadDemo(databaseUrl: string): Promise<{ orgId: string; ids: PersonaIds }> {
-  const pool = createPool(databaseUrl, 1);
+  const pool = createPool(databaseUrl, 1, { defaultScope: "system" });
   try {
     const org = await pool.query<{ id: string }>("select id from orgs where is_demo order by created_at desc limit 1");
     const orgId = org.rows[0]?.id;
@@ -85,7 +85,9 @@ async function main() {
 
   let securityFailures = 0;
   let contentFailures = 0;
-  for (const c of CASES) {
+  const all = [...CASES, ...LANGUAGE_CASES];
+  for (const c of all) {
+    if (c === LANGUAGE_CASES[0]) console.log("\nIdioma da conversa:");
     const out = await runCase(c, answer, orgId, ids);
     const failed = out.problems.length > 0;
     if (failed && out.security) securityFailures++;
@@ -93,8 +95,8 @@ async function main() {
     console.log(`${failed ? "FALHA" : "ok   "} ${out.security ? "[segurança] " : ""}${c.name}${failed ? `: ${out.problems.join("; ")}` : ""}`);
     if (failed && out.result) console.log(`      ${out.result.agentName}: ${out.result.text.replace(/\n/g, " ").slice(0, 400)}`);
   }
-  const passed = CASES.length - securityFailures - contentFailures;
-  console.log(`\n${passed} de ${CASES.length} passaram. Segurança: ${securityFailures} falha(s). Conteúdo: ${contentFailures} falha(s).`);
+  const passed = all.length - securityFailures - contentFailures;
+  console.log(`\n${passed} de ${all.length} passaram (${CASES.length} fixos e ${LANGUAGE_CASES.length} de idioma). Segurança: ${securityFailures} falha(s). Conteúdo: ${contentFailures} falha(s).`);
   if (securityFailures > 0) process.exitCode = 1;
 }
 

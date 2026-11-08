@@ -41,7 +41,7 @@ try {
 }
 if (!Array.isArray(pessoas) || pessoas.length === 0) fail("DEMO_IDENTITIES vazio: liste as pessoas do teste com as contas de cada plataforma.");
 
-const pool = createPool(env.DATABASE_URL!, 2);
+const pool = createPool(env.DATABASE_URL!, 2, { defaultScope: "system" });
 const db = createDb(pool);
 const orgName = env.DEMO_ORG_NAME ?? "Empresa de teste (integrações)";
 

@@ -25,7 +25,7 @@ const fail = (msg: string): never => {
 if (!env.DATABASE_URL) fail("DATABASE_URL ausente no .env.");
 if (!a.tarefa && !a.canal && !a.pr) fail('Diga o que testar: --tarefa ECH-1 --para "Carla" --aprovador "Marina", --canal C0123 e/ou --pr org/repo#12');
 
-const pool = createPool(env.DATABASE_URL!, 2);
+const pool = createPool(env.DATABASE_URL!, 2, { defaultScope: "system" });
 const db = createDb(pool);
 const [org] = await asSystem(db, (tx) => tx.select().from(orgs).where(eq(orgs.name, env.DEMO_ORG_NAME ?? "Empresa de teste (integrações)")));
 if (!org) fail("Empresa de teste não encontrada: rode antes pnpm integracoes:ligar.");

@@ -92,6 +92,13 @@
       "when": 1794096761825,
       "tag": "0012_bonequinho",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1794103074463,
+      "tag": "0013_estilo_delegacao",
+      "breakpoints": true
     }
   ]
 }
