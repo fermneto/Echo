@@ -1,7 +1,7 @@
 import { panelDb } from "@/lib/db";
 import { BUDGET, formatUsd } from "@/lib/demo/runs";
 import { gainsOrgId } from "@/lib/gains";
-import { linkablePlatforms } from "@/lib/access";
+import { canRegisterPeople, linkablePlatforms } from "@/lib/access";
 import { slackDirectory } from "@/lib/accounts-server";
 import { membersOf, slackDirectoryFor } from "@/lib/slack-directory";
 import { teamsFor } from "@/lib/scope";
@@ -40,16 +40,17 @@ async function loadVideoChannels(db: NonNullable<ReturnType<typeof panelDb>>, or
 /** Configuração (etapa 15): conexões, cadastro, canal do vídeo da semana, limite de custo e quem vê o quê. Liderança e RH. */
 export default async function ConfiguracaoPage() {
   const persona = await requireAccess("configuracao");
-  const canRegister = persona.role === "hr" || persona.role === "leader";
+  const canRegister = canRegisterPeople(persona.role);
+  const canSetVideo = persona.role === "hr" || persona.role === "leader";
   const db = panelDb();
-  // Pessoa nova da equipe de quem cadastra: a liderança liga GitHub e Linear; o Slack, só o RH.
+  // Só o RH cadastra; ele liga Slack, GitHub e Linear da pessoa nova.
   const platforms = canRegister ? linkablePlatforms(persona, { id: "", role: "member", teamId: persona.teamId }) : [];
   const [{ routes, limitUsd, roles, orgName }, teams, slack, channels] = await Promise.all([
     load(persona.orgId),
     teamsFor(persona),
     // Na demonstração, o Slack real nunca é lido (nem users.list).
     slackDirectoryFor({ demo: isDemoSession(persona), canLinkSlack: Boolean(db) && platforms.includes("slack"), read: () => slackDirectory(db!, gainsOrgId(persona.orgId)) }),
-    canRegister && db ? loadVideoChannels(db, gainsOrgId(persona.orgId)) : Promise.resolve(null),
+    canSetVideo && db ? loadVideoChannels(db, gainsOrgId(persona.orgId)) : Promise.resolve(null),
   ]);
   const channelRows: VideoChannelRow[] = channels ? editableVideoChannels(persona, channels) : [];
   const rows = connectionRows(routes);
@@ -90,7 +91,7 @@ export default async function ConfiguracaoPage() {
         </p>
       </section>
 
-      {persona.role === "hr" || persona.role === "leader" ? (
+      {canRegister ? (
         <section className="card settings-card settings-grid" aria-labelledby="cadastro">
           <div className="settings-card__head">
             <h2 id="cadastro" className="card__title">
