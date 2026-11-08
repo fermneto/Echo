@@ -344,8 +344,8 @@ export async function retryActionsWithoutExecutor(db: Database): Promise<number>
   const noApproval = EXECUTABLE_TYPES.filter((t) => !REQUIRES_APPROVAL[t]);
   const approvedState = or(isNotNull(outboxActions.approvedBy), noApproval.length ? inArray(outboxActions.type, noApproval) : sql`false`);
   // Rotina de sistema: percorre todas as empresas.
-  const rows = await asSystem(db, (tx) =>
-    tx
+  return asSystem(db, async (tx) => {
+    const rows = await tx
       .update(outboxActions)
       .set({ state: sql`case when ${approvedState} then 'approved' else 'pending' end`, attempts: 0, error: null })
       .where(
@@ -354,9 +354,16 @@ export async function retryActionsWithoutExecutor(db: Database): Promise<number>
           or(...EXECUTABLE_TYPES.map((t) => and(eq(outboxActions.type, t), eq(outboxActions.error, noExecutorError(t))))),
         ),
       )
-      .returning({ id: outboxActions.id }),
-  );
-  return rows.length;
+      .returning({ orgId: outboxActions.orgId, type: outboxActions.type, target: outboxActions.target, state: outboxActions.state, payload: outboxActions.payload });
+    for (const row of rows) {
+      // O item do plano tinha ido para "failed" junto com a ação; volta para "approved" enquanto ela espera a fila.
+      const planItemId = (row.payload as { planItemId?: string } | null)?.planItemId;
+      if (planItemId && row.state === "approved")
+        await tx.update(planItems).set({ state: "approved" }).where(and(eq(planItems.orgId, row.orgId), eq(planItems.id, planItemId), eq(planItems.state, "failed")));
+      await tx.insert(auditLog).values({ orgId: row.orgId, actor: "echo:actions", action: `requeue:${row.type}`, target: row.target });
+    }
+    return rows.length;
+  });
 }
 
 /** Confere de novo, na hora de escrever, se a nota ainda pode ir para o repositório (regra de packages/domain). */

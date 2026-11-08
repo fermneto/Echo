@@ -287,6 +287,8 @@ describe.skipIf(!url)("executor do outbox (Postgres real)", () => {
     expect(await get(assignApproved!.id)).toMatchObject({ state: "approved", attempts: 0, error: null });
     expect(await get(other!.id)).toMatchObject({ state: "failed", attempts: 1, error: "Slack fora do ar" });
     expect((await get(mismatch!.id)).state).toBe("failed");
+    const audits = await db.select().from(auditLog).where(and(eq(auditLog.orgId, orgId), eq(auditLog.action, "requeue:linear.assign")));
+    expect(audits.length).toBeGreaterThanOrEqual(2);
 
     expect(await drainActions(deps(), orgId)).toEqual({ done: 2, failed: 0, retried: 0 });
     expect(calls.sort()).toEqual(["github.put org-teste/brains/processos/como-o-echo-funciona.md", "linear.assign lin-133 → lin-carla"]);
