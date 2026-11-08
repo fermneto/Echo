@@ -112,6 +112,17 @@ describe("webhook do Slack", () => {
     expect(res.status).toBe(200);
     expect(interactions).toMatchObject([{ type: "block_actions" }]);
   });
+
+  it("botões da correção (Aplicar, Recusar e o link Ver o rascunho) seguem para a fila sem filtro por action_id", async () => {
+    const { app, interactions } = setup();
+    const actions = [{ action_id: "correcao_aplicar", value: "f1" }, { action_id: "correcao_recusar", value: "f1" }, { action_id: "correcao_ver", url: "https://github.com/org/app/pull/2" }];
+    for (const a of actions) {
+      const raw = new URLSearchParams({ payload: JSON.stringify({ type: "block_actions", team: { id: "T-DEMO" }, user: { id: "UFER" }, actions: [a] }) }).toString();
+      const res = await app.request("/webhooks/slack/interacoes", { method: "POST", body: raw, headers: { "content-type": "application/x-www-form-urlencoded", ...sign.slack(S.slack, raw, nowS) } });
+      expect(res.status).toBe(200);
+    }
+    expect(interactions).toMatchObject(actions.map((a) => ({ actions: [a] })));
+  });
 });
 
 describe("aviso de RH", () => {

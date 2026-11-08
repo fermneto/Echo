@@ -404,6 +404,9 @@ export function createFix(deps: FixDeps) {
     const fix = await store.get(fixId);
     if (!fix) return { status: "not_found" };
     if (!fix.pr.authorId || by !== fix.pr.authorId) return finish({ status: "denied" }, "refused");
+    // Segundo clique (ou clique atrasado) numa correção já decidida, aplicada ou encerrada: não consulta o GitHub
+    // e não diz que o rascunho mudou.
+    if (fix.state !== "ready") return finish({ status: "conflict" }, "skipped");
 
     if (decision === "decline") {
       if (!(await store.decide(fixId, by, "declined", clock.now(), via))) return finish({ status: "conflict" }, "skipped");

@@ -17,9 +17,8 @@ import { registerInbox } from "./inbox.ts";
 import { registerMirror } from "./mirror.ts";
 import { createWorkerRunRecorder } from "./runs.ts";
 import { scheduleReconcile } from "./reconcile.ts";
-import { githubForOrg, platformsFromEnv, respondToInteraction } from "@echo/connectors";
-import { FIX_DECISION_TEXT } from "@echo/agents";
-import { registerFix } from "./fix.ts";
+import { githubForOrg, platformsFromEnv } from "@echo/connectors";
+import { fixInteractionHandler, registerFix } from "./fix.ts";
 import { registerEndOfDay } from "./end-of-day.ts";
 import { registerNight } from "./night.ts";
 import { registerRedistribution } from "./redistribution.ts";
@@ -91,18 +90,7 @@ const fix = serverFix(db, {
   // Juiz da delegação da correção: o mesmo modelo aberto da triagem. Sem ele, nenhuma correção é unida pela delegação.
   judge: cfg.SLM_OLLAMA_URL ? { url: cfg.SLM_OLLAMA_URL, model: cfg.SLM_MODEL, timeoutMs: cfg.TRIAGE_TIMEOUT_MS } : undefined,
 });
-interactions.add("correcao", async (job) => {
-  const r = await fix.decideFromSlack(job.orgId, job.payload);
-  if (!r) return "ignored";
-  const url = (job.payload as { response_url?: unknown })?.response_url;
-  const final = r.status === "approved" || r.status === "declined";
-  if (typeof url === "string") {
-    await respondToInteraction(url, final ? { replace_original: true, text: FIX_DECISION_TEXT[r.status] } : { replace_original: false, response_type: "ephemeral", text: FIX_DECISION_TEXT[r.status] }).catch((err) =>
-      log.warn({ err: String(err) }, "falha ao responder o clique da correção"),
-    );
-  }
-  return r.status;
-});
+interactions.add("correcao", fixInteractionHandler({ fix, log }));
 const fixing = await registerFix(queue, { fix, orgIds: () => allOrgIds(db), timeoutMs: cfg.FIX_TIMEOUT_MS });
 const runFix = () =>
   fixing.tick().then(

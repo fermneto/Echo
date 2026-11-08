@@ -114,12 +114,18 @@ describe("correção", () => {
     expect(s.outbox[1]).toMatchObject({ type: "slack.dm", idempotencyKey: "fix_ready_dm:fix1", payload: { personId: "fernando" } });
     expect(JSON.stringify(s.outbox[1]!.payload)).toContain("não é uma aprovação");
     expect(s.outbox[2]).toMatchObject({ type: "github.merge_fix", approvedBy: "fernando", idempotencyKey: "fix_merge:fix1", payload: { repo: "org/app", number: 45, sha: "d45", base: "ech-128-filtro" } });
-    expect(await s.flow.decide("org", "fernando", "fix1", "approve")).toMatchObject({ status: "refused", reason: "nao_esta_pronta" });
+    // Segundo clique: já decidida (não "o rascunho mudou"), sem outra união.
+    expect(await s.flow.decide("org", "fernando", "fix1", "approve")).toEqual({ status: "conflict" });
 
     s.outboxRows.set("fix_merge:fix1", { state: "done", result: { merged: true } });
     expect(await s.flow.sync("org")).toEqual({ ready: 0, applied: 1, failed: 0 });
     expect(s.fixes.get("fix1")!.state).toBe("applied");
-    expect(s.runs.map((x) => x.flow)).toEqual(["fix", "fix_ready", "fix_decision", "fix_decision", "fix_decision", "fix_applied"]);
+    // Clique atrasado depois de aplicada, em Aplicar ou em Recusar: continua já decidida.
+    expect(await s.flow.decide("org", "fernando", "fix1", "approve")).toEqual({ status: "conflict" });
+    expect(await s.flow.decide("org", "fernando", "fix1", "decline")).toEqual({ status: "conflict" });
+    expect(s.fixes.get("fix1")!.state).toBe("applied");
+    expect(s.outbox.filter((a) => a.type === "github.merge_fix")).toHaveLength(1);
+    expect(s.runs.map((x) => x.flow)).toEqual(["fix", "fix_ready", "fix_decision", "fix_decision", "fix_decision", "fix_applied", "fix_decision", "fix_decision"]);
   });
 
   it("rascunho que mudou depois de pronto não é unido", async () => {
