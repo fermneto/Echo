@@ -72,6 +72,10 @@ export interface CodeWriter {
   putFile(repo: string, path: string, content: string, message: string, previousSha?: string): Promise<{ sha: string }>;
   /** Apaga um arquivo do espelho. Se o arquivo mudou (sha diferente), FileChangedError; se já não existe, nada. */
   deleteFile(repo: string, path: string, sha: string, message: string): Promise<void>;
+  /** Rascunho da correção: commit com o diff sobre `baseSha`, branch do Echo e PR em rascunho para `base`. */
+  createFixDraft(input: { repo: string; base: string; baseSha: string; branch: string; title: string; body: string; patch: string }): Promise<{ number: number; headSha: string }>;
+  /** Leva a versão aprovada do rascunho (`sha`) para a branch do PR (`base`). */
+  mergeFix(input: { repo: string; base: string; sha: string; message: string }): Promise<{ sha: string | null }>;
 }
 
 /** O arquivo mudou no repositório desde a última leitura: a escrita foi recusada, sem sobrescrever. */

@@ -1,6 +1,6 @@
 import { randomUUID } from "node:crypto";
 import { renderSummaryPng } from "@echo/agents/imagem";
-import { allOrgIds, createGithubGainsHistory, dueAwayDigests, dueEndOfDay, dueMorning, needsGainsBaseline, serverAwayDigest, serverDaySummary, serverEndOfDay, serverGains, serverMorningPlan, serverNightReview, serverRedistribution, serverWeeklyReport, dueWeeklyReports } from "@echo/agents/server";
+import { allOrgIds, createGithubGainsHistory, serverFix, dueAwayDigests, dueEndOfDay, dueMorning, needsGainsBaseline, serverAwayDigest, serverDaySummary, serverEndOfDay, serverGains, serverMorningPlan, serverNightReview, serverRedistribution, serverWeeklyReport, dueWeeklyReports } from "@echo/agents/server";
 import { ensureProductNote } from "@echo/brain/pg";
 import { loadConfig } from "@echo/config";
 import { createDb, createPool } from "@echo/db";
@@ -16,7 +16,9 @@ import { registerActions } from "./actions.ts";
 import { registerInbox } from "./inbox.ts";
 import { registerMirror } from "./mirror.ts";
 import { scheduleReconcile } from "./reconcile.ts";
-import { githubForOrg, platformsFromEnv } from "@echo/connectors";
+import { githubForOrg, platformsFromEnv, respondToInteraction } from "@echo/connectors";
+import { FIX_DECISION_TEXT } from "@echo/agents";
+import { registerFix } from "./fix.ts";
 import { registerEndOfDay } from "./end-of-day.ts";
 import { registerNight } from "./night.ts";
 import { registerRedistribution } from "./redistribution.ts";
@@ -75,8 +77,40 @@ const endOfDay = await registerEndOfDay(queue, {
   scan: (now) => dueEndOfDay(db, now),
   interactions,
 });
-// Um só consumidor dos cliques, depois de todos os tratadores registrados (resolveu e nota do dia).
+// Correção (etapa 10): achados da revisão noturna viram correção no Managed Agents, rascunho no GitHub pelo
+// outbox e Aplicar/Recusar no privado do autor. Sem FIX_AGENT_ID e FIX_ENVIRONMENT_ID, nenhuma sessão abre;
+// a decisão e o andamento dos rascunhos continuam.
+const fix = serverFix(db, {
+  apiKey: cfg.ANTHROPIC_API_KEY,
+  agentId: cfg.FIX_AGENT_ID,
+  environmentId: cfg.FIX_ENVIRONMENT_ID,
+  timeoutMs: cfg.FIX_TIMEOUT_MS,
+  codeHost: async (orgId) => (await githubForOrg(db, platforms, orgId)) ?? null,
+});
+interactions.add("correcao", async (job) => {
+  const r = await fix.decideFromSlack(job.orgId, job.payload);
+  if (!r) return "ignored";
+  const url = (job.payload as { response_url?: unknown })?.response_url;
+  const final = r.status === "approved" || r.status === "declined";
+  if (typeof url === "string") {
+    await respondToInteraction(url, final ? { replace_original: true, text: FIX_DECISION_TEXT[r.status] } : { replace_original: false, response_type: "ephemeral", text: FIX_DECISION_TEXT[r.status] }).catch((err) =>
+      log.warn({ err: String(err) }, "falha ao responder o clique da correção"),
+    );
+  }
+  return r.status;
+});
+const fixing = await registerFix(queue, { fix, orgIds: () => allOrgIds(db), timeoutMs: cfg.FIX_TIMEOUT_MS });
+const runFix = () =>
+  fixing.tick().then(
+    (r) => (r.queued > 0 || r.ready > 0 || r.applied > 0) && log.info(r, "correções"),
+    (err) => log.error({ err }, "falha na agenda da correção"),
+  );
+log.info({ correcao: Boolean(cfg.ANTHROPIC_API_KEY && cfg.FIX_AGENT_ID && cfg.FIX_ENVIRONMENT_ID) }, "correção");
+
+// Um só consumidor dos cliques, depois de todos os tratadores registrados (resolveu, nota do dia e correção).
 await interactions.listen(queue);
+void runFix();
+const fixTimer = setInterval(() => void runFix(), cfg.FIX_SCAN_MS);
 const runEndOfDay = () =>
   endOfDay.tick().then(
     (queued) => queued > 0 && log.info({ queued }, "rascunhos da nota do dia na fila"),
@@ -160,6 +194,7 @@ async function shutdown(signal: string) {
   clearInterval(redistributionTimer);
   clearInterval(weeklyReportTimer);
   clearInterval(gainsTimer);
+  clearInterval(fixTimer);
   await Promise.allSettled([queue.stop(), pool.end(), flush()]);
   process.exit(0);
 }
