@@ -1,7 +1,7 @@
 import { FileChangedError, GithubApiError, SlackApiError, type ChatPlatform, type CodeWriter, type IssueWriter } from "@echo/connectors";
 import { auditLog, brainNotes, createDb, createPool, identities, orgs, outboxActions, people, planItems, redistributionPlans, tasks } from "@echo/db";
 import { PatchConflictError } from "@echo/domain";
-import { and, eq } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { appRoleUrl } from "@echo/db/testing";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { REQUIRES_APPROVAL, type ActionType } from "./index.ts";
@@ -63,6 +63,11 @@ describe.skipIf(!url)("executor do outbox (Postgres real)", () => {
     sendDmFile: async (u: string, i: { filename: string; data: Uint8Array; comment: string }) => {
       if (fileScopeMissing) throw new SlackApiError("files.getUploadURLExternal", "missing_scope");
       calls.push(`slack.file ${u}: ${i.filename} (${i.data.byteLength} bytes) ${i.comment}`);
+    },
+    sendChannelFile: async (c: string, i: { filename: string; data: Uint8Array; comment: string }) => {
+      if (fileScopeMissing) throw new SlackApiError("files.getUploadURLExternal", "missing_scope");
+      if (c === "C0FORA0001") throw new SlackApiError("files.completeUploadExternal", "not_in_channel");
+      calls.push(`slack.channel_file ${c}: ${i.filename} (${i.data.byteLength} bytes) ${i.comment}`);
     },
   } as unknown as ChatPlatform;
   let fileScopeMissing = false;
@@ -190,6 +195,40 @@ describe.skipIf(!url)("executor do outbox (Postgres real)", () => {
     expect((await drainActions(deps(), orgId)).done).toBe(1);
     fileScopeMissing = false;
     expect(calls).toEqual(["slack.file UCAR: resumo-2026-11-07.png (4 bytes) Resumo do seu dia", "slack.dm UCAR: Resumo do seu dia, 07/11 [2 blocos]"]);
+  });
+
+  it("vídeo da semana no canal sem aprovação: lê o mp4 na hora, sem bytes no outbox; sem permissão de arquivo, posta o texto; arquivo vencido e bot fora do canal falham de vez", async () => {
+    calls.length = 0;
+    const read: string[] = [];
+    const videoBytes = async (_org: string, key: string) => (read.push(key), key === "file_vencido" ? null : new Uint8Array([0, 0, 0, 24, 102, 116, 121, 112]));
+    const payload = (storageKey: string, channel = "C0PRODUTO1") => ({ channel, videoId: "v1", storageKey, filename: "video-da-semana-2026-W45.mp4", title: "Vídeo da semana · Produto · 2 a 6/11", comment: "*Vídeo da semana da equipe Produto* · 2 a 6/11", text: "Assista no painel do Echo, em Relatórios e comentem aqui na thread." });
+    const post = (key: string, p: ReturnType<typeof payload>) => enqueueAction(app, orgId, { type: "slack.post_video", target: `slack:${p.channel}`, idempotencyKey: key, payload: p });
+    const a = await post("vid1", payload("file_mp4"));
+    const [queued] = await db.select().from(outboxActions).where(eq(outboxActions.id, a.id));
+    expect(queued!.state).toBe("approved");
+    expect(JSON.stringify(queued!.payload)).not.toContain("base64");
+    expect((await drainActions({ ...deps(), videoBytes }, orgId)).done).toBe(1);
+    fileScopeMissing = true;
+    await post("vid2", payload("file_mp4"));
+    expect((await drainActions({ ...deps(), videoBytes }, orgId)).done).toBe(1);
+    fileScopeMissing = false;
+    // Worker sem a leitura do arquivo (sem chave): posta o texto, que diz onde assistir.
+    await post("vid3", payload("file_mp4"));
+    expect((await drainActions(deps(), orgId)).done).toBe(1);
+    const gone = await post("vid4", payload("file_vencido"));
+    const outside = await post("vid5", payload("file_mp4", "C0FORA0001"));
+    expect(await drainActions({ ...deps(), videoBytes }, orgId)).toEqual({ done: 0, failed: 2, retried: 0 });
+    const failed = await db.select().from(outboxActions).where(and(eq(outboxActions.orgId, orgId), inArray(outboxActions.id, [gone.id, outside.id])));
+    expect(failed.find((f) => f.id === gone.id)).toMatchObject({ state: "failed", attempts: 1, error: "o arquivo do vídeo não existe mais (vencido ou apagado)" });
+    expect(failed.find((f) => f.id === outside.id)).toMatchObject({ state: "failed", attempts: 1, error: "o Echo não está no canal C0FORA0001: convide o Echo para o canal e o próximo vídeo sai lá" });
+    // Mesma chave não posta de novo.
+    expect((await post("vid1", payload("file_mp4"))).duplicate).toBe(true);
+    expect(read).toEqual(["file_mp4", "file_mp4", "file_vencido", "file_mp4"]);
+    expect(calls).toEqual([
+      "slack.channel_file C0PRODUTO1: video-da-semana-2026-W45.mp4 (8 bytes) *Vídeo da semana da equipe Produto* · 2 a 6/11",
+      "slack.post C0PRODUTO1 [Echo]: Assista no painel do Echo, em Relatórios e comentem aqui na thread.",
+      "slack.post C0PRODUTO1 [Echo]: Assista no painel do Echo, em Relatórios e comentem aqui na thread.",
+    ]);
   });
 
   it("espelho: escreve no brains sem aprovação, guarda o sha e nunca sobrescreve um arquivo que mudou no Git", async () => {

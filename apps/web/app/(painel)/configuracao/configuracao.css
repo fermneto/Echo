@@ -255,7 +255,42 @@
   margin-top: 4px;
 }
 
+/* Canal do vídeo da semana: uma linha por equipe e a da empresa. */
+.video-channels {
+  display: grid;
+  gap: var(--space-md);
+}
+.video-channels__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 14rem) auto;
+  gap: var(--space-sm) var(--space-md);
+  align-items: center;
+}
+.video-channels__label {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.video-channels__name {
+  font-weight: 600;
+}
+.video-channels__hint {
+  font-size: 12px;
+}
+.video-channels__input {
+  min-width: 0;
+  text-transform: uppercase;
+}
+.video-channels__msg {
+  grid-column: 1 / -1;
+  margin: 0;
+  font-size: 13px;
+}
+
 @media (max-width: 900px) {
+  .video-channels__row {
+    grid-template-columns: 1fr;
+  }
   .onboard {
     grid-template-columns: 1fr;
   }

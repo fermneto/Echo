@@ -27,6 +27,11 @@ export interface ActionPayloads {
   "slack.dm": { personId: string; text: string; blocks?: unknown[] };
   /** Imagem na conversa privada; sem permissão de arquivo no Slack, manda o texto e os blocos de reserva. */
   "slack.dm_image": { personId: string; filename: string; title: string; comment: string; altText?: string; pngBase64: string; text: string; blocks?: unknown[] };
+  /**
+   * Vídeo da semana da equipe no canal da equipe (uma postagem por vídeo). O mp4 não fica no outbox: o executor lê
+   * pelo `storageKey` (id na Files API) na hora do envio. Sem permissão de arquivo, posta o texto com o link.
+   */
+  "slack.post_video": { channel: string; videoId: string; storageKey: string; filename: string; title: string; comment: string; text: string };
 }
 
 /** Erros do Slack em que adianta mandar a versão em texto em vez de repetir o envio do arquivo. */
@@ -47,6 +52,11 @@ export interface ExecutorDeps {
    * Sem a função ou sem endereço (painel sem https), a mensagem sai com o ícone do app.
    */
   agentIcon?: (orgId: string, ownerId?: string) => Promise<string | undefined>;
+  /**
+   * Bytes do vídeo da semana pelo id no armazenamento (Files API). `null`: o arquivo não existe mais (vencido ou
+   * apagado). Sem a função (worker sem a chave), o vídeo vai na versão em texto.
+   */
+  videoBytes?: (orgId: string, storageKey: string) => Promise<Uint8Array | null>;
 }
 
 type Row = typeof outboxActions.$inferSelect;
@@ -105,6 +115,7 @@ export const EXECUTABLE_TYPES: readonly ActionType[] = [
   "slack.post",
   "slack.dm",
   "slack.dm_image",
+  "slack.post_video",
 ];
 
 /** Erro gravado quando um worker sem o executor do tipo pega a ação. */
@@ -245,6 +256,31 @@ async function run(deps: ExecutorDeps, row: Row): Promise<unknown> {
       } catch (err) {
         if (err instanceof SlackApiError && FILE_FALLBACK.has(err.code)) return fallback();
         throw err;
+      }
+      return;
+    }
+    case "slack.post_video": {
+      const p = row.payload as ActionPayloads["slack.post_video"];
+      const chat = need("chat", "Slack");
+      // O Echo não entra sozinho num canal: quem configura o canal convida o app.
+      const channelError = (err: unknown): never => {
+        if (err instanceof SlackApiError && err.code === "not_in_channel") throw new PermanentActionError(`o Echo não está no canal ${p.channel}: convide o Echo para o canal e o próximo vídeo sai lá`);
+        if (err instanceof SlackApiError && (err.code === "channel_not_found" || err.code === "invalid_channel" || err.code === "is_archived")) throw new PermanentActionError(`canal ${p.channel} não encontrado ou arquivado: confira o canal do vídeo em Configuração`);
+        throw err;
+      };
+      const fallback = async () => {
+        const iconUrl = await deps.agentIcon?.(orgId).catch(() => undefined);
+        await chat.postAgentReply({ channel: p.channel, text: p.text, agentName: "Echo", ...(iconUrl ? { iconUrl } : {}) }).catch(channelError);
+      };
+      if (!chat.sendChannelFile || !deps.videoBytes) return fallback();
+      // Lido na hora: o arquivo vence com a retenção do vídeo, e repetir não o traz de volta.
+      const data = await deps.videoBytes(orgId, p.storageKey);
+      if (!data) throw new PermanentActionError("o arquivo do vídeo não existe mais (vencido ou apagado)");
+      try {
+        await chat.sendChannelFile(p.channel, { filename: p.filename, title: p.title, comment: p.comment, data });
+      } catch (err) {
+        if (err instanceof SlackApiError && FILE_FALLBACK.has(err.code)) return fallback();
+        channelError(err);
       }
       return;
     }

@@ -1,12 +1,12 @@
 // Vídeo da semana da equipe contra o Postgres real (DATABASE_URL), com papel comum (RLS): fatos montados só dos
 // relatórios liberados ao RH, fila por equipe sem duplicar, transição condicional, isolamento entre empresas e vencimento.
 import { randomUUID } from "node:crypto";
-import { asSystem, createDb, createPool, type Database, deployments, orgs, people, pullRequests, questions, teams, teamVideos, weeklyReports } from "@echo/db";
+import { asSystem, auditLog, createDb, createPool, type Database, deployments, orgs, people, pullRequests, questions, teams, teamVideos, weeklyReports } from "@echo/db";
 import { appRoleUrl } from "@echo/db/testing";
 import { eq } from "drizzle-orm";
 import type pg from "pg";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { createPgTeamVideoStore, expireTeamVideos, failStuckTeamVideos, latestTeamVideos, queuedTeamVideos, queueTeamVideos, teamVideoForStream, weekLabel } from "./pg-video.ts";
+import { createPgTeamVideoStore, expireTeamVideos, failStuckTeamVideos, latestTeamVideos, queuedTeamVideos, queueTeamVideos, readVideoChannels, saveVideoChannel, teamVideoForStream, weekLabel } from "./pg-video.ts";
 
 const url = process.env.DATABASE_URL;
 const NOW = new Date("2026-11-07T12:00:00Z");
@@ -102,6 +102,26 @@ describe.skipIf(!url)("vídeo da semana em Postgres", () => {
     expect(view).toMatchObject({ id, teamName: "Produto", weekLabel: "2 a 6/11", state: "ready", durationS: 41, playable: true });
     expect(await latestTeamVideos(db, other, [team])).toEqual([]);
     expect(await store.budget(org, new Date("2026-11-01T00:00:00Z"))).toEqual({ spentUsd: 0, monthlyLimitUsd: 50 });
+  });
+
+  it("canal do vídeo: da equipe e de reserva da empresa, id conferido, auditoria e sugestões dos canais onde o Echo já respondeu", async () => {
+    const store = createPgTeamVideoStore(db);
+    expect(await store.channels(org, team)).toEqual({ team: null, org: null });
+    expect(await saveVideoChannel(db, org, { teamId: team, channel: "c0produto1", actorId: fer })).toBe(true);
+    expect(await saveVideoChannel(db, org, { teamId: null, channel: "C0CFMADLL75", actorId: fer })).toBe(true);
+    expect(await saveVideoChannel(db, org, { teamId: null, channel: "#geral", actorId: fer })).toBe(false);
+    // Equipe de outra empresa não muda.
+    expect(await saveVideoChannel(db, other, { teamId: team, channel: "C0OUTRA001", actorId: fer })).toBe(false);
+    expect(await store.channels(org, team)).toEqual({ team: "C0PRODUTO1", org: "C0CFMADLL75" });
+    expect(await store.channels(other, team)).toEqual({ team: null, org: null });
+    // Perguntas no canal C1 (dos testes acima) não são id válido; um canal de verdade entra como sugestão.
+    await asSystem(sys(), (tx) => tx.insert(questions).values({ orgId: org, askerId: car, ownerId: fer, kind: "gemeo", channel: "slack:C0CFMADLL75", sourceRef: "s:9", state: "answered" }));
+    const view = await readVideoChannels(db, org);
+    expect(view).toEqual({ org: "C0CFMADLL75", teams: [{ id: team, name: "Produto", channel: "C0PRODUTO1" }], suggestions: ["C0CFMADLL75"] });
+    const audits = await asSystem(sys(), (tx) => tx.select().from(auditLog).where(eq(auditLog.orgId, org)));
+    expect(audits.map((a) => [a.actor, a.action, a.target]).sort()).toEqual([[`person:${fer}`, "config:video_channel", `org:${org}`], [`person:${fer}`, "config:video_channel", `team:${team}`]].sort());
+    expect(await saveVideoChannel(db, org, { teamId: team, channel: null, actorId: fer })).toBe(true);
+    expect((await store.channels(org, team)).team).toBeNull();
   });
 
   it("gravação parada vira falha; vencido sai do armazenamento", async () => {

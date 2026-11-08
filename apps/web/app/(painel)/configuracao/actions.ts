@@ -91,3 +91,31 @@ export async function cadastrarPessoa(_prev: CadastroState, form: FormData): Pro
     return { status: "error", error: "Não foi possível cadastrar agora. Tente de novo." };
   }
 }
+
+export type CanalVideoState = { status: "idle" } | { status: "done"; channel: string | null; message: string } | { status: "error"; error: string };
+
+/**
+ * Canal do Slack onde sai o vídeo da semana (da equipe, ou o de reserva da empresa). Liderança e RH, pela regra de
+ * `editableVideoChannels`. O id é conferido (C…); campo vazio tira o canal e o vídeo fica só no painel.
+ * Na demonstração, nada é gravado.
+ */
+export async function salvarCanalVideo(_prev: CanalVideoState, form: FormData): Promise<CanalVideoState> {
+  const me = await currentPersona();
+  if (!me || (me.role !== "hr" && me.role !== "leader")) return { status: "error", error: "Só o RH e a liderança mudam o canal do vídeo." };
+  const target = String(form.get("alvo") ?? "");
+  const raw = String(form.get("canal") ?? "").trim();
+  const { parseSlackChannelId } = await import("@echo/domain");
+  const channel = raw ? parseSlackChannelId(raw) : null;
+  if (raw && !channel) return { status: "error", error: "Use o id do canal público, como C0123ABCD45 (no Slack: detalhes do canal, no fim da aba Sobre)." };
+  if (isDemoSession(me)) return { status: "done", channel, message: "Demonstração: nada foi gravado." };
+  const db = panelDb();
+  if (!db) return { status: "error", error: "O painel não tem banco ligado (DATABASE_URL), então não há onde gravar." };
+  const { readVideoChannels, saveVideoChannel } = await import("@echo/agents/server");
+  const { canEditVideoChannel, ORG_TARGET } = await import("@/lib/video-channel");
+  const orgId = gainsOrgId(me.orgId);
+  if (!canEditVideoChannel(me, await readVideoChannels(db, orgId), target)) return { status: "error", error: "Esse canal não é seu para mudar." };
+  const ok = await saveVideoChannel(db, orgId, { teamId: target === ORG_TARGET ? null : target, channel, actorId: personIdFor(me.id) });
+  if (!ok) return { status: "error", error: "Não foi possível gravar agora. Tente de novo." };
+  revalidatePath("/configuracao");
+  return { status: "done", channel, message: channel ? `Gravado. O próximo vídeo sai em ${channel}; convide o Echo para o canal, se ainda não estiver lá.` : "Canal tirado. O vídeo fica só no painel." };
+}

@@ -1,8 +1,8 @@
 // Vídeo da semana da equipe no Postgres, sempre em withOrg com filtro explícito de org_id. Os fatos saem só dos
 // relatórios semanais já liberados ao RH (conferidos pela pessoa ou passado o prazo); só o código do fluxo escreve.
-import { agentRuns, type Database, deployments, orgs, people, pullRequests, questions, tasks, teams, teamVideos, weeklyReports, withOrg } from "@echo/db";
-import { type AvatarTraits, localDate, RELEASED_REPORT_STATES, teamVideoDue, parseAvatarTraits, pickVideoDeliveries, type PrState, type PullRequest, traitsFromSeed, type TeamWeekFacts, type VideoCandidate, type WeeklyMetrics } from "@echo/domain";
-import { and, eq, gte, inArray, isNotNull, lt, sql } from "drizzle-orm";
+import { agentRuns, auditLog, type Database, deployments, orgs, people, pullRequests, questions, tasks, teams, teamVideos, weeklyReports, withOrg } from "@echo/db";
+import { type AvatarTraits, localDate, parseSlackChannelId, RELEASED_REPORT_STATES, teamVideoDue, parseAvatarTraits, pickVideoDeliveries, type PrState, type PullRequest, traitsFromSeed, type TeamWeekFacts, type VideoCandidate, type WeeklyMetrics } from "@echo/domain";
+import { and, eq, gte, inArray, isNotNull, like, lt, sql } from "drizzle-orm";
 import type { TeamVideoPatch, TeamVideoRow, TeamVideoState, TeamVideoStore, TeamVideoStory } from "./video.ts";
 
 type PrRow = typeof pullRequests.$inferSelect;
@@ -102,6 +102,14 @@ export function createPgTeamVideoStore(db: Database): TeamVideoStore {
           clips: [],
         };
         return { facts, candidates };
+      });
+    },
+
+    async channels(orgId, teamId) {
+      return withOrg(db, orgId, async (tx) => {
+        const [team] = await tx.select({ channel: teams.slackChannelId }).from(teams).where(and(eq(teams.orgId, orgId), eq(teams.id, teamId)));
+        const [org] = await tx.select({ channel: orgs.slackChannelId }).from(orgs).where(eq(orgs.id, orgId));
+        return { team: team?.channel ?? null, org: org?.channel ?? null };
       });
     },
 
@@ -257,4 +265,44 @@ export async function latestTeamVideos(db: Database, orgId: string, teamIds: rea
 export async function teamVideoForStream(db: Database, orgId: string, id: string): Promise<{ storageKey: string; teamId: string } | null> {
   const [r] = await withOrg(db, orgId, (tx) => tx.select({ key: teamVideos.storageKey, teamId: teamVideos.teamId, state: teamVideos.state }).from(teamVideos).where(and(eq(teamVideos.orgId, orgId), eq(teamVideos.id, id))));
   return r?.key && r.state === "ready" ? { storageKey: r.key, teamId: r.teamId } : null;
+}
+
+// ---------- Canal do vídeo no Slack (Configuração)
+
+export interface VideoChannelsView {
+  /** Canal de reserva da empresa (equipe sem canal e empresa sem equipes). */
+  org: string | null;
+  teams: { id: string; name: string; channel: string | null }[];
+  /**
+   * Canais em que o Echo já respondeu perguntas (`questions.channel`), como sugestão: o bot está neles e não precisa
+   * de escopo para listar canais. Só ids `C…`.
+   */
+  suggestions: string[];
+}
+
+export async function readVideoChannels(db: Database, orgId: string): Promise<VideoChannelsView> {
+  return withOrg(db, orgId, async (tx) => {
+    const [org] = await tx.select({ channel: orgs.slackChannelId }).from(orgs).where(eq(orgs.id, orgId));
+    const rows = await tx.select({ id: teams.id, name: teams.name, channel: teams.slackChannelId }).from(teams).where(eq(teams.orgId, orgId)).orderBy(teams.name);
+    const asked = await tx.selectDistinct({ channel: questions.channel }).from(questions).where(and(eq(questions.orgId, orgId), like(questions.channel, "slack:C%")));
+    const suggestions = [...new Set(asked.map((q) => parseSlackChannelId(q.channel.slice("slack:".length))).filter((c): c is string => Boolean(c)))].sort();
+    return { org: org?.channel ?? null, teams: rows, suggestions };
+  });
+}
+
+/**
+ * Grava o canal do vídeo (da equipe, ou o de reserva da empresa com `teamId` nulo). `channel` nulo tira o canal.
+ * Recusa id fora do formato. Fica no audit_log com quem mudou.
+ */
+export async function saveVideoChannel(db: Database, orgId: string, input: { teamId: string | null; channel: string | null; actorId: string }): Promise<boolean> {
+  const channel = input.channel === null ? null : parseSlackChannelId(input.channel);
+  if (input.channel !== null && !channel) return false;
+  return withOrg(db, orgId, async (tx) => {
+    const done = input.teamId
+      ? await tx.update(teams).set({ slackChannelId: channel }).where(and(eq(teams.orgId, orgId), eq(teams.id, input.teamId))).returning({ id: teams.id })
+      : await tx.update(orgs).set({ slackChannelId: channel }).where(eq(orgs.id, orgId)).returning({ id: orgs.id });
+    if (!done.length) return false;
+    await tx.insert(auditLog).values({ orgId, actor: `person:${input.actorId}`, action: "config:video_channel", target: input.teamId ? `team:${input.teamId}` : `org:${orgId}` });
+    return true;
+  });
 }

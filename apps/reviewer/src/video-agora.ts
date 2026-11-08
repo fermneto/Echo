@@ -9,11 +9,16 @@
 //   --preview  grava também um trecho de tela nesse preview (sem ele, só a página animada)
 //   --host     domínio do preview, se não for *.vercel.app (vale ao criar ou atualizar o ambiente)
 //   --manter   não apaga o mp4 da Files API depois de baixar
+//   --canal    depois de gravar, não apaga o mp4 e põe na outbox da empresa de teste (DEMO_ORG_NAME ou "Empresa
+//              de teste (integrações)", na DATABASE_URL) um slack.post_video no canal dado (C…) ou, sem valor, no canal
+//              de reserva configurado na empresa. Quem posta é o worker (o de produção, depois do deploy), com a mesma
+//              ANTHROPIC_API_KEY que gravou. O Echo precisa estar no canal. Ex.: pnpm video:agora --canal C0CFMADLL75
 import { writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { type AvatarTraits, finalScenes, mp4DurationSeconds, prepareTeamVideo, recordScenes, previewOrigin, type PullRequest, scenesSeconds, teamRecordingIssues, type TeamWeekFacts, VIDEO_BUDGET_USD } from "@echo/agents";
-import { provisionVideo, videoTestKit } from "@echo/agents/server";
+import { enqueueTestTeamVideoPost, provisionVideo, testVideoChannel, videoTestKit } from "@echo/agents/server";
+import { createDb, createPool } from "@echo/db";
 import { LogRunRecorder } from "@echo/observability";
 
 const args = process.argv.slice(2);
@@ -26,6 +31,23 @@ if (!apiKey) {
   console.error("ANTHROPIC_API_KEY ausente no .env: o vídeo usa a chave da empresa.");
   process.exit(1);
 }
+const toChannel = args.includes("--canal");
+const channelArg = toChannel && !opt("canal")?.startsWith("--") ? opt("canal")?.trim() || undefined : undefined;
+const databaseUrl = process.env.DATABASE_URL?.trim();
+if (toChannel && !databaseUrl) {
+  console.error("--canal precisa da DATABASE_URL no .env: a postagem entra na outbox da empresa de teste.");
+  process.exit(1);
+}
+const orgName = process.env.DEMO_ORG_NAME?.trim() || "Empresa de teste (integrações)";
+// Confere a empresa e o canal antes de gravar: a sessão custa, e um erro só apareceria no fim.
+const pool = toChannel ? createPool(databaseUrl!, 2, { defaultScope: "system" }) : null;
+const target = pool
+  ? await testVideoChannel(createDb(pool), orgName, channelArg).catch(async (err: unknown) => {
+      console.error(`--canal: ${err instanceof Error ? err.message : String(err)}.`);
+      await pool.end();
+      process.exit(1);
+    })
+  : null;
 const previewArg = opt("preview");
 const preview = previewArg ? previewOrigin(previewArg) : null;
 if (previewArg && !preview) {
@@ -109,5 +131,17 @@ writeFileSync(file, r.video.bytes);
 console.log(`    duração ${duration?.toFixed(1) ?? "?"} s · ${(r.video.bytes.length / 1024).toFixed(0)} KB · trechos gravados: ${JSON.stringify((r.meta as { clips?: number[] } | null)?.clips ?? [])}`);
 console.log(problems.length ? `    RECUSADO pela regra: ${problems.join("; ")}` : "    aprovado pela regra (duração e domínios)");
 console.log(`\nmp4 salvo em ${file}`);
-if (!args.includes("--manter")) await kit.deleteFile(r.video.fileId).catch(() => undefined);
+if (pool && target && !problems.length) {
+  // O arquivo fica na Files API: o worker lê na hora do envio e não o apaga depois (não há linha em team_videos).
+  try {
+    const q = await enqueueTestTeamVideoPost(createDb(pool), target, { storageKey: r.video.fileId, teamName: facts.teamName, weekLabel: facts.weekLabel, week: "teste", webUrl: process.env.WEB_URL?.trim() || undefined });
+    console.log(`slack.post_video na outbox de "${orgName}" para o canal ${target.channel} (ação ${q.id}${q.duplicate ? ", já existia" : ""}); o worker posta na próxima rodada.`);
+    console.log(`    arquivo mantido na Files API (apague depois de assistir): ${r.video.fileId}`);
+  } catch (err) {
+    console.error(`Não entrou na outbox: ${err instanceof Error ? err.message : String(err)}`);
+    await pool.end();
+    process.exit(1);
+  }
+} else if (!args.includes("--manter")) await kit.deleteFile(r.video.fileId).catch(() => undefined);
+await pool?.end();
 process.exit(problems.length ? 1 : 0);
