@@ -755,9 +755,8 @@ _Gravado por um agente Claude — Painel · Relatórios · semana de 2/11 (Paine
 | Relatórios | /relatorios | Relatório semanal, vídeos das entregas, observação e registro de ajuda | A pessoa (o próprio) e o RH (enviados) |
 | Resumo interativo | /resumos/[id] | Nota do dia, plano da manhã e resumo da ausência como páginas interativas | A própria pessoa |
 | Ganhos | /ganhos | Espera evitada e revisões antes e depois, só em totais | RH e liderança |
-| Custo e execuções | /execucoes | Custo por fluxo, agent_runs, auditoria, controles de ensaio | Liderança |
+| Custo e execuções | /execucoes | Custo por fluxo, agent_runs e auditoria | Liderança |
 | Configuração | /configuracao | Slack, Linear, pessoas, currículo, contas, RH, canal do vídeo da semana e limite de custo | RH e liderança |
-| Simulador | /simulador | Conversa pelo mesmo fluxo do Slack | Só na demonstração |
 | Entrar · Convite | /entrar · /convite | Login com Slack, por usuário e senha (demo: o nome da pessoa e a senha `echo`) ou convite de uso único | Público |
 
 ### Papéis
@@ -810,11 +809,10 @@ Em Gestão → Custo e execuções, quanto custou cada coisa. Em Gestão → Gan
 
 _Preparação_
 
-1. Entre como Marina, abra Gestão → Custo e execuções e clique em Recriar a demonstração.
-2. Clique em Simular a noite e confira a execução na lista.
-3. Com o banco recriado (`pnpm db:seed`), rode `pnpm relatorio:agora`: gera o relatório da semana que já fechou, sem o qual a cena 4 mostra "ainda não foi gerado". `pnpm e2e` ensaia as cinco cenas sozinho, sem modelo.
-4. Abra o Slack e o painel lado a lado, se for mostrar a resposta real.
-5. Confira o código de acesso do painel: passe aos jurados ou remova.
+1. Recrie o banco da demonstração (`pnpm db:seed`) e rode `pnpm noite:agora` para a revisão da noite aparecer em Gestão → Custo e execuções.
+2. Rode `pnpm relatorio:agora`: gera o relatório da semana que já fechou, sem o qual a cena 4 mostra "ainda não foi gerado". `pnpm e2e` ensaia as cinco cenas sozinho, sem modelo.
+3. Abra o Slack e o painel lado a lado, se for mostrar a resposta real.
+4. Confira o código de acesso do painel: passe aos jurados ou remova.
 
 _Se algo falhar_
 

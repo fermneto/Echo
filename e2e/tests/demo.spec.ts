@@ -113,7 +113,7 @@ test("cena 5: custo, rastro e ganhos (Marina)", async ({ page }) => {
   await entrarComo(page, "Marina");
   await page.goto("/execucoes");
   await expect(page.getByText(/US\$/).first()).toBeVisible();
-  await expect(page.getByRole("button", { name: /Simular a noite|Noite simulada/ })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Simular a noite|Recriar a demonstração/ })).toHaveCount(0);
 
   await page.goto("/ganhos");
   await expect(page.locator("main")).toContainText(/espera|revis/i);
