@@ -35,8 +35,8 @@ export function demoHrOverview(teamIds: readonly string[], now = new Date()): Hr
   // Tarefas sintéticas: concluídas nas últimas duas semanas e trabalho aberto. Quem está de férias só tem concluídas.
   const STATES = ["todo", "in_progress", "in_review", "in_progress"] as const;
   const tasks = people.flatMap((p) => [
-    ...Array.from({ length: 1 + pick(`${p.id}:feitas`, 3) }, (_, k) => ({ assigneeId: p.id, state: "done", size: 1 + pick(`${p.id}:f${k}`, 4), updatedAt: new Date(now.getTime() - (1 + pick(`${p.id}:fd${k}`, 13)) * 86_400_000) })),
-    ...(p.availability.kind === "vacation" ? [] : Array.from({ length: pick(`${p.id}:abertas`, 3) }, (_, k) => ({ assigneeId: p.id, state: STATES[pick(`${p.id}:s${k}`, STATES.length)]!, size: 1 + pick(`${p.id}:a${k}`, 4), updatedAt: now }))),
+    ...Array.from({ length: 1 + pick(`${p.id}:feitas`, 3) }, (_, k) => ({ assigneeId: p.id, state: "done", updatedAt: new Date(now.getTime() - (1 + pick(`${p.id}:fd${k}`, 13)) * 86_400_000) })),
+    ...(p.availability.kind === "vacation" ? [] : Array.from({ length: pick(`${p.id}:abertas`, 3) }, (_, k) => ({ assigneeId: p.id, state: STATES[pick(`${p.id}:s${k}`, STATES.length)]!, updatedAt: now }))),
   ]);
   return hrOverview({
     tasks,

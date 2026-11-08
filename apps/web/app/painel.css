@@ -3732,72 +3732,12 @@ select.field option {
   margin: calc(-1 * var(--space-sm)) 0 var(--space-md);
   font-size: 13px;
 }
-.hr-progress__v {
-  margin: var(--space-md) 0 var(--space-md);
-  font-family: var(--font-display);
-  font-size: 28px;
-  font-weight: 500;
-  line-height: 1.1;
+.hr-progress__stages {
+  margin: var(--space-md) 0 0;
+  font-size: 14px;
+  line-height: 1.5;
   color: var(--color-cloud);
   font-variant-numeric: tabular-nums;
-}
-.hr-progress__v .mono {
-  font-family: var(--font-mono);
-  font-size: 12px;
-  font-weight: 400;
-}
-.hr-bar {
-  display: flex;
-  gap: 2px;
-  height: 10px;
-  border-radius: 5px;
-  overflow: hidden;
-  background: var(--color-line);
-}
-.hr-bar__seg {
-  flex-basis: 0;
-  min-width: 4px;
-}
-.hr-bar__seg.is-done,
-.hr-legend__sw.is-done {
-  background: var(--color-signal-twin);
-}
-.hr-bar__seg.is-review,
-.hr-legend__sw.is-review {
-  background: var(--color-signal-twin-text);
-}
-.hr-bar__seg.is-doing,
-.hr-legend__sw.is-doing {
-  background: var(--color-ash);
-}
-.hr-bar__seg.is-todo,
-.hr-legend__sw.is-todo {
-  background: var(--color-iron);
-}
-.hr-legend {
-  list-style: none;
-  margin: var(--space-md) 0 0;
-  padding: 0;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 4px var(--space-md);
-  font-size: 12px;
-  color: var(--color-fog);
-}
-.hr-legend li {
-  display: flex;
-  align-items: center;
-  gap: 6px;
-}
-.hr-legend .mono {
-  margin-left: auto;
-  color: var(--color-cloud);
-}
-.hr-legend__sw {
-  width: 8px;
-  height: 8px;
-  border-radius: 2px;
-  flex: none;
 }
 .hr-dot {
   width: 6px;
