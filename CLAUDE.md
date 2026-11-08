@@ -13,7 +13,7 @@ Escopo da primeira versão: só funcionários. Prestadores de serviço e reuniõ
 
 ## Regras invioláveis
 
-1. **A IA não aprova código, não altera números e não muda tarefas.** Toda mudança sensível passa por aprovação registrada. O modelo não tem ferramenta de escrita; só `packages/actions` escreve em GitHub, Linear ou Slack, e só depois de aprovação (via `outbox_actions`).
+1. **A IA não aprova código, não altera números e não muda tarefas.** Toda mudança sensível passa por aprovação registrada. O modelo não tem ferramenta de escrita; só `packages/actions` escreve em GitHub, Linear, Jira ou Slack, e só depois de aprovação (via `outbox_actions`).
    - **Delegação na correção (decidido em 08/11):** a delegação escrita pela própria pessoa (`people.delegation`) conta como aprovação registrada feita antes por ela, só para o que ela cobre e `@echo/domain` permite (hoje, unir no PR dela a correção da revisão noturna). As travas fixas (`delegatedFixGate`) e um juiz pequeno (SLM) conferem se a delegação cobre o caso; na dúvida ou em falha, a correção espera a pessoa. A união ainda passa por `fixMergeCheck`. Toda aprovação pela delegação fica no `audit_log` com a pessoa como ator e a origem `delegacao`, e ela recebe aviso com o motivo e como desfazer. `NEVER_DELEGATED` nunca é delegável.
 2. **Sem mensagens privadas entre pessoas, sem tempo online.** O status do Slack é lido só na menção (`users.getPresence`) e nunca é gravado nem logado.
 3. **Números vêm de regras fixas em `packages/domain`.** O modelo só redige e explica. Um validador em código recusa número inventado.
@@ -32,7 +32,7 @@ apps/reviewer       Vídeos com Managed Agents (etapa 27); hoje só responde ao 
 packages/domain     Regras puras (disponibilidade, carga, entregas, crédito, custo)
 packages/db         Drizzle: esquema, migrações e isolamento (RLS)
 packages/brain      Notas, busca, versões, espelho Git e permissões
-packages/connectors GitHub, Slack, Linear e RH: portas e adaptadores
+packages/connectors GitHub, Slack, Linear, Jira e RH: portas e adaptadores
 packages/agents     Fluxos, ferramentas, modelos, validadores e instruções
 packages/jobs       Interface JobQueue com pg-boss
 packages/artifacts  Componentes dos resumos interativos e validação
@@ -48,7 +48,7 @@ infra/              Dockerfiles e Blueprint da Render
 
 - `packages/domain` não importa nada externo e não chama rede, modelo nem relógio do sistema (use `Clock`).
 - `packages/agents` usa `connectors` e `brain` só por interfaces (portas).
-- Só `packages/actions` altera GitHub, Linear ou Slack, e só depois de aprovação.
+- Só `packages/actions` altera GitHub, Linear, Jira ou Slack, e só depois de aprovação.
 - Os `apps/*` só conectam os pacotes, sem regra de negócio.
 - Toda tabela de negócio tem `org_id` com Row Level Security; transações definem a empresa com `withOrg`.
 
@@ -57,7 +57,7 @@ infra/              Dockerfiles e Blueprint da Render
 - Uma etapa por vez, com testes antes da próxima. Commits pequenos, PRs com CI verde.
 - **Todo fluxo tem testes e grava uma linha em `agent_runs`.**
 - Toda variável nova é validada em `packages/config` e entra em `.env.example`.
-- Consultar a documentação atual de cada API (Anthropic, Slack, GitHub, Linear) antes de implementar.
+- Consultar a documentação atual de cada API (Anthropic, Slack, GitHub, Linear, Jira) antes de implementar.
 - Versões de dependências fixadas no `catalog` do `pnpm-workspace.yaml`.
 - Declarar na submissão todas as ferramentas usadas, inclusive o Claude Code.
 

@@ -2,7 +2,7 @@
 
 Quatro frentes em paralelo. Cada frente é dona de pastas próprias, para quase não haver conflito de merge. Os pontos de contato entre as frentes são os **contratos** em `packages/*/src/index.ts`. Mudar um contrato exige avisar o time antes.
 
-Situação em **8/11/2026**, com a `main` no merge do #75. O que bloqueia, o que configurar e o que testar está em [`pendencias.md`](pendencias.md).
+Situação em **8/11/2026**, com a `main` no merge do #77. O que bloqueia, o que configurar e o que testar está em [`pendencias.md`](pendencias.md).
 
 ## Prazos
 
@@ -27,11 +27,11 @@ Situação em **8/11/2026**, com a `main` no merge do #75. O que bloqueia, o que
 
 ## Frente 1: Integrações com aplicativos
 
-**Dona de:** `packages/connectors`, `apps/api` (webhooks, OAuth e aviso de RH), `packages/actions` (executor do outbox) e a configuração das plataformas (GitHub App, Slack, Linear, agenda e Vercel).
+**Dona de:** `packages/connectors`, `apps/api` (webhooks, OAuth e aviso de RH), `packages/actions` (executor do outbox) e a configuração das plataformas (GitHub App, Slack, Linear, Jira, agenda e Vercel).
 
-**Entregue:** webhooks com assinatura e sem duplicar (etapa 3), adaptadores do GitHub, Linear e Slack, reconciliação, executor do outbox (comentário, revisores, Linear, Slack, espelho, rascunho e união da correção), login no painel com o Slack e aviso de RH (etapa 15), agenda (etapa 18), CI/CD (etapa 19) e espelho das notas (etapa 14).
+**Entregue:** webhooks com assinatura e sem duplicar (etapa 3), adaptadores do GitHub, Linear e Slack, reconciliação, executor do outbox (comentário, revisores, Linear, Slack, espelho, rascunho e união da correção), login no painel com o Slack e aviso de RH (etapa 15), agenda (etapa 18), CI/CD (etapa 19), espelho das notas (etapa 14) e o Jira Cloud no lugar do Linear (etapa 21, #77), com token de API de conta de serviço (`JIRA_*`) e as mesmas ações aprovadas `linear.assign` e `linear.comment`.
 
-**Falta até a entrega:** os testes A a L contra as plataformas de verdade (`pendencias.md`, seção 4.2).
+**Falta até a entrega:** os testes A a L contra as plataformas de verdade (`pendencias.md`, seção 4.2). Sem bloquear: as duas sugestões da revisão do #77 para o webhook do Jira (B15).
 
 **Pronto quando:** um push real aparece em `work_events`, o reenvio não duplica e uma menção real no Slack recebe a resposta "Agente de Fernando".
 

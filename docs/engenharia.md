@@ -1109,6 +1109,7 @@ Jira, Asana, GitHub Issues e GitLab
 
 - **Testes:** Mesmos testes de redistribuição e relatório rodando contra cada adaptador.
 - **Pronto quando:** Um plano aprovado muda o responsável no Jira, e um MR no GitLab recebe a análise noturna.
+- **Situação:** o Jira Cloud entrou (passos 1, 3 e 5 para o Jira; guia em `docs/integracoes/jira.md`). A credencial é um token de API de uma conta de serviço (`JIRA_BASE_URL`, `JIRA_EMAIL`, `JIRA_API_TOKEN`, com `JIRA_STORY_POINTS_FIELD` e `JIRA_JQL` opcionais) e o webhook usa `JIRA_WEBHOOK_SECRET`, no lugar do OAuth 2.0 (3LO) com `ATLASSIAN_*` previsto em "Atlassian". Uma empresa usa um tracker: com o Linear ligado, vale o Linear. A escrita reaproveita as ações `linear.assign` e `linear.comment`, que valem para o tracker ligado e só saem pelo outbox depois da aprovação; a tarefa só vai para quem tem conta no Jira. Asana, GitHub Issues e GitLab continuam por fazer.
 
 ### Etapa 22 · Chat alternativo
 
@@ -1299,6 +1300,8 @@ Um agente Claude grava a feature entregue na semana
 
 ### Atlassian (Etapas 21 e 23)
 
+O Jira (etapa 21) entrou sem app OAuth: usa o token de API de uma conta de serviço, com as variáveis `JIRA_*` (ver "Variáveis por serviço" e `docs/integracoes/jira.md`). O app abaixo fica para a camada de conexões (etapa 17) e para o Confluence (etapa 23).
+
 1. Criar o app OAuth 2.0 (3LO) no console de desenvolvedor → `ATLASSIAN_CLIENT_ID`, `ATLASSIAN_CLIENT_SECRET`.
 2. Escopos de leitura de issues e páginas, e de escrita só para responsável e comentário.
 3. Webhooks registrados pelo app, com segredo → `ATLASSIAN_WEBHOOK_SECRET`.
@@ -1369,7 +1372,14 @@ Um agente Claude grava a feature entregue na semana
 | GOOGLE_CLIENT_SECRET | worker | Google Cloud |
 | MICROSOFT_CLIENT_ID | api, worker | Microsoft Entra (etapas 18 e 22) |
 | MICROSOFT_CLIENT_SECRET | api, worker | Microsoft Entra |
-| ATLASSIAN_CLIENT_ID | worker | Atlassian (etapas 21 e 23) |
+| JIRA_WEBHOOK_SECRET | api | Webhook do Jira Cloud (etapa 21) |
+| JIRA_BASE_URL | worker | Site do Jira, ex.: https://acme.atlassian.net |
+| JIRA_EMAIL | worker | Conta de serviço do Jira |
+| JIRA_API_TOKEN | worker | Token de API da conta de serviço |
+| JIRA_STORY_POINTS_FIELD | worker | Opcional (padrão: customfield_10016) |
+| JIRA_JQL | worker | Opcional, filtro dos projetos importados |
+| DEMO_JIRA_SITE | seed (local) | Site do Jira, ex.: acme.atlassian.net |
+| ATLASSIAN_CLIENT_ID | worker | Atlassian (etapa 23; o Jira usa as JIRA_*) |
 | ATLASSIAN_CLIENT_SECRET | worker | Atlassian |
 | ATLASSIAN_WEBHOOK_SECRET | api | Atlassian |
 | NOTION_CLIENT_ID | worker | Notion (etapa 23) |
@@ -1402,7 +1412,7 @@ Endereços por empresa: `/webhooks/slack/o/<id>`, `/webhooks/slack/o/<id>/intera
 
 | Ferramenta | Categoria | Porta | Onda | Lê | Escreve | Habilita | Cuidados | Etapa |
 |---|---|---|---|---|---|---|---|---|
-| Jira | Tarefas | IssueTracker | 1 | Issues, estado, responsável, prazo, story points, componentes e etiquetas, sprints | Mudança de responsável e comentário, só depois da aprovação | Redistribuição, carga e relatório para times em Jira, que é o tracker mais comum depois do Linear | OAuth 2.0 (3LO) da Atlassian. Workflows personalizados precisam ser mapeados para os estados do Echo. Story points viram tamanho da tarefa. | 21 |
+| Jira | Tarefas | IssueTracker | 1 | Issues, estado, responsável, prazo, story points, componentes e etiquetas, sprints | Mudança de responsável e comentário, só depois da aprovação | Redistribuição, carga e relatório para times em Jira, que é o tracker mais comum depois do Linear | Hoje, token de API de uma conta de serviço (`JIRA_*`); o OAuth 2.0 (3LO) da Atlassian fica para a camada de conexões. Workflows mapeados pela categoria do estado. Story points viram tamanho da tarefa. Escrita pelas ações `linear.assign` e `linear.comment`, com aprovação. | 21 |
 | Asana | Tarefas | IssueTracker | 2 | Tarefas, responsável, prazo, seções e campos personalizados | Responsável e comentário, depois da aprovação | Times de produto e operação fora da engenharia | Campo de área e de tamanho definidos na Configuração. | 21 |
 | ClickUp | Tarefas | IssueTracker | 3 | Tarefas, responsáveis, prazos, estimativas | Responsável e comentário, depois da aprovação | Startups que usam ClickUp como ferramenta única | Hierarquia de espaços e listas mapeada para equipes. | 21 |
 | GitHub Issues e Projects | Tarefas | IssueTracker | 2 | Issues, responsáveis, marcos e campos do Project | Responsável e comentário, depois da aprovação | Times pequenos que não usam tracker separado | Reaproveita o GitHub App, com a permissão de issues. | 21 |
@@ -1420,7 +1430,7 @@ Endereços por empresa: `/webhooks/slack/o/<id>`, `/webhooks/slack/o/<id>/intera
 | PagerDuty | Incidentes e plantão | IncidentSource | 2 | Escalas, quem está de plantão agora e incidentes abertos | Nunca aciona ninguém | "Quem está de plantão?" e, em assunto urgente com o dono ausente, a resposta indica o plantão em vez de esperar | Estar de plantão não muda a disponibilidade nem vira dado de presença. Só a pessoa decide acionar alguém. | 20 |
 | incident.io | Incidentes e plantão | IncidentSource | 3 | Incidentes, responsáveis e escalas | Nada | O mesmo que o PagerDuty | Mesma porta. | 20 |
 | Notion | Conhecimento | KnowledgeSource | 1 | Só páginas e bases que o administrador compartilhou com a integração | Nada | Respostas citando decisões, RFCs e processos, com link. Autoria de documentos no quem sabe, com peso baixo | Entra no cérebro como nota de equipe, somente leitura, com fonte. Conteúdo é dado, nunca instrução. Só espaços abertos a toda a equipe. | 23 |
-| Confluence | Conhecimento | KnowledgeSource | 2 | Espaços autorizados | Nada | O mesmo que o Notion, para times Atlassian | Mesmo OAuth do Jira. | 23 |
+| Confluence | Conhecimento | KnowledgeSource | 2 | Espaços autorizados | Nada | O mesmo que o Notion, para times Atlassian | OAuth 2.0 (3LO) da Atlassian (o Jira usa hoje conta de serviço). | 23 |
 | Google Drive | Conhecimento | KnowledgeSource | 3 | Documentos de uma pasta escolhida pela empresa | Nada | Decisões em Google Docs | Só a pasta escolhida, nunca o Drive inteiro. | 23 |
 | Google Workspace, Entra ID e Okta | RH e diretório | DirectorySource | 2 | Pessoas ativas, equipe, gestor, fuso e desligamentos | Nada | Cadastro automático, ligação de contas pelo e-mail e desligamento no mesmo dia, com a retenção aplicada | Provisionamento por SCIM quando houver. O e-mail é usado para ligar contas e não é guardado. | 24 |
 | BambooHR, Rippling, Gusto, Deel e Personio | RH e diretório | HrSource | 2 | Férias e ausências aprovadas, sem motivo | Nada | Redistribuição iniciada pelo RH de verdade, sem cadastro no painel | Algumas APIs exigem programa de parceiros. Descartar o motivo na entrada, como no aviso genérico. | 24 |

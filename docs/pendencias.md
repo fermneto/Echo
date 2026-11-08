@@ -1,12 +1,12 @@
 # Pendências: bloqueios, configuração e validação
 
-Situação em **8/11/2026**, com a `main` no merge do #75. Aqui fica o que impede avançar, o que falta configurar e o que testar para dar o Echo como funcionando. O guia de cada integração (conta, variáveis, conferência e validação) está em [`integracoes/`](integracoes/README.md). Quem cuida de cada parte está em [`equipe.md`](equipe.md).
+Situação em **8/11/2026**, com a `main` no merge do #77. Aqui fica o que impede avançar, o que falta configurar e o que testar para dar o Echo como funcionando. O guia de cada integração (conta, variáveis, conferência e validação) está em [`integracoes/`](integracoes/README.md). Quem cuida de cada parte está em [`equipe.md`](equipe.md).
 
 **Prazo:** entrega no domingo, 8/11, às 13h. Demo Day às 16h.
 
 ## 1. Onde estamos
 
-**Na `main`** (último merge: #75, teste ponta a ponta no navegador):
+**Na `main`** (último merge: #77, conector do Jira Cloud):
 
 | Etapa | O quê | Frente |
 |---|---|---|
@@ -23,11 +23,12 @@ Situação em **8/11/2026**, com a `main` no merge do #75. Aqui fica o que imped
 | 15 | Aviso de RH assinado, login no painel com o Slack (#53, #55) e cadastro pelo RH com foto e currículo, que vira o bonequinho em pixel art (#54, #59, #63, #66) | Integrações e Web |
 | 16 | Painel com dados reais, roteiro da demo, custo e execuções (#32, #34, #45, #47); telas com dados reais para quem é de empresa conectada (#73); worker grava em `agent_runs` (#68); história da demo no navegador com Playwright, na CI (`pnpm e2e`, #75) | Web e Avaliador |
 | 18 e 19 | Agenda (Google e Microsoft 365) e CI/CD (GitHub Actions e Vercel) | Integrações |
+| 21 | Jira Cloud no lugar do Linear (#77): webhook assinado, reconciliação e leitura ao vivo; responsável e comentário pelas mesmas ações `linear.assign` e `linear.comment`, com aprovação. Token de API de conta de serviço (`JIRA_*`) em vez do OAuth `ATLASSIAN_*`. Asana, GitHub Issues e GitLab ficam fora | Integrações |
 | 26 | Resumo do dia montado por modelo aberto (#48, #49), que chega como imagem no privado do Slack (#52, #56, #57) | Funções e Web |
 
 **Comandos para ensaiar os fluxos na hora:** `pnpm nota:agora` (#52), `pnpm noite:agora` (#60) e `pnpm manha:agora` (#69) põem o job na fila, e o worker faz o resto. `pnpm relatorio:agora` (#75) gera na hora o relatório da semana que já fechou, sem duplicar e sem enviar ao RH.
 
-**Fora do escopo da demo (próximos passos no pitch):** etapas 17 (camada de conexões), 20 (incidentes e plantão), 21 e 22 (trackers e chat alternativos), 23 (base de conhecimento), 24 (RH e diretório), 25 (API pública) e 27 (vídeos das entregas).
+**Fora do escopo da demo (próximos passos no pitch):** etapas 17 (camada de conexões), 20 (incidentes e plantão), 21 (Asana, GitHub Issues e GitLab; o Jira entrou no #77), 22 (chat alternativo), 23 (base de conhecimento), 24 (RH e diretório), 25 (API pública) e 27 (vídeos das entregas).
 
 ## 2. Bloqueios e decisões em aberto
 
@@ -57,6 +58,13 @@ Só "quem está no expediente" sai pela equipe da tela.
 **Dono:** Web.
 **Situação:** sem `DATABASE_URL`, `/redistribuicao`, `/execucoes` e `/resumos` mostram os dados da demo. Com `DATABASE_URL` e o banco fora do ar, as três dão erro 500: a leitura do banco não tem `try/catch` e o painel não tem `error.tsx`. O Início não cai, porque `loadTeam` volta para a equipe da demo.
 
+### B15. Webhook do Jira: repetição e endereço do site
+
+**Dono:** Integrações.
+**Situação:** duas sugestões da revisão do #77, sem bloquear a demo:
+- recusar o aviso com `body.timestamp` fora de cerca de 5 minutos, contra repetição. Hoje o `verifyJira` só confere a assinatura, e a entrega repetida é barrada pelo `X-Atlassian-Webhook-Identifier`;
+- restringir `JIRA_BASE_URL` a `https://*.atlassian.net`. Hoje `packages/config` só exige uma URL válida.
+
 ### Resolvidos
 
 - **B2, B3, B9:** entraram com o #23.
@@ -85,6 +93,7 @@ Só "quem está no expediente" sai pela equipe da tela.
 | Slack | Espaço de teste e app pelo manifesto `infra/slack-manifest.yml` | teste-integracoes, passo 2 |
 | GitHub | Organização de teste, repositório público `app` e GitHub App instalado nele (Contents e Pull requests em *Read and write*) | passo 2 |
 | Linear | Espaço de teste e chave pessoal ou app OAuth, mais o webhook de Issues | passo 2 |
+| Jira Cloud (no lugar do Linear) | Site e projeto de teste, conta de serviço com token de API e webhook com segredo | `integracoes/jira.md` |
 | Anthropic | Organização, limite de gasto e chave de API | etapa 6 do manual |
 | Managed Agents | Agente e ambiente da correção: `pnpm --filter @echo/reviewer provision` | etapa 10 |
 | Render | Blueprint a partir de `infra/render.yaml` | B7 |
@@ -103,10 +112,12 @@ Toda variável é validada em `packages/config`, e o serviço falha cedo, com me
 | `GITHUB_WEBHOOK_SECRET` | ✔ | | | GitHub App → Webhook secret |
 | `SLACK_SIGNING_SECRET` | ✔ | | | App do Slack → Basic Information |
 | `LINEAR_WEBHOOK_SECRET` | ✔ | | | Webhook do Linear |
+| `JIRA_WEBHOOK_SECRET` | ✔ | | | Webhook do Jira Cloud |
 | `VERCEL_WEBHOOK_SECRET` | ✔ | | | Webhook de deploys da Vercel |
 | `SLACK_BOT_TOKEN` | | | ✔ | App do Slack → Bot User OAuth Token (`xoxb-…`) |
 | `GITHUB_APP_ID`, `GITHUB_PRIVATE_KEY` | | ✔ | ✔ | GitHub App (chave `.pem` numa linha, com `\n`) |
 | `LINEAR_CLIENT_ID`, `LINEAR_CLIENT_SECRET` ou `LINEAR_API_KEY` | | | ✔ | App OAuth do Linear, ou chave pessoal para testes |
+| `JIRA_BASE_URL`, `JIRA_EMAIL`, `JIRA_API_TOKEN` (e, opcionais, `JIRA_STORY_POINTS_FIELD` e `JIRA_JQL`) | | | ✔ | Site do Jira e token de API de uma conta de serviço. Com o Linear ligado, vale o Linear |
 | `ANTHROPIC_API_KEY` | | ✔ | ✔ | Anthropic. Sem ela, o agente responde só por regra e não há correção |
 | `SLM_OLLAMA_URL`, `SLM_MODEL`, `TRIAGE_TIMEOUT_MS` | | ✔ | ✔ | `echo-triage` (Qwen3 4B). No worker: triagem, resumo do dia e juiz da delegação. No painel: currículo do cadastro. `TRIAGE_TIMEOUT_MS` só no worker |
 | `FIX_AGENT_ID`, `FIX_ENVIRONMENT_ID` | | | ✔ | `pnpm --filter @echo/reviewer provision` |
@@ -119,7 +130,7 @@ Toda variável é validada em `packages/config`, e o serviço falha cedo, com me
 | `DEMO_MODE` | ✔ | ✔ | ✔ | `true` no evento: login por persona e simulador |
 | `LANGFUSE_*` | opcional | opcional | opcional | Langfuse |
 
-**Para ligar a empresa de teste** (`pnpm integracoes:ligar`): `DEMO_ORG_NAME`, `DEMO_SLACK_TEAM_ID`, `DEMO_GITHUB_INSTALLATION_ID`, `DEMO_LINEAR_ORG_ID`, `DEMO_GOOGLE_DOMAIN`, `DEMO_MICROSOFT_TENANT_ID`, `DEMO_VERCEL_TEAM_ID` e `DEMO_IDENTITIES`, que lista as pessoas e as contas de cada uma. `pnpm integracoes:conferir` mostra os ids que vão nessas variáveis.
+**Para ligar a empresa de teste** (`pnpm integracoes:ligar`): `DEMO_ORG_NAME`, `DEMO_SLACK_TEAM_ID`, `DEMO_GITHUB_INSTALLATION_ID`, `DEMO_LINEAR_ORG_ID`, `DEMO_JIRA_SITE`, `DEMO_GOOGLE_DOMAIN`, `DEMO_MICROSOFT_TENANT_ID`, `DEMO_VERCEL_TEAM_ID` e `DEMO_IDENTITIES`, que lista as pessoas e as contas de cada uma. `pnpm integracoes:conferir` mostra os ids que vão nessas variáveis.
 
 **Para o aviso de RH:** `pnpm integracoes:rh` gera o segredo da empresa e mostra a URL a configurar no sistema de RH.
 
@@ -131,7 +142,7 @@ Na ordem. Cada etapa só faz sentido com a anterior verde.
 
 - [x] `pnpm typecheck && pnpm test` com o banco migrado: 16 de 16 pacotes (7/11, no ramo do #50). Os testes de banco rodam com um papel comum do Postgres, então o RLS vale de verdade.
 - [x] `pnpm evals` com o modelo real: 18 de 18 (15 fixos e 3 de idioma), sem falha de segurança (7/11).
-- [ ] CI verde na `main` depois do último merge (#75), já com o `pnpm e2e`.
+- [ ] CI verde na `main` depois do último merge (#77), já com o `pnpm e2e`.
 
 ### 4.2 Com as plataformas de teste (guias em [`integracoes/`](integracoes/README.md))
 
@@ -172,6 +183,7 @@ As cinco cenas, em 3 minutos: a pergunta que esperaria um dia, a manhã de Ferna
 | Item | Frente |
 |---|---|
 | Testes A a L contra as plataformas de verdade (B1) | Integrações |
+| Webhook do Jira: recusar `body.timestamp` fora de cerca de 5 minutos e restringir `JIRA_BASE_URL` a `https://*.atlassian.net` (B15) | Integrações |
 | Revisão visual do card "Seu agente" (`/pessoas/[id]`) e dos botões Aprovar e Recusar da correção em Meu plano, que usam os componentes que já existiam, sem revisão de design. Os arquivos são `apps/web/components/AgentProfileForm.tsx`, `apps/web/app/(painel)/plano/PlanList.tsx` e o bloco "Seu agente" em `apps/web/app/painel.css` | Web (Frente 3) |
 | Ids da correção no `echo-worker` (B7), vídeo, README e lista de ferramentas | Avaliador |
 | Equipes escolhidas pelo RH no "Pergunte ao Echo" com banco (B13) | Web (Frente 3) |
