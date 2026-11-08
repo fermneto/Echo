@@ -5,6 +5,7 @@
   "exports": {
     ".": "./src/index.ts",
     "./server": "./src/server.ts",
+    "./imagem": "./src/summary-image.ts",
     "./ganhos": "./src/pg-gains.ts",
     "./perguntas": "./src/pg-questions.ts",
     "./execucoes": "./src/pg-runs.ts",

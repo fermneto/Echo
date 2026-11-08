@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { renderSummaryPng } from "@echo/agents/imagem";
 import { allOrgIds, createGithubGainsHistory, dueAwayDigests, dueEndOfDay, dueMorning, needsGainsBaseline, serverAwayDigest, serverDaySummary, serverEndOfDay, serverGains, serverMorningPlan, serverNightReview, serverRedistribution, serverWeeklyReport, dueWeeklyReports } from "@echo/agents/server";
 import { ensureProductNote } from "@echo/brain/pg";
 import { loadConfig } from "@echo/config";
@@ -70,7 +71,7 @@ await ensureProductNote(db).then(
 const slm = cfg.SLM_OLLAMA_URL ? { url: cfg.SLM_OLLAMA_URL, model: cfg.SLM_MODEL } : undefined;
 const endOfDay = await registerEndOfDay(queue, {
   flow: serverEndOfDay(db, cfg.ANTHROPIC_API_KEY, cfg.WEB_URL),
-  summary: serverDaySummary(db, slm ? { ...slm, timeoutMs: cfg.SUMMARY_TIMEOUT_MS } : undefined, cfg.WEB_URL),
+  summary: serverDaySummary(db, slm ? { ...slm, timeoutMs: cfg.SUMMARY_TIMEOUT_MS } : undefined, cfg.WEB_URL, (a) => renderSummaryPng(a, { stateLabel: "Resumo" })),
   scan: (now) => dueEndOfDay(db, now),
   interactions,
 });
