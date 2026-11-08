@@ -44,6 +44,18 @@ export function verifyLinear(secret: string, rawBody: string, headers: Headers, 
   return { ok: true };
 }
 
+/**
+ * Jira Cloud (webhook com segredo): X-Hub-Signature = "sha256=" + HMAC-SHA256(corpo) em hex, como no WebSub.
+ * O Jira não manda horário assinado; a repetição é barrada pelo X-Atlassian-Webhook-Identifier (único por entrega).
+ * Outro algoritmo é recusado, para não aceitar um formato que não sabemos conferir.
+ */
+export function verifyJira(secret: string, rawBody: string, headers: Headers): Verification {
+  const sig = h(headers, "x-hub-signature");
+  if (!sig) return { ok: false, reason: "assinatura ausente" };
+  if (!sig.startsWith("sha256=")) return { ok: false, reason: "algoritmo não suportado" };
+  return safeEqual(sig, `sha256=${hmacHex(secret, rawBody)}`) ? { ok: true } : { ok: false, reason: "assinatura inválida" };
+}
+
 /** Aviso de RH: x-echo-signature = HMAC-SHA256("<timestamp>.<corpo>") em hex; mais de 5 minutos é recusado. */
 export function verifyHr(secret: string, rawBody: string, headers: Headers, nowMs: number, toleranceS = 300): Verification {
   const ts = h(headers, "x-echo-timestamp");
@@ -61,5 +73,6 @@ export const sign = {
     "x-slack-signature": `v0=${hmacHex(secret, `v0:${tsS}:${body}`)}`,
   }),
   linear: (secret: string, body: string) => ({ "linear-signature": hmacHex(secret, body) }),
+  jira: (secret: string, body: string) => ({ "x-hub-signature": `sha256=${hmacHex(secret, body)}` }),
   hr: (secret: string, body: string, tsS: number) => ({ "x-echo-timestamp": String(tsS), "x-echo-signature": hmacHex(secret, `${tsS}.${body}`) }),
 };

@@ -77,6 +77,25 @@ describe("webhook do Linear", () => {
   });
 });
 
+describe("webhook do Jira", () => {
+  const jiraSecret = "ji-sec";
+  const body = JSON.stringify({ webhookEvent: "jira:issue_updated", timestamp: NOW, issue: { id: "10042", key: "ECH-128", self: "https://acme.atlassian.net/rest/api/3/issue/10042", fields: {} } });
+  const h = { ...sign.jira(jiraSecret, body), "x-atlassian-webhook-identifier": "j-1" };
+
+  it("aceita aviso assinado e grava com o site como rota e o identificador como entrega", async () => {
+    const { app, received } = setup({ secrets: { ...S, jira: jiraSecret } });
+    expect((await post(app, "/webhooks/jira", body, h)).status).toBe(200);
+    expect(received).toMatchObject([{ source: "jira", deliveryId: "j-1", routeKey: "acme.atlassian.net" }]);
+  });
+
+  it("sem segredo 503, assinatura errada 401, sem identificador 400", async () => {
+    expect((await post(setup().app, "/webhooks/jira", body, h)).status).toBe(503);
+    const { app } = setup({ secrets: { ...S, jira: jiraSecret } });
+    expect((await post(app, "/webhooks/jira", body, { ...sign.jira("outro", body), "x-atlassian-webhook-identifier": "j-2" })).status).toBe(401);
+    expect((await post(app, "/webhooks/jira", body, sign.jira(jiraSecret, body))).status).toBe(400);
+  });
+});
+
 describe("webhook do Slack", () => {
   const env = (event: Record<string, unknown>, id = "Ev1") =>
     JSON.stringify({ type: "event_callback", team_id: "T-DEMO", event_id: id, authorizations: [{ user_id: "UBOT", is_bot: true }], event });

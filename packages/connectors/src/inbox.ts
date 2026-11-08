@@ -4,15 +4,16 @@ import { QUEUES, DEDUPE_SECONDS, type JobQueue } from "@echo/jobs";
 import { and, eq, inArray } from "drizzle-orm";
 import { normalizeGithub } from "./github.ts";
 import { ingest, type IngestResult } from "./ingest.ts";
+import { normalizeJira } from "./jira.ts";
 import { normalizeLinear } from "./linear.ts";
 import { normalizeSlack } from "./slack.ts";
 import { normalizeVercel } from "./vercel.ts";
 
-export type InboxSource = "github" | "slack" | "linear" | "vercel";
+export type InboxSource = "github" | "slack" | "linear" | "jira" | "vercel";
 
 export interface Delivery {
   source: InboxSource;
-  /** Identificador único da entrega na plataforma (X-GitHub-Delivery, Linear-Delivery, event_id do Slack). */
+  /** Identificador único da entrega na plataforma (X-GitHub-Delivery, Linear-Delivery, X-Atlassian-Webhook-Identifier, event_id do Slack). */
   deliveryId: string;
   /** Empresa já conhecida (rotas /o/<empresa>) ou a chave que aponta para ela em installation_routes. */
   orgId?: string | undefined;
@@ -28,7 +29,7 @@ export interface InboxJob {
   orgId?: string;
 }
 
-/** Acha a empresa pela instalação (GitHub), pelo espaço (Slack) ou pela organização (Linear). */
+/** Acha a empresa pela instalação (GitHub), pelo espaço (Slack) ou pela organização (Linear) ou pelo site (Jira). */
 export async function routeOrg(db: Database, kind: InboxSource, externalId: string): Promise<string | null> {
   const [row] = await db
     .select({ orgId: installationRoutes.orgId })
@@ -73,6 +74,8 @@ export interface ProcessOptions {
   slackBotUserId?: string | undefined;
   /** Repositório do espelho das notas: push nele não é trabalho. */
   brainsRepository?: string | undefined;
+  /** Campo dos story points no Jira desta instalação (padrão: customfield_10016). */
+  jiraStoryPointsField?: string | undefined;
 }
 
 /** Processa um aviso gravado. Erro marca "failed" e relança, para a fila tentar de novo. */
@@ -96,6 +99,8 @@ export async function processInbox(db: Database, job: InboxJob | string, opts: P
         ? normalizeGithub(eventName ?? "", body)
         : row.source === "linear"
           ? normalizeLinear(body)
+          : row.source === "jira"
+            ? normalizeJira(body, opts.jiraStoryPointsField)
           : row.source === "vercel"
             ? normalizeVercel(body)
             : normalizeSlack(body, opts.slackBotUserId ?? slackBotUserIdOf(body));
