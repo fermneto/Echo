@@ -35,13 +35,14 @@ describe("empresa de demonstração", () => {
     for (const a of demo.absences) expect(a.endsAt.getTime()).toBeGreaterThan(now.getTime());
   });
 
-  it("relatórios enviados só das semanas anteriores, nunca do RH e sem aviso gravado", () => {
+  it("relatórios enviados só das semanas anteriores, nunca do RH, sem aviso e fora da janela do vídeo", () => {
     expect(demo.weeklyReports.length).toBeGreaterThan(50);
     expect(new Set(demo.weeklyReports.map((r) => r.week)).size).toBe(7);
     expect(demo.weeklyReports.some((r) => r.personId === P.rita)).toBe(false);
     for (const r of demo.weeklyReports) {
       expect(r.state).toBe("sent");
       expect(r.noticeAt).toBeUndefined();
+      expect(r.sentAt!.getTime()).toBeLessThan(now.getTime() - 7 * 24 * 3_600_000);
       expect(new Date(r.coveredPeriod.to).getTime()).toBeLessThanOrEqual(now.getTime());
     }
   });
