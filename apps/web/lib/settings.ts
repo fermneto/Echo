@@ -39,7 +39,7 @@ export function connectionRows(routes: Partial<Record<ConnectionKind, string | n
 export const ROLE_LABEL: Record<Role, string> = { member: "Equipe", leader: "Liderança", hr: "RH" };
 export const ROLES: readonly Role[] = ["member", "leader", "hr"];
 
-/** Telas da matriz de acesso, na ordem do menu. Início, ficha e simulador ficam de fora. */
+/** Telas da matriz de acesso, na ordem do menu. Início e ficha ficam de fora. */
 const MATRIX_ROUTES: readonly RouteId[] = ["plano", "notaDoDia", "notas", "equipe", "redistribuicao", "relatorios", "ganhos", "execucoes", "configuracao"];
 
 export type AccessRow = { route: RouteId; label: string; roles: Record<Role, boolean> };
