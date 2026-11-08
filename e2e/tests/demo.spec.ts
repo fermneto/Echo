@@ -132,3 +132,16 @@ test("cena 5: custo, rastro e ganhos (Marina)", async ({ page }) => {
   await page.goto("/ganhos");
   await expect(page.locator("main")).toContainText(/espera|revis/i);
 });
+
+test("ficha: depois de salvar, o perfil do agente mostra o texto salvo, não o de antes", async ({ page }) => {
+  await entrarComo(page, "Fernando");
+  await page.goto("/pessoas/fernando");
+  const estilo = page.getByRole("textbox", { name: /Como seu agente responde/ });
+  const delegacao = page.getByRole("textbox", { name: /Até onde ele decide por você/ });
+  await estilo.fill("Respondo curto e aponto o PR.");
+  await delegacao.fill("Pode unir no meu PR a correção pequena da revisão noturna quando os testes passarem.");
+  await page.getByRole("button", { name: "Salvar", exact: true }).click();
+  await expect(page.getByRole("status").filter({ hasText: /Salvo/ })).toBeVisible();
+  await expect(estilo).toHaveValue("Respondo curto e aponto o PR.");
+  await expect(delegacao).toHaveValue("Pode unir no meu PR a correção pequena da revisão noturna quando os testes passarem.");
+});
