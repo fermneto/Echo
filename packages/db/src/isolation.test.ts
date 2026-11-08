@@ -9,6 +9,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { createDb, createPool, type Database } from "./client.ts";
 import { orgs, people, tasks } from "./schema.ts";
 import { asSystem, withOrg } from "./tenant.ts";
+import { GRANT_LOCK } from "./testing.ts";
 
 const url = process.env.DATABASE_URL;
 
@@ -40,7 +41,9 @@ describe.skipIf(!url)("isolamento entre empresas (RLS e chaves compostas)", () =
   beforeAll(async () => {
     adminPool = createPool(url!, 2);
     admin = createDb(adminPool);
+    // Texto com várias instruções roda numa transação só: a trava vale até o último GRANT.
     await adminPool.query(`
+      SELECT pg_advisory_xact_lock(${GRANT_LOCK});
       DO $$ BEGIN
         IF NOT EXISTS (SELECT 1 FROM pg_roles WHERE rolname = '${ROLE}') THEN
           CREATE ROLE ${ROLE} LOGIN PASSWORD '${PASSWORD}' NOSUPERUSER NOBYPASSRLS;
