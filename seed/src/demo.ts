@@ -243,6 +243,48 @@ export function buildDemo(now: Date): DemoData {
     ...extra,
   });
 
+  // Progresso das equipes na visão do RH: concluídas recentes (sem prazo, para não virar atraso) e o trabalho em
+  // andamento das duas equipes do mapa. Carla fica sem concluída (cena 4) e Noah, de férias, só tem concluídas.
+  const progressTasks = (): DemoData["tasks"] => {
+    const done = (key: string, title: string, who: PersonaKey, size: number, daysAgo: number, area: string) =>
+      task(key, title, { assigneeId: P[who], state: "done", size, area, labels: [area], externalUpdatedAt: ago(daysAgo * DAY) });
+    const open = (key: string, title: string, who: PersonaKey, state: "todo" | "in_progress" | "in_review" | "backlog", size: number, area: string) =>
+      task(key, title, { assigneeId: P[who], state, size, area, labels: [area] });
+    return [
+      // Produto
+      done("ECH-118", "Paginação da listagem de pedidos", "eduardo", 2, 3, "api"),
+      done("ECH-121", "Recibo em PDF no checkout", "fernando", 3, 5, "pagamentos"),
+      done("ECH-123", "Estado vazio do histórico", "yan", 1, 6, "web"),
+      done("ECH-125", "Retentativa no webhook do gateway", "bruno", 3, 9, "pagamentos"),
+      done("ECH-126", "Cabeçalhos de cache na API de pedidos", "eduardo", 2, 11, "api"),
+      done("ECH-127", "Acessibilidade do formulário de pagamento", "yan", 2, 12, "web"),
+      // Dados e plataforma
+      done("DAD-41", "Modelo dbt de pedidos por dia", "ana", 3, 2, "dados"),
+      done("DAD-42", "Alerta de atraso na carga noturna", "amara", 2, 4, "dados"),
+      done("DAD-43", "Rotação das chaves do banco de leitura", "omar", 3, 5, "seguranca"),
+      done("DAD-44", "Job Spark de eventos do app", "wei", 5, 8, "dados"),
+      done("DAD-45", "Réplica de leitura do Postgres", "jonas", 3, 10, "infra"),
+      done("DAD-46", "Teste de qualidade nas tabelas de pagamento", "ana", 2, 13, "dados"),
+      open("DAD-47", "Painel de custo do cluster", "jonas", "in_review", 2, "infra"),
+      open("DAD-48", "Particionar a tabela de eventos", "wei", "in_progress", 3, "dados"),
+      open("DAD-49", "Varredura de segredos no CI", "omar", "in_progress", 2, "seguranca"),
+      open("DAD-50", "Documentar o dicionário de dados", "amara", "todo", 2, "dados"),
+      open("DAD-51", "Backup testado do banco principal", "jonas", "todo", 3, "infra"),
+      // Aplicativo e qualidade
+      done("APP-71", "Tema escuro no aplicativo", "jiwoo", 3, 3, "app"),
+      done("APP-72", "Testes de ponta a ponta do checkout", "ines", 3, 6, "qualidade"),
+      done("APP-73", "Componente de lista virtualizada", "noah", 2, 9, "web"),
+      done("APP-74", "Limite de requisições na API pública", "priya", 2, 11, "api"),
+      open("APP-75", "Notificações push do pedido", "olivia", "in_review", 3, "app"),
+      open("APP-76", "Endpoint de preferências do usuário", "lucia", "in_progress", 3, "api"),
+      open("APP-77", "Cache offline do histórico", "jiwoo", "in_progress", 5, "app"),
+      open("APP-78", "Fila de e-mails transacionais", "priya", "in_progress", 3, "api"),
+      open("APP-79", "Testes visuais das telas principais", "ines", "todo", 3, "qualidade"),
+      open("APP-80", "Login com biometria", "olivia", "todo", 3, "app"),
+      open("APP-81", "Migrar a API de busca para v2", "lucia", "backlog", 5, "api"),
+    ];
+  };
+
   const tasks: DemoData["tasks"] = [
     task("ECH-128", "Tratar o tempo limite na confirmação de pagamento", {
       assigneeId: P.fernando, state: "in_progress", size: 3, area: "pagamentos", labels: ["pagamentos"],
@@ -262,6 +304,7 @@ export function buildDemo(now: Date): DemoData {
     task("ECH-139", "Estorno parcial no checkout", { assigneeId: P.bruno, state: "todo", size: 3, area: "pagamentos", labels: ["pagamentos"] }),
     task("ECH-135", "Webhook de confirmação do gateway", { assigneeId: P.carla, state: "in_progress", size: 2, area: "pagamentos", labels: ["pagamentos"] }),
     task("ECH-160", "Página de status da integração", { state: "todo", size: 2, area: "web", labels: ["web"] }),
+    ...progressTasks(),
   ];
 
   const pr = (number: number, extra: Partial<Row<typeof schema.pullRequests>> & Pick<Row<typeof schema.pullRequests>, "title" | "branch" | "state">): Row<typeof schema.pullRequests> => ({

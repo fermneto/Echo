@@ -82,18 +82,29 @@ for (const p of pessoas) await withOrg(db, orgId, async (db) => {
   console.log(`  ${p.nome}: ${accounts.map((a) => a.platform).join(", ") || "sem contas"}`);
 });
 
+// Um tracker por vez: com o Linear ligado, vale o Linear. O Jira fica sem rota e sem importação,
+// senão as tarefas dos dois se sobrescrevem (ex.: ECH-1 nos dois).
+const linearOn = Boolean(env.LINEAR_API_KEY || (env.LINEAR_CLIENT_ID && env.LINEAR_CLIENT_SECRET));
+const jiraOn = !linearOn && Boolean(env.JIRA_BASE_URL && env.JIRA_EMAIL && env.JIRA_API_TOKEN);
+
 // Rotas das instalações: é por elas que um aviso encontra a empresa.
 const routes = [
   ["slack", env.DEMO_SLACK_TEAM_ID],
   ["github", env.DEMO_GITHUB_INSTALLATION_ID],
   ["linear", env.DEMO_LINEAR_ORG_ID],
   // Site do Jira em minúsculas (ex.: acme.atlassian.net), como vem no endereço de cada issue.
-  ["jira", env.DEMO_JIRA_SITE?.toLowerCase()],
+  ["jira", linearOn ? undefined : env.DEMO_JIRA_SITE?.toLowerCase()],
   ["google", env.DEMO_GOOGLE_DOMAIN],
   ["microsoft", env.DEMO_MICROSOFT_TENANT_ID],
   ["vercel", env.DEMO_VERCEL_TEAM_ID],
 ] as const;
 for (const [kind, externalId] of routes) {
+  if (kind === "jira" && linearOn) {
+    // Tira uma rota do Jira que tenha ficado de antes: sem ela, o aviso do Jira não chega a esta empresa.
+    await db.delete(installationRoutes).where(and(eq(installationRoutes.kind, "jira"), eq(installationRoutes.orgId, orgId)));
+    if (env.DEMO_JIRA_SITE) console.log("  rota jira: ignorada, o Linear está ligado (vale o Linear)");
+    continue;
+  }
   if (!externalId) {
     console.log(`  rota ${kind}: não informada (DEMO_${kind.toUpperCase()}_…)`);
     continue;
@@ -103,14 +114,14 @@ for (const [kind, externalId] of routes) {
 }
 
 // Importa o estado atual pelos adaptadores de leitura (o mesmo caminho da reconciliação).
-if (env.LINEAR_API_KEY || (env.LINEAR_CLIENT_ID && env.LINEAR_CLIENT_SECRET)) {
+if (linearOn) {
   const linear = env.LINEAR_API_KEY ? new LinearTracker({ token: env.LINEAR_API_KEY }) : new LinearTracker({ clientId: env.LINEAR_CLIENT_ID!, clientSecret: env.LINEAR_CLIENT_SECRET! });
   const { tasks, truncated } = await linear.listOpenTasks();
   await ingest(db, orgId, tasks.map((task) => ({ kind: "task_upsert" as const, task })));
   console.log(`Linear: ${tasks.length}${truncated ? "+" : ""} tarefas abertas importadas (${tasks.map((t) => t.key).slice(0, 10).join(", ")})`);
 }
-if (env.JIRA_BASE_URL && env.JIRA_EMAIL && env.JIRA_API_TOKEN) {
-  const jira = new JiraTracker({ baseUrl: env.JIRA_BASE_URL, email: env.JIRA_EMAIL, apiToken: env.JIRA_API_TOKEN, ...(env.JIRA_STORY_POINTS_FIELD ? { storyPointsField: env.JIRA_STORY_POINTS_FIELD } : {}), ...(env.JIRA_JQL ? { jql: env.JIRA_JQL } : {}) });
+if (jiraOn) {
+  const jira = new JiraTracker({ baseUrl: env.JIRA_BASE_URL!, email: env.JIRA_EMAIL!, apiToken: env.JIRA_API_TOKEN!, ...(env.JIRA_STORY_POINTS_FIELD ? { storyPointsField: env.JIRA_STORY_POINTS_FIELD } : {}), ...(env.JIRA_JQL ? { jql: env.JIRA_JQL } : {}) });
   const { tasks, truncated } = await jira.listOpenTasks();
   await ingest(db, orgId, tasks.map((task) => ({ kind: "task_upsert" as const, task })));
   console.log(`Jira (${jira.site}): ${tasks.length}${truncated ? "+" : ""} tarefas abertas importadas (${tasks.map((t) => t.key).slice(0, 10).join(", ")})`);

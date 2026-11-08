@@ -1,6 +1,7 @@
 "use client";
 
 import { type FormEvent, useActionState, useTransition } from "react";
+import type { AccountPlatform } from "@echo/domain";
 import { AccountFields, type AccountValues } from "@/components/AccountFields";
 import type { ContasState } from "@/lib/accounts-state";
 
@@ -8,7 +9,7 @@ import type { ContasState } from "@/lib/accounts-state";
  * Contas da pessoa no Slack, GitHub e Linear, na ficha. Só o RH e a liderança da equipe veem. Aberta quando
  * falta a conta do Slack: sem ela, a pessoa existe só no painel.
  */
-export function ContasPessoa({ action, personId, name, initial, slackMembers }: { action: (prev: ContasState, form: FormData) => Promise<ContasState>; personId: string; name: string; initial: AccountValues; slackMembers: readonly { id: string; name: string }[] | null }) {
+export function ContasPessoa({ action, personId, name, initial, slackMembers, platforms, slackFailed = false }: { action: (prev: ContasState, form: FormData) => Promise<ContasState>; personId: string; name: string; initial: AccountValues; slackMembers: readonly { id: string; name: string }[] | null; platforms: readonly AccountPlatform[]; slackFailed?: boolean }) {
   const [state, submit, pending] = useActionState(action, { status: "idle" } as ContasState);
   const [, startTransition] = useTransition();
   // Sem o `action` do form: num erro, o que foi digitado continua no campo.
@@ -28,13 +29,13 @@ export function ContasPessoa({ action, personId, name, initial, slackMembers }: 
       </p>
       <form onSubmit={send} className="profile-edit__form" key={state.status === "saved" ? JSON.stringify(v) : "form"}>
         <input type="hidden" name="pessoa" value={personId} />
-        <AccountFields slackMembers={slackMembers} initial={v} className="profile-edit__field" />
+        <AccountFields slackMembers={slackMembers} initial={v} className="profile-edit__field" platforms={platforms} slackFailed={slackFailed} />
         <div className="profile-edit__actions">
           <button type="submit" className="button-app-primary" disabled={pending}>
             {pending ? "Salvando…" : "Salvar contas"}
           </button>
           <p className="profile-edit__status" role="status">
-            {state.status === "error" ? state.error : state.status === "saved" ? "Contas salvas." : ""}
+            {state.status === "error" ? state.error : state.status === "saved" ? (state.note ? `Contas salvas. ${state.note}` : "Contas salvas.") : ""}
           </p>
         </div>
       </form>

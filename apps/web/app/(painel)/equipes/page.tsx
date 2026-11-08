@@ -14,8 +14,6 @@ const dm = (date: string) => `${Number(date.slice(8, 10))}/${Number(date.slice(5
 /** "26/10 a 30/10": segunda a sexta da semana. */
 const weekRange = (monday: string) => `${dm(monday)} a ${dm(addDays(monday, 4))}`;
 
-const AWAY: Record<string, string> = { vacation: "férias", leave: "licença", unexpected: "ausência", ooo: "fora" };
-
 type Ok = Extract<HrTeam, { status: "ok" }>;
 
 function Tile({ label, value, before, detail }: { label: string; value: string; before?: string; detail?: string }) {
@@ -67,11 +65,51 @@ function TeamCard({ team, focus, timeZone }: { team: HrTeam; focus: string; time
         ) : (
           team.away.map((a) => (
             <span key={`${a.name}${a.until.getTime()}`} className="hr-team__away-who">
-              <span className="hr-dot" aria-hidden /> {a.name} <span className="mono muted">{AWAY[a.kind] ?? "fora"} até {dm(localDate(a.until, timeZone))}</span>
+              <span className="hr-dot" aria-hidden /> {a.name} <span className="mono muted">volta em {dm(localDate(a.until, timeZone))}</span>
             </span>
           ))
         )}
       </p>
+    </li>
+  );
+}
+
+const STAGES = [
+  { key: "done", label: "Concluídas" },
+  { key: "review", label: "Em revisão" },
+  { key: "doing", label: "Em andamento" },
+  { key: "todo", label: "A fazer" },
+] as const;
+
+/** Progresso do trabalho de uma equipe: barra por estado, em número de tarefas, e a parte concluída em pontos. */
+function ProgressCard({ team }: { team: Ok }) {
+  const p = team.progress;
+  return (
+    <li className="card hr-progress">
+      <header className="hr-team__head">
+        <h3 className="hr-team__name">{team.name}</h3>
+        <span className="mono muted">{p.total === 1 ? "1 tarefa" : `${p.total} tarefas`}</span>
+      </header>
+      <p className="hr-progress__v">
+        {p.percent}%<span className="mono muted"> concluído · {p.points.done} de {p.points.total} pontos</span>
+      </p>
+      {p.total === 0 ? (
+        <p className="muted hr-team__small">Nenhuma tarefa aberta nem concluída nas últimas 2 semanas.</p>
+      ) : (
+        <>
+          <div className="hr-bar" role="img" aria-label={STAGES.map((s) => `${p[s.key]} ${s.label.toLowerCase()}`).join(", ")}>
+            {STAGES.map((s) => (p[s.key] ? <span key={s.key} className={`hr-bar__seg is-${s.key}`} style={{ flexGrow: p[s.key] }} /> : null))}
+          </div>
+          <ul className="hr-legend" role="list">
+            {STAGES.map((s) => (
+              <li key={s.key}>
+                <span className={`hr-legend__sw is-${s.key}`} aria-hidden />
+                {s.label} <span className="mono">{p[s.key]}</span>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
     </li>
   );
 }
@@ -111,7 +149,7 @@ export default async function EquipesPage() {
   return (
     <>
       <h1 className="hero-title hero-title--page">Visão das equipes</h1>
-      <p className="lead">Entregas, revisões, ajudas e respostas dos gêmeos somadas por equipe, a partir dos relatórios já enviados. Sem número por pessoa e sem ranking.</p>
+      <p className="lead">Progresso das tarefas de cada equipe e entregas, revisões, ajudas e respostas dos gêmeos somadas a partir dos relatórios já enviados. Sem número por pessoa, sem ranking e sem comparar equipes: cada uma aparece frente à própria história.</p>
       <TeamPicker scope={scope} back="/equipes" />
 
       {view.teams.length === 0 ? (
@@ -134,6 +172,18 @@ export default async function EquipesPage() {
               </ul>
             </section>
           ) : null}
+
+          <section className="section" aria-labelledby="hr-progresso">
+            <h2 id="hr-progresso" className="section__title label-caps">
+              Progresso de cada equipe agora
+            </h2>
+            <p className="muted hr-progress__lead">Tarefas abertas no Linear e no Jira e as concluídas nas últimas 2 semanas. Pontos são o tamanho estimado de cada tarefa.</p>
+            <ul className="hr-teams" role="list">
+              {ok.map((team) => (
+                <ProgressCard key={team.id} team={team} />
+              ))}
+            </ul>
+          </section>
 
           <TeamTrends weeks={t.weeks} focus={view.focus} teams={t.teams} />
 

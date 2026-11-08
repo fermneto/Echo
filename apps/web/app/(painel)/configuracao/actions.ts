@@ -4,8 +4,10 @@ import { loadConfig } from "@echo/config";
 import { revalidatePath } from "next/cache";
 import { panelDb } from "@/lib/db";
 import { gainsOrgId } from "@/lib/gains";
-import { conflictMessage, parseAccountsForm } from "@/lib/accounts-form";
-import { slackMembers } from "@/lib/accounts-server";
+import { linkablePlatforms } from "@/lib/access";
+import { conflictMessage, parseAccountsForm, SLACK_FORMAT_ONLY_NOTE } from "@/lib/accounts-form";
+import { slackDirectory } from "@/lib/accounts-server";
+import { membersOf, slackDirectoryFor } from "@/lib/slack-directory";
 import { parseOnboardingForm } from "@/lib/onboarding-form";
 import type { CadastroState } from "@/lib/onboarding-options";
 import { personIdFor } from "@/lib/agent";
@@ -27,10 +29,15 @@ export async function cadastrarPessoa(_prev: CadastroState, form: FormData): Pro
   if (me.role === "leader" && f.role === "hr") return { status: "error", error: "A liderança cadastra pessoas da equipe; o papel de RH só o RH dá." };
   if (me.role === "leader" && f.teamId !== me.teamId) return { status: "error", error: "A liderança só cadastra pessoas na própria equipe." };
   const db = panelDb();
-  const accounts = parseAccountsForm(form, db ? await slackMembers(db, gainsOrgId(me.orgId)) : null);
+  // Conferido aqui, não só escondido na tela: a liderança não liga o Slack de ninguém.
+  const platforms = linkablePlatforms(me, { id: "", role: f.role, teamId: f.teamId });
+  // Na demonstração, o Slack real nunca é lido (nem users.list).
+  const slack = await slackDirectoryFor({ demo: isDemoSession(me), canLinkSlack: Boolean(db) && platforms.includes("slack"), read: () => slackDirectory(db!, gainsOrgId(me.orgId)) });
+  const accounts = parseAccountsForm(form, membersOf(slack), platforms);
   if (!accounts.ok) return { status: "error", error: accounts.error };
   const { NO_SLACK_NOTE } = await import("@echo/domain");
-  const slackNote = accounts.links.some((l) => l.platform === "slack") ? [] : [NO_SLACK_NOTE];
+  const hasSlack = accounts.links.some((l) => l.platform === "slack");
+  const slackNote = hasSlack ? (slack.status === "failed" ? [SLACK_FORMAT_ONLY_NOTE] : []) : [NO_SLACK_NOTE];
 
   if (isDemoSession(me)) {
     const { traitsFromSeed } = await import("@echo/domain");
