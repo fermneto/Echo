@@ -1,8 +1,11 @@
+import { TEAMS } from "@/lib/demo/teams";
 import { panelDb } from "@/lib/db";
 import { BUDGET, formatUsd } from "@/lib/demo/runs";
 import { gainsOrgId } from "@/lib/gains";
 import { requireAccess } from "@/lib/session";
 import { accessMatrix, CONNECTIONS, type ConnectionKind, connectionRows, costSteps, ROLE_LABEL, ROLES } from "@/lib/settings";
+import { cadastrarPessoa } from "./actions";
+import { CadastroPessoa } from "./CadastroPessoa";
 import "./configuracao.css";
 
 export const metadata = { title: "Configuração · Echo" };
@@ -64,6 +67,21 @@ export default async function ConfiguracaoPage() {
             : "Uma plataforma fica ligada quando a instalação aponta para a empresa. Tokens ficam cifrados e nunca aparecem aqui."}
         </p>
       </section>
+
+      {persona.role === "hr" || persona.role === "leader" ? (
+        <section className="card settings-card settings-grid" aria-labelledby="cadastro">
+          <div className="settings-card__head">
+            <h2 id="cadastro" className="card__title">
+              Cadastrar pessoa
+            </h2>
+            <span className="mono muted">Foto e currículo ficam só neste pedido</span>
+          </div>
+          <CadastroPessoa action={cadastrarPessoa} teams={TEAMS} />
+          <p className="card__foot">
+            O currículo é lido por um modelo aberto na nossa infraestrutura e vira cargo, habilidades, áreas e idiomas, sem dados pessoais. A foto vira traços de uma lista fechada (cabelo, pele, óculos, roupa), sem gênero, idade ou origem.
+          </p>
+        </section>
+      ) : null}
 
       <div className="profile-grid settings-grid">
         <section className="card" aria-labelledby="acesso">

@@ -5,6 +5,7 @@ import { panelDb } from "./db";
 import { DEMO_ORG_ID } from "./gains";
 import { TEAM } from "./demo/team";
 import type { Availability, Persona } from "./demo/types";
+import { ZONES } from "./zones";
 
 /**
  * Equipe com a disponibilidade do banco: expediente e fuso de `people`, ausências de `absences`, decididos por
@@ -14,13 +15,33 @@ import type { Availability, Persona } from "./demo/types";
 
 const DAY_NAME = ["domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sábado"];
 
-/** Cidade de exibição quando o fuso do banco não é o da persona. */
-const CITY_BY_ZONE: Record<string, { city: string; cityCode: string; location: [number, number] }> = {
-  "America/Fortaleza": { city: "Fortaleza", cityCode: "FOR", location: [-3.73, -38.53] },
-  "America/Sao_Paulo": { city: "São Paulo", cityCode: "SAO", location: [-23.55, -46.63] },
-  "Africa/Johannesburg": { city: "Joanesburgo", cityCode: "JNB", location: [-26.2, 28.05] },
-  "Asia/Tokyo": { city: "Tóquio", cityCode: "TYO", location: [35.68, 139.65] },
-};
+/** Cidade de exibição pelo fuso do banco (quando difere do da persona, ou para quem foi cadastrado no painel). */
+const CITY_BY_ZONE: Record<string, { city: string; cityCode: string; location: [number, number] }> = Object.fromEntries(
+  ZONES.map((z) => [z.tz, { city: z.city, cityCode: z.cityCode, location: z.location }]),
+);
+
+/** Cidade a partir do fuso IANA, para fusos fora da lista: "America/Recife" vira "Recife". */
+function placeOf(timezone: string) {
+  const known = CITY_BY_ZONE[timezone];
+  if (known) return known;
+  const city = (timezone.split("/").pop() ?? timezone).replace(/_/g, " ");
+  return { city, cityCode: city.slice(0, 3).toUpperCase(), location: undefined };
+}
+
+/** Pessoa cadastrada pelo RH no painel, sem persona na demo: tudo vem do banco. */
+function registeredPersona(row: Person, absences: Absence[], now: Date): Persona {
+  const place = placeOf(row.timezone);
+  return {
+    ...row,
+    title: row.jobTitle ?? "",
+    story: "",
+    city: place.city,
+    cityCode: place.cityCode,
+    ...(place.location ? { location: place.location } : {}),
+    registered: true,
+    availability: availabilityFrom(row, absences, now, place.city),
+  };
+}
 
 const hourLabel = (h: number, m: number) => (m === 0 ? `${h}h` : `${h}h${String(m).padStart(2, "0")}`);
 
@@ -51,10 +72,18 @@ export function availabilityFrom(person: Person, absences: Absence[], now: Date,
   return { kind: "off", returns: r.returnsAt ? `${whenLabel(r.returnsAt, now, person.timezone)}, horário de ${city}` : `no próximo expediente, horário de ${city}` };
 }
 
-/** Troca expediente, fuso e disponibilidade das personas que têm linha no banco. Pura. */
+/**
+ * Troca expediente, fuso e disponibilidade das personas que têm linha no banco e acrescenta, no fim, quem só
+ * existe no banco (cadastrado pelo RH no painel). Pura.
+ */
 export function withLiveAvailability(team: readonly Persona[], people: Person[], absences: Absence[], now: Date): Persona[] {
   const byId = new Map(people.map((p) => [p.id, p]));
-  return team.map((p) => {
+  const fromDemo = new Set(team.map((p) => personIdFor(p.id)));
+  const registered = people
+    .filter((p) => p.active && !fromDemo.has(p.id))
+    .sort((a, b) => a.name.localeCompare(b.name, "pt-BR"))
+    .map((p) => registeredPersona(p, absences, now));
+  return [...team.map((p) => {
     const row = byId.get(personIdFor(p.id));
     if (!row) return p;
     const place = row.timezone === p.timezone ? null : CITY_BY_ZONE[row.timezone];
@@ -66,9 +95,10 @@ export function withLiveAvailability(team: readonly Persona[], people: Person[],
       ...(place ?? {}),
       timezone: row.timezone,
       workHours: row.workHours,
+      ...(row.avatar ? { avatar: row.avatar } : {}),
       availability: availabilityFrom(row, absences, now, city),
     };
-  });
+  }), ...registered];
 }
 
 type Reader = (orgId: string) => Promise<{ people: Person[]; absences: Absence[] }>;

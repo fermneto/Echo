@@ -1,9 +1,8 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { notFound } from "next/navigation";
-import { canAskTwin } from "@/lib/access";
+import { canAskTwin, canEditProfile } from "@/lib/access";
 import { profileFor } from "@/lib/demo/profiles";
-import { findMember } from "@/lib/demo/team";
 import { suggestedQuestions } from "@/lib/demo/twin";
 import { latest } from "@/lib/demo/notes";
 import { currentNotes } from "@/lib/notes-store";
@@ -19,7 +18,8 @@ import { AgentProfileForm } from "@/components/AgentProfileForm";
 import { AGENT_PROFILE_RULES, NEVER_DELEGATED } from "@echo/domain";
 import { loadOwnAgent } from "@/lib/agent-profile-store";
 import { panelDb } from "@/lib/db";
-import { perguntar, salvarPerfilDoAgente } from "./actions";
+import { perguntar, salvarPerfil, salvarPerfilDoAgente } from "./actions";
+import { EditarPerfil } from "./EditarPerfil";
 
 const DAYS = ["domingo", "segunda", "terça", "quarta", "quinta", "sexta", "sábado"];
 
@@ -55,7 +55,8 @@ function List({ items }: { items: string[] }) {
 }
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }) {
-  const p = findMember((await params).id);
+  const id = (await params).id;
+  const p = (await loadTeam(new Date())).find((x) => x.id === id);
   return { title: p ? `${p.name} · Echo` : "Pessoa · Echo" };
 }
 
@@ -63,10 +64,11 @@ export default async function PessoaPage({ params }: { params: Promise<{ id: str
   const me = await requireAccess("pessoa");
   const now = new Date();
   const id = (await params).id;
-  const persona = (await loadTeam(now)).find((p) => p.id === id);
+  const team = await loadTeam(now);
+  const persona = team.find((p) => p.id === id);
   if (!persona) notFound();
   // Membro e liderança só abrem a ficha de quem é da própria equipe; o RH, das equipes que acompanha.
-  if (!(await teamScope(me)).people.some((p) => p.id === persona.id)) notFound();
+  if (!(await teamScope(me, team)).people.some((p) => p.id === persona.id)) notFound();
   const profile = profileFor(persona);
   const brain = (await currentNotes()).filter((n) => n.ownerId === persona.id);
   const notes = brain.length ? brain.map((n) => ({ title: n.title, excerpt: latest(n).body, tags: n.tags })) : profile.notes;
@@ -74,6 +76,9 @@ export default async function PessoaPage({ params }: { params: Promise<{ id: str
   const away = persona.availability.kind !== "working";
   const seesWork = canAskTwin(me.role);
   const own = isMe ? await loadOwnAgent(me, panelDb()) : null;
+  // Só quem foi cadastrado no painel tem o perfil no banco; as personas da demo seguem com o perfil sintético.
+  const editable = Boolean(persona.registered) && canEditProfile(me, persona);
+  const emptyProfile = Boolean(persona.registered && !persona.jobTitle && persona.skills.length === 0);
 
   return (
     <>
@@ -89,7 +94,7 @@ export default async function PessoaPage({ params }: { params: Promise<{ id: str
         <div className="profile-top__text">
           <h1 className="app-title">{persona.name}</h1>
           <p className="lead">
-            {persona.title}
+            {persona.title || (persona.registered ? "Cargo a preencher" : "")}
           </p>
           <StatusChip persona={persona} />
         </div>
@@ -117,7 +122,7 @@ export default async function PessoaPage({ params }: { params: Promise<{ id: str
                   ))}
                 </ul>
               ) : (
-                <p className="muted">Nada registrado no GitHub ou no Linear para esta pessoa na demo.</p>
+                <p className="muted">{persona.registered ? "Nada registrado no GitHub ou no Linear ainda." : "Nada registrado no GitHub ou no Linear para esta pessoa na demo."}</p>
               )}
               {profile.activity && <p className="card__foot mono">{profile.activity}</p>}
             </section>
@@ -205,6 +210,14 @@ export default async function PessoaPage({ params }: { params: Promise<{ id: str
         </div>
 
         <div className="profile-col">
+          {editable && (
+            <EditarPerfil
+              action={salvarPerfil}
+              personId={persona.id}
+              initial={{ jobTitle: persona.jobTitle ?? null, skills: persona.skills, areas: persona.areas, languages: persona.languages ?? [] }}
+              open={emptyProfile}
+            />
+          )}
           <HolderPanel persona={persona} />
           <section className="card" aria-labelledby="como">
             <h2 id="como" className="card__title">

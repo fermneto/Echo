@@ -11,7 +11,7 @@ export function PixelAvatar({ persona, size = 40, decorative = false }: { person
   const twin = state !== "working";
   return (
     <span className={`pixel-avatar pixel-avatar--${state}`} style={{ width: size, height: size }} {...(decorative ? { "aria-hidden": true } : { role: "img", "aria-label": twin ? `Gêmeo de ${persona.name} no comando` : persona.name })}>
-      <PixelSprite look={persona.hair ? { hair: persona.hair } : lookFor(persona.id)} mode={state === "working" ? "person" : state === "off" ? "twin" : "away"} size={Math.round(size * 0.72)} />
+      <PixelSprite look={persona.avatar ?? lookFor(persona.id)} mode={state === "working" ? "person" : state === "off" ? "twin" : "away"} size={Math.round(size * 0.72)} />
     </span>
   );
 }

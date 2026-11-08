@@ -3,7 +3,43 @@
 import { Reveal } from "@/components/Reveal";
 import { useState, useTransition } from "react";
 import { ABSENCE_KINDS, confirmText, type PlanView } from "@/lib/redistribution";
-import { aprovarPlano, descartarPlano, registrarAusencia, type FlowResult } from "./actions";
+import { aprovarPlano, descartarPlano, registrarAusencia, repassarItem, type FlowResult } from "./actions";
+
+type Person = { id: string; name: string };
+
+/** Escolha de quem recebe, no próprio item: lista da equipe, confirmar ou cancelar. */
+function PersonPicker({ people, exclude, action, pending, onPick, onCancel }: { people: Person[]; exclude?: string; action: string; pending: boolean; onPick: (p: Person) => void; onCancel: () => void }) {
+  const options = people.filter((p) => p.id !== exclude);
+  const [value, setValue] = useState(options[0]?.id ?? "");
+  return (
+    <div className="assign-picker">
+      <label className="sr-only" htmlFor="assign-picker">
+        Quem recebe
+      </label>
+      <select id="assign-picker" className="field assign-picker__select" value={value} onChange={(e) => setValue(e.target.value)} disabled={pending}>
+        {options.map((p) => (
+          <option key={p.id} value={p.id}>
+            {p.name}
+          </option>
+        ))}
+      </select>
+      <button
+        type="button"
+        className="button-pill button-pill--sm"
+        disabled={pending || !value}
+        onClick={() => {
+          const p = options.find((o) => o.id === value);
+          if (p) onPick(p);
+        }}
+      >
+        {action}
+      </button>
+      <button type="button" className="link-inline assign__toggle" onClick={onCancel} disabled={pending}>
+        Cancelar
+      </button>
+    </div>
+  );
+}
 
 function AbsenceForm({ people, today }: { people: { id: string; name: string }[]; today: string }) {
   const [pending, start] = useTransition();
@@ -71,14 +107,19 @@ function AbsenceForm({ people, today }: { people: { id: string; name: string }[]
   );
 }
 
-function PlanCard({ plan }: { plan: PlanView }) {
+function PlanCard({ plan, people: team }: { plan: PlanView; people: Person[] }) {
+  // Quem está ausente nunca recebe: fica fora da escolha.
+  const people = team.filter((p) => p.name !== plan.absentName);
   const [confirming, setConfirming] = useState(false);
   const [excluded, setExcluded] = useState<Set<string>>(new Set());
+  /** Trocas feitas pela liderança antes de aprovar: item → pessoa escolhida. */
+  const [adjusted, setAdjusted] = useState<Map<string, Person>>(new Map());
+  const [picking, setPicking] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
   const [pending, start] = useTransition();
   const awaiting = plan.state === "awaiting_leader";
-  const confirm = confirmText(plan.items, excluded);
+  const confirm = confirmText(plan.items, excluded, new Map([...adjusted].map(([k, p]) => [k, p.name])));
 
   const run = (fn: () => Promise<FlowResult>) =>
     start(async () => {
@@ -105,6 +146,8 @@ function PlanCard({ plan }: { plan: PlanView }) {
       <ul className="assign-list" role="list">
         {plan.items.map((a) => {
           const out = excluded.has(a.id);
+          const chosen = adjusted.get(a.id);
+          const to = chosen?.name ?? a.to;
           const chip = out ? { label: "fora do plano", tone: "off" as const } : a.chip;
           return (
             <li key={a.id} className={`assign${out ? " is-out" : ""}`}>
@@ -112,23 +155,66 @@ function PlanCard({ plan }: { plan: PlanView }) {
               <div className="assign__body">
                 <p className="assign__title">
                   {a.title}{" "}
-                  {a.to ? (
+                  {to ? (
                     <>
                       <span className="assign__arrow" aria-hidden="true">
                         →
                       </span>{" "}
-                      <b>{a.to}</b>
+                      <b>{to}</b>
                     </>
                   ) : null}
                 </p>
                 <p className="assign__why">
-                  {a.reason}
-                  {a.load ? <span className="assign__load mono"> · {a.load}</span> : null}
+                  {chosen ? "Escolhida por você. As regras de ausência e conta no Linear são conferidas ao aprovar." : a.reason}
+                  {a.load && !chosen ? <span className="assign__load mono"> · {a.load}</span> : null}
                 </p>
-                {a.excludable && !confirming && (
-                  <button type="button" className="link-inline assign__toggle" onClick={() => toggle(a.id)} disabled={pending}>
-                    {out ? "Incluir de volta" : "Deixar de fora"}
-                  </button>
+                {picking === a.id ? (
+                  <PersonPicker
+                    people={people}
+                    exclude={chosen?.id ?? a.toId}
+                    action={a.excludable ? "Trocar" : "Passar"}
+                    pending={pending}
+                    onCancel={() => setPicking(null)}
+                    onPick={(p) => {
+                      setPicking(null);
+                      if (a.excludable) setAdjusted((m) => new Map(m).set(a.id, p));
+                      else run(() => repassarItem(a.id, p.id));
+                    }}
+                  />
+                ) : (
+                  <div className="assign__links">
+                    {a.excludable && !confirming && !out && (
+                      <button type="button" className="link-inline assign__toggle" onClick={() => setPicking(a.id)} disabled={pending}>
+                        {chosen ? "Trocar de novo" : "Trocar quem recebe"}
+                      </button>
+                    )}
+                    {chosen && !confirming && (
+                      <button
+                        type="button"
+                        className="link-inline assign__toggle"
+                        onClick={() =>
+                          setAdjusted((m) => {
+                            const n = new Map(m);
+                            n.delete(a.id);
+                            return n;
+                          })
+                        }
+                        disabled={pending}
+                      >
+                        Voltar à sugestão
+                      </button>
+                    )}
+                    {a.excludable && !confirming && (
+                      <button type="button" className="link-inline assign__toggle" onClick={() => toggle(a.id)} disabled={pending}>
+                        {out ? "Incluir de volta" : "Deixar de fora"}
+                      </button>
+                    )}
+                    {a.reassignable && (
+                      <button type="button" className="link-inline assign__toggle" onClick={() => setPicking(a.id)} disabled={pending}>
+                        Passar para…
+                      </button>
+                    )}
+                  </div>
                 )}
               </div>
               <span className={`chip mono assign__state is-${chip.tone}`}>
@@ -159,7 +245,7 @@ function PlanCard({ plan }: { plan: PlanView }) {
           </p>
           <p className="plan-confirm__text">{confirm.text}</p>
           <div className="plan-card__actions">
-            <button type="button" className="button-pill" onClick={() => run(() => aprovarPlano(plan.id, [...excluded]))} disabled={pending}>
+            <button type="button" className="button-pill" onClick={() => run(() => aprovarPlano(plan.id, [...excluded], [...adjusted].filter(([k]) => !excluded.has(k)).map(([itemId, p]) => ({ itemId, toId: p.id }))))} disabled={pending}>
               {pending ? "Aplicando…" : "Confirmar e aplicar"}
             </button>
             <button type="button" className="button-outline" onClick={() => setConfirming(false)} disabled={pending}>
@@ -199,7 +285,7 @@ export function LivePlans({ people, plans, today }: { people: { id: string; name
         <AbsenceForm people={people} today={today} />
         {awaiting.length === 0 && <p className="note muted">Nenhum plano esperando você.</p>}
         {awaiting.map((p) => (
-          <PlanCard key={p.id} plan={p} />
+          <PlanCard key={p.id} plan={p} people={people} />
         ))}
         {decided.length > 0 && (
           <section className="section" aria-labelledby="decididos">
@@ -207,7 +293,7 @@ export function LivePlans({ people, plans, today }: { people: { id: string; name
               Decididos nos últimos 7 dias
             </h2>
             {decided.map((p) => (
-              <PlanCard key={p.id} plan={p} />
+              <PlanCard key={p.id} plan={p} people={people} />
             ))}
           </section>
         )}

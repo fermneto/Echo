@@ -11,6 +11,8 @@ const config: NextConfig = {
   // A checagem de tipos roda com `pnpm typecheck` (TypeScript 7), fora do build.
   typescript: { ignoreBuildErrors: true },
   poweredByHeader: false,
+  // Cadastro do RH envia foto (até 4 MB) e currículo em PDF (até 2 MB) pela ação do servidor; o padrão é 1 MB.
+  experimental: { serverActions: { bodySizeLimit: "7mb" } },
 };
 
 export default config;

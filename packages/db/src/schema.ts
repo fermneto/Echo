@@ -68,6 +68,8 @@ export const people = pgTable("people", {
   delegation: text("delegation"),
   /** Quando a pessoa salvou a delegação atual: a decisão tomada por ela cita essa versão. */
   delegationUpdatedAt: ts("delegation_updated_at"),
+  /** Traços do bonequinho (lista fechada de packages/domain, conferida na leitura), lidos da foto no cadastro. A foto não é guardada. */
+  avatar: jsonb("avatar").$type<Record<string, string>>(),
   /** Expediente sugerido pela agenda; vale só depois que a pessoa confirma no painel. */
   workHoursSuggested: jsonb("work_hours_suggested").$type<{ days: number[]; start: string; end: string; timezone: string; source: string }>(),
   active: boolean("active").notNull().default(true),

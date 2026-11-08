@@ -1,4 +1,5 @@
 import { randomUUID } from "node:crypto";
+import { renderSummaryPng } from "@echo/agents/imagem";
 import { allOrgIds, createGithubGainsHistory, dueAwayDigests, dueEndOfDay, dueMorning, needsGainsBaseline, serverAwayDigest, serverDaySummary, serverEndOfDay, serverGains, serverMorningPlan, serverNightReview, serverRedistribution, serverWeeklyReport, dueWeeklyReports } from "@echo/agents/server";
 import { ensureProductNote } from "@echo/brain/pg";
 import { loadConfig } from "@echo/config";
@@ -44,7 +45,7 @@ if (platforms.chat && answer) {
   const chat = platforms.chat;
   const workerId = `worker:${process.pid}`;
   await queue.work<SlackMessageJob>(QUEUES.slackMessage, async (job) => {
-    const outcome = await handleSlackMessage({ db, chat, answer, log, workerId, alwaysAway: cfg.DEMO_ALWAYS_AWAY }, job.data);
+    const outcome = await handleSlackMessage({ db, chat, answer, log, workerId, alwaysAway: cfg.DEMO_ALWAYS_AWAY, webUrl: cfg.WEB_URL }, job.data);
     log.info({ orgId: job.data.orgId, outcome }, "mensagem do Slack");
   });
   // Um só consumidor dos cliques; outros fluxos (ex.: Confirmar a nota do dia) entram com interactions.add.
@@ -70,7 +71,7 @@ await ensureProductNote(db).then(
 const slm = cfg.SLM_OLLAMA_URL ? { url: cfg.SLM_OLLAMA_URL, model: cfg.SLM_MODEL } : undefined;
 const endOfDay = await registerEndOfDay(queue, {
   flow: serverEndOfDay(db, cfg.ANTHROPIC_API_KEY, cfg.WEB_URL),
-  summary: serverDaySummary(db, slm ? { ...slm, timeoutMs: cfg.SUMMARY_TIMEOUT_MS } : undefined),
+  summary: serverDaySummary(db, slm ? { ...slm, timeoutMs: cfg.SUMMARY_TIMEOUT_MS } : undefined, cfg.WEB_URL, (a) => renderSummaryPng(a, { stateLabel: "Resumo" })),
   scan: (now) => dueEndOfDay(db, now),
   interactions,
 });
@@ -84,12 +85,14 @@ const runEndOfDay = () =>
 void runEndOfDay();
 const endOfDayTimer = setInterval(() => void runEndOfDay(), cfg.END_OF_DAY_SCAN_MS);
 
-// Noite (F4) e manhã (F5). O diff dos PRs vem do GitHub pela frente de Integrações; até a porta existir,
-// nenhum PR tem diff e a revisão noturna não envia lote. Com SLM_OLLAMA_URL, um modelo aberto pequeno faz a
-// triagem de cada PR antes do lote.
+// Noite (F4) e manhã (F5). O diff dos PRs vem do GitHub da empresa. Com SLM_OLLAMA_URL, um modelo aberto
+// pequeno faz a triagem de cada PR antes do lote.
 const triage = slm ? { ...slm, timeoutMs: cfg.TRIAGE_TIMEOUT_MS } : undefined;
 const night = await registerNight(queue, {
-  night: serverNightReview(db, cfg.ANTHROPIC_API_KEY, () => ({ getDiff: async () => null }), triage),
+  // Diff lido do GitHub da empresa (instalação do app). Sem instalação, nenhum PR tem diff e a noite não envia lote.
+  night: serverNightReview(db, cfg.ANTHROPIC_API_KEY, (orgId) => ({
+    getDiff: async (repo, number) => (await (await githubForOrg(db, platforms, orgId))?.getPullRequestDiff(repo, number)) ?? null,
+  }), triage),
   morning: serverMorningPlan(db, cfg.WEB_URL),
   orgIds: () => allOrgIds(db),
   dueMorning: (now) => dueMorning(db, now),

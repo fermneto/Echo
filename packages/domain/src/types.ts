@@ -1,4 +1,5 @@
 // Tipos de domínio compartilhados por todas as frentes (independentes do banco).
+import type { AvatarTraits } from "./avatar.ts";
 
 export type PersonRole = "member" | "leader" | "hr";
 
@@ -24,6 +25,11 @@ export interface Person {
   active: boolean;
   /** Como a pessoa quer que o agente dela responda (texto dela, já limpo por cleanAgentText). */
   agentStyle?: string | undefined;
+  /** Cargo e idiomas declarados no cadastro (perfil fechado, sem dados pessoais). */
+  jobTitle?: string | undefined;
+  languages?: string[] | undefined;
+  /** Traços do bonequinho (avatar.ts), quando vieram da foto no cadastro. */
+  avatar?: AvatarTraits | undefined;
 }
 
 export type AbsenceKind = "vacation" | "leave" | "unexpected" | "ooo";

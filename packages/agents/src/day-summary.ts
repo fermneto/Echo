@@ -8,7 +8,7 @@ import { buildDayFacts, checkSpec, type ArtifactSpec, type DayFacts, type DayInp
 import { type Clock, HOUR, type Task, type WorkEvent, systemClock } from "@echo/domain";
 import type { AgentRun, RunRecorder } from "@echo/observability";
 import type { AgentData } from "./data.ts";
-import type { DailyNoteStore } from "./daily-note.ts";
+import type { DailyNoteStore, NoteOutbox } from "./daily-note.ts";
 import { firstName } from "./tools.ts";
 import type { JsonModel } from "./triage-ollama.ts";
 
@@ -36,6 +36,12 @@ export interface DaySummaryDeps {
   recorder: RunRecorder;
   clock?: Clock;
   timeoutMs?: number;
+  /** Mensagem do resumo no Slack, pelo outbox (packages/actions). Sem ela, o resumo fica só no painel. */
+  outbox?: (orgId: string) => NoteOutbox;
+  /** Endereço do painel, para o botão do resumo interativo. */
+  webUrl?: string;
+  /** Imagem do resumo (PNG) para a mensagem privada; sem ela, ou se falhar, vai a versão em blocos. */
+  renderImage?: (a: StoredArtifact) => Promise<Buffer>;
 }
 
 // ---------- Fatos (regras)
@@ -81,6 +87,54 @@ Responda só com JSON neste formato: ${NOTE_SPEC_FORMAT}`;
 export function summaryRequest(day: DayFacts) {
   // JSON livre ("json") com o formato no texto: com o esquema restrito aninhado, o modelo pequeno só gera espaços.
   return { system: SUMMARY_SYSTEM, user: `<dados>\n${JSON.stringify(factsForModel(day))}\n</dados>`, schema: noteSpecJsonSchema(day), format: "json" as const, maxTokens: 700 };
+}
+
+// ---------- Mensagem no Slack (código)
+
+const BLOCK_LABEL: Record<string, string> = {
+  destaque: "Onde parou",
+  lista_pendencias: "O que travou",
+  cartao_tarefa: "Tarefas abertas",
+  cartao_pr: "Pull requests",
+  linha_do_dia: "Atividade do dia",
+  quadro_liberado_reservado: "Liberado e reservado",
+};
+const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+const modelName = (tag: string) => (tag.startsWith("qwen3:4b") ? "Qwen3 4B" : tag.startsWith("qwen2.5-coder:1.5b") ? "Qwen2.5-Coder 1.5B" : tag);
+
+/**
+ * O resumo do dia em blocos do Slack, na ordem e com os títulos da especificação (validada). Números, chaves e
+ * nomes vêm dos fatos. O agente se identifica ("Agente de Yan"); o botão abre a versão interativa no painel.
+ */
+export function summaryMessage(a: StoredArtifact, url: string): { text: string; blocks: unknown[] } {
+  const byId = new Map(a.facts.facts.map((f) => [f.id, f]));
+  const dd = `${a.facts.date.slice(8, 10)}/${a.facts.date.slice(5, 7)}`;
+  const by = a.state === "rendered" && a.model ? `layout por ${modelName(a.model)} (modelo aberto)` : "layout padrão, por regra";
+  const blocks: unknown[] = [
+    { type: "header", text: { type: "plain_text", text: `Resumo do seu dia, ${dd}` } },
+    { type: "context", elements: [{ type: "mrkdwn", text: `Agente de ${esc(a.facts.pessoa)} · ${by} · números e nomes vêm do GitHub, do Linear e da sua nota` }] },
+  ];
+  for (const b of a.spec.blocks) {
+    const facts = b.factIds.map((id) => byId.get(id)).filter((f): f is NonNullable<typeof f> => !!f);
+    if (!facts.length) continue;
+    const head = `*${BLOCK_LABEL[b.component] ?? b.component}*${b.title ? ` · ${esc(b.title)}` : ""}`;
+    let body: string;
+    if (b.component === "destaque") body = facts.map((f) => `> ${esc(f.label)}`).join("\n");
+    else if (b.component === "linha_do_dia") body = facts.map((f) => `*${f.value ?? 0}* ${esc(f.label.toLowerCase())}`).join("   ·   ");
+    else if (b.component === "cartao_tarefa" || b.component === "cartao_pr") body = facts.map((f) => `• \`${esc(f.detail ?? "")}\` ${esc(f.label)}${f.status ? ` — _${esc(f.status)}_` : ""}`).join("\n");
+    else if (b.component === "quadro_liberado_reservado") {
+      const col = (kind: string, label: string) => {
+        const items = facts.filter((f) => f.kind === kind);
+        return `*${label}:* ${items.length ? items.map((f) => `\`${esc(f.label)}\`${f.detail ? ` (${esc(f.detail)})` : ""}`).join(", ") : "nada"}`;
+      };
+      body = `${col("liberado", "Liberado")}\n${col("reservado", "Reservado")}`;
+    } else body = facts.map((f) => `• ${esc(f.label)}`).join("\n");
+    const text = `${head}${b.text ? `\n_${esc(b.text)}_` : ""}\n${body}`.slice(0, 2900);
+    blocks.push({ type: "divider" }, { type: "section", text: { type: "mrkdwn", text } });
+  }
+  blocks.push({ type: "actions", elements: [{ type: "button", action_id: "abrir_resumo", style: "primary", text: { type: "plain_text", text: "Abrir resumo interativo" }, url }] });
+  const parou = a.facts.facts.find((f) => f.kind === "parou")?.label;
+  return { text: `Resumo do seu dia, ${dd}${parou ? `: ${parou}` : ""}`, blocks: blocks.slice(0, 50) };
 }
 
 // ---------- Fluxo
@@ -147,7 +201,46 @@ export function createDaySummary(deps: DaySummaryDeps) {
 
       await deps.artifacts(orgId).save(personId, date, artifact);
       const usedModel = artifact.state === "rendered";
-      await record({ ...run, durationMs: elapsed(), result: usedModel ? "ok" : "fallback", ...(error ? { error } : {}) });
+
+      // Mensagem privada com o resumo, pelo outbox: uma por pessoa e data (montar de novo não manda outra).
+      // A imagem (o mesmo visual do painel) vai como arquivo; a versão em blocos é a reserva.
+      // As duas usam a mesma chave: se a imagem falhar numa rodada e funcionar na outra, a pessoa recebe um DM só.
+      const idempotencyKey = `day_summary:${personId}:${date}`;
+      let sent: "slack.dm" | "slack.dm_image" | null = null;
+      let imageError: string | undefined;
+      if (deps.outbox && deps.webUrl && day.facts.length && (await deps.notes(orgId).slackUserOf(personId))) {
+        const url = `${deps.webUrl.replace(/\/$/, "")}/resumos?data=${date}`;
+        const msg = summaryMessage(artifact, url);
+        let png: Buffer | null = null;
+        if (deps.renderImage) {
+          try {
+            png = await deps.renderImage(artifact);
+          } catch (err) {
+            imageError = `imagem: ${err instanceof Error ? err.message : String(err)}`.slice(0, 200);
+          }
+        }
+        const dd = `${date.slice(8, 10)}/${date.slice(5, 7)}`;
+        const r = png
+          ? await deps.outbox(orgId).enqueue({
+              type: "slack.dm_image",
+              target: `person:${personId}`,
+              payload: {
+                personId,
+                filename: `resumo-${date}.png`,
+                title: `Resumo do dia, ${dd}`,
+                comment: `*Resumo do seu dia, ${dd}* · Agente de ${day.pessoa} · ${artifact.state === "rendered" ? "layout pelo modelo aberto" : "layout padrão"}\n<${url}|Abrir o resumo interativo no painel>`,
+                altText: msg.text,
+                pngBase64: png.toString("base64"),
+                text: msg.text,
+                blocks: msg.blocks,
+              },
+              idempotencyKey,
+            })
+          : await deps.outbox(orgId).enqueue({ type: "slack.dm", target: `person:${personId}`, payload: { personId, text: msg.text, blocks: msg.blocks }, idempotencyKey });
+        if (!r.duplicate) sent = png ? "slack.dm_image" : "slack.dm";
+      }
+      if (imageError) error = error ? `${error}; ${imageError}` : imageError;
+      await record({ ...run, durationMs: elapsed(), result: usedModel ? "ok" : "fallback", ...(error ? { error } : {}), ...(sent ? { tools: [sent] } : {}) });
       return { status: "created", usedModel, artifact };
     } catch (err) {
       await record({ flow: "daily_artifact", orgId, durationMs: elapsed(), result: "failed", error: err instanceof Error ? err.message : String(err) });

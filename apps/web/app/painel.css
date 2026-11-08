@@ -1268,8 +1268,8 @@
   margin-bottom: 3px;
 }
 /* No mapa, cada bonequinho fica numa plaquinha escura: não se mistura aos pontos coloridos e não pede filtro caro. */
-.wmap__people .sprite .dot-off {
-  opacity: 0;
+.wmap__people .sprite {
+  filter: none;
 }
 .wmap__person,
 .wmap__more {
@@ -3308,4 +3308,45 @@ select.field option {
 }
 .agent-decision__state {
   font-size: 12px;
+}
+
+/* Ficha: editar o perfil de quem foi cadastrado no painel. */
+.profile-edit__summary {
+  cursor: pointer;
+  list-style: none;
+  margin-bottom: 0;
+}
+.profile-edit__summary::-webkit-details-marker {
+  display: none;
+}
+.profile-edit__summary::after {
+  content: " +";
+  color: var(--color-ash);
+}
+.profile-edit[open] .profile-edit__summary::after {
+  content: " −";
+}
+.profile-edit__form {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-md);
+  margin-top: var(--space-md);
+}
+.profile-edit__field {
+  display: flex;
+  flex-direction: column;
+}
+.profile-edit__field textarea {
+  resize: vertical;
+}
+.profile-edit__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  flex-wrap: wrap;
+}
+.profile-edit__status {
+  margin: 0;
+  font-size: 13px;
+  color: var(--color-fog);
 }

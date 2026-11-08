@@ -87,7 +87,7 @@ export function dailyNoteDraftBlocks(input: { text: string; noteId: string; pane
 }
 
 /** Métodos que não aceitam corpo JSON (o Slack ignora os argumentos em silêncio). */
-const FORM_METHODS = /^(users\.|auth\.test$)/;
+const FORM_METHODS = /^(users\.|auth\.test$|files\.(getUploadURLExternal|completeUploadExternal)$)/;
 
 export class SlackChat implements ChatPlatform {
   private readonly fetch: FetchLike;
@@ -168,7 +168,7 @@ export class SlackChat implements ChatPlatform {
    * Aviso temporário no tópico ("Agente de Fernando consultando…"). É mensagem comum, e não efêmera,
    * porque o Slack não deixa o bot apagar mensagem efêmera; quem chama apaga com deleteMessage.
    */
-  async postNotice(input: { channel: string; threadTs?: string; agentName: string; text: string }): Promise<{ channel: string; ts: string } | null> {
+  async postNotice(input: { channel: string; threadTs?: string; agentName: string; text: string; iconUrl?: string }): Promise<{ channel: string; ts: string } | null> {
     const data = await this.call<{ channel?: string; ts?: string }>("chat.postMessage", {
       channel: input.channel,
       text: fitText(input.text),
@@ -176,6 +176,7 @@ export class SlackChat implements ChatPlatform {
       unfurl_links: false,
       unfurl_media: false,
       ...(input.threadTs ? { thread_ts: input.threadTs } : {}),
+      ...(input.iconUrl ? { icon_url: input.iconUrl } : {}),
     });
     return data.ts ? { channel: data.channel ?? input.channel, ts: data.ts } : null;
   }
@@ -189,6 +190,23 @@ export class SlackChat implements ChatPlatform {
       unfurl_media: false,
       ...(input.blocks ? { blocks: input.blocks } : {}),
     });
+  }
+
+  /**
+   * Imagem (ou outro arquivo) na conversa privada com a pessoa, pelo fluxo atual de upload do Slack:
+   * abre a conversa, pede a URL de upload, envia os bytes e completa o upload na conversa, com um comentário.
+   * Precisa do escopo files:write.
+   */
+  async sendDmFile(userExternalId: string, input: { filename: string; data: Uint8Array; title: string; comment: string; altText?: string }): Promise<void> {
+    const im = await this.call<{ channel: { id: string } }>("conversations.open", { users: userExternalId });
+    const up = await this.call<{ upload_url: string; file_id: string }>("files.getUploadURLExternal", {
+      filename: input.filename,
+      length: input.data.byteLength,
+      ...(input.altText ? { alt_txt: input.altText.slice(0, 1000) } : {}),
+    });
+    const res = await this.fetch(up.upload_url, { method: "POST", headers: { "content-type": "application/octet-stream" }, body: input.data as unknown as RequestInit["body"], signal: AbortSignal.timeout(30_000) });
+    if (!res.ok) throw new SlackApiError("files.upload", `http_${res.status}`);
+    await this.call("files.completeUploadExternal", { files: JSON.stringify([{ id: up.file_id, title: input.title }]), channel_id: im.channel.id, initial_comment: fitText(input.comment) }, 30_000);
   }
 
   /** Apaga uma mensagem do próprio bot (por exemplo, um aviso que deixou de valer). */

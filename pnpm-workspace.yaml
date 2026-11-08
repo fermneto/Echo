@@ -6,6 +6,10 @@ packages:
 
 catalog:
   "@anthropic-ai/sdk": 1.6.0
+  "@fontsource/geist-sans": 5.3.0
+  "@fontsource/inter": 5.3.0
+  "@fontsource/jetbrains-mono": 5.3.0
+  "@resvg/resvg-js": 2.6.2
   "@hono/node-server": 2.1.6
   "@langfuse/otel": 6.1.1
   "@langfuse/tracing": 6.1.1
@@ -27,10 +31,12 @@ catalog:
   pino: 10.4.0
   react: 19.3.1
   react-dom: 19.3.1
+  satori: 0.63.2
   simple-icons: 16.36.0
   tsx: 4.23.15
   turbo: 2.11.10
   typescript: 7.0.2
+  unpdf: 2.1.0
   vitest: 5.1.0
   zod: 4.6.7
 

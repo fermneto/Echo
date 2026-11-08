@@ -141,3 +141,33 @@ describe("answerBlocks no idioma da conversa", () => {
     expect(JSON.stringify(answerBlocks({ text: "ok", sources: [{ label: "PR 42" }], questionId: "q1" }))).toContain("Não resolveu");
   });
 });
+
+describe("sendDmFile", () => {
+  it("abre a conversa, pede a URL, envia os bytes e completa o upload na conversa privada, com comentário", async () => {
+    const seen: { url: string; ct: string; body: unknown }[] = [];
+    const fetch = async (url: string, init: RequestInit) => {
+      const ct = new Headers(init.headers).get("content-type") ?? "";
+      const body = ct.startsWith("application/x-www-form-urlencoded") ? Object.fromEntries(new URLSearchParams(String(init.body))) : ct.startsWith("application/json") ? JSON.parse(String(init.body)) : (init.body as Uint8Array).byteLength;
+      seen.push({ url, ct, body });
+      if (url.endsWith("/conversations.open")) return Response.json({ ok: true, channel: { id: "DYAN" } });
+      if (url.endsWith("/files.getUploadURLExternal")) return Response.json({ ok: true, upload_url: "https://files.slack.test/upload/v1/abc", file_id: "F1" });
+      if (url.startsWith("https://files.slack.test/")) return new Response("OK - 4");
+      if (url.endsWith("/files.completeUploadExternal")) return Response.json({ ok: true, files: [{ id: "F1" }] });
+      return Response.json({ ok: false, error: "unknown_method" });
+    };
+    const chat = new SlackChat({ token: "xoxb-teste", fetch, sleep: async () => {} });
+    await chat.sendDmFile("UYAN", { filename: "resumo.png", data: new Uint8Array([1, 2, 3, 4]), title: "Resumo do dia, 07/11", comment: "Resumo do seu dia", altText: "Resumo" });
+    expect(seen.map((s) => s.url.split("/").pop())).toEqual(["conversations.open", "files.getUploadURLExternal", "abc", "files.completeUploadExternal"]);
+    expect(seen[0]!.body).toEqual({ users: "UYAN" });
+    expect(seen[1]).toMatchObject({ ct: "application/x-www-form-urlencoded", body: { filename: "resumo.png", length: "4", alt_txt: "Resumo" } });
+    expect(seen[2]).toMatchObject({ ct: "application/octet-stream", body: 4 });
+    expect(seen[3]).toMatchObject({ ct: "application/x-www-form-urlencoded", body: { channel_id: "DYAN", initial_comment: "Resumo do seu dia" } });
+    expect(JSON.parse((seen[3]!.body as { files: string }).files)).toEqual([{ id: "F1", title: "Resumo do dia, 07/11" }]);
+  });
+
+  it("sem files:write, o erro do Slack sobe com o código (o executor manda a versão em texto)", async () => {
+    const fetch = async (url: string) => (url.endsWith("/conversations.open") ? Response.json({ ok: true, channel: { id: "D1" } }) : Response.json({ ok: false, error: "missing_scope" }));
+    const chat = new SlackChat({ token: "xoxb-teste", fetch, sleep: async () => {} });
+    await expect(chat.sendDmFile("U1", { filename: "a.png", data: new Uint8Array([1]), title: "t", comment: "c" })).rejects.toMatchObject({ code: "missing_scope" });
+  });
+});

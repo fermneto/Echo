@@ -76,6 +76,15 @@ export function canSeePerson(me: { id: string }, target: { id: string; teamId?: 
   return Boolean(target.teamId && visible.includes(target.teamId));
 }
 
+/**
+ * Quem edita o perfil (cargo, habilidades, áreas, idiomas) na ficha: o RH, a liderança da equipe da pessoa
+ * e a própria pessoa.
+ */
+export function canEditProfile(me: { id: string; role: Role; teamId?: string | undefined }, target: { id: string; teamId?: string | undefined }): boolean {
+  if (me.id === target.id || me.role === "hr") return true;
+  return me.role === "leader" && Boolean(me.teamId) && me.teamId === target.teamId;
+}
+
 /** Perguntar ao gêmeo lê notas e tarefas: o RH não pode. */
 export function canAskTwin(role: Role): boolean {
   return role !== "hr";

@@ -1,5 +1,5 @@
 {
-  "id": "d5da78e4-aaa0-4bd2-a18e-94e7bb4d5e30",
+  "id": "a6b4a64b-7e79-455f-896a-8e45b4b30007",
   "prevId": "9f978063-9c68-4a1d-b5a2-630611193637",
   "version": "7",
   "dialect": "postgresql",
@@ -1569,18 +1569,6 @@
           "primaryKey": false,
           "notNull": false
         },
-        "decided_via": {
-          "name": "decided_via",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "delegation_note": {
-          "name": "delegation_note",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
         "created_at": {
           "name": "created_at",
           "type": "timestamp with time zone",
@@ -2401,21 +2389,9 @@
           "primaryKey": false,
           "notNull": false
         },
-        "agent_style": {
-          "name": "agent_style",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "delegation": {
-          "name": "delegation",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": false
-        },
-        "delegation_updated_at": {
-          "name": "delegation_updated_at",
-          "type": "timestamp with time zone",
+        "avatar": {
+          "name": "avatar",
+          "type": "jsonb",
           "primaryKey": false,
           "notNull": false
         },

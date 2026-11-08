@@ -2,6 +2,7 @@ import Link from "next/link";
 import { dayMonth, STATE_LABEL } from "@/lib/daily-note";
 import { readDaySummary } from "@/lib/day-summary";
 import { requireAccess } from "@/lib/session";
+import { slackLoginConfig } from "@/lib/slack-login";
 import { SummaryBlocks } from "./Summary";
 import "./resumos.css";
 
@@ -13,11 +14,28 @@ export default async function ResumosPage({ searchParams }: { searchParams: Prom
   const { data } = await searchParams;
   const view = await readDaySummary(me, data);
   const first = me.name.split(/\s+/)[0] ?? me.name;
+  // Persona da demonstração: é a empresa fictícia do seed. Os resumos enviados no Slack são da empresa conectada.
+  const persona = me.orgId === "demo";
+  const back = `/resumos${data && /^\d{4}-\d{2}-\d{2}$/.test(data) ? `?data=${data}` : ""}`;
+  const slackLogin = persona && slackLoginConfig() !== null ? `/api/sessao/slack?voltar=${encodeURIComponent(back)}` : null;
+  const personaNote = persona ? (
+    <div className="summary__persona" role="note">
+      <p>
+        Você está como <strong>{first}</strong>, persona da empresa de demonstração. O resumo que chegou no seu Slack é da empresa conectada: entre com o Slack para ver o seu.
+      </p>
+      {slackLogin && (
+        <a className="button-pill" href={slackLogin}>
+          Entrar com o Slack e abrir o meu resumo
+        </a>
+      )}
+    </div>
+  ) : null;
 
   if (!view) {
     return (
       <>
         <h1 className="hero-title hero-title--page">Resumo do dia</h1>
+        {personaNote}
         <p className="note muted">Ainda não há nota do dia para resumir. O resumo sai junto com o rascunho do fim do expediente.</p>
         <Link href="/nota-do-dia" className="link-inline">
           Ir para a nota do dia
@@ -36,6 +54,7 @@ export default async function ResumosPage({ searchParams }: { searchParams: Prom
         </div>
       </div>
       <p className="lead">Feito pelo Agente de {first} a partir do GitHub, do Linear e da sua nota. Números e nomes vêm dos fatos, nunca do modelo.</p>
+      {personaNote}
       <SummaryBlocks blocks={view.spec.blocks} day={view.day} />
       <p className="summary__links">
         <Link href={`/nota-do-dia`} className="link-inline">

@@ -1,7 +1,7 @@
 // Executor do outbox: a ÚNICA peça que altera GitHub, Linear ou Slack.
 // Cada ação tem chave única (não roda duas vezes), é reservada por atualização condicional
 // (dois workers não executam a mesma) e só roda aprovada — exceto as listadas em REQUIRES_APPROVAL como false.
-import { FileChangedError, FixRefused, PatchError, type ChatPlatform, type CodeWriter, type FixDraftInput, type FixMergeInput, type IssueWriter } from "@echo/connectors";
+import { FileChangedError, FixRefused, PatchError, SlackApiError, type ChatPlatform, type CodeWriter, type FixDraftInput, type FixMergeInput, type IssueWriter } from "@echo/connectors";
 import { asSystem, auditLog, brainNotes, identities, outboxActions, people, planItems, tasks, withOrg, type Database, type Tx } from "@echo/db";
 import { isMirrorExportable, soleTeam } from "@echo/domain";
 import { and, asc, eq, inArray, lt, sql } from "drizzle-orm";
@@ -22,7 +22,12 @@ export interface ActionPayloads {
   "github.mirror_delete": { repo: string; noteId: string; path: string; sha: string };
   "slack.post": { channel: string; text: string; threadTs?: string; agentName?: string };
   "slack.dm": { personId: string; text: string; blocks?: unknown[] };
+  /** Imagem na conversa privada; sem permissão de arquivo no Slack, manda o texto e os blocos de reserva. */
+  "slack.dm_image": { personId: string; filename: string; title: string; comment: string; altText?: string; pngBase64: string; text: string; blocks?: unknown[] };
 }
+
+/** Erros do Slack em que adianta mandar a versão em texto em vez de repetir o envio do arquivo. */
+const FILE_FALLBACK = new Set(["missing_scope", "not_allowed_token_type", "file_uploads_disabled", "file_type_not_allowed", "file_upload_size_restricted", "storage_limit_reached"]);
 
 /** Erro que não adianta repetir (conta não ligada, tarefa inexistente): falha na hora, com o motivo. */
 export class PermanentActionError extends Error {
@@ -196,6 +201,26 @@ async function run(deps: ExecutorDeps, row: Row): Promise<unknown> {
       );
       if (!id) throw new PermanentActionError("pessoa sem conta no Slack");
       await need("chat", "Slack").sendDm(id.externalId, { text: p.text, ...(Array.isArray(p.blocks) ? { blocks: p.blocks } : {}) });
+      return;
+    }
+    case "slack.dm_image": {
+      const p = row.payload as ActionPayloads["slack.dm_image"];
+      const [id] = await withOrg(db, orgId, (tx) =>
+        tx
+          .select({ externalId: identities.externalId })
+          .from(identities)
+          .where(and(eq(identities.orgId, orgId), eq(identities.personId, p.personId), eq(identities.platform, "slack"))),
+      );
+      if (!id) throw new PermanentActionError("pessoa sem conta no Slack");
+      const chat = need("chat", "Slack");
+      const fallback = () => chat.sendDm(id.externalId, { text: p.text, ...(Array.isArray(p.blocks) ? { blocks: p.blocks } : {}) });
+      if (!chat.sendDmFile) return fallback();
+      try {
+        await chat.sendDmFile(id.externalId, { filename: p.filename, title: p.title, comment: p.comment, data: Buffer.from(p.pngBase64, "base64"), ...(p.altText ? { altText: p.altText } : {}) });
+      } catch (err) {
+        if (err instanceof SlackApiError && FILE_FALLBACK.has(err.code)) return fallback();
+        throw err;
+      }
       return;
     }
     default:

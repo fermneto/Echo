@@ -96,3 +96,152 @@
     gap: 2px;
   }
 }
+
+/* Cadastro de pessoa: formulário à esquerda, o bonequinho à direita. */
+.onboard {
+  display: grid;
+  grid-template-columns: minmax(0, 1.5fr) minmax(220px, 0.8fr);
+  gap: var(--space-xl);
+  align-items: start;
+}
+.onboard__form {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-md);
+}
+.onboard__field {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+.onboard__field--wide {
+  grid-column: 1 / -1;
+}
+.onboard__field select.field {
+  appearance: none;
+  background: var(--color-chip);
+}
+.onboard__days {
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+.onboard__days-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.onboard__day {
+  position: relative;
+  cursor: pointer;
+}
+.onboard__day input {
+  position: absolute;
+  opacity: 0;
+  inset: 0;
+  cursor: pointer;
+}
+.onboard__day span {
+  display: inline-block;
+  min-width: 44px;
+  padding: 8px 0;
+  text-align: center;
+  font-size: 13px;
+  color: var(--color-ash);
+  border: 1px solid var(--color-line);
+  border-radius: var(--rounded-sm);
+}
+.onboard__day input:checked + span {
+  color: var(--color-cloud);
+  border-color: var(--color-iron);
+  background: var(--color-chip);
+}
+.onboard__day input:focus-visible + span {
+  outline: 1px solid var(--color-cloud);
+}
+.onboard__hour {
+  flex: 0 0 auto;
+  width: 110px;
+  padding: 8px 10px;
+}
+.onboard__file {
+  padding: 9px 10px;
+  font-size: 13px;
+  color: var(--color-fog);
+}
+.onboard__text {
+  resize: vertical;
+  min-height: 96px;
+}
+.onboard__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-md);
+  flex-wrap: wrap;
+}
+.onboard__error {
+  margin: 0;
+  font-size: 14px;
+  color: var(--color-signal-wait);
+}
+
+.onboard__result {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+/* Um palco escuro com piso quadriculado, para o bonequinho ficar de pé. */
+.onboard__stage {
+  display: grid;
+  place-items: center;
+  width: 100%;
+  aspect-ratio: 1;
+  max-width: 260px;
+  border-radius: var(--rounded-md);
+  background:
+    linear-gradient(to bottom, transparent 72%, color-mix(in srgb, var(--color-line) 60%, transparent) 72%),
+    var(--color-black);
+  box-shadow: inset 0 0 0 1px var(--color-edge);
+}
+.onboard__stage--empty {
+  gap: var(--space-sm);
+  align-content: center;
+  opacity: 0.8;
+}
+.onboard__hint {
+  margin: 0;
+  padding: 0 var(--space-md);
+  font-size: 12px;
+}
+.onboard__name {
+  margin: var(--space-md) 0 0;
+  font-size: 17px;
+}
+.onboard__title {
+  margin: 2px 0 var(--space-md);
+  font-size: 11px;
+}
+.onboard__chips {
+  justify-content: center;
+}
+.onboard__notes {
+  list-style: none;
+  margin: var(--space-md) 0 0;
+  padding: 0;
+  font-size: 12px;
+  color: var(--color-ash);
+}
+.onboard__notes li + li {
+  margin-top: 4px;
+}
+
+@media (max-width: 900px) {
+  .onboard {
+    grid-template-columns: 1fr;
+  }
+  .onboard__form {
+    grid-template-columns: 1fr;
+  }
+}

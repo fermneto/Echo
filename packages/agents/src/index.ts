@@ -12,6 +12,8 @@ export const MODELS = {
   fix: "claude-sonnet-5-5",
   report: "claude-sonnet-5-5",
   artifact: "claude-haiku-5-5",
+  /** Traços do bonequinho a partir da foto do cadastro. */
+  avatar: "claude-haiku-5-5",
 } as const;
 
 export const LIMITS = { maxRounds: 4, timeoutMs: 30_000, presenceTimeoutMs: 1_500 } as const;
@@ -137,7 +139,7 @@ export {
   type ReviewSource,
   type ReviewStore,
 } from "./night-review.ts";
-export { activityCounts, createDaySummary, summaryRequest, SUMMARY_SYSTEM, type DailyArtifactStore, type DaySummary, type DaySummaryDeps, type StoredArtifact, type SummaryOutcome } from "./day-summary.ts";
+export { activityCounts, createDaySummary, summaryMessage, summaryRequest, SUMMARY_SYSTEM, type DailyArtifactStore, type DaySummary, type DaySummaryDeps, type StoredArtifact, type SummaryOutcome } from "./day-summary.ts";
 export { runTriage, triageRequest, validTriage, TRIAGE_SYSTEM, type TriageInput, type TriageModel, type TriageOutcome, type TriageRequest } from "./triage.ts";
 export { createMorningPlan, planMessage, type MorningPlan, type MorningPlanDeps, type PlanStore, type StoredPlan } from "./morning-plan.ts";
 export {
@@ -202,3 +204,21 @@ export async function answer(req: AnswerRequest): Promise<AnswerResult> {
   const { defaultAnswer } = await import("./server.ts");
   return (await defaultAnswer())(req);
 }
+export {
+  cleanProfile,
+  cleanResume,
+  EMPTY_PROFILE,
+  ONBOARDING_LIMIT,
+  OnboardingLimitError,
+  onboardPerson,
+  PHOTO_MAX_BYTES,
+  PHOTO_TYPES,
+  RESUME_MAX_CHARS,
+  type NewPerson,
+  type OnboardingDeps,
+  type OnboardingInput,
+  type OnboardingOutcome,
+  type OnboardingStore,
+  type PhotoType,
+  type ResumeProfile,
+} from "./onboarding.ts";
