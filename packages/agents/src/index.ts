@@ -117,6 +117,7 @@ export {
   CONFIRM_ACTION_ID,
   createEndOfDay,
   draftMessage,
+  confirmReply,
   noteConfirmAction,
   type ConfirmOutcome,
   type DailyNoteStore,
