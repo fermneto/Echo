@@ -4,7 +4,7 @@
 import { FileChangedError, GithubApiError, SlackApiError, type ChatPlatform, type CodeWriter, type IssueWriter } from "@echo/connectors";
 import { asSystem, auditLog, brainNotes, identities, outboxActions, people, planItems, tasks, withOrg, type Database, type Tx } from "@echo/db";
 import { isMirrorExportable, PatchConflictError, soleTeam } from "@echo/domain";
-import { and, asc, eq, inArray, lt, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, lt, or, sql } from "drizzle-orm";
 import { REQUIRES_APPROVAL, type ActionType, type OutboxAction } from "./index.ts";
 
 export const MAX_ATTEMPTS = 3;
@@ -98,6 +98,27 @@ async function taskLinearId(tx: Tx, orgId: string, taskKey: string): Promise<{ i
   if (!t?.linearId) throw new PermanentActionError(`tarefa ${taskKey} sem id no Linear`);
   return { id: t.id, linearId: t.linearId };
 }
+
+/**
+ * Tipos que têm executor em `run()`. Mantenha junto do `switch`: o teste do executor falha se um caso
+ * do `switch` faltar aqui, ou se um tipo daqui cair no `default`.
+ */
+export const EXECUTABLE_TYPES: readonly ActionType[] = [
+  "linear.assign",
+  "linear.comment",
+  "github.comment",
+  "github.draft_pr",
+  "github.merge_fix",
+  "github.set_reviewers",
+  "github.mirror_write",
+  "github.mirror_delete",
+  "slack.post",
+  "slack.dm",
+  "slack.dm_image",
+];
+
+/** Erro gravado quando um worker sem o executor do tipo pega a ação. */
+export const noExecutorError = (type: string) => `ação ${type} ainda não tem executor`;
 
 /** Executa a ação. O que devolve fica em `outbox_actions.result` (ex.: número e versão do rascunho). */
 async function run(deps: ExecutorDeps, row: Row): Promise<unknown> {
@@ -229,7 +250,7 @@ async function run(deps: ExecutorDeps, row: Row): Promise<unknown> {
       return;
     }
     default:
-      throw new PermanentActionError(`ação ${row.type} ainda não tem executor`);
+      throw new PermanentActionError(noExecutorError(row.type));
   }
 }
 
@@ -305,6 +326,30 @@ export async function releaseStuckActions(db: Database, olderThanMs = 10 * 60_00
   return rows.length;
 }
 
+/**
+ * Ações que falharam só porque um worker antigo ainda não tinha o executor do tipo voltam para a fila
+ * quando o executor passa a existir. Sem isso, a chave de idempotência impede que a ação seja criada de novo.
+ * Volta aprovada se já tinha aprovação ou se o tipo não exige; senão volta pendente, à espera de aprovação.
+ * Falha por qualquer outro motivo nunca é recolocada.
+ */
+export async function retryActionsWithoutExecutor(db: Database): Promise<number> {
+  const noApproval = EXECUTABLE_TYPES.filter((t) => !REQUIRES_APPROVAL[t]);
+  const approvedState = or(isNotNull(outboxActions.approvedBy), noApproval.length ? inArray(outboxActions.type, noApproval) : sql`false`);
+  // Rotina de sistema: percorre todas as empresas.
+  const rows = await asSystem(db, (tx) =>
+    tx
+      .update(outboxActions)
+      .set({ state: sql`case when ${approvedState} then 'approved' else 'pending' end`, attempts: 0, error: null })
+      .where(
+        and(
+          eq(outboxActions.state, "failed"),
+          or(...EXECUTABLE_TYPES.map((t) => and(eq(outboxActions.type, t), eq(outboxActions.error, noExecutorError(t))))),
+        ),
+      )
+      .returning({ id: outboxActions.id }),
+  );
+  return rows.length;
+}
 
 /** Confere de novo, na hora de escrever, se a nota ainda pode ir para o repositório (regra de packages/domain). */
 async function stillExportable(db: Database, orgId: string, noteId: string): Promise<boolean> {

@@ -4,7 +4,8 @@ import { PatchConflictError } from "@echo/domain";
 import { and, eq } from "drizzle-orm";
 import { appRoleUrl } from "@echo/db/testing";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { approveAction, drainActions, enqueueAction, releaseStuckActions } from "./executor.ts";
+import { REQUIRES_APPROVAL, type ActionType } from "./index.ts";
+import { approveAction, drainActions, enqueueAction, EXECUTABLE_TYPES, noExecutorError, releaseStuckActions, retryActionsWithoutExecutor } from "./executor.ts";
 
 const url = process.env.DATABASE_URL;
 
@@ -243,5 +244,53 @@ describe.skipIf(!url)("executor do outbox (Postgres real)", () => {
     await enqueueAction(app, orgId, { type: "github.merge_fix", target: "github:org/app#78", idempotencyKey: "fix_merge:f2", payload: { repo: "org/app", number: 78, sha: "mudou", base: "feat", prNumber: 2 }, approvedBy: ids.car! });
     expect(await drainActions(deps(), orgId)).toEqual({ done: 1, failed: 1, retried: 0 });
     expect(calls.filter((c) => c.startsWith("github."))).toEqual(["github.draft org/app echo/fix-pr-1 → feat sobre abc", "github.merge draftsha → feat"]);
+  });
+
+  it("ação que falhou por falta de executor volta para a fila; sem aprovação, volta pendente; outra falha fica", async () => {
+    calls.length = 0;
+    await drainActions(deps(), orgId); // esvazia o que os testes anteriores deixaram na fila
+    calls.length = 0;
+    const failedRow = (idempotencyKey: string, type: ActionType, payload: unknown, error: string, approvedBy?: string) =>
+      db.insert(outboxActions).values({ orgId, type, target: "t", payload, idempotencyKey, state: "failed", attempts: 1, error, approvedBy: approvedBy ?? null }).returning();
+    const [note] = await db.insert(brainNotes).values({ orgId, path: "processos/como-o-echo-funciona.md", kind: "processo", content: "Como funciona.", visibility: "team" }).returning();
+    const [mirror] = await failedRow("sem-exec:mirror", "github.mirror_write", { repo: "org-teste/brains", noteId: note!.id, path: note!.path, content: "Como funciona.\n" }, noExecutorError("github.mirror_write"));
+    const [assignPending] = await failedRow("sem-exec:assign", "linear.assign", { taskKey: "ECH-133", toPersonId: ids.car! }, noExecutorError("linear.assign"));
+    const [assignApproved] = await failedRow("sem-exec:assign-ok", "linear.assign", { taskKey: "ECH-133", toPersonId: ids.car! }, noExecutorError("linear.assign"), ids.mar!);
+    const [other] = await failedRow("sem-exec:outro", "slack.post", { channel: "C1", text: "x" }, "Slack fora do ar");
+    // Mensagem de outro tipo não conta: só a do próprio tipo da ação.
+    const [mismatch] = await failedRow("sem-exec:troca", "slack.post", { channel: "C1", text: "x" }, noExecutorError("github.mirror_write"));
+
+    expect(await retryActionsWithoutExecutor(app)).toBeGreaterThanOrEqual(3);
+    const get = async (id: string) => (await db.select().from(outboxActions).where(eq(outboxActions.id, id)))[0]!;
+    expect(await get(mirror!.id)).toMatchObject({ state: "approved", attempts: 0, error: null });
+    expect(await get(assignPending!.id)).toMatchObject({ state: "pending", attempts: 0, error: null });
+    expect(await get(assignApproved!.id)).toMatchObject({ state: "approved", attempts: 0, error: null });
+    expect(await get(other!.id)).toMatchObject({ state: "failed", attempts: 1, error: "Slack fora do ar" });
+    expect((await get(mismatch!.id)).state).toBe("failed");
+
+    expect(await drainActions(deps(), orgId)).toEqual({ done: 2, failed: 0, retried: 0 });
+    expect(calls.sort()).toEqual(["github.put org-teste/brains/processos/como-o-echo-funciona.md", "linear.assign lin-133 → lin-carla"]);
+    expect((await get(mirror!.id)).state).toBe("done");
+    expect((await get(assignPending!.id)).state).toBe("pending");
+    // Já recolocadas: rodar de novo não mexe em nada desta empresa.
+    await retryActionsWithoutExecutor(app);
+    expect((await get(other!.id)).state).toBe("failed");
+  });
+
+  it("EXECUTABLE_TYPES é exatamente a lista de casos do executor", async () => {
+    // Empresa à parte, sem plataformas ligadas: cada ação falha, mas só as sem caso no switch caem no default.
+    const [org] = await db.insert(orgs).values({ name: `Teste tipos ${Math.random().toString(36).slice(2, 7)}` }).returning();
+    try {
+      const types = Object.keys(REQUIRES_APPROVAL) as ActionType[];
+      for (const type of types) await db.insert(outboxActions).values({ orgId: org!.id, type, target: "t", payload: {}, idempotencyKey: `tipo:${type}`, state: "approved" });
+      await drainActions({ db: app, writers: async () => ({}) }, org!.id);
+      const rows = await db.select().from(outboxActions).where(eq(outboxActions.orgId, org!.id));
+      const withoutExecutor = rows.filter((r) => r.error === noExecutorError(r.type)).map((r) => r.type);
+      expect(rows.every((r) => r.error)).toBe(true);
+      expect(withoutExecutor.sort()).toEqual(types.filter((t) => !EXECUTABLE_TYPES.includes(t)).sort());
+      expect([...EXECUTABLE_TYPES].sort()).toEqual([...new Set(EXECUTABLE_TYPES)].filter((t) => types.includes(t)).sort());
+    } finally {
+      await db.delete(orgs).where(eq(orgs.id, org!.id));
+    }
   });
 });

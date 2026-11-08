@@ -45,5 +45,5 @@ export const REQUIRES_APPROVAL: Record<ActionType, boolean> = {
   "slack.dm_image": false,
 };
 
-export { approveAction, drainActions, enqueueAction, MAX_ATTEMPTS, orgsWithApprovedActions, PermanentActionError, releaseStuckActions, type ActionPayloads, type ExecutorDeps } from "./executor.ts";
+export { approveAction, drainActions, enqueueAction, EXECUTABLE_TYPES, MAX_ATTEMPTS, noExecutorError, orgsWithApprovedActions, PermanentActionError, releaseStuckActions, retryActionsWithoutExecutor, type ActionPayloads, type ExecutorDeps } from "./executor.ts";
 export { writersFromEnv, type PlatformEnv } from "./writers.ts";
