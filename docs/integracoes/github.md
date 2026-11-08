@@ -17,7 +17,7 @@
 2. **Settings → Developer settings → GitHub Apps → New GitHub App:**
    - **Webhook URL:** `https://<API>/webhooks/github`.
    - **Webhook secret:** `openssl rand -hex 20`, que vai para `GITHUB_WEBHOOK_SECRET`.
-   - **Permissões do repositório:** Contents e Pull requests em *Read and write*. Metadata, Checks e Issues em *Read*.
+   - **Permissões do repositório:** Contents e Pull requests em *Read and write*. Metadata, Checks, Commit statuses e Issues em *Read*.
    - **Permissões da organização:** Members em *Read*.
    - **Eventos:** Push, Pull request, Pull request review, Pull request review comment, Issue comment, Check suite.
 3. Anote o **App ID**. Gere uma **private key** e passe o `.pem` para uma linha só:
