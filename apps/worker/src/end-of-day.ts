@@ -1,5 +1,5 @@
 import type { DaySummary, EndOfDay } from "@echo/agents";
-import { QUEUES, type JobQueue } from "@echo/jobs";
+import { QUEUES, DEDUPE_SECONDS, type JobQueue } from "@echo/jobs";
 import { HOUR, NOTE_RULES } from "@echo/domain";
 
 /** Pessoa e data local: a chave única do rascunho. */
@@ -75,7 +75,7 @@ export async function registerEndOfDay(queue: JobQueue, w: EndOfDayWiring): Prom
   return {
     async tick() {
       const due = await w.scan(now());
-      for (const d of due) await queue.send<DailyNoteJob>(QUEUES.dailyNoteDraft, d, { singletonKey: key(d) });
+      for (const d of due) await queue.send<DailyNoteJob>(QUEUES.dailyNoteDraft, d, { singletonKey: key(d), singletonSeconds: DEDUPE_SECONDS.perDay });
       return due.length;
     },
   };

@@ -1,5 +1,5 @@
 import { calendarsForOrg, connectedOrgs, githubForOrg, reconcileGithub, reconcileLinear, syncCalendar, type CalendarSyncResult, type Platforms } from "@echo/connectors";
-import { QUEUES, type JobQueue } from "@echo/jobs";
+import { DEDUPE_SECONDS, QUEUES, type JobQueue } from "@echo/jobs";
 import type { createPool, Database } from "@echo/db";
 import { withRun, type Logger, type RunRecorder } from "@echo/observability";
 import { mirrorOrg } from "./mirror.ts";
@@ -63,7 +63,7 @@ export async function reconcileOnce(d: ReconcileDeps): Promise<{ skipped: boolea
         for (const cal of await calendarsForOrg(d.db, d.platforms, orgId)) {
           await withRun(d.runs, `calendar_${cal.provider}`, async () => {
             const r = await syncCalendar(d.db, orgId, cal, now);
-            for (const s of r.suggestions) await d.queue?.send(QUEUES.absenceSuggested, { orgId, ...s }, { singletonKey: s.absenceId });
+            for (const s of r.suggestions) await d.queue?.send(QUEUES.absenceSuggested, { orgId, ...s }, { singletonKey: s.absenceId, singletonSeconds: DEDUPE_SECONDS.perDay });
             d.log.info({ orgId, provider: cal.provider, ...r, suggestions: r.suggestions.length, shortRegistered: r.shortRegistered.length }, "sincronização da agenda");
             return r;
           }, { orgId }, { keep: calendarChanged }).catch((err) => d.log.error({ orgId, err: String(err) }, "falha na sincronização da agenda"));

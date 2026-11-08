@@ -124,8 +124,11 @@ describe.skipIf(!url)("registerNight com pg-boss (Postgres real)", () => {
     await new Promise((r) => setTimeout(r, 1500));
     expect(lotes).toHaveLength(2);
 
-    // A busca dos lotes vai para a fila em toda passada e chega a um dos workers.
-    await until(() => buscas.length >= 3);
+    // A busca dos lotes vai para a fila a cada passada, uma por janela (DEDUPE_SECONDS.perScan, relógio do banco):
+    // as passadas deste teste cabem em poucos segundos, então os dois workers põem uma só, e ela chega a um deles.
+    await until(() => buscas.length >= 1);
+    await new Promise((r) => setTimeout(r, 1000));
+    expect(buscas).toHaveLength(1);
 
     // Mesmo terminado, o job do dia segue recusando outro com a mesma chave.
     expect(await workers[1]!.send(QUEUES.nightReview, { orgId }, { singletonKey: `${orgId}:${day}`, singletonSeconds: NIGHT_SINGLETON_SECONDS })).toBeNull();
