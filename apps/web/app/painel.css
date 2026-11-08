@@ -946,18 +946,21 @@
 
 /* Telas estreitas */
 @media (max-width: 900px) {
+  /* As abas quebram linha em vez de rolar: um contêiner com rolagem cortaria o menu que abre abaixo delas. */
   .tabs {
-    gap: var(--space-xl);
-    overflow-x: auto;
-    mask-image: linear-gradient(to right, #000 85%, transparent);
+    flex-wrap: wrap;
+    gap: 0 var(--space-xl);
   }
   .tabs__group {
     position: static;
   }
   .tabs__menu {
-    left: var(--space-gutter);
-    right: var(--space-gutter);
+    left: 0;
+    right: 0;
     width: auto;
+    max-width: 420px;
+    max-height: calc(100dvh - 160px);
+    overflow-y: auto;
   }
   .now-grid {
     grid-template-columns: 1fr;
