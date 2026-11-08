@@ -107,6 +107,7 @@ export type AnswerValidator = (out: AnswerOutput, ctx: ValidatorContext) => Vali
 
 export { validateAnswer } from "./validator.ts";
 export { agentLabel, DEFAULT_LANG, detectLanguage, LANGS, LOCALE, type Detected, type Lang } from "./language.ts";
+export { ROUTER_SYSTEM, routeQuestion, ruleRoute, type Route, type RouteDecision, type RouterModel } from "./route.ts";
 export { isWhoKnowsQuestion, topicPhrase } from "./who-knows.ts";
 export { createAnswer, type AnswerDeps, type ModelCall } from "./answer.ts";
 export type { AgentData, ExpertiseOverride, OrgSettings } from "./data.ts";

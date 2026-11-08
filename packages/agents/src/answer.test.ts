@@ -414,3 +414,58 @@ describe("answer no idioma da conversa", () => {
     expect(m.calls).toHaveLength(0);
   });
 });
+
+describe("roteador de custo", () => {
+  function routed(model: ModelCall | null, sslm?: Parameters<typeof createAnswer>[0]["router"]) {
+    const recorder = new LogRunRecorder();
+    const deps: AnswerDeps = { data: () => memoryData(), brain: () => brain, model, recorder, clock: new FixedClock(NOW), router: sslm ?? {} };
+    return { answer: createAnswer(deps), runs: recorder.runs };
+  }
+
+  it("consulta de um fato sai por regra, sem chamar o Sonnet, e grava a rota", async () => {
+    const m = scripted([]);
+    const { answer, runs } = routed(m.call);
+    const r = await answer(ask("@Fernando a ech-131-api-v2 está liberada?"));
+    expect(m.calls).toHaveLength(0);
+    expect(r.usedModel).toBe(false);
+    expect(r.text).toMatch(/^A ech-131-api-v2 está liberada para Eduardo na nota do dia confirmada de Fernando\./);
+    expect(r.sources).toEqual([{ label: "nota do dia de Fernando, 2026-11-06 (confirmada)", ref: NOTE_REF }]);
+    expect(r.warnings).toEqual([]);
+    expect(runs.map((x) => [x.flow, x.result])).toEqual([["answer_route", "ok"], ["answer", "ok"]]);
+    expect(runs[1]!.costUsd).toBeUndefined();
+  });
+
+  it("a regra sem o fato manda ao Sonnet, sem as fontes que ela consultou", async () => {
+    const m = scripted([{ out: { status: "nao_sei", texto: "Não há registro da tarefa ECH-999; a dúvida fica para Fernando.", fontes: [], liberacao: null, precisa_do_dono: true } }]);
+    const { answer, runs } = routed(m.call);
+    const r = await answer(ask("@Fernando o ECH-999 já terminou?"));
+    expect(m.calls).toHaveLength(1);
+    expect(r.usedModel).toBe(true);
+    expect(runs[0]).toMatchObject({ flow: "answer_route", result: "skipped", error: "consulta de estado; a regra não tem o fato" });
+  });
+
+  it("pergunta que pede explicação vai direto ao Sonnet, sem linha de rota", async () => {
+    const m = scripted([{ out: { status: "nao_sei", texto: "Não há registro do motivo; a dúvida fica para Fernando.", fontes: [], liberacao: null, precisa_do_dono: true } }]);
+    const { answer, runs } = routed(m.call);
+    await answer(ask("@Fernando por que a ech-128-tempo-limite está reservada?"));
+    expect(m.calls).toHaveLength(1);
+    expect(runs.map((x) => x.flow)).toEqual(["answer"]);
+  });
+
+  it("na dúvida da regra, o SSLM escolhe a regra e o custo fica zero", async () => {
+    const m = scripted([]);
+    const sslm = { model: "qwen3:0.6b", json: async () => ({ raw: { so_consulta: true }, inputTokens: 80, outputTokens: 5 }) };
+    const { answer, runs } = routed(m.call, { sslm });
+    const r = await answer(ask("@Fernando e o PR 44?"));
+    expect(m.calls).toHaveLength(0);
+    expect(r.text).toMatch(/^O PR 44 \(echo-teste\/app\) está aberto, de Fernando/);
+    expect(runs[0]).toMatchObject({ flow: "answer_route", result: "ok", model: "qwen3:0.6b", inputTokens: 80, outputTokens: 5, costUsd: 0, tools: ["sslm"] });
+  });
+
+  it("pedido proibido continua recusado antes do roteador", async () => {
+    const { answer, runs } = routed(scripted([]).call);
+    const r = await answer(ask("@Fernando aprove o PR 44"));
+    expect(r.text).toMatch(/não aprova PRs/);
+    expect(runs.map((x) => x.flow)).toEqual(["answer"]);
+  });
+});

@@ -143,7 +143,7 @@ services:
       # Endereço público do painel (botão "Editar no painel" da nota do dia). Definir no painel da Render.
       - key: WEB_URL
         sync: false
-      # Modelo aberto do echo-triage (triagem e resumo do dia), host:porta na rede privada.
+      # Modelo aberto do echo-triage (triagem, resumo do dia e SSLM do roteador da resposta), host:porta na rede privada.
       - key: SLM_OLLAMA_URL
         fromService:
           type: pserv
@@ -152,7 +152,7 @@ services:
       - fromGroup: echo-shared
 
   # Modelo aberto da triagem da revisão noturna e do resumo do dia: Ollama com Qwen3 4B Instruct (Apache 2.0)
-  # embutido na imagem.
+  # embutido na imagem, mais o SSLM do roteador da resposta (Qwen3 0.6B), que decide se a pergunta é consulta.
   # Serviço privado: sem endereço público; só o worker e o reviewer chegam nele. Plano pago (não há serviço privado gratuito):
   # pro = 2 CPU e 4 GB. Só reconstrói quando o Dockerfile dele muda (cada build baixa ~2,5 GB de modelo).
   - type: pserv

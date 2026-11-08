@@ -12,6 +12,7 @@ import type { AgentData } from "./data.ts";
 import { type AnswerOutput, answerOutputSchema, type AnswerRequest, type AnswerResult, LIMITS, MODELS, type ValidationIssue } from "./index.ts";
 import { agentLabel, detectLanguage, type Lang, LOCALE } from "./language.ts";
 import { ANSWER_OUTPUT_JSON_SCHEMA, ANSWER_SYSTEM, questionMessage } from "./prompt.ts";
+import { type RouterModel, routeQuestion } from "./route.ts";
 import { echoPaused, forbiddenRequest, ruleAnswer } from "./rule-answer.ts";
 import { firstName, newRunState, runTool, type ToolContext, toolsFor } from "./tools.ts";
 import { validateAnswer } from "./validator.ts";
@@ -34,7 +35,15 @@ export interface AnswerDeps {
   limits?: Partial<{ maxRounds: number; timeoutMs: number }>;
   /** Ensaio de dia (DEMO_ALWAYS_AWAY): o dono é tratado como ausente, com a volta no próximo expediente. */
   alwaysAway?: boolean;
+  /**
+   * Roteador de custo: consulta simples ao gêmeo sai por regra, sem o Sonnet. Sem `sslm`, só a regra decide.
+   * Sem `router`, toda pergunta vai ao modelo (como antes).
+   */
+  router?: { sslm?: RouterModel | null; timeoutMs?: number };
 }
+
+/** Tempo máximo do SSLM do roteador; passou disso, a pergunta segue para o Sonnet. */
+export const ROUTER_TIMEOUT_MS = 8_000;
 
 /** No expediente, a volta "de ensaio" é o próximo início de expediente depois do fim de hoje. */
 function rehearsalAway(owner: Parameters<typeof isAway>[0], absences: Parameters<typeof isAway>[1], now: Date): AwayResult {
@@ -212,6 +221,33 @@ export function createAnswer(deps: AnswerDeps): (req: AnswerRequest) => Promise<
       if (ruleReason) {
         if (level === "rules_only" && !owner && deps.model) return finish(echoPaused(lang), false, "fallback", warn.paused);
         return finish(await ruleAnswer(ctx, req.text, lang), false, "fallback", warn.rule(ruleReason));
+      }
+
+      // Roteador de custo: consulta de um fato ao gêmeo sai por regra. Se a regra não tiver o fato (não sei)
+      // ou recusar, a pergunta segue para o modelo como sempre, sem as fontes que a regra consultou.
+      if (deps.router) {
+        const t0 = performance.now();
+        const d = await routeQuestion(req, lang, deps.router.sslm, deps.router.timeoutMs ?? ROUTER_TIMEOUT_MS);
+        let routed: AnswerOutput | null = null;
+        if (d.route === "regra") {
+          const before = new Set(state.sources.keys());
+          const out = await ruleAnswer(ctx, req.text, lang);
+          if (out.status === "respondido") routed = out;
+          else for (const k of [...state.sources.keys()]) if (!before.has(k)) state.sources.delete(k);
+        }
+        if (d.route === "regra" || d.by === "sslm") {
+          await deps.recorder.record({
+            flow: "answer_route",
+            orgId: req.orgId,
+            durationMs: Math.round(performance.now() - t0),
+            tools: [d.by],
+            ...(d.by === "sslm" && deps.router.sslm ? { model: deps.router.sslm.model, inputTokens: d.inputTokens ?? 0, outputTokens: d.outputTokens ?? 0, costUsd: 0 } : {}),
+            // ok: o Sonnet não foi chamado; skipped: a pergunta seguiu para o Sonnet, com o motivo.
+            result: routed ? "ok" : "skipped",
+            ...(routed ? {} : { error: d.route === "regra" ? `${d.why}; a regra não tem o fato` : d.why }),
+          });
+        }
+        if (routed) return finish(routed, false, "ok");
       }
 
       const outcome = await modelLoop({

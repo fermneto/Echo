@@ -54,8 +54,12 @@ export const apiSchema = baseSchema.extend({
   API_PORT: port(3001),
 });
 
+/** Roteador de custo: consulta simples ao gêmeo sai por regra, sem o Sonnet. false manda tudo ao modelo. */
+const router = { ANSWER_ROUTER: bool.default(true) };
+
 export const webSchema = baseSchema.extend({
   ...anthropic,
+  ...router,
   PORT: port(3000).optional(),
   WEB_PORT: port(3000),
   /** Banco: necessário para o login com o Slack (sem ele, só o login por persona da demo). */
@@ -85,7 +89,12 @@ const slm = {
   SLM_MODEL: z.string().min(1).default("qwen3:4b-instruct"),
   /** Tempo máximo da triagem de um PR e do juiz da delegação (CPU, ~15 a 30 s; a primeira chamada também carrega o modelo). */
   TRIAGE_TIMEOUT_MS: z.coerce.number().int().min(1000).max(300_000).default(120_000),
+  /** SSLM do roteador de custo da resposta (mesmo Ollama): decide se a pergunta é consulta de um fato. */
+  SSLM_MODEL: z.string().min(1).default("qwen3:0.6b"),
+  /** Tempo máximo do SSLM; passou disso, a pergunta segue para o Sonnet. */
+  SSLM_TIMEOUT_MS: z.coerce.number().int().min(500).max(60_000).default(8_000),
 };
+
 
 export const workerSchema = baseSchema.extend({
   ...database,
@@ -122,6 +131,7 @@ export const workerSchema = baseSchema.extend({
   DEMO_ALWAYS_AWAY: bool.default(false),
   NIGHT_REVIEW_UTC_HOUR: z.coerce.number().int().min(0).max(23).default(5),
   ...slm,
+  ...router,
   /** Tempo máximo do resumo do dia (a saída é maior que a da triagem). */
   SUMMARY_TIMEOUT_MS: z.coerce.number().int().min(1000).max(900_000).default(300_000),
 });

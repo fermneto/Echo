@@ -76,7 +76,19 @@ export function serverAnswerDeps(db: Database, apiKey: string | undefined): Answ
     recorder: createDbRunRecorder(db),
     // Só para ensaiar a demonstração de dia: o dono da pergunta é tratado como ausente.
     alwaysAway: process.env.DEMO_ALWAYS_AWAY === "true",
+    router: answerRouter(),
   };
+}
+
+/**
+ * Roteador de custo da resposta: a regra sempre; com SLM_OLLAMA_URL, o SSLM (SSLM_MODEL, padrão qwen3:0.6b) decide
+ * o que a regra não reconhece. ANSWER_ROUTER=false manda toda pergunta ao modelo, como antes.
+ */
+export function answerRouter(env: NodeJS.ProcessEnv = process.env): AnswerDeps["router"] {
+  if (env.ANSWER_ROUTER === "false") return undefined;
+  const timeoutMs = Number(env.SSLM_TIMEOUT_MS) > 0 ? Number(env.SSLM_TIMEOUT_MS) : undefined;
+  const sslm = env.SLM_OLLAMA_URL ? ollamaJson({ baseUrl: env.SLM_OLLAMA_URL, model: env.SSLM_MODEL || "qwen3:0.6b", think: false }) : null;
+  return { sslm, ...(timeoutMs ? { timeoutMs } : {}) };
 }
 
 /** Fluxo do fim do expediente com Postgres, outbox e a chave da empresa (sem chave, "onde parou" por regra). */

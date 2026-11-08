@@ -3,8 +3,12 @@
 # Alternativa menor, para 2 GB: --build-arg SLM_MODEL=qwen2.5-coder:1.5b (erra mais; ver docs/engenharia.md).
 FROM ollama/ollama:0.40.11
 ARG SLM_MODEL=qwen3:4b-instruct
-ENV OLLAMA_HOST=0.0.0.0:11434 OLLAMA_KEEP_ALIVE=30m OLLAMA_CONTEXT_LENGTH=8192
+# SSLM do roteador de custo da resposta (Qwen3 0.6B, Apache 2.0, ~520 MB): só responde se a pergunta é consulta.
+ARG SSLM_MODEL=qwen3:0.6b
+# Até dois modelos carregados; o Ollama confere a memória e descarrega o 4B se o 0.6B não couber junto (o 4B só
+# trabalha à noite e no fim do expediente; o 0.6B, a cada pergunta, com contexto de 1024 tokens).
+ENV OLLAMA_HOST=0.0.0.0:11434 OLLAMA_KEEP_ALIVE=30m OLLAMA_CONTEXT_LENGTH=8192 OLLAMA_MAX_LOADED_MODELS=2
 RUN ollama serve > /tmp/ollama.log 2>&1 & pid=$!; \
     for i in $(seq 1 60); do ollama list > /dev/null 2>&1 && break; sleep 1; done; \
-    ollama pull "$SLM_MODEL" && kill $pid
+    ollama pull "$SLM_MODEL" && ollama pull "$SSLM_MODEL" && kill $pid
 EXPOSE 11434
