@@ -516,7 +516,10 @@ export default function LandingPage() {
         </div>
 
         <div className="lp-footer__main">
-          <p className="lp-footer__tagline">Continuidade do trabalho para equipes distribuídas.</p>
+          <div>
+            <p className="lp-footer__tagline">Continuidade do trabalho para equipes distribuídas.</p>
+            <p className="lp-mono lp-footer__powered">Powered by Claude</p>
+          </div>
           <nav className="lp-footer__cols" aria-label="Rodapé">
             <div>
               <p className="lp-footer__head">Produto</p>
@@ -548,11 +551,6 @@ export default function LandingPage() {
             </div>
           </nav>
         </div>
-
-        <p className="lp-footer__legal">
-          Pessoas e conversas desta página são ilustrativas. GitHub, Linear, Jira, Slack e Claude são marcas de seus donos.
-          <span className="lp-mono">Powered by Claude</span>
-        </p>
       </footer>
     </div>
   );
