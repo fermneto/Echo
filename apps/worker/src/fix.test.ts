@@ -1,4 +1,4 @@
-import { InMemoryQueue, QUEUES, type SendOptions } from "@echo/jobs";
+import { DEDUPE_SECONDS, InMemoryQueue, QUEUES, type SendOptions } from "@echo/jobs";
 import { describe, expect, it } from "vitest";
 import { registerFix } from "./fix.ts";
 
@@ -20,7 +20,7 @@ describe("registerFix", () => {
     });
     expect(await wiring.tick()).toEqual({ queued: 2, ready: 1, applied: 0 });
     expect(calls).toEqual(["run:org:rv1", "run:org:rv2", "sync:org", "sync:outra"]);
-    expect(sent[0]).toEqual({ name: QUEUES.fixRun, opts: { singletonKey: "rv1", retryLimit: 0, expireInSeconds: 1800 } });
+    expect(sent[0]).toEqual({ name: QUEUES.fixRun, opts: { singletonKey: "rv1", singletonSeconds: DEDUPE_SECONDS.perScan, retryLimit: 0, expireInSeconds: 1800 } });
     // A mesma revisão não entra duas vezes.
     expect((await wiring.tick()).queued).toBe(0);
   });

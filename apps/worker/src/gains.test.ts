@@ -1,4 +1,4 @@
-import { InMemoryQueue, QUEUES, type SendOptions } from "@echo/jobs";
+import { DEDUPE_SECONDS, InMemoryQueue, QUEUES, type SendOptions } from "@echo/jobs";
 import { describe, expect, it } from "vitest";
 import { registerGains } from "./gains.ts";
 
@@ -24,7 +24,7 @@ describe("registerGains", () => {
     });
     expect(await wiring.tick()).toEqual({ digests: 1, purged: 6, baselines: 1 });
     expect(calls).toEqual(["resumo:a:fernando:2026-11-09:inicio", "limpeza:a", "referencia:a:github", "limpeza:b", "limpeza:c"]);
-    expect(sent.find((s) => s.name === QUEUES.awayDigestSend)?.opts).toEqual({ singletonKey: "a:fernando:2026-11-09:inicio", retryLimit: 2 });
+    expect(sent.find((s) => s.name === QUEUES.awayDigestSend)?.opts).toEqual({ singletonKey: "a:fernando:2026-11-09:inicio", singletonSeconds: DEDUPE_SECONDS.perDay, retryLimit: 2 });
     expect(sent.filter((s) => s.name === QUEUES.gainsBaseline)).toHaveLength(1);
   });
 });

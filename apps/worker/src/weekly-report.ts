@@ -1,5 +1,5 @@
 import type { WeeklyReport } from "@echo/agents";
-import { QUEUES, type JobQueue } from "@echo/jobs";
+import { QUEUES, DEDUPE_SECONDS, type JobQueue } from "@echo/jobs";
 
 export interface ReportJob {
   orgId: string;
@@ -35,9 +35,9 @@ export async function registerWeeklyReport(queue: JobQueue, w: WeeklyReportWirin
   return {
     async tick() {
       const due = await w.due(now());
-      for (const d of due) await queue.send<ReportJob>(QUEUES.weeklyReportBuild, d, { singletonKey: `${d.orgId}:${d.personId}:${d.week}`, retryLimit: 2 });
+      for (const d of due) await queue.send<ReportJob>(QUEUES.weeklyReportBuild, d, { singletonKey: `${d.orgId}:${d.personId}:${d.week}`, singletonSeconds: DEDUPE_SECONDS.perDay, retryLimit: 2 });
       let synced = 0;
-      for (const orgId of await w.orgIds()) if (await queue.send<OrgJob>(QUEUES.weeklyReportSync, { orgId }, { singletonKey: orgId, retryLimit: 1 })) synced++;
+      for (const orgId of await w.orgIds()) if (await queue.send<OrgJob>(QUEUES.weeklyReportSync, { orgId }, { singletonKey: orgId, singletonSeconds: DEDUPE_SECONDS.perScan, retryLimit: 1 })) synced++;
       return { built: due.length, synced };
     },
   };

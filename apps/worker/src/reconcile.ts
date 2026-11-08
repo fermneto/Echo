@@ -1,5 +1,5 @@
 import { calendarsForOrg, connectedOrgs, githubForOrg, reconcileGithub, reconcileLinear, syncCalendar, type Platforms } from "@echo/connectors";
-import { QUEUES, type JobQueue } from "@echo/jobs";
+import { QUEUES, DEDUPE_SECONDS, type JobQueue } from "@echo/jobs";
 import type { createPool, Database } from "@echo/db";
 import { withRun, type Logger, type RunRecorder } from "@echo/observability";
 import { mirrorOrg } from "./mirror.ts";
@@ -43,14 +43,14 @@ export async function reconcileOnce(d: ReconcileDeps): Promise<{ skipped: boolea
               d.log.info({ orgId, ...r }, "reconciliação do GitHub");
             }, { orgId }).catch((err) => d.log.error({ orgId, err: String(err) }, "falha na reconciliação do GitHub"));
             // Pela mesma fila do push (uma por empresa), para duas sincronizações da mesma empresa não correrem juntas.
-            if (d.queue && d.brainsRepository) await d.queue.send(QUEUES.brainMirror, { orgId }, { singletonKey: orgId }).catch((err) => d.log.error({ orgId, err: String(err) }, "falha ao pedir o espelho das notas"));
+            if (d.queue && d.brainsRepository) await d.queue.send(QUEUES.brainMirror, { orgId }, { singletonKey: orgId, singletonSeconds: 60 }).catch((err) => d.log.error({ orgId, err: String(err) }, "falha ao pedir o espelho das notas"));
             else await mirrorOrg(d, orgId).catch((err) => d.log.error({ orgId, err: String(err) }, "falha no espelho das notas"));
           }
         }
         for (const cal of await calendarsForOrg(d.db, d.platforms, orgId)) {
           await withRun(d.runs, `calendar_${cal.provider}`, async () => {
             const r = await syncCalendar(d.db, orgId, cal, now);
-            for (const s of r.suggestions) await d.queue?.send(QUEUES.absenceSuggested, { orgId, ...s }, { singletonKey: s.absenceId });
+            for (const s of r.suggestions) await d.queue?.send(QUEUES.absenceSuggested, { orgId, ...s }, { singletonKey: s.absenceId, singletonSeconds: DEDUPE_SECONDS.perDay });
             d.log.info({ orgId, provider: cal.provider, ...r, suggestions: r.suggestions.length, shortRegistered: r.shortRegistered.length }, "sincronização da agenda");
           }, { orgId }).catch((err) => d.log.error({ orgId, err: String(err) }, "falha na sincronização da agenda"));
         }

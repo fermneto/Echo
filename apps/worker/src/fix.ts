@@ -1,5 +1,5 @@
 import type { Fix } from "@echo/agents";
-import { QUEUES, type JobQueue } from "@echo/jobs";
+import { QUEUES, DEDUPE_SECONDS, type JobQueue } from "@echo/jobs";
 
 export interface FixJob {
   orgId: string;
@@ -28,7 +28,7 @@ export async function registerFix(queue: JobQueue, w: FixWiring): Promise<{ tick
       const out = { queued: 0, ready: 0, applied: 0 };
       for (const orgId of await w.orgIds()) {
         for (const reviewId of await w.fix.pending(orgId)) {
-          if (await queue.send<FixJob>(QUEUES.fixRun, { orgId, reviewId }, { singletonKey: reviewId, retryLimit: 0, expireInSeconds })) out.queued++;
+          if (await queue.send<FixJob>(QUEUES.fixRun, { orgId, reviewId }, { singletonKey: reviewId, singletonSeconds: DEDUPE_SECONDS.perScan, retryLimit: 0, expireInSeconds })) out.queued++;
         }
         const s = await w.fix.sync(orgId);
         out.ready += s.ready;

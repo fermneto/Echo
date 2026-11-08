@@ -45,6 +45,18 @@ export const QUEUES = {
 } as const;
 export type QueueName = (typeof QUEUES)[keyof typeof QUEUES];
 
+/**
+ * Janelas de `singletonSeconds`: no pg-boss (política padrão), só a janela impede job repetido com a mesma chave,
+ * mesmo entre os dois workers que convivem durante um deploy.
+ * - `perScan`: passadas que a agenda repete a cada 5 min. Menor que o intervalo: cada passada põe um job, e duas
+ *   passadas na mesma janela (dois workers) põem um só.
+ * - `perHour`: avisos de fora (eventos, Slack, RH), que podem chegar de novo minutos depois.
+ * - `perDay`: trabalho de uma pessoa por data (a chave já tem a data). No máximo um por dia UTC; a chave com a
+ *   data local pode cair em dois dias UTC, e o fluxo também confere se já fez o trabalho.
+ * Comandos de ensaio (`nota:agora`, `noite:agora`, `manha:agora`) mandam sem janela, para poder repetir.
+ */
+export const DEDUPE_SECONDS = { perScan: 240, perHour: 3_600, perDay: 86_400 } as const;
+
 export interface QueuedJob<T> {
   id: string;
   name: string;
