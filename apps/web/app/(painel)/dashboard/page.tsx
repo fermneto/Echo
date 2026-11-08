@@ -182,11 +182,9 @@ export default async function InicioPage() {
           <AskPanel
             ask={perguntarEcho}
             title="Pergunte ao Echo"
-            footer="Perguntas sobre a equipe e o trabalho. O Echo consulta os registros, cita a fonte e não fala por ninguém."
             agent="Echo"
             askerName={me.name}
-            empty="Por exemplo: quem está no expediente agora, o que está pendente ou quem sabe de um tema."
-            placeholder="Por exemplo: alguém deixou algo pendente?"
+            placeholder="Alguém deixou algo pendente?"
             suggestions={demo ? ECHO_SUGGESTIONS : ECHO_GENERIC_SUGGESTIONS}
           />
         </section>

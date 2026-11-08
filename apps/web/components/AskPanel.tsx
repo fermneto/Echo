@@ -27,14 +27,14 @@ export function AskPanel({
 }: {
   ask: (prev: AskState, form: FormData) => Promise<AskState>;
   title: string;
-  footer: string;
+  footer?: string;
   /** Nome de quem responde enquanto consulta ("Agente de Fernando", "Echo"). */
   agent: string;
   /** Dono do plano da manhã, quando a resposta manda a dúvida para ele. */
   ownerName?: string;
   hidden?: Record<string, string>;
   askerName: string;
-  empty: string;
+  empty?: string;
   placeholder: string;
   suggestions: string[];
 }) {
@@ -49,9 +49,9 @@ export function AskPanel({
   }, [pending]);
 
   return (
-    <ProductWindow title={title} footer={footer}>
+    <ProductWindow title={title} {...(footer ? { footer } : {})}>
       <ol className="chat" aria-live="polite" aria-busy={pending}>
-        {state.turns.length === 0 && !pending && (
+        {empty && state.turns.length === 0 && !pending && (
           <li className="chat__empty">
             <p className="muted">{empty}</p>
           </li>
