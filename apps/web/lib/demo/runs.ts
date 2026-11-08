@@ -170,10 +170,4 @@ export const DAY_RUNS: readonly Run[] = [
   { id: "run-106", at: "05/11 08:00", flow: "away_digest", model: null, inputTokens: 0, outputTokens: 0, durationMs: 180, tools: ["questions"], result: "ok", what: "Resumo do que chegou enquanto Fernando dormia" },
 ];
 
-/** O que "Simular a noite" acrescenta: a mesma análise que o lote faria de madrugada. */
-export const NIGHT_RUNS: readonly Run[] = [
-  { id: "run-120", at: "agora", flow: "pr_review", model: "claude-sonnet-5-5", inputTokens: 88000, outputTokens: 4300, batch: true, durationMs: 38000, tools: ["github.diff"], result: "ok", what: "Revisão simulada do PR 41 (noite comprimida)" },
-  { id: "run-119", at: "agora", flow: "morning_plan", model: "claude-haiku-5-5", inputTokens: 9100, outputTokens: 900, durationMs: 3900, tools: ["github.prs", "linear.issues", "questions"], result: "ok", what: "Plano da manhã refeito com a análise da noite" },
-];
-
 export const RESULT_LABEL: Record<RunResult, string> = { ok: "ok", fallback: "por regra", refused: "recusada", failed: "falhou", skipped: "pulada" };
