@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useCallback, useEffect, useLayoutEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { WORLD_MAP_PNG } from "./landing/worldMap";
+import { daylight } from "@/lib/daylight";
 import type { Look } from "@/lib/demo/looks";
 import { PixelSprite, type SpriteMode } from "./PixelSprite";
 
@@ -102,7 +103,6 @@ export function WorldMap({ crews, zones, arcs, nowIso, canAsk = true }: { crews:
     const ctx = el?.getContext("2d");
     if (!el || !box || !ctx) return;
     const now = new Date(nowIso);
-    const utcHours = now.getUTCHours() + now.getUTCMinutes() / 60;
     let land: ((lat: number, lng: number) => boolean) | null = null;
 
     const draw = () => {
@@ -120,12 +120,10 @@ export function WorldMap({ crews, zones, arcs, nowIso, canAsk = true }: { crews:
       for (let lat = TOP - STEP / 2; lat > BOTTOM; lat -= STEP) {
         for (let lng = -180 + STEP / 2; lng < 180; lng += STEP) {
           if (!land(lat, lng)) continue;
-          // Hora solar local: noite entre 18h e 6h deixa o ponto mais apagado.
-          const solar = (((utcHours + lng / 15) % 24) + 24) % 24;
-          const night = solar < 6 || solar >= 18;
-          // Terra sem ninguém fica discreta; a noite, bem mais apagada que o dia.
+          // Terra sem ninguém fica discreta; a noite, bem mais apagada que o dia, com o crepúsculo em gradiente
+          // pela altura do sol (sem corte seco entre dia e noite).
           let rgb: readonly number[] = [175, 175, 175];
-          let a = night ? 0.26 : 0.46;
+          let a = 0.26 + 0.2 * daylight(lat, lng, now);
           let rr = r;
           for (const c of crews) {
             const d = Math.hypot(lat - c.location[0], (lng - c.location[1]) * Math.cos((lat * Math.PI) / 180));
