@@ -1,4 +1,4 @@
-import { drainActions, orgsWithApprovedActions, releaseStuckActions, type ExecutorDeps } from "@echo/actions";
+import { drainActions, orgsWithApprovedActions, releaseStuckActions, retryActionsWithoutExecutor, type ExecutorDeps } from "@echo/actions";
 import { QUEUES, type JobQueue } from "@echo/jobs";
 import { withRun, type Logger, type RunRecorder } from "@echo/observability";
 
@@ -27,6 +27,11 @@ export async function registerActions(deps: ExecutorDeps, queue: JobQueue, runs:
       running = false;
     }
   };
+  // Ações que um worker antigo deu como "sem executor" voltam para a fila agora que o executor existe;
+  // a primeira rodada, logo abaixo, já executa as aprovadas.
+  const requeued = await retryActionsWithoutExecutor(deps.db).catch((err) => (log.error({ err }, "falha ao recolocar ações sem executor"), 0));
+  if (requeued) log.info({ requeued }, "ações sem executor recolocadas na fila");
+
   const timer = setInterval(() => void tick(), intervalMs);
   void tick();
   return () => clearInterval(timer);
