@@ -11,6 +11,6 @@ if (!apiKey) {
 const existing = { agentId: process.env.FIX_AGENT_ID?.trim() || undefined, environmentId: process.env.FIX_ENVIRONMENT_ID?.trim() || undefined };
 const r = await provisionFix(apiKey, existing);
 console.log(r.created.length ? `Criado: ${r.created.join(" e ")}.` : "Nada novo criado; agente atualizado.");
-console.log(`Agente na versão ${r.agentVersion}. Coloque no .env (e nas variáveis do reviewer na Render):`);
+console.log(`Agente na versão ${r.agentVersion}. Coloque no .env (e nas variáveis do echo-worker na Render):`);
 console.log(`FIX_AGENT_ID=${r.agentId}`);
 console.log(`FIX_ENVIRONMENT_ID=${r.environmentId}`);
