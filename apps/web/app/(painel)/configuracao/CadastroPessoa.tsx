@@ -1,8 +1,9 @@
 "use client";
 
-import { useActionState } from "react";
+import { type FormEvent, useActionState, useEffect, useRef, useTransition } from "react";
 import { PixelSprite } from "@/components/PixelSprite";
 import Link from "next/link";
+import { AccountFields } from "@/components/AccountFields";
 import { type CadastroState, PHOTO_ACCEPT, RESUME_ACCEPT, ROLE_OPTIONS, ZONES } from "@/lib/onboarding-options";
 
 const DAYS = [
@@ -16,12 +17,23 @@ const DAYS = [
 ];
 
 /** Cadastro pelo RH: dados do expediente, foto e currículo. O resultado mostra o bonequinho e o contexto lido. */
-export function CadastroPessoa({ action, teams }: { action: (prev: CadastroState, form: FormData) => Promise<CadastroState>; teams: readonly { id: string; name: string }[] }) {
+export function CadastroPessoa({ action, teams, slackMembers = null }: { action: (prev: CadastroState, form: FormData) => Promise<CadastroState>; teams: readonly { id: string; name: string }[]; slackMembers?: readonly { id: string; name: string }[] | null }) {
   const [state, submit, pending] = useActionState(action, { status: "idle" } as CadastroState);
+  const [, startTransition] = useTransition();
+  const formRef = useRef<HTMLFormElement>(null);
+  // Envio sem o `action` do form: o React limparia tudo (foto e currículo também) a cada erro. Limpa só quando cadastra.
+  const send = (e: FormEvent<HTMLFormElement>) => {
+    e.preventDefault();
+    const data = new FormData(e.currentTarget);
+    startTransition(() => submit(data));
+  };
+  useEffect(() => {
+    if (state.status === "done" && state.saved) formRef.current?.reset();
+  }, [state]);
 
   return (
     <div className="onboard">
-      <form action={submit} className="onboard__form">
+      <form ref={formRef} onSubmit={send} className="onboard__form">
         <label className="onboard__field onboard__field--wide">
           <span className="field-row__k">Nome</span>
           <input className="field" name="nome" required maxLength={80} autoComplete="off" />
@@ -69,6 +81,13 @@ export function CadastroPessoa({ action, teams }: { action: (prev: CadastroState
             <input className="field onboard__hour" type="time" name="inicio" defaultValue="09:00" aria-label="Início do expediente" />
             <span className="muted">às</span>
             <input className="field onboard__hour" type="time" name="fim" defaultValue="18:00" aria-label="Fim do expediente" />
+          </div>
+        </fieldset>
+        <fieldset className="onboard__field onboard__field--wide onboard__accounts">
+          <legend className="field-row__k">Contas nas plataformas</legend>
+          <p className="muted onboard__hint">É pela conta do Slack que a pessoa entra no painel, é reconhecida nas menções e recebe o privado do Echo. GitHub e Linear ligam os PRs e as tarefas a ela.</p>
+          <div className="onboard__accounts-row">
+            <AccountFields slackMembers={slackMembers} />
           </div>
         </fieldset>
         <label className="onboard__field">

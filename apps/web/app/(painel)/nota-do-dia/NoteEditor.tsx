@@ -47,7 +47,7 @@ export function NoteEditor({ initial, ownerName, branchFormat }: { initial: Note
           {s.label}
         </p>
       </div>
-      <p className="muted daily__by">Rascunho escrito pelo Agente de {ownerName} a partir do GitHub e do Linear. Só você confirma.</p>
+      <p className="muted daily__by">Rascunho escrito pelo Agente de {ownerName} a partir do GitHub e das tarefas (Linear ou Jira). Só você confirma.</p>
 
       <div className="daily__grid">
         {SECTION_KEYS.map((k) => {

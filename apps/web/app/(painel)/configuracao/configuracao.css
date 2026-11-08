@@ -132,6 +132,24 @@
   align-items: center;
   gap: 6px;
 }
+.onboard__accounts {
+  border: 0;
+  margin: 0;
+  padding: 0;
+}
+.onboard__accounts .onboard__hint {
+  padding: 0;
+  margin: 2px 0 var(--space-sm);
+}
+.onboard__accounts-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: var(--space-md);
+}
+.onboard__accounts-row input.field,
+.onboard__accounts-row select.field {
+  width: 100%;
+}
 .onboard__day {
   position: relative;
   cursor: pointer;

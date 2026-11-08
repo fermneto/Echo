@@ -12,7 +12,8 @@
     "./execucoes": "./src/pg-runs.ts",
     "./enquanto-fora": "./src/pg-away-log.ts",
     "./redistribuicao": "./src/pg-redistribution-view.ts",
-    "./painel": "./src/pg-panel.ts"
+    "./painel": "./src/pg-panel.ts",
+    "./rh": "./src/pg-hr.ts"
   },
   "scripts": {
     "typecheck": "tsc -p tsconfig.json",

@@ -50,8 +50,8 @@ export interface AgentDecision {
   repository: string;
   prNumber: number;
   draftPrNumber: number | null;
-  /** unida: o agente uniu pela delegação; com_voce: a delegação não cobriu e a correção ficou com a pessoa. */
-  outcome: "unida" | "com_voce";
+  /** unida: o agente uniu pela delegação; esperando_ci: espera o CI do rascunho para decidir; com_voce: a delegação não cobriu e a correção ficou com a pessoa. */
+  outcome: "unida" | "esperando_ci" | "com_voce";
   /** Estado atual da correção (pronta, aprovada, aplicada, recusada…), para a tela dizer se ainda espera. */
   state: string;
   note: string;
@@ -78,7 +78,7 @@ export async function readAgentDecisions(db: Database, orgId: string, personId: 
     repository: p.repository,
     prNumber: p.number,
     draftPrNumber: f.draftPrNumber ?? null,
-    outcome: f.decidedVia === "delegacao" ? "unida" : "com_voce",
+    outcome: f.decidedVia === "delegacao" ? "unida" : f.ciWaitSince && f.state === "ready" ? "esperando_ci" : "com_voce",
     state: f.state,
     note: f.delegationNote ?? "",
     at: f.decidedAt ?? f.createdAt,

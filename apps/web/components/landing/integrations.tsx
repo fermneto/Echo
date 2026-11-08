@@ -10,7 +10,7 @@ import { LogoCarousel } from "./LogoCarousel";
 type Integration = { name: string; status: "hoje" | "em breve"; path?: string };
 
 /** Símbolo do Slack desenhado à mão, monocromático (não existe no simple-icons). */
-const SLACK_PATH =
+export const SLACK_PATH =
   "M5.04 15.17a2.53 2.53 0 1 1-2.52-2.53h2.52zm1.27 0a2.53 2.53 0 0 1 5.05 0v6.31a2.53 2.53 0 1 1-5.05 0zM8.83 5.04a2.53 2.53 0 1 1 2.53-2.52v2.52zm0 1.27a2.53 2.53 0 0 1 0 5.05H2.52a2.53 2.53 0 0 1 0-5.05zm10.13 2.52a2.53 2.53 0 1 1 2.52 2.53h-2.52zm-1.27 0a2.53 2.53 0 0 1-5.05 0V2.52a2.53 2.53 0 1 1 5.05 0zm-2.52 10.13a2.53 2.53 0 1 1-2.53 2.52v-2.52zm0-1.27a2.53 2.53 0 0 1 0-5.05h6.31a2.53 2.53 0 0 1 0 5.05z";
 
 export const INTEGRATIONS: readonly Integration[] = [

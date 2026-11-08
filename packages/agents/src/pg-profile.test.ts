@@ -46,19 +46,21 @@ describe.skipIf(!url)("estilo e delegação em Postgres", () => {
 
   it("decisões do agente: a unida pela delegação e a que ficou com a pessoa, com o motivo também no plano", async () => {
     const [pr44, pr45, rv1, rv2, fx1, fx2] = [randomUUID(), randomUUID(), randomUUID(), randomUUID(), randomUUID(), randomUUID()];
+    const [pr48, rv3, fx3] = [randomUUID(), randomUUID(), randomUUID()];
     await asSystem(db, async (tx) => {
       const pr = (id: string, number: number) => ({ id, orgId: org, repository: "teste/app", number, title: `PR ${number}`, authorId: fernando, state: "open", branch: `b${number}`, headSha: `s${number}` });
-      await tx.insert(pullRequests).values([pr(pr44, 44), pr(pr45, 45)]);
+      await tx.insert(pullRequests).values([pr(pr44, 44), pr(pr45, 45), pr(pr48, 48)]);
       const rv = (id: string, prId: string) => ({ id, orgId: org, prId, headSha: "s", state: "fix_ready", model: "claude-sonnet-5-5", files: ["src/a.ts"], findings: [] });
-      await tx.insert(reviews).values([rv(rv1, pr44), rv(rv2, pr45)]);
+      await tx.insert(reviews).values([rv(rv1, pr44), rv(rv2, pr45), rv(rv3, pr48)]);
       await tx.insert(fixRuns).values([
         { id: fx1, orgId: org, reviewId: rv1, state: "approved", draftPrNumber: 46, decidedBy: fernando, decidedAt: new Date("2026-11-08T06:00:00Z"), decidedVia: "delegacao", delegationNote: "Unida pela sua delegação de 2026-11-07: correção pequena com testes." },
         { id: fx2, orgId: org, reviewId: rv2, state: "ready", draftPrNumber: 47, testsReported: "passou", delegationNote: "Ficou com você: caminho sensível: src/pagamentos/x.ts." },
+        { id: fx3, orgId: org, reviewId: rv3, state: "ready", draftPrNumber: 49, testsReported: "passou", ciWaitSince: new Date("2026-11-08T06:05:00Z"), delegationNote: "Esperando o CI do rascunho para decidir pela sua delegação." },
       ]);
     });
     const decisions = await readAgentDecisions(db, org, fernando);
-    expect(decisions.map((d) => [d.prNumber, d.outcome, d.state])).toEqual(expect.arrayContaining([[44, "unida", "approved"], [45, "com_voce", "ready"]]));
+    expect(decisions.map((d) => [d.prNumber, d.outcome, d.state])).toEqual(expect.arrayContaining([[44, "unida", "approved"], [45, "com_voce", "ready"], [48, "esperando_ci", "ready"]]));
     expect(decisions.find((d) => d.prNumber === 44)!.note).toContain("Unida pela sua delegação");
-    expect(await readPlanFixes(db, org, fernando)).toEqual([expect.objectContaining({ fixId: fx2, draftPrNumber: 47, delegationNote: "Ficou com você: caminho sensível: src/pagamentos/x.ts." })]);
+    expect(await readPlanFixes(db, org, fernando)).toEqual(expect.arrayContaining([expect.objectContaining({ fixId: fx2, draftPrNumber: 47, delegationNote: "Ficou com você: caminho sensível: src/pagamentos/x.ts." }), expect.objectContaining({ fixId: fx3 })]));
   });
 });

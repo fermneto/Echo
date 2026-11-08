@@ -43,6 +43,7 @@ export { createPgArtifactStore } from "./pg-artifacts.ts";
 export { expireTeamVideos, failStuckTeamVideos, latestTeamVideos, queuedTeamVideos, queueTeamVideos, teamVideoForStream, type TeamVideoView } from "./pg-video.ts";
 export { videoAgentParams, videoEnvironmentParams, VIDEO_RUNNER } from "./managed-video.ts";
 export { createPgAvatarStore, createPgOnboardingStore, readAvatar, updateProfile } from "./pg-onboarding.ts";
+export { AccountConflictError, type PersonAccounts, readAccounts, saveAccounts, type SaveAccountsResult } from "./pg-accounts.ts";
 export { createPgFixStore } from "./pg-fix.ts";
 export { createPgRedistributionStore } from "./pg-redistribution.ts";
 export { createPgReportStore } from "./pg-report.ts";
@@ -90,15 +91,20 @@ export function serverAnswerDeps(db: Database, apiKey: string | undefined): Answ
 }
 
 /**
- * Roteador de custo da resposta: a regra sempre. O SSLM só entra com SSLM_MODEL definido (e SLM_OLLAMA_URL): os
- * modelos testados erraram demais (docs/engenharia.md). ANSWER_ROUTER=false manda toda pergunta ao modelo, como antes.
+ * Roteador de custo da resposta: a regra sempre; na dúvida dela, o SSLM no Ollama de SLM_OLLAMA_URL. O modelo é
+ * SSLM_MODEL ou, vazio, o mesmo da triagem (SLM_MODEL, já no Ollama). SSLM_MODEL=off desliga o SSLM (a dúvida vai
+ * ao Sonnet). Sem SLM_OLLAMA_URL, não há SSLM. ANSWER_ROUTER=false manda toda pergunta ao modelo, como antes.
  */
 export function answerRouter(env: NodeJS.ProcessEnv = process.env): AnswerDeps["router"] {
   if (env.ANSWER_ROUTER === "false") return undefined;
   const timeoutMs = Number(env.SSLM_TIMEOUT_MS) > 0 ? Number(env.SSLM_TIMEOUT_MS) : undefined;
-  const sslm = env.SLM_OLLAMA_URL && env.SSLM_MODEL ? ollamaJson({ baseUrl: env.SLM_OLLAMA_URL, model: env.SSLM_MODEL, think: false }) : null;
+  const model = env.SSLM_MODEL?.trim() || env.SLM_MODEL?.trim() || DEFAULT_SLM_MODEL;
+  const sslm = env.SLM_OLLAMA_URL && model.toLowerCase() !== "off" ? ollamaJson({ baseUrl: env.SLM_OLLAMA_URL, model, think: false }) : null;
   return { sslm, ...(timeoutMs ? { timeoutMs } : {}) };
 }
+
+/** Mesmo padrão de SLM_MODEL em packages/config (o modelo embutido no echo-triage). */
+const DEFAULT_SLM_MODEL = "qwen3:4b-instruct";
 
 /** Fluxo do fim do expediente com Postgres, outbox e a chave da empresa (sem chave, "onde parou" por regra). */
 export function serverEndOfDay(db: Database, apiKey: string | undefined, webUrl: string): EndOfDay {

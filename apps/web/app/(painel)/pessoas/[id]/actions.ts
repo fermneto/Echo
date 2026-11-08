@@ -2,7 +2,10 @@
 
 import { loadConfig } from "@echo/config";
 import { revalidatePath } from "next/cache";
-import { canAskTwin, canEditProfile } from "@/lib/access";
+import { canAskTwin, canEditProfile, canLinkAccounts } from "@/lib/access";
+import { conflictMessage, parseAccountsForm } from "@/lib/accounts-form";
+import { slackMembers } from "@/lib/accounts-server";
+import type { ContasState } from "@/lib/accounts-state";
 import { askAgent, panelRequest, personIdFor, recordIn } from "@/lib/agent";
 import { saveDemoProfile } from "@/lib/agent-profile-store";
 import { panelDb } from "@/lib/db";
@@ -79,6 +82,32 @@ export async function salvarPerfil(_prev: PerfilState, formData: FormData): Prom
   revalidatePath(`/pessoas/${ctx.target.id}`);
   revalidatePath("/equipe");
   return { status: "saved", profile, dropped: droppedCount(input, profile) };
+}
+
+/**
+ * Contas da pessoa no Slack, GitHub e Linear (identities): só o RH e a liderança da equipe. É pela conta do
+ * Slack que a pessoa entra no painel e é reconhecida nas menções. Na demonstração, não grava.
+ */
+export async function salvarContas(_prev: ContasState, formData: FormData): Promise<ContasState> {
+  const me = await currentPersona();
+  if (!me) return { status: "error", error: "Entre de novo para editar." };
+  const target = await visibleTarget(me, String(formData.get("pessoa") ?? ""));
+  if (!target || !target.registered) return { status: "error", error: "Pessoa não encontrada." };
+  if (!canLinkAccounts(me, target)) return { status: "error", error: "Só o RH e a liderança da equipe ligam as contas da pessoa." };
+  if (isDemoSession(me)) return { status: "error", error: "Demonstração: as contas não são gravadas." };
+  const db = panelDb();
+  if (!db) return { status: "error", error: "O painel não tem banco ligado (DATABASE_URL)." };
+  const orgId = gainsOrgId(me.orgId);
+  const parsed = parseAccountsForm(formData, await slackMembers(db, orgId));
+  if (!parsed.ok) return { status: "error", error: parsed.error };
+  const { saveAccounts } = await import("@echo/agents/server");
+  const r = await saveAccounts(db, orgId, target.id, parsed.links, personIdFor(me.id));
+  if (r.status === "not_found") return { status: "error", error: "Pessoa não encontrada." };
+  if (r.status === "conflict") return { status: "error", error: conflictMessage(r.platform, r.otherName) };
+  revalidatePath(`/pessoas/${target.id}`);
+  const values: Record<string, string> = {};
+  for (const l of parsed.links) values[l.platform] = l.login ?? l.externalId;
+  return { status: "saved", values };
 }
 
 /**

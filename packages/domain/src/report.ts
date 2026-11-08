@@ -22,6 +22,17 @@ export interface ReportObservation {
   at: string;
 }
 
+/** Estados em que o relatório já foi liberado ao RH (conferido pela pessoa e passados os 3 dias, ou sem aviso em 7). */
+export const RELEASED_REPORT_STATES = ["sent", "sent_without_notice"] as const satisfies readonly ReportState[];
+
+/**
+ * O relatório já saiu da conferência da pessoa: é a mesma condição que o libera ao RH. O que depende dos números
+ * conferidos (o RH, o vídeo da semana da equipe) espera por ela.
+ */
+export function reportReleased(state: string): boolean {
+  return (RELEASED_REPORT_STATES as readonly string[]).includes(state);
+}
+
 const WEEK = /^(\d{4})-W(\d{2})$/;
 
 /** Semana ISO (AAAA-Www) de uma data AAAA-MM-DD. */
@@ -70,6 +81,19 @@ export function reportsDue(person: Person, now: Date): { week: string; cutoff: D
   });
 }
 
+/**
+ * A semana mais recente já fechada (corte passado) no fuso da pessoa: a atual depois do corte, senão a anterior.
+ * É a semana cujo relatório a pessoa confere agora. Null sem dia de expediente.
+ */
+export function lastClosedWeek(person: Pick<Person, "timezone" | "workHours">, now: Date): string | null {
+  const today = localDate(now, person.timezone);
+  for (const week of [isoWeek(today), isoWeek(addDays(today, -7))]) {
+    const cutoff = weekCutoff(person, week);
+    if (cutoff && cutoff.getTime() <= now.getTime()) return week;
+  }
+  return null;
+}
+
 /** Cada relatório vai de onde o anterior parou; o primeiro cobre os 7 dias antes do corte. */
 export function coveredPeriod(previousTo: Date | undefined, cutoff: Date): { from: Date; to: Date } | null {
   const from = previousTo ?? new Date(cutoff.getTime() - 7 * DAY);
@@ -78,7 +102,7 @@ export function coveredPeriod(previousTo: Date | undefined, cutoff: Date): { fro
 
 /** O que a agenda faz agora com o relatório. */
 export function reportStep(r: { state: ReportState; cutoff: Date; noticeAt?: Date | undefined }, now: Date): "send" | "send_without_notice" | "wait" {
-  if (r.state === "sent" || r.state === "sent_without_notice") return "wait";
+  if (reportReleased(r.state)) return "wait";
   if (r.noticeAt) return now.getTime() >= r.noticeAt.getTime() + REPORT_RULES.sendAfterNoticeDays * DAY ? "send" : "wait";
   return now.getTime() >= r.cutoff.getTime() + REPORT_RULES.noNoticeDays * DAY ? "send_without_notice" : "wait";
 }
@@ -89,7 +113,7 @@ export function reportStep(r: { state: ReportState; cutoff: Date; noticeAt?: Dat
  */
 export function observationEntry(text: string, at: Date, state: ReportState, count: number): ReportObservation | null {
   const t = text.trim();
-  if (!t || state === "sent" || state === "sent_without_notice" || count >= REPORT_RULES.observationsMax) return null;
+  if (!t || reportReleased(state) || count >= REPORT_RULES.observationsMax) return null;
   return { text: t.slice(0, REPORT_RULES.observationMaxChars), at: at.toISOString() };
 }
 
@@ -97,7 +121,7 @@ export function observationEntry(text: string, at: Date, state: ReportState, cou
 export function canViewReport(by: Person, r: { personId: string; state: ReportState }): boolean {
   if (!by.active) return false;
   if (by.id === r.personId) return true;
-  return by.role === "hr" && (r.state === "sent" || r.state === "sent_without_notice");
+  return by.role === "hr" && reportReleased(r.state);
 }
 
 /** Ajuda confirmada no painel: quem foi ajudado confirma, nunca a própria pessoa nem o RH. */

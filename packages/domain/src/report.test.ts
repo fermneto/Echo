@@ -1,7 +1,8 @@
 // Relatório semanal (etapa 12): semana e corte no fuso da pessoa, período coberto encadeado, registro atrasado,
 // atraso com causa, prazos de aviso e envio, observação literal e quem vê.
 import { describe, expect, it } from "vitest";
-import { canConfirmHelp, canViewReport, coveredPeriod, isoWeek, observationEntry, reportAllowedNumbers, reportStep, reportsDue, weekCutoff, weekMonday } from "./report.ts";
+import { FixedClock } from "./clock.ts";
+import { canConfirmHelp, canViewReport, coveredPeriod, isoWeek, lastClosedWeek, observationEntry, reportAllowedNumbers, reportReleased, reportStep, reportsDue, weekCutoff, weekMonday } from "./report.ts";
 import { weeklyMetrics } from "./rules.ts";
 import type { Absence, Contribution, Person, PullRequest, Task, WorkEvent } from "./types.ts";
 
@@ -28,6 +29,22 @@ describe("semana e corte", () => {
     expect(reportsDue(carla, new Date("2026-11-06T20:59:00Z")).map((d) => d.week)).toEqual(["2026-W44"]);
     expect(reportsDue(carla, new Date("2026-11-06T21:00:00Z")).map((d) => d.week)).toEqual(["2026-W44", "2026-W45"]);
     expect(reportsDue(person("rita", { role: "hr" }), new Date("2026-11-06T22:00:00Z"))).toEqual([]);
+  });
+
+  it("última semana fechada: a atual depois do corte, senão a anterior, em qualquer dia e fuso", () => {
+    const clock = new FixedClock("2026-11-06T20:59:00Z"); // sexta, 17h59 em São Paulo
+    expect(lastClosedWeek(carla, clock.now())).toBe("2026-W44");
+    clock.set("2026-11-06T21:00:00Z");
+    expect(lastClosedWeek(carla, clock.now())).toBe("2026-W45");
+    // Expediente também no domingo (seed da demo): no domingo à tarde em Tóquio a semana atual ainda está aberta.
+    const tokyo = person("carla-demo", { timezone: "Asia/Tokyo", workHours: { days: [0, 1, 3, 4, 5, 6], start: "09:00", end: "18:00" } });
+    clock.set("2026-11-08T06:22:00Z"); // domingo, 15h22 em Tóquio
+    expect(lastClosedWeek(tokyo, clock.now())).toBe("2026-W44");
+    clock.set("2026-11-08T09:00:00Z"); // domingo, 18h em Tóquio
+    expect(lastClosedWeek(tokyo, clock.now())).toBe("2026-W45");
+    clock.set("2026-11-09T01:00:00Z"); // segunda, 10h em Tóquio
+    expect(lastClosedWeek(tokyo, clock.now())).toBe("2026-W45");
+    expect(lastClosedWeek(person("x", { workHours: { days: [], start: "09:00", end: "18:00" } }), clock.now())).toBeNull();
   });
 
   it("período coberto vai de onde o anterior parou", () => {
@@ -115,5 +132,12 @@ describe("prazos, observação e acesso", () => {
     expect(canConfirmHelp(person("bruno"), carla)).toBe(true);
     expect(canConfirmHelp(carla, carla)).toBe(false);
     expect(canConfirmHelp(rita, carla)).toBe(false);
+  });
+});
+
+describe("liberação do relatório", () => {
+  it("só enviado ao RH (com ou sem aviso) conta como liberado", () => {
+    expect(["sent", "sent_without_notice"].map(reportReleased)).toEqual([true, true]);
+    expect(["draft", "awaiting_owner", "commented", "x"].map(reportReleased)).toEqual([false, false, false, false]);
   });
 });

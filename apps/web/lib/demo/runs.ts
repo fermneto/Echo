@@ -56,8 +56,30 @@ const EXTRA_FLOWS: Record<string, string> = {
   gains_baseline: "Ganhos",
   help_confirm: "Ajuda",
   redistribution_done: "Redistribuição",
+  redistribution_plan: "Redistribuição",
+  redistribution_approve: "Redistribuição",
+  redistribution_reject: "Redistribuição",
+  redistribution_refuse: "Redistribuição",
+  redistribution_reassign: "Redistribuição",
+  redistribution_return: "Redistribuição",
   weekly_report_comment: "Relatório semanal",
   weekly_report_sent: "Relatório semanal",
+  daily_artifact: "Resumo do dia (modelo aberto)",
+  team_video: "Vídeo da semana",
+  team_video_texts: "Vídeo da semana",
+  video_script: "Vídeo da semana",
+  onboarding: "Cadastro pelo RH",
+  onboarding_resume: "Cadastro pelo RH",
+  onboarding_avatar: "Cadastro pelo RH",
+  avatar_redo: "Bonequinho",
+  avatar_adjust: "Bonequinho",
+  actions: "Ações aprovadas",
+  inbox: "Avisos das plataformas",
+  brain_mirror: "Espelho das notas",
+  reconcile_github: "Reconciliação",
+  reconcile_linear: "Reconciliação",
+  reconcile_jira: "Reconciliação",
+  reconcile_redeliver: "Reconciliação",
 };
 
 /** Rótulo do fluxo; nome desconhecido vira texto legível ("novo_fluxo" → "Novo fluxo"). */
@@ -146,12 +168,6 @@ export const DAY_RUNS: readonly Run[] = [
   { id: "run-108", at: "05/11 16:00", flow: "redistribution", model: null, inputTokens: 0, outputTokens: 0, durationMs: 320, tools: ["capacity", "areas"], result: "ok", what: "Plano para as férias de Bruno, por regra" },
   { id: "run-107", at: "05/11 15:30", flow: "weekly_report", model: "claude-haiku-5-5", inputTokens: 6100, outputTokens: 1900, durationMs: 3800, tools: ["weekly_metrics", "contributions"], result: "ok", what: "Relatório semanal de Carla" },
   { id: "run-106", at: "05/11 08:00", flow: "away_digest", model: null, inputTokens: 0, outputTokens: 0, durationMs: 180, tools: ["questions"], result: "ok", what: "Resumo do que chegou enquanto Fernando dormia" },
-];
-
-/** O que "Simular a noite" acrescenta: a mesma análise que o lote faria de madrugada. */
-export const NIGHT_RUNS: readonly Run[] = [
-  { id: "run-120", at: "agora", flow: "pr_review", model: "claude-sonnet-5-5", inputTokens: 88000, outputTokens: 4300, batch: true, durationMs: 38000, tools: ["github.diff"], result: "ok", what: "Revisão simulada do PR 41 (noite comprimida)" },
-  { id: "run-119", at: "agora", flow: "morning_plan", model: "claude-haiku-5-5", inputTokens: 9100, outputTokens: 900, durationMs: 3900, tools: ["github.prs", "linear.issues", "questions"], result: "ok", what: "Plano da manhã refeito com a análise da noite" },
 ];
 
 export const RESULT_LABEL: Record<RunResult, string> = { ok: "ok", fallback: "por regra", refused: "recusada", failed: "falhou", skipped: "pulada" };

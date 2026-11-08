@@ -41,6 +41,7 @@ export async function resetDemo(db: Database, now: Date = new Date(), data: Demo
     await tx.insert(schema.contributions).values(data.contributions);
     await tx.insert(schema.questions).values(data.questions);
     await tx.insert(schema.agentRuns).values(data.agentRuns);
+    if (data.weeklyReports.length) await tx.insert(schema.weeklyReports).values(data.weeklyReports);
     await tx.insert(schema.auditLog).values({ orgId: DEMO_IDS.org, actor: "seed", action: "demo.reset", target: `org:${DEMO_IDS.org}` });
 
     return {

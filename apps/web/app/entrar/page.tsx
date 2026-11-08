@@ -1,20 +1,16 @@
-import { PERSONAS } from "@/lib/demo/personas";
 import { demoMode } from "@/lib/session";
 import { LOGIN_ERRORS, slackLoginConfig } from "@/lib/slack-login";
 import { Logo } from "@/components/Logo";
-import { PixelAvatar } from "@/components/PixelAvatar";
-import { entrarComo } from "./actions";
+import { SLACK_PATH } from "@/components/landing/integrations";
+import { LoginForm } from "./LoginForm";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Entrar · Echo" };
 
-const ROLE_LABEL = { member: "Equipe", leader: "Líder", hr: "RH" } as const;
-
-export default async function EntrarPage({ searchParams }: { searchParams: Promise<{ erro?: string; persona?: string }> }) {
+export default async function EntrarPage({ searchParams }: { searchParams: Promise<{ erro?: string }> }) {
   const demo = demoMode();
   const slack = slackLoginConfig() !== null;
-  const { erro, persona: wanted } = await searchParams;
-  const preselected = PERSONAS.some((p) => p.id === wanted) ? wanted : PERSONAS[0]?.id;
+  const { erro } = await searchParams;
   return (
     <main className="entrar">
       <Logo />
@@ -26,38 +22,23 @@ export default async function EntrarPage({ searchParams }: { searchParams: Promi
       ) : null}
       {demo ? (
         <>
-          <p className="lead">Escolha com quem entrar. Cada pessoa vê só o que o papel dela permite.</p>
-          {slack && (
-            <a className="button-pill entrar__slack" href="/api/sessao/slack">
-              Entrar com o Slack
-            </a>
-          )}
-          <form action={entrarComo} className="entrar__form">
-            <fieldset className="persona-list">
-              <legend className="sr-only">Persona</legend>
-              {PERSONAS.map((p) => (
-                <label key={p.id} className="persona-row">
-                  <input type="radio" name="persona" value={p.id} defaultChecked={p.id === preselected} aria-label={`${p.name}, ${ROLE_LABEL[p.role]}`} aria-describedby={`story-${p.id}`} />
-                  <PixelAvatar persona={p} size={40} decorative />
-                  <span className="persona-row__text">
-                    <span className="persona-row__name">{p.name}</span>
-                    <span className="persona-row__role mono">
-                      {ROLE_LABEL[p.role]}
-                    </span>
-                  </span>
-                  <span className="persona-row__story" id={`story-${p.id}`}>
-                    {p.title} · {p.city}
-                  </span>
-                </label>
-              ))}
-            </fieldset>
-            <button type="submit" className="button-pill entrar__submit">
-              Entrar
-            </button>
-          </form>
+          <p className="lead">Entre com seu usuário e sua senha. Cada pessoa vê só o que o papel dela permite.</p>
+          <LoginForm />
+          <p className="entrar__or" aria-hidden="true">
+            <span>ou</span>
+          </p>
+          <a className="button-outline entrar__slack-alt" href="/api/sessao/slack">
+            <svg className="entrar__slack-logo" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+              <path d={SLACK_PATH} fill="currentColor" />
+            </svg>
+            Entrar com o Slack
+          </a>
         </>
       ) : slack ? (
         <a className="button-pill entrar__slack" href="/api/sessao/slack">
+          <svg className="entrar__slack-logo" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+            <path d={SLACK_PATH} fill="currentColor" />
+          </svg>
           Entrar com o Slack
         </a>
       ) : (

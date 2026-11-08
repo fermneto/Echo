@@ -1,0 +1,1 @@
+ALTER TABLE "fix_runs" ADD COLUMN "ci_wait_since" timestamp with time zone;
