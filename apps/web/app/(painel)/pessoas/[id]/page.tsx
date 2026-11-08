@@ -1,8 +1,10 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { notFound } from "next/navigation";
-import { canAskTwin, canEditProfile, canLinkAccounts } from "@/lib/access";
-import { slackMembers } from "@/lib/accounts-server";
+import { canAskTwin, canEditProfile, linkablePlatforms } from "@/lib/access";
+import { accountValues } from "@/lib/accounts-form";
+import { slackDirectory } from "@/lib/accounts-server";
+import { membersOf, slackDirectoryFor } from "@/lib/slack-directory";
 import { gainsOrgId } from "@/lib/gains";
 import { lookFor } from "@/lib/demo/looks";
 import { loadProfile } from "@/lib/person-live";
@@ -232,7 +234,7 @@ export default async function PessoaPage({ params }: { params: Promise<{ id: str
               open={emptyProfile}
             />
           )}
-          {accounts && <ContasPessoa action={salvarContas} personId={persona.id} name={persona.name} initial={accounts.values} slackMembers={accounts.members} />}
+          {accounts && <ContasPessoa action={salvarContas} personId={persona.id} name={persona.name} initial={accounts.values} slackMembers={accounts.members} platforms={accounts.platforms} slackFailed={accounts.slackFailed} />}
           {editable && <Bonequinho redo={refazerBonequinho} adjust={ajustarBonequinho} personId={persona.id} name={persona.name} initial={persona.avatar ?? lookFor(persona.id)} />}
           <HolderPanel persona={persona} />
           <section className="card" aria-labelledby="como">
@@ -309,15 +311,20 @@ export default async function PessoaPage({ params }: { params: Promise<{ id: str
   );
 }
 
-/** Contas da pessoa para a seção da ficha: só para quem pode ligar, com banco e fora da demonstração. */
+/**
+ * Contas da pessoa para a seção da ficha: só para quem liga ao menos uma plataforma, com banco e fora da
+ * demonstração. A demonstração nunca lê o Slack real; a liderança, que não liga o Slack, também não.
+ */
 async function loadAccounts(me: Awaited<ReturnType<typeof requireAccess>>, persona: { id: string; role?: "member" | "leader" | "hr" | undefined; teamId?: string | undefined; registered?: boolean | undefined }) {
+  const demo = isDemoSession(me);
+  const platforms = linkablePlatforms(me, persona);
   const db = panelDb();
-  if (!db || !persona.registered || !canLinkAccounts(me, persona) || isDemoSession(me)) return null;
+  if (demo || !db || !persona.registered || !platforms.length) return null;
   const orgId = gainsOrgId(me.orgId);
   const { readAccounts } = await import("@echo/agents/server");
-  const [current, members] = await Promise.all([readAccounts(db, orgId, persona.id), slackMembers(db, orgId)]);
-  return {
-    members,
-    values: { ...(current.slack ? { slack: current.slack.externalId } : {}), ...(current.github ? { github: current.github.login ?? current.github.externalId.replace(/^login:/, "") } : {}), ...(current.linear ? { linear: current.linear.externalId } : {}) },
-  };
+  const [current, slack] = await Promise.all([
+    readAccounts(db, orgId, persona.id),
+    slackDirectoryFor({ demo, canLinkSlack: platforms.includes("slack"), read: () => slackDirectory(db, orgId) }),
+  ]);
+  return { members: membersOf(slack), slackFailed: slack.status === "failed", platforms, values: accountValues(current) };
 }

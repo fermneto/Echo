@@ -41,8 +41,4 @@ export async function saveDecision(id: DecisionId, decision: Decision | null): P
   jar.set(COOKIE, JSON.stringify(next), { httpOnly: true, sameSite: "lax", path: "/", secure: process.env.NODE_ENV === "production" });
 }
 
-export async function resetDecisions(): Promise<void> {
-  (await cookies()).delete(COOKIE);
-}
-
 export { stamp } from "./time";

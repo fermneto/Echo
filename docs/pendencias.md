@@ -133,7 +133,7 @@ Toda variável é validada em `packages/config`, e o serviço falha cedo, com me
 | `SLACK_CLIENT_ID`, `SLACK_CLIENT_SECRET` | | ✔ | | App do Slack → Basic Information (login no painel) |
 | `SESSION_SECRET` | | ✔ | | Gerado pelo Blueprint; local: `openssl rand -hex 32` |
 | `PANEL_URL` | | ✔ | | Endereço público do painel |
-| `DEMO_MODE` | ✔ | ✔ | ✔ | `true` no evento: login por usuário e senha (`echo` para todos) e simulador |
+| `DEMO_MODE` | ✔ | ✔ | ✔ | `true` no evento: login por usuário e senha (`echo` para todos) |
 | `LANGFUSE_*` | opcional | opcional | opcional | Langfuse |
 
 **Para ligar a empresa de teste** (`pnpm integracoes:ligar`): `DEMO_ORG_NAME`, `DEMO_SLACK_TEAM_ID`, `DEMO_GITHUB_INSTALLATION_ID`, `DEMO_LINEAR_ORG_ID`, `DEMO_JIRA_SITE`, `DEMO_GOOGLE_DOMAIN`, `DEMO_MICROSOFT_TENANT_ID`, `DEMO_VERCEL_TEAM_ID` e `DEMO_IDENTITIES`, que lista as pessoas e as contas de cada uma. `pnpm integracoes:conferir` mostra os ids que vão nessas variáveis.
@@ -198,3 +198,4 @@ As cinco cenas, em 3 minutos: a pergunta que esperaria um dia, a manhã de Ferna
 | SSLM do roteador: o Qwen3 0.6B e o 4B não passaram na checagem (ver engenharia, "Por que o SSLM ficou desligado"); fica só a regra. Testar outro modelo pequeno só se passar na mesma checagem | Funções |
 | Reconstruir o echo-triage na Render quando der: a imagem agora tenta de novo o download do modelo (antes, uma queda de rede perdia o build inteiro) | Avaliador |
 | Site e painel em inglês: hoje só existe a versão em português (`<html lang="pt-BR">` fixo, sem rotas `/en`). O agente já responde em português, inglês e espanhol; faltam os textos do site, do painel e das mensagens privadas do Echo | Web (Frente 3) |
+| Sessões abertas depois de trocar a conta do Slack na ficha: a sessão do painel guarda o id do Slack de quem entrou, então quem já estava logado com a conta antiga continua entrando como a pessoa até a sessão expirar. Encerrar as sessões da conta antiga (ou da pessoa) quando o RH troca ou tira o Slack em `salvarContas` (PR #87) | Web (Frente 3) |

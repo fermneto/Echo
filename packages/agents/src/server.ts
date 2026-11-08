@@ -91,20 +91,19 @@ export function serverAnswerDeps(db: Database, apiKey: string | undefined): Answ
 }
 
 /**
- * Roteador de custo da resposta: a regra sempre; na dúvida dela, o SSLM no Ollama de SLM_OLLAMA_URL. O modelo é
- * SSLM_MODEL ou, vazio, o mesmo da triagem (SLM_MODEL, já no Ollama). SSLM_MODEL=off desliga o SSLM (a dúvida vai
- * ao Sonnet). Sem SLM_OLLAMA_URL, não há SSLM. ANSWER_ROUTER=false manda toda pergunta ao modelo, como antes.
+ * Roteador de custo da resposta: a regra sempre; na dúvida dela, o Sonnet. O SSLM fica desligado por padrão (o 0.6B
+ * e o 4B não passaram na checagem, ver docs/engenharia.md): só liga com um modelo explícito em SSLM_MODEL e o
+ * Ollama de SLM_OLLAMA_URL. SSLM_MODEL vazio ou "off" desliga; SLM_MODEL (triagem e resumo) não vale aqui.
+ * ANSWER_ROUTER=false manda toda pergunta ao modelo, como antes.
  */
 export function answerRouter(env: NodeJS.ProcessEnv = process.env): AnswerDeps["router"] {
   if (env.ANSWER_ROUTER === "false") return undefined;
   const timeoutMs = Number(env.SSLM_TIMEOUT_MS) > 0 ? Number(env.SSLM_TIMEOUT_MS) : undefined;
-  const model = env.SSLM_MODEL?.trim() || env.SLM_MODEL?.trim() || DEFAULT_SLM_MODEL;
-  const sslm = env.SLM_OLLAMA_URL && model.toLowerCase() !== "off" ? ollamaJson({ baseUrl: env.SLM_OLLAMA_URL, model, think: false }) : null;
+  const model = env.SSLM_MODEL?.trim() ?? "";
+  const url = env.SLM_OLLAMA_URL;
+  const sslm = url && model && model.toLowerCase() !== "off" ? ollamaJson({ baseUrl: url, model, think: false }) : null;
   return { sslm, ...(timeoutMs ? { timeoutMs } : {}) };
 }
-
-/** Mesmo padrão de SLM_MODEL em packages/config (o modelo embutido no echo-triage). */
-const DEFAULT_SLM_MODEL = "qwen3:4b-instruct";
 
 /** Fluxo do fim do expediente com Postgres, outbox e a chave da empresa (sem chave, "onde parou" por regra). */
 export function serverEndOfDay(db: Database, apiKey: string | undefined, webUrl: string): EndOfDay {

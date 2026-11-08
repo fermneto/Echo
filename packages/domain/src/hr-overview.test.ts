@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { hrOverview, recentWeeks } from "./hr-overview.ts";
+import { hrOverview, recentWeeks, teamProgress } from "./hr-overview.ts";
 
 const NOW = new Date("2026-11-08T12:00:00Z");
 const m = (deliveries: number, reviews: number, helps: number) => ({ deliveries, reviews, helps });
@@ -45,7 +45,9 @@ describe("visão das equipes", () => {
     });
     expect(v.focus).toBe("2026-W44");
     const [p, d] = v.teams;
-    expect(p).toMatchObject({ status: "ok", people: 3, away: [{ name: "B", kind: "vacation" }] });
+    expect(p).toMatchObject({ status: "ok", people: 3, away: [{ name: "B", until: new Date("2026-11-14T00:00:00Z") }], progress: { total: 0, percent: 0 } });
+    // O motivo da ausência (férias, licença) nunca chega ao RH.
+    expect(JSON.stringify(p)).not.toContain("vacation");
     if (p?.status !== "ok") throw new Error("esperava totais");
     expect(p.weeks).toEqual([
       { week: "2026-W44", monday: "2026-10-26", deliveries: 3, reviews: 4, helps: 1, twins: 1, sent: 2 },
@@ -58,5 +60,34 @@ describe("visão das equipes", () => {
 
   it("sem envio nenhum, a semana em destaque é a atual", () => {
     expect(hrOverview({ teams, people, weeks, now: NOW, reports: [], twinAnswers: [], absences: [] }).focus).toBe("2026-W45");
+  });
+});
+
+describe("progresso da equipe", () => {
+  const ids = new Set(["a", "b", "c"]);
+  const at = (days: number) => new Date(NOW.getTime() - days * 86_400_000);
+
+  it("conta por estado e em pontos; ignora canceladas, concluídas antigas e quem não é da equipe", () => {
+    const p = teamProgress(
+      [
+        { assigneeId: "a", state: "done", size: 3, updatedAt: at(2) },
+        { assigneeId: "b", state: "done", updatedAt: at(10) }, // sem tamanho: vale 2
+        { assigneeId: "c", state: "done", size: 5, updatedAt: at(20) }, // antiga: fora
+        { assigneeId: "a", state: "in_review", size: 3, updatedAt: at(1) },
+        { assigneeId: "b", state: "in_progress", size: 2, updatedAt: at(1) },
+        { assigneeId: "c", state: "todo", size: 1, updatedAt: at(1) },
+        { assigneeId: "c", state: "backlog", size: 1, updatedAt: at(1) },
+        { assigneeId: "a", state: "canceled", size: 8, updatedAt: at(1) },
+        { assigneeId: "z", state: "done", size: 8, updatedAt: at(1) },
+        { state: "todo", size: 8, updatedAt: at(1) },
+      ],
+      ids,
+      NOW,
+    );
+    expect(p).toEqual({ done: 2, review: 1, doing: 1, todo: 2, total: 6, points: { done: 5, total: 12 }, percent: 42 });
+  });
+
+  it("sem tarefa, zero por cento", () => {
+    expect(teamProgress([], ids, NOW).percent).toBe(0);
   });
 });

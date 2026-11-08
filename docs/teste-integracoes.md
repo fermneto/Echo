@@ -50,7 +50,7 @@ Na Render, `<API>` é o endereço do serviço `echo-api`.
 1. Crie uma organização de teste (ex.: `<org>-teste`) com um repositório **público** `app` só com dados sintéticos.
 2. **Settings → Developer settings → GitHub Apps → New GitHub App**:
    - **Webhook URL:** `https://<API>/webhooks/github` · **Webhook secret:** gere com `openssl rand -hex 20` e copie para `GITHUB_WEBHOOK_SECRET`.
-   - **Permissões do repositório:** Contents e Pull requests: *Read and write* · Metadata, Checks e Issues: *Read*. **Da organização:** Members: *Read*.
+   - **Permissões do repositório:** Contents e Pull requests: *Read and write* · Metadata, Checks, Commit statuses e Issues: *Read*. **Da organização:** Members: *Read*.
    - **Eventos:** Push, Pull request, Pull request review, Pull request review comment, Issue comment, Check suite.
 3. Anote o **App ID** em `GITHUB_APP_ID`. Gere uma **private key**, e coloque o conteúdo do `.pem` em `GITHUB_PRIVATE_KEY` numa linha só:
    ```bash
