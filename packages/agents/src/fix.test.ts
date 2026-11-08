@@ -1,7 +1,7 @@
 // Correção (etapa 10): achados elegíveis, ambiente isolado, diff conferido fora dele, rascunho pelo outbox e
 // união só com a aprovação do autor e o rascunho sem mudança.
 import type { OutboxAction } from "@echo/actions";
-import { FixedClock, type FixTarget, type PullHead } from "@echo/domain";
+import { AGENT_PROFILE_RULES, type DraftCiState, FixedClock, type FixTarget, type PullHead } from "@echo/domain";
 import { LogRunRecorder } from "@echo/observability";
 import { describe, expect, it } from "vitest";
 import type { AgentData } from "./data.ts";
@@ -14,7 +14,7 @@ const finding: Finding = { arquivo: "src/filtros.ts", linha: 4, gravidade: "alta
 const PATCH = ["diff --git a/src/filtros.ts b/src/filtros.ts", "--- a/src/filtros.ts", "+++ b/src/filtros.ts", "@@ -3,3 +3,3 @@", " export async function listar(db, filtro) {", "-  return db.query(`SELECT * FROM itens WHERE nome = '${filtro}'`);", "+  return db.query('SELECT * FROM itens WHERE nome = $1', [filtro]);", " }"].join("\n");
 const REPORT = { resumo: "Consulta parametrizada no filtro.", testes: { comando: "pnpm test", resultado: "passou" } };
 
-function setup(opts: { sandbox?: Partial<FixSandboxResult>; target?: Partial<FixTarget>; findings?: Finding[]; spent?: number; personSpent?: number; host?: boolean; delegation?: FixDelegationDeps } = {}) {
+function setup(opts: { sandbox?: Partial<FixSandboxResult>; target?: Partial<FixTarget>; findings?: Finding[]; spent?: number; personSpent?: number; host?: boolean; delegation?: FixDelegationDeps; ci?: DraftCiState | Error } = {}) {
   const candidates = new Map<string, FixCandidate>([
     ["rv1", { reviewId: "rv1", prId: "p44", pr: { repository: "org/app", number: 44, title: "Filtro da listagem", branch: "ech-128-filtro", authorId: "fernando" }, headSha: "sha44", files: ["src/filtros.ts"], findings: opts.findings ?? [finding] }],
   ]);
@@ -24,6 +24,10 @@ function setup(opts: { sandbox?: Partial<FixSandboxResult>; target?: Partial<Fix
   const outbox: OutboxAction[] = [];
   const sandboxCalls: FixSandboxInput[] = [];
   const pulls = new Map<number, PullHead>([[44, { state: "open", headSha: "sha44" }]]);
+  // CI por commit; o padrão é verde no rascunho.
+  const checks = new Map<string, DraftCiState | Error>([["d45", opts.ci ?? "success"]]);
+  const checkCalls: string[] = [];
+  const clock = new FixedClock(NOW);
   const recorder = new LogRunRecorder();
   let seq = 0;
 
@@ -54,12 +58,24 @@ function setup(opts: { sandbox?: Partial<FixSandboxResult>; target?: Partial<Fix
     markFailed: async (id, from, error) => moveFix(id, [from], { state: "failed", error } as Partial<StoredFix>),
     decide: async (id, by, to, _at, via) => moveFix(id, ["ready"], { state: to, decidedBy: by, ...(via ? { via } : {}) } as Partial<StoredFix>),
     noteDelegation: async (id, note) => void Object.assign(fixes.get(id)!, { note }),
+    waitCi: async (id, since, ci) => {
+      const f = fixes.get(id)!;
+      if (since) f.ciWaitSince = since;
+      else delete f.ciWaitSince;
+      if (ci) Object.assign(f, { checks: ci });
+    },
     markApplied: async (id) => moveFix(id, ["approved"], { state: "applied" }),
   };
   const host: FixCodeHost = {
     target: async () => ({ state: "open", headSha: "sha44", headRepository: "org/app", repository: "org/app", branch: "ech-128-filtro", defaultBranch: "main", ...opts.target }),
     readToken: async () => "tok-1h-leitura",
     pull: async (_r, n) => pulls.get(n) ?? null,
+    getChecks: async (_r, ref) => {
+      checkCalls.push(ref);
+      const c = checks.get(ref) ?? "none";
+      if (c instanceof Error) throw c;
+      return { state: c };
+    },
   };
   const data = { orgSettings: async () => ({ monthlyLimitUsd: 50 }), spentUsdSince: async () => opts.spent ?? 0 } as unknown as AgentData;
   const flow = createFix({
@@ -82,10 +98,10 @@ function setup(opts: { sandbox?: Partial<FixSandboxResult>; target?: Partial<Fix
       },
     }),
     recorder,
-    clock: new FixedClock(NOW),
+    clock,
     ...(opts.delegation ? { delegation: opts.delegation } : {}),
   });
-  return { flow, fixes, skipped, outbox, outboxRows, sandboxCalls, pulls, runs: recorder.runs };
+  return { flow, fixes, skipped, outbox, outboxRows, sandboxCalls, pulls, checks, checkCalls, clock, runs: recorder.runs };
 }
 
 describe("correção", () => {
@@ -248,18 +264,93 @@ describe("correção pela delegação escrita do autor", () => {
     const seen: string[] = [];
     const s = setup({ delegation: deleg(judge({ cabe: true, motivo: "A delegação libera correção pequena com testes passando." }, seen)) });
     await ready(s);
-    expect(s.fixes.get("fix1")).toMatchObject({ state: "approved", decidedBy: "fernando", via: { via: "delegacao", note: "Unida pela sua delegação de 2026-11-08: A delegação libera correção pequena com testes passando." } });
+    expect(s.fixes.get("fix1")).toMatchObject({ state: "approved", decidedBy: "fernando", via: { via: "delegacao", note: "Unida pela sua delegação de 2026-11-08, com o CI do rascunho verde: A delegação libera correção pequena com testes passando." } });
     expect(s.outbox.find((a) => a.type === "github.merge_fix")).toMatchObject({ approvedBy: "fernando", approvalSource: "delegacao", payload: { number: 45, sha: "d45" } });
     // Unida pela delegação: nada de Aplicar/Recusar para uma correção já unida.
     expect(s.outbox.some((a) => a.idempotencyKey === "fix_ready_dm:fix1")).toBe(false);
     const dm = s.outbox.find((a) => a.type === "slack.dm")!;
     expect(dm).toMatchObject({ idempotencyKey: "fix_delegated:fix1", payload: { personId: "fernando" } });
-    expect((dm.payload as { text: string }).text).toMatch(/^Agente de Fernando: a correção do PR #44 \(org\/app\) foi unida pela sua delegação de 2026-11-08\..*Para desfazer/);
+    expect((dm.payload as { text: string }).text).toMatch(/^Agente de Fernando: a correção do PR #44 \(org\/app\) foi unida pela sua delegação de 2026-11-08, com o CI do rascunho verde\..*Para desfazer/);
     expect(s.runs.find((r) => r.flow === "fix_delegation")).toMatchObject({ result: "ok", model: "qwen3:4b-instruct", costUsd: 0, inputTokens: 300 });
     // O juiz vê só a delegação e fatos estruturados: nada do diff nem dos achados.
     expect(seen[0]).toContain("Pode unir correções pequenas");
     expect(seen[0]).toContain('"arquivos":["src/filtros.ts"]');
     expect(seen[0]).not.toContain("SELECT");
+    // O CI lido é o do commit exato do rascunho que foi unido.
+    expect(s.checkCalls).toEqual(["d45"]);
+  });
+
+  it("o fix.json diz que os testes passaram, mas o CI do rascunho falhou: não chega ao juiz e fica com o autor", async () => {
+    const seen: string[] = [];
+    for (const [ci, note] of [
+      ["failure", "Ficou com você: o CI do rascunho falhou."],
+      ["neutral", "Ficou com você: o CI do rascunho não deu resultado"],
+    ] as const) {
+      const s = setup({ ci, delegation: deleg(judge({ cabe: true, motivo: "ok" }, seen)) });
+      await ready(s);
+      expect(s.fixes.get("fix1")).toMatchObject({ state: "ready" });
+      expect(s.fixes.get("fix1")!.note).toContain(note);
+      expect(s.outbox.some((a) => a.type === "github.merge_fix")).toBe(false);
+      expect(s.outbox.some((a) => a.idempotencyKey === "fix_ready_dm:fix1")).toBe(true);
+      expect(s.runs.find((r) => r.flow === "fix_delegation")).toMatchObject({ result: "skipped", tools: ["travas", "github.checks"] });
+    }
+    expect(seen).toEqual([]);
+  });
+
+  it("CI do rascunho rodando: espera sem avisar o autor e une quando fica verde", async () => {
+    const s = setup({ ci: "pending", delegation: deleg(judge({ cabe: true, motivo: "A delegação libera correção pequena." })) });
+    await ready(s);
+    expect(s.fixes.get("fix1")).toMatchObject({ state: "ready", ciWaitSince: NOW, checks: "pending" });
+    expect(s.fixes.get("fix1")!.note).toContain("Esperando o CI do rascunho");
+    // Esperando: nem Aplicar/Recusar, nem união.
+    expect(s.outbox.some((a) => a.idempotencyKey === "fix_ready_dm:fix1" || a.type === "github.merge_fix")).toBe(false);
+
+    // Próximo sync, ainda rodando: não grava outra execução.
+    s.clock.advance(5 * 60_000);
+    await s.flow.sync("org");
+    expect(s.runs.filter((r) => r.flow === "fix_delegation")).toHaveLength(1);
+
+    s.checks.set("d45", "success");
+    s.clock.advance(5 * 60_000);
+    await s.flow.sync("org");
+    expect(s.fixes.get("fix1")).toMatchObject({ state: "approved", via: { via: "delegacao" } });
+    expect(s.fixes.get("fix1")!.ciWaitSince).toBeUndefined();
+    expect(s.outbox.find((a) => a.type === "github.merge_fix")).toMatchObject({ approvedBy: "fernando", approvalSource: "delegacao", payload: { sha: "d45" } });
+    expect(s.outbox.some((a) => a.idempotencyKey === "fix_ready_dm:fix1")).toBe(false);
+    expect(s.runs.filter((r) => r.flow === "fix_delegation").map((r) => r.result)).toEqual(["skipped", "ok"]);
+  });
+
+  it("CI que não termina no prazo, rascunho sem CI ou leitura com erro: depois da espera, fica com o autor", async () => {
+    for (const [ci, minutes, note] of [
+      ["pending", AGENT_PROFILE_RULES.delegatedCiWaitMinutes, "não terminou em"],
+      ["none", AGENT_PROFILE_RULES.delegatedCiNoChecksMinutes, "não teve CI em"],
+      [new Error("github 502"), AGENT_PROFILE_RULES.delegatedCiWaitMinutes, "não deu para ler o CI"],
+    ] as const) {
+      const s = setup({ ci, delegation: deleg(judge({ cabe: true, motivo: "ok" })) });
+      await ready(s);
+      expect(s.fixes.get("fix1")!.ciWaitSince).toEqual(NOW);
+      s.clock.advance(minutes * 60_000);
+      await s.flow.sync("org");
+      expect(s.fixes.get("fix1")).toMatchObject({ state: "ready" });
+      expect(s.fixes.get("fix1")!.ciWaitSince).toBeUndefined();
+      expect(s.fixes.get("fix1")!.note).toContain(note);
+      expect(s.outbox.some((a) => a.type === "github.merge_fix")).toBe(false);
+      expect(s.outbox.filter((a) => a.idempotencyKey === "fix_ready_dm:fix1")).toHaveLength(1);
+      // Já com o autor: o sync seguinte não volta a delegar.
+      s.checks.set("d45", "success");
+      await s.flow.sync("org");
+      expect(s.fixes.get("fix1")!.state).toBe("ready");
+    }
+  });
+
+  it("o autor decide no painel enquanto a delegação espera o CI: a espera para", async () => {
+    const s = setup({ ci: "pending", delegation: deleg(judge({ cabe: true, motivo: "ok" })) });
+    await ready(s);
+    await s.flow.decide("org", "fernando", "fix1", "decline");
+    s.checks.set("d45", "success");
+    await s.flow.sync("org");
+    expect(s.fixes.get("fix1")!.state).toBe("declined");
+    expect(s.outbox.some((a) => a.type === "github.merge_fix")).toBe(false);
   });
 
   it("não cabe, juiz fora ou saída inválida: fica com o autor, com a nota do porquê", async () => {

@@ -48,7 +48,7 @@ describe("ruleRoute", () => {
     // Checagem com os modelos reais: em pergunta mais longa, eles confundem conteúdo com situação.
     expect(ruleRoute(twin("o PR 70 usa a biblioteca nova?"), "pt").route).toBe("modelo");
     expect(ruleRoute(twin("does PR 88 handle network timeouts?"), "en").route).toBe("modelo");
-    // Curta, chega ao SSLM, e os modelos testados a mandaram para a regra: por isso o SSLM fica desligado.
+    // Curta, chega ao SSLM, e os modelos testados a mandaram para a regra (erro conhecido do SSLM ligado).
     expect(ruleRoute(twin("does PR 88 handle timeouts?"), "en").route).toBe("duvida");
   });
 });

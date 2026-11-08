@@ -1,9 +1,9 @@
 // Roteador da pergunta ao gêmeo, para reduzir custo: consulta simples ("a ech-131 está liberada?") sai pela
-// resposta por regra, sem o Sonnet. Quem decide é a regra; na dúvida, vai para o Sonnet (o custo de antes).
-// Um modelo aberto pequeno (SSLM) pode decidir a dúvida, mas fica desligado por padrão: na checagem com o
-// Qwen3 0.6B e o 4B reais, os dois confundiram a situação do item com o conteúdo dele ("ECH-171 usa cache?")
-// e o 0.6B obedeceu a instrução dentro da pergunta (ver docs/engenharia.md). Ligado (SSLM_MODEL), ele só escolhe
-// o caminho: nunca escreve a resposta, não decide liberação e não lê números.
+// resposta por regra, sem o Sonnet. Quem decide é a regra; na dúvida dela, um modelo aberto pequeno (SSLM, o
+// Qwen3 4B da triagem por padrão; SSLM_MODEL=off desliga). Sem SSLM ou com falha, vai para o Sonnet (o custo de
+// antes). Erro conhecido: o 4B confunde a situação do item com o conteúdo dele ("ECH-171 usa cache?"), e a regra
+// responde só o estado (ver docs/engenharia.md). O SSLM só escolhe o caminho: nunca escreve a resposta, não decide
+// liberação e não lê números.
 import type { AnswerRequest } from "./index.ts";
 import type { Lang } from "./language.ts";
 import type { JsonModel } from "./triage-ollama.ts";
