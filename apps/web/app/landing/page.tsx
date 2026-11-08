@@ -25,8 +25,8 @@ const DAY = [
   { when: "Pessoa citada e fora", what: "Resposta", text: "Responde colegas citando a fonte, sempre identificado como agente. O status é olhado na hora da menção e não fica guardado.", who: "Quem perguntou decide o que fazer." },
   { when: "Fim do expediente", what: "Nota do dia", text: "Rascunha onde a pessoa parou, o que travou, o que está liberado e o que está reservado, e manda o resumo do dia como imagem no privado.", who: "A pessoa confere e publica." },
   { when: "Noite", what: "Revisão", text: "Revisa os PRs em lote e deixa a correção pronta numa versão separada.", who: "O autor aprova de manhã, ou antes, se deixou isso escrito numa delegação." },
-  { when: "Manhã", what: "Plano", text: "Aprovações, correções prontas, dúvidas e prazos numa página, com fusos e carga.", who: "A pessoa reordena, descarta e aprova." },
-  { when: "Férias ou nova demanda", what: "Redistribuição", text: "O gêmeo do líder consulta os outros e monta um plano sem sobrecarga.", who: "O líder aprova; quem recebe pode recusar." },
+  { when: "Manhã", what: "Plano", text: "Aprovações, correções prontas, dúvidas e prazos numa página, com fusos e carga.", who: "A pessoa confere e aprova." },
+  { when: "Férias ou nova demanda", what: "Redistribuição", text: "O Echo monta um plano por regra, respeitando áreas e carga, sem sobrecarregar ninguém.", who: "O líder aprova." },
   { when: "Sexta-feira", what: "Relatório", text: "Entregas e atuações da semana, com crédito por cada ajuda a um colega, e o vídeo da semana da equipe.", who: "A pessoa confere antes; segue ao RH 3 dias depois." },
 ];
 
@@ -409,7 +409,7 @@ export default function LandingPage() {
             <h2 id="nunca-titulo" className="lp-headline">
               O que o Echo nunca faz.
             </h2>
-            <p className="lp-trust__lead">O agente só lê. Toda ação sensível passa por uma pessoa, e fica registrado quem aprovou.</p>
+            <p className="lp-trust__lead">O agente lê e executa, mas as ações sensíveis passam por uma pessoa, e fica registrado quem aprovou.</p>
             <ul className="lp-never">
               {NEVER.map((n) => (
                 <li key={n}>

@@ -268,7 +268,7 @@ export function createRedistribution(deps: RedistributionDeps) {
       const text =
         plan.trigger === "return"
           ? `${task.key} voltou para você, com aprovação de ${firstName(ctx.people, approver.id)}.`
-          : `${firstName(ctx.people, approver.id)} aprovou: ${task.key} passa para você${span}. ${item.reason} Se não puder assumir, recuse com o motivo em Redistribuição.`;
+          : `${firstName(ctx.people, approver.id)} aprovou: ${task.key} passa para você${span}. ${item.reason}`;
       await outbox.enqueue({ type: "slack.dm", target: `person:${toId}`, payload: { personId: toId, text }, idempotencyKey: `${key}:dm` });
     } else if (item.prId) {
       const pr = ctx.lookup.prs.get(item.prId);
@@ -277,7 +277,7 @@ export function createRedistribution(deps: RedistributionDeps) {
       await outbox.enqueue({
         type: "slack.dm",
         target: `person:${toId}`,
-        payload: { personId: toId, text: `${firstName(ctx.people, approver.id)} aprovou: a revisão do PR ${pr.number} passa para você${span}. Se não puder, recuse com o motivo em Redistribuição.` },
+        payload: { personId: toId, text: `${firstName(ctx.people, approver.id)} aprovou: a revisão do PR ${pr.number} passa para você${span}.` },
         idempotencyKey: `${key}:dm`,
       });
     }

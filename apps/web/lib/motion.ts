@@ -44,10 +44,4 @@ export function expand(el: HTMLElement) {
   return gsap.fromTo(el, { height: 0, opacity: 0, overflow: "hidden" }, { height: "auto", opacity: 1, duration: 0.42, ease: EASE_IN, clearProps: "height,overflow" });
 }
 
-/** Fecha a altura até zero e só então chama onDone (para remover o item da lista). */
-export function collapse(el: HTMLElement, onDone: () => void) {
-  if (prefersReduced()) return onDone();
-  gsap.to(el, { height: 0, opacity: 0, marginTop: 0, marginBottom: 0, paddingTop: 0, paddingBottom: 0, overflow: "hidden", duration: 0.26, ease: "power2.inOut", onComplete: onDone });
-}
-
 export { gsap, useGSAP };

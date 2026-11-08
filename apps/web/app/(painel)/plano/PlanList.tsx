@@ -2,27 +2,16 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { move, type PlanItem } from "@/lib/demo/plan";
-import { collapse } from "@/lib/motion";
+import type { PlanItem } from "@/lib/demo/plan";
 
 /** Resultado da decisão sobre uma correção real, já em palavras. `final`: não há mais o que decidir no item. */
 export type FixDecisionView = { final: boolean; message: string };
 
-function Arrow({ up }: { up?: boolean }) {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true">
-      <path d={up ? "M12 19V5M6 11l6-6 6 6" : "M12 5v14M6 13l6 6 6-6"} />
-    </svg>
-  );
-}
-
 /**
- * Plano da manhã: cada item tem uma ação principal (abrir onde se resolve, ou aprovar ali mesmo).
- * Reordenar e descartar são secundários. Nada sai daqui sem a pessoa decidir.
+ * Plano da manhã: cada item tem uma ação principal (abrir onde se resolve, ou aprovar ali mesmo), na ordem da regra.
+ * Nada sai daqui sem a pessoa decidir.
  */
 export function PlanList({ initial, decideFix }: { initial: PlanItem[]; decideFix?: (fixId: string, decision: "approve" | "decline") => Promise<FixDecisionView> }) {
-  const [items, setItems] = useState(initial);
-  const [dropped, setDropped] = useState<PlanItem[]>([]);
   const [done, setDone] = useState<Set<string>>(new Set());
   // Correção real: o resultado vem do servidor (aprovada, recusada ou por que não deu).
   const [fixResult, setFixResult] = useState<Record<string, FixDecisionView>>({});
@@ -38,15 +27,10 @@ export function PlanList({ initial, decideFix }: { initial: PlanItem[]; decideFi
     }
   };
 
-  if (items.length === 0) {
+  if (initial.length === 0) {
     return (
       <div className="card plan-empty">
         <p>Nada no seu plano agora.</p>
-        {dropped.length > 0 && (
-          <button type="button" className="button-outline" onClick={() => (setItems(dropped), setDropped([]))}>
-            Desfazer descartes
-          </button>
-        )}
       </div>
     );
   }
@@ -54,7 +38,7 @@ export function PlanList({ initial, decideFix }: { initial: PlanItem[]; decideFi
   return (
     <>
       <ol className="plan-list" aria-label="Itens do plano, em ordem">
-        {items.map((it, i) => {
+        {initial.map((it, i) => {
           const fixed = fixResult[it.id];
           const isDone = done.has(it.id) || Boolean(fixed?.final);
           return (
@@ -107,43 +91,10 @@ export function PlanList({ initial, decideFix }: { initial: PlanItem[]; decideFi
                   )}
                 </div>
               </div>
-              <div className="plan-item__actions">
-                <button type="button" className="icon-button" disabled={i === 0} onClick={() => setItems((l) => move(l, i, -1))} aria-label={`Subir: ${it.title}`} title="Subir">
-                  <Arrow up />
-                </button>
-                <button type="button" className="icon-button" disabled={i === items.length - 1} onClick={() => setItems((l) => move(l, i, 1))} aria-label={`Descer: ${it.title}`} title="Descer">
-                  <Arrow />
-                </button>
-                <button
-                  type="button"
-                  className="link-inline plan-item__drop"
-                  onClick={(e) => {
-                    // O item fecha a altura antes de sair, e a lista se ajusta sem salto.
-                    const li = e.currentTarget.closest("li");
-                    const drop = () => {
-                      setDropped((d) => [...d, it]);
-                      setItems((l) => l.filter((x) => x.id !== it.id));
-                    };
-                    if (li) collapse(li, drop);
-                    else drop();
-                  }}
-                  aria-label={`Descartar: ${it.title}`}
-                >
-                  Descartar
-                </button>
-              </div>
             </li>
           );
         })}
       </ol>
-      {dropped.length > 0 && (
-        <p className="plan-dropped muted">
-          {dropped.length} {dropped.length === 1 ? "item descartado" : "itens descartados"}.{" "}
-          <button type="button" className="link-inline" onClick={() => (setItems((l) => [...l, ...dropped]), setDropped([]))}>
-            Desfazer
-          </button>
-        </p>
-      )}
     </>
   );
 }

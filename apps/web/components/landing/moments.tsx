@@ -160,7 +160,7 @@ export const MOMENTS: StackItem[] = [
     id: "plano",
     title: "08:45 em Fortaleza: o plano da manhã de Fernando está pronto",
     content: (
-      <Moment at="2026-11-06T11:45:00Z" where="FOR" tone="on" who="fernando" title="Fernando acorda com o plano pronto" decides="Fernando reordena, descarta e aprova">
+      <Moment at="2026-11-06T11:45:00Z" where="FOR" tone="on" who="fernando" title="Fernando acorda com o plano pronto" decides="Fernando confere e aprova">
         <Row k="Aprovar correção" v="PR 41" />
         <Row k="Responder Eduardo" v="ech-128" />
         <Row k="Revisar PR de Carla" v="PR 34" />
