@@ -36,3 +36,14 @@ export function checkDemoLogin(username: string, password: string): Persona | nu
 export function demoUsernames(): string[] {
   return PERSONAS.map((p) => p.id);
 }
+
+/**
+ * Persona pedida pelo link `/entrar?persona=…` (a landing manda `?persona=eduardo`), para preencher o campo Usuário.
+ * Só aceita uma persona conhecida (pelo id, sem diferença de maiúscula nem de acento); o resto é ignorado.
+ */
+export function demoPersonaParam(raw: string | string[] | undefined): string | undefined {
+  const value = Array.isArray(raw) ? raw[0] : raw;
+  if (typeof value !== "string" || value.length > 80) return undefined;
+  const u = norm(value);
+  return PERSONAS.find((p) => norm(p.id) === u)?.id;
+}

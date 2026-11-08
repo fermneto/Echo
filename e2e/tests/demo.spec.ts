@@ -11,6 +11,14 @@ async function entrarComo(page: Page, nome: string) {
   await page.waitForURL((u) => !u.pathname.startsWith("/entrar"));
 }
 
+test("entrada: a dica mostra usuários e senha, e o link da landing preenche o usuário", async ({ page }) => {
+  await page.goto("/entrar?persona=eduardo");
+  await expect(page.getByText(/Usuários: fernando, eduardo, yan, marina.* · senha: echo/)).toBeVisible();
+  await expect(page.getByLabel("Usuário")).toHaveValue("eduardo");
+  await page.goto("/entrar?persona=ninguem");
+  await expect(page.getByLabel("Usuário")).toHaveValue("");
+});
+
 async function perguntarAoGemeo(page: Page, pergunta: string) {
   const painel = page.getByRole("region", { name: /Pergunte ao gêmeo de/ });
   await painel.getByRole("textbox", { name: "Sua pergunta para o agente" }).fill(pergunta);
