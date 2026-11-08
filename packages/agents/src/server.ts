@@ -17,7 +17,8 @@ import { ollamaJson, ollamaTriage } from "./triage-ollama.ts";
 import { createDaySummary, type DaySummary, type DaySummaryDeps } from "./day-summary.ts";
 import { createPgArtifactStore } from "./pg-artifacts.ts";
 import { onboardPerson } from "./onboarding.ts";
-import { createPgOnboardingStore } from "./pg-onboarding.ts";
+import { createPgAvatarStore, createPgOnboardingStore } from "./pg-onboarding.ts";
+import { adjustAvatar, redoAvatar } from "./redo-avatar.ts";
 import { createFix, type Fix, type FixCodeHost } from "./fix.ts";
 import { createManagedFixSandbox, fixAgentParams, fixEnvironmentParams } from "./managed-fix.ts";
 import { createPgFixStore } from "./pg-fix.ts";
@@ -35,7 +36,7 @@ export { createPgDailyNoteStore } from "./pg-notes.ts";
 export { createPgPlanStore, createPgReviewStore } from "./pg-night.ts";
 export { ollamaBaseUrl, ollamaJson, ollamaTriage } from "./triage-ollama.ts";
 export { createPgArtifactStore } from "./pg-artifacts.ts";
-export { createPgOnboardingStore, readAvatar, updateProfile } from "./pg-onboarding.ts";
+export { createPgAvatarStore, createPgOnboardingStore, readAvatar, updateProfile } from "./pg-onboarding.ts";
 export { createPgFixStore } from "./pg-fix.ts";
 export { createPgRedistributionStore } from "./pg-redistribution.ts";
 export { createPgReportStore } from "./pg-report.ts";
@@ -323,4 +324,10 @@ export function serverOnboarding(db: Database, opts: { apiKey?: string | undefin
     recorder: createDbRunRecorder(db),
     ...(opts.ollama ? { timeoutMs: opts.ollama.timeoutMs } : {}),
   });
+}
+
+/** Trocar o bonequinho: pela foto (Claude, se houver chave) ou à mão. */
+export function serverAvatar(db: Database, apiKey: string | undefined) {
+  const deps = { store: createPgAvatarStore(db), vision: apiKey ? anthropicModelCall(apiKey) : null, recorder: createDbRunRecorder(db) };
+  return { redo: redoAvatar(deps), adjust: adjustAvatar(deps) };
 }

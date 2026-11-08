@@ -88,11 +88,20 @@ export async function parseOnboardingForm(form: FormData, teamIds: readonly stri
     fields.resumeText = pasted.slice(0, RESUME_MAX_CHARS);
   }
 
-  const photo = form.get("foto");
-  if (isFile(photo)) {
-    if (!(PHOTO_TYPES as readonly string[]).includes(photo.type)) return { ok: false, error: "A foto precisa ser PNG, JPEG ou WebP." };
-    if (photo.size > PHOTO_MAX) return { ok: false, error: "Foto maior que 4 MB." };
-    fields.photo = { mediaType: photo.type as (typeof PHOTO_TYPES)[number], base64: Buffer.from(await photo.arrayBuffer()).toString("base64") };
-  }
+  const photo = await parsePhoto(form);
+  if (typeof photo === "string") return { ok: false, error: photo };
+  if (photo) fields.photo = photo;
   return { ok: true, fields };
+}
+
+/**
+ * Foto do campo `foto`, em base64, só na memória do pedido. Devolve null sem arquivo, ou a mensagem de erro
+ * em português. Usada no cadastro e ao refazer o bonequinho.
+ */
+export async function parsePhoto(form: FormData): Promise<{ mediaType: (typeof PHOTO_TYPES)[number]; base64: string } | null | string> {
+  const photo = form.get("foto");
+  if (!isFile(photo)) return null;
+  if (!(PHOTO_TYPES as readonly string[]).includes(photo.type)) return "A foto precisa ser PNG, JPEG ou WebP.";
+  if (photo.size > PHOTO_MAX) return "Foto maior que 4 MB.";
+  return { mediaType: photo.type as (typeof PHOTO_TYPES)[number], base64: Buffer.from(await photo.arrayBuffer()).toString("base64") };
 }
