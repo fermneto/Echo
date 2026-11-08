@@ -192,6 +192,37 @@ describe.skipIf(!url)("executor do outbox (Postgres real)", () => {
     expect(calls).toEqual(["slack.file UCAR: resumo-2026-11-07.png (4 bytes) Resumo do seu dia", "slack.dm UCAR: Resumo do seu dia, 07/11 [2 blocos]"]);
   });
 
+  it("vídeo da semana no privado sem aprovação: lê o mp4 na hora, sem bytes no outbox; sem permissão de arquivo, vai o texto; arquivo vencido falha de vez", async () => {
+    calls.length = 0;
+    const read: string[] = [];
+    const videoBytes = async (_org: string, key: string) => (read.push(key), key === "file_vencido" ? null : new Uint8Array([0, 0, 0, 24, 102, 116, 121, 112]));
+    const payload = (storageKey: string) => ({ personId: ids.car!, videoId: "v1", storageKey, filename: "video-da-semana-2026-W45.mp4", title: "Vídeo da semana · Produto · 2 a 6/11", comment: "*Vídeo da semana da equipe Produto* · 2 a 6/11", text: "Assista no painel do Echo, em Relatórios." });
+    const a = await enqueueAction(app, orgId, { type: "slack.dm_video", target: "person:carla", idempotencyKey: "vid1", payload: payload("file_mp4") });
+    const [queued] = await db.select().from(outboxActions).where(eq(outboxActions.id, a.id));
+    expect(queued!.state).toBe("approved");
+    expect(JSON.stringify(queued!.payload)).not.toContain("base64");
+    expect((await drainActions({ ...deps(), videoBytes }, orgId)).done).toBe(1);
+    fileScopeMissing = true;
+    await enqueueAction(app, orgId, { type: "slack.dm_video", target: "person:carla", idempotencyKey: "vid2", payload: payload("file_mp4") });
+    expect((await drainActions({ ...deps(), videoBytes }, orgId)).done).toBe(1);
+    fileScopeMissing = false;
+    // Worker sem a leitura do arquivo (sem chave): vai o texto, que diz onde assistir.
+    await enqueueAction(app, orgId, { type: "slack.dm_video", target: "person:carla", idempotencyKey: "vid3", payload: payload("file_mp4") });
+    expect((await drainActions(deps(), orgId)).done).toBe(1);
+    const gone = await enqueueAction(app, orgId, { type: "slack.dm_video", target: "person:carla", idempotencyKey: "vid4", payload: payload("file_vencido") });
+    expect(await drainActions({ ...deps(), videoBytes }, orgId)).toEqual({ done: 0, failed: 1, retried: 0 });
+    const [failed] = await db.select().from(outboxActions).where(eq(outboxActions.id, gone.id));
+    expect(failed).toMatchObject({ state: "failed", attempts: 1, error: "o arquivo do vídeo não existe mais (vencido ou apagado)" });
+    // Mesma chave não manda de novo.
+    expect((await enqueueAction(app, orgId, { type: "slack.dm_video", target: "person:carla", idempotencyKey: "vid1", payload: payload("file_mp4") })).duplicate).toBe(true);
+    expect(read).toEqual(["file_mp4", "file_mp4", "file_vencido"]);
+    expect(calls).toEqual([
+      "slack.file UCAR: video-da-semana-2026-W45.mp4 (8 bytes) *Vídeo da semana da equipe Produto* · 2 a 6/11",
+      "slack.dm UCAR: Assista no painel do Echo, em Relatórios.",
+      "slack.dm UCAR: Assista no painel do Echo, em Relatórios.",
+    ]);
+  });
+
   it("espelho: escreve no brains sem aprovação, guarda o sha e nunca sobrescreve um arquivo que mudou no Git", async () => {
     calls.length = 0;
     const [note] = await db.insert(brainNotes).values({ orgId, path: "equipe/acordos.md", kind: "equipe", content: "Revisão até 24 h.", visibility: "team" }).returning();

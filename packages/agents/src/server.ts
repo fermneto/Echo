@@ -2,7 +2,8 @@
 import Anthropic from "@anthropic-ai/sdk";
 import { createPgBrainStore } from "@echo/brain/pg";
 import { createPgOutbox } from "@echo/actions/pg";
-import { agentRuns, asSystem, createDb, createPool, type Database, orgs, withOrg } from "@echo/db";
+import { agentRuns, asSystem, createDb, createPool, type Database, identities, orgs, people, withOrg } from "@echo/db";
+import { and, eq } from "drizzle-orm";
 import { awayDigestDue, digestPurgeBefore, endOfDayDue, morningDue, parseGainsBaseline, reportsDue } from "@echo/domain";
 import type { AgentRun, RunRecorder } from "@echo/observability";
 import { type AnswerDeps, createAnswer, type ModelCall } from "./answer.ts";
@@ -21,7 +22,7 @@ import { createPgAvatarStore, createPgOnboardingStore } from "./pg-onboarding.ts
 import { adjustAvatar, redoAvatar } from "./redo-avatar.ts";
 import { createManagedVideoSandbox, downloadVideoFile, filesDeleter, videoAgentParams, videoEnvironmentParams } from "./managed-video.ts";
 import { createPgTeamVideoStore } from "./pg-video.ts";
-import { createVideo, type Video } from "./video.ts";
+import { createVideo, teamVideoDmAction, type Video } from "./video.ts";
 import { createFix, type Fix, type FixCodeHost } from "./fix.ts";
 import { createManagedFixSandbox, fixAgentParams, fixEnvironmentParams } from "./managed-fix.ts";
 import { createPgFixStore, pgDelegationOf } from "./pg-fix.ts";
@@ -372,7 +373,7 @@ export function serverAvatar(db: Database, apiKey: string | undefined) {
  * Vídeo da semana da equipe (etapa 27). Desligado sem chave ou sem VIDEO_AGENT_ID e VIDEO_ENVIRONMENT_ID: os
  * relatórios seguem iguais, sem vídeo.
  */
-export function serverVideo(db: Database, opts: { apiKey?: string | undefined; agentId?: string | undefined; environmentId?: string | undefined; timeoutMs?: number }): Video & { deleteFile: (id: string) => Promise<void> } {
+export function serverVideo(db: Database, opts: { apiKey?: string | undefined; agentId?: string | undefined; environmentId?: string | undefined; timeoutMs?: number; webUrl?: string | undefined }): Video & { deleteFile: (id: string) => Promise<void> } {
   const client = opts.apiKey ? new Anthropic({ apiKey: opts.apiKey, maxRetries: 2 }) : null;
   const sandbox = client && opts.agentId && opts.environmentId ? createManagedVideoSandbox(client, { agentId: opts.agentId, environmentId: opts.environmentId, ...(opts.timeoutMs ? { timeoutMs: opts.timeoutMs } : {}) }) : null;
   // Apagar só precisa da chave: o painel descarta vídeos sem as IDs do ambiente.
@@ -383,6 +384,9 @@ export function serverVideo(db: Database, opts: { apiKey?: string | undefined; a
     deleteFile,
     model: opts.apiKey ? anthropicModelCall(opts.apiKey) : null,
     recorder: createDbRunRecorder(db),
+    // Pronto, o vídeo vai também no privado do Slack de quem vê pela equipe (slack.dm_video, sem bytes no outbox).
+    outbox: (orgId) => createPgOutbox(db, orgId),
+    webUrl: opts.webUrl,
   });
   return { ...video, deleteFile: async (id) => void (await deleteFile?.(id)) };
 }
@@ -390,6 +394,45 @@ export function serverVideo(db: Database, opts: { apiKey?: string | undefined; a
 /** Resposta com o mp4 guardado na Files API (o painel confere o link assinado antes). */
 export async function videoFile(apiKey: string, fileId: string): Promise<Response> {
   return downloadVideoFile(new Anthropic({ apiKey, maxRetries: 1 }), fileId);
+}
+
+/**
+ * Leitura do mp4 para o executor do outbox (slack.dm_video), na hora do envio. `null`: o arquivo não existe mais
+ * na Files API (vencido ou apagado), e repetir não adianta.
+ */
+export function videoBytesReader(apiKey: string): (orgId: string, storageKey: string) => Promise<Uint8Array | null> {
+  const client = new Anthropic({ apiKey, maxRetries: 2 });
+  return async (_orgId, storageKey) => {
+    try {
+      return new Uint8Array(await (await downloadVideoFile(client, storageKey)).arrayBuffer());
+    } catch (err) {
+      if (err instanceof Anthropic.NotFoundError) return null;
+      throw err;
+    }
+  };
+}
+
+/**
+ * Teste de ponta a ponta (`pnpm video:agora --enviar <nome>`): acha a pessoa na empresa de teste antes de gravar,
+ * para não gastar a sessão com um nome errado.
+ */
+export async function testVideoRecipient(db: Database, orgName: string, personName: string): Promise<{ orgId: string; personId: string; hasSlack: boolean }> {
+  const [org] = await asSystem(db, (tx) => tx.select({ id: orgs.id }).from(orgs).where(eq(orgs.name, orgName)));
+  if (!org) throw new Error(`empresa "${orgName}" não encontrada`);
+  const found = await withOrg(db, org.id, async (tx) => {
+    const [p] = await tx.select({ id: people.id }).from(people).where(and(eq(people.orgId, org.id), eq(people.name, personName)));
+    if (!p) return null;
+    const [slack] = await tx.select({ id: identities.id }).from(identities).where(and(eq(identities.orgId, org.id), eq(identities.personId, p.id), eq(identities.platform, "slack")));
+    return { personId: p.id, hasSlack: Boolean(slack) };
+  });
+  if (!found) throw new Error(`pessoa "${personName}" não está em "${orgName}"`);
+  return { orgId: org.id, ...found };
+}
+
+/** Põe na outbox da empresa de teste o slack.dm_video do vídeo gravado; o worker envia com a mesma chave. */
+export async function enqueueTestTeamVideoDm(db: Database, to: { orgId: string; personId: string }, input: { storageKey: string; teamName: string; weekLabel: string; week: string; webUrl?: string | undefined }): Promise<{ id: string; duplicate: boolean }> {
+  const action = teamVideoDmAction({ videoId: `teste:${input.storageKey}`, personId: to.personId, storageKey: input.storageKey, teamName: input.teamName, weekLabel: input.weekLabel, week: input.week, webUrl: input.webUrl });
+  return createPgOutbox(db, to.orgId).enqueue(action);
 }
 
 /**

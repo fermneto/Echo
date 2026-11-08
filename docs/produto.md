@@ -736,6 +736,7 @@ _Gravado por um agente Claude — Painel · Relatórios · semana de 2/11 (Paine
 - Mostra só o que está nos relatórios liberados: totais da equipe, entregas (referência e título, sem o autor), ajudas entre colegas ("X ajudou Y") e respostas dos gêmeos. Sem nota, sem ranking, sem comparar pessoas.
 - Trechos das telas novas: regras escolhem PR unido com mudança de tela e preview. O Claude escreve o roteiro e, no Managed Agents, um navegador sem interface grava no preview. Só domínio de preview, até 90 s, dados sintéticos.
 - Quem vê: a equipe e a liderança; o RH, nas equipes que acompanha. Link assinado de 1 h, retenção de 30 dias.
+- No Slack: quando fica pronto, o Echo manda o vídeo no privado de cada pessoa ativa da equipe e da liderança, uma vez só. Quem está de férias ou ausente não recebe, nem quem não tem Slack. O RH assiste só no painel. A mensagem diz que é o vídeo da semana da equipe, o período, que foi gravado por um agente Claude (Powered by Claude) e que também está no painel, em Relatórios. Sem permissão de arquivo no Slack, chega só o texto com o link.
 - Para em 80% do limite de custo da empresa, como a correção. Com falha, o relatório de cada pessoa segue igual.
 - Ainda não existe: o vídeo de cada entrega no relatório individual, com aprovação da pessoa antes do envio ao RH.
 

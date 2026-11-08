@@ -1,10 +1,11 @@
 // Vídeo da semana da equipe: textos conferidos (com regra de reserva), trechos com roteiro conferido, gravação
 // conferida fora do ambiente, falhas sem travar nada e uma linha por etapa em agent_runs.
-import type { AvatarTraits, TeamWeekFacts, VideoCandidate } from "@echo/domain";
+import type { OutboxAction } from "@echo/actions";
+import type { Absence, AvatarTraits, Person, TeamWeekFacts, VideoCandidate } from "@echo/domain";
 import { LogRunRecorder } from "@echo/observability";
 import { describe, expect, it } from "vitest";
 import type { ModelCall } from "./answer.ts";
-import { createVideo, finalScenes, prepareTeamVideo, type RecordResult, type TeamVideoPatch, type TeamVideoRow, type TeamVideoState, type TeamVideoStore, type VideoSandbox } from "./video.ts";
+import { createVideo, finalScenes, prepareTeamVideo, teamVideoDmKey, type RecordResult, type TeamVideoPatch, type TeamVideoRow, type TeamVideoState, type TeamVideoStore, type VideoSandbox } from "./video.ts";
 import { mp4DurationSeconds } from "./video-clip.ts";
 
 /** mp4 mínimo: ftyp + moov com mvhd (versão 0). */
@@ -60,6 +61,31 @@ function model(opts: { texts?: unknown; script?: unknown; fail?: boolean } = {})
   return { call, calls };
 }
 
+const wh = { days: [1, 2, 3, 4, 5], start: "09:00", end: "18:00" };
+const person = (id: string, extra: Partial<Person> = {}): Person => ({ id, orgId: "org", name: id, role: "member", teamId: "t1", timezone: "America/Sao_Paulo", workHours: wh, skills: [], areas: [], active: true, ...extra });
+/** Equipe t1: Fernando e Carla, Marina na liderança, Bruno de férias, Yan sem Slack e o RH. */
+const audience = {
+  leaderId: "mar",
+  people: [person("fer"), person("car"), person("mar", { role: "leader", teamId: undefined }), person("bru"), person("yan"), person("rh", { role: "hr" })],
+  absences: [{ personId: "bru", startsAt: new Date("2026-11-02T00:00:00Z"), endsAt: new Date("2026-11-16T00:00:00Z"), kind: "vacation" }] as Absence[],
+  slackIds: ["fer", "car", "mar", "bru", "rh"],
+};
+
+/** Outbox falso com a chave única, como o de packages/actions. */
+function outbox() {
+  const actions: OutboxAction[] = [];
+  return {
+    actions,
+    port: () => ({
+      enqueue: async (a: OutboxAction) => {
+        const dup = actions.some((x) => x.idempotencyKey === a.idempotencyKey);
+        if (!dup) actions.push(a);
+        return { id: a.idempotencyKey, duplicate: dup };
+      },
+    }),
+  };
+}
+
 function store(row: Partial<TeamVideoRow> = {}, budget = { spentUsd: 1, monthlyLimitUsd: 50 }, withFacts = true) {
   const r: TeamVideoRow = { id: "v1", orgId: "org", teamId: "t1", week: "2026-W45", state: "queued", attempts: 0, storageKey: null, ...row };
   const patches: { from: TeamVideoState; to: TeamVideoState; patch: TeamVideoPatch }[] = [];
@@ -73,6 +99,7 @@ function store(row: Partial<TeamVideoRow> = {}, budget = { spentUsd: 1, monthlyL
       return true;
     },
     budget: async () => budget,
+    audience: async () => audience,
   };
   return { s, patches };
 }
@@ -139,6 +166,49 @@ describe("gravação do vídeo da semana", () => {
     expect(ready.chapters!.map((c) => c.title)).toEqual(["Abertura", "A semana em números", "Entregas", "Tela de pagamentos", "Ajudas entre colegas", "Gêmeos em ação", "Encerramento"]);
     expect(sb.inputs[0]!.clips).toHaveLength(1);
     expect(recorder.runs.at(-1)).toMatchObject({ flow: "team_video", result: "ok", costUsd: 0.3 });
+  });
+
+  it("pronto: vai no privado do Slack de quem vê pela equipe, sem RH, sem quem está de férias e sem quem não tem Slack, uma vez só", async () => {
+    const st = store();
+    const ob = outbox();
+    const recorder = new LogRunRecorder();
+    const deps = { store: st.s, sandbox: sandbox().sb, model: model().call, recorder, outbox: ob.port, webUrl: "https://echo.exemplo.com/", clock: { now: () => new Date("2026-11-07T12:00:00Z") } };
+    expect(await createVideo(deps).process("org", "v1")).toEqual({ status: "ready", id: "v1" });
+    expect(ob.actions.map((a) => a.payload.personId)).toEqual(["fer", "car", "mar"]);
+    const first = ob.actions[0]!;
+    expect(first).toMatchObject({ type: "slack.dm_video", target: "person:fer", idempotencyKey: teamVideoDmKey("v1", "fer") });
+    expect(first.payload).toEqual({
+      personId: "fer",
+      videoId: "v1",
+      storageKey: "file_mp4",
+      filename: "video-da-semana-2026-W45.mp4",
+      title: "Vídeo da semana · Produto · 2 a 6/11",
+      comment: "*Vídeo da semana da equipe Produto* · 2 a 6/11\nResumo animado da semana da equipe, gravado por um agente Claude (Powered by Claude). Também está no painel do Echo, em <https://echo.exemplo.com/relatorios|Relatórios>.",
+      text: "*Vídeo da semana da equipe Produto* · 2 a 6/11\nResumo animado da semana da equipe, gravado por um agente Claude (Powered by Claude). Assista no painel do Echo, em <https://echo.exemplo.com/relatorios|Relatórios>.",
+    });
+    expect(recorder.runs.at(-1)).toMatchObject({ flow: "team_video", result: "ok", tools: ["slack.dm_video"] });
+    // O mesmo vídeo de novo (o job repetido, outra gravação do mesmo vídeo): nenhuma mensagem a mais.
+    const again = store();
+    expect(await createVideo({ ...deps, store: again.s }).process("org", "v1")).toEqual({ status: "ready", id: "v1" });
+    expect(ob.actions).toHaveLength(3);
+    expect(recorder.runs.at(-1)!.tools ?? []).toEqual([]);
+  });
+
+  it("sem outbox, o vídeo fica só no painel; envio que falha não desfaz o vídeo pronto", async () => {
+    const recorder = new LogRunRecorder();
+    expect(await createVideo({ store: store().s, sandbox: sandbox().sb, model: model().call, recorder }).process("org", "v1")).toMatchObject({ status: "ready" });
+    const broken = () => ({ enqueue: async () => Promise.reject(new Error("banco fora do ar")) });
+    const st = store();
+    expect(await createVideo({ store: st.s, sandbox: sandbox().sb, model: model().call, recorder, outbox: broken }).process("org", "v1")).toMatchObject({ status: "ready" });
+    expect(st.patches.at(-1)!.to).toBe("ready");
+    expect(recorder.runs.at(-1)).toMatchObject({ flow: "team_video", result: "ok", error: "envio no Slack: banco fora do ar" });
+  });
+
+  it("vídeo recusado ou que falhou não vai para o Slack", async () => {
+    const ob = outbox();
+    await createVideo({ store: store().s, sandbox: sandbox({ video: { fileId: "f_curto", bytes: mp4(5) } }).sb, model: model().call, recorder: new LogRunRecorder(), outbox: ob.port }).process("org", "v1");
+    await createVideo({ store: store().s, sandbox: sandbox({ outcome: "timeout", video: null }).sb, model: model().call, recorder: new LogRunRecorder(), outbox: ob.port }).process("org", "v1");
+    expect(ob.actions).toEqual([]);
   });
 
   it("vídeo curto demais ou que saiu do preview: recusado e o arquivo sai do armazenamento", async () => {

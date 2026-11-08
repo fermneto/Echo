@@ -18,3 +18,4 @@ export * from "./mirror.ts";
 export * from "./avatar.ts";
 export * from "./video.ts";
 export * from "./team-video.ts";
+export * from "./team-video-delivery.ts";

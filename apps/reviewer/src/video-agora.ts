@@ -9,11 +9,16 @@
 //   --preview  grava também um trecho de tela nesse preview (sem ele, só a página animada)
 //   --host     domínio do preview, se não for *.vercel.app (vale ao criar ou atualizar o ambiente)
 //   --manter   não apaga o mp4 da Files API depois de baixar
+//   --enviar   depois de gravar, não apaga o mp4 e põe na outbox da empresa de teste (DEMO_ORG_NAME ou "Empresa
+//              de teste (integrações)", na DATABASE_URL) um slack.dm_video para a pessoa com esse nome. Quem envia
+//              é o worker (o de produção, depois do deploy), com a mesma ANTHROPIC_API_KEY que gravou.
+//              Ex.: pnpm video:agora --enviar "Fernando"
 import { writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { type AvatarTraits, finalScenes, mp4DurationSeconds, prepareTeamVideo, recordScenes, previewOrigin, type PullRequest, scenesSeconds, teamRecordingIssues, type TeamWeekFacts, VIDEO_BUDGET_USD } from "@echo/agents";
-import { provisionVideo, videoTestKit } from "@echo/agents/server";
+import { enqueueTestTeamVideoDm, provisionVideo, testVideoRecipient, videoTestKit } from "@echo/agents/server";
+import { createDb, createPool } from "@echo/db";
 import { LogRunRecorder } from "@echo/observability";
 
 const args = process.argv.slice(2);
@@ -26,6 +31,27 @@ if (!apiKey) {
   console.error("ANTHROPIC_API_KEY ausente no .env: o vídeo usa a chave da empresa.");
   process.exit(1);
 }
+const sendTo = args.includes("--enviar") ? opt("enviar")?.trim() : undefined;
+if (args.includes("--enviar") && (!sendTo || sendTo.startsWith("--"))) {
+  console.error('--enviar precisa do nome da pessoa na empresa de teste, ex.: --enviar "Fernando".');
+  process.exit(1);
+}
+const databaseUrl = process.env.DATABASE_URL?.trim();
+if (sendTo && !databaseUrl) {
+  console.error("--enviar precisa da DATABASE_URL no .env: a mensagem entra na outbox da empresa de teste.");
+  process.exit(1);
+}
+const orgName = process.env.DEMO_ORG_NAME?.trim() || "Empresa de teste (integrações)";
+// Confere a pessoa antes de gravar: a sessão custa, e um nome errado só apareceria no fim.
+const pool = sendTo ? createPool(databaseUrl!, 2, { defaultScope: "system" }) : null;
+const recipient = pool
+  ? await testVideoRecipient(createDb(pool), orgName, sendTo!).catch(async (err: unknown) => {
+      console.error(`--enviar: ${err instanceof Error ? err.message : String(err)}.`);
+      await pool.end();
+      process.exit(1);
+    })
+  : null;
+if (recipient && !recipient.hasSlack) console.log(`Aviso: ${sendTo} não tem conta no Slack ligada em "${orgName}"; a ação vai falhar com esse motivo.`);
 const previewArg = opt("preview");
 const preview = previewArg ? previewOrigin(previewArg) : null;
 if (previewArg && !preview) {
@@ -109,5 +135,17 @@ writeFileSync(file, r.video.bytes);
 console.log(`    duração ${duration?.toFixed(1) ?? "?"} s · ${(r.video.bytes.length / 1024).toFixed(0)} KB · trechos gravados: ${JSON.stringify((r.meta as { clips?: number[] } | null)?.clips ?? [])}`);
 console.log(problems.length ? `    RECUSADO pela regra: ${problems.join("; ")}` : "    aprovado pela regra (duração e domínios)");
 console.log(`\nmp4 salvo em ${file}`);
-if (!args.includes("--manter")) await kit.deleteFile(r.video.fileId).catch(() => undefined);
+if (pool && recipient && !problems.length) {
+  // O arquivo fica na Files API: o worker lê na hora do envio e não o apaga depois (não há linha em team_videos).
+  try {
+    const q = await enqueueTestTeamVideoDm(createDb(pool), recipient, { storageKey: r.video.fileId, teamName: facts.teamName, weekLabel: facts.weekLabel, week: "teste", webUrl: process.env.WEB_URL?.trim() || undefined });
+    console.log(`slack.dm_video na outbox de "${orgName}" para ${sendTo} (ação ${q.id}${q.duplicate ? ", já existia" : ""}); o worker envia na próxima rodada.`);
+    console.log(`    arquivo mantido na Files API (apague depois de assistir): ${r.video.fileId}`);
+  } catch (err) {
+    console.error(`Não entrou na outbox: ${err instanceof Error ? err.message : String(err)}`);
+    await pool.end();
+    process.exit(1);
+  }
+} else if (!args.includes("--manter")) await kit.deleteFile(r.video.fileId).catch(() => undefined);
+await pool?.end();
 process.exit(problems.length ? 1 : 0);

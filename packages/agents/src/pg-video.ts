@@ -1,8 +1,8 @@
 // Vídeo da semana da equipe no Postgres, sempre em withOrg com filtro explícito de org_id. Os fatos saem só dos
 // relatórios semanais já liberados ao RH (conferidos pela pessoa ou passado o prazo); só o código do fluxo escreve.
-import { agentRuns, type Database, deployments, orgs, people, pullRequests, questions, tasks, teams, teamVideos, weeklyReports, withOrg } from "@echo/db";
-import { type AvatarTraits, localDate, RELEASED_REPORT_STATES, teamVideoDue, parseAvatarTraits, pickVideoDeliveries, type PrState, type PullRequest, traitsFromSeed, type TeamWeekFacts, type VideoCandidate, type WeeklyMetrics } from "@echo/domain";
-import { and, eq, gte, inArray, isNotNull, lt, sql } from "drizzle-orm";
+import { absences, agentRuns, type Database, deployments, identities, orgs, people, pullRequests, questions, tasks, teams, teamVideos, weeklyReports, withOrg } from "@echo/db";
+import { type AbsenceKind, type AvatarTraits, localDate, type Person, type PersonRole, RELEASED_REPORT_STATES, teamVideoDue, parseAvatarTraits, pickVideoDeliveries, type PrState, type PullRequest, traitsFromSeed, type TeamWeekFacts, type VideoCandidate, type WeeklyMetrics } from "@echo/domain";
+import { and, eq, gte, inArray, isNotNull, isNull, lt, or, sql } from "drizzle-orm";
 import type { TeamVideoPatch, TeamVideoRow, TeamVideoState, TeamVideoStore, TeamVideoStory } from "./video.ts";
 
 type PrRow = typeof pullRequests.$inferSelect;
@@ -102,6 +102,27 @@ export function createPgTeamVideoStore(db: Database): TeamVideoStore {
           clips: [],
         };
         return { facts, candidates };
+      });
+    },
+
+    async audience(orgId, teamId) {
+      return withOrg(db, orgId, async (tx) => {
+        const [team] = await tx.select({ leaderId: teams.leaderId }).from(teams).where(and(eq(teams.orgId, orgId), eq(teams.id, teamId)));
+        const leaderId = team?.leaderId ?? null;
+        const rows = await tx
+          .select()
+          .from(people)
+          .where(and(eq(people.orgId, orgId), isNull(people.offboardedAt), leaderId ? or(eq(people.teamId, teamId), eq(people.id, leaderId)) : eq(people.teamId, teamId)));
+        if (!rows.length) return { leaderId, people: [], absences: [], slackIds: [] };
+        const ids = rows.map((r) => r.id);
+        const away = await tx.select().from(absences).where(and(eq(absences.orgId, orgId), inArray(absences.personId, ids), isNull(absences.cancelledAt)));
+        const slack = await tx.select({ personId: identities.personId }).from(identities).where(and(eq(identities.orgId, orgId), eq(identities.platform, "slack"), inArray(identities.personId, ids)));
+        return {
+          leaderId,
+          people: rows.map((r): Person => ({ id: r.id, orgId: r.orgId, name: r.name, role: r.role as PersonRole, teamId: r.teamId ?? undefined, timezone: r.timezone, workHours: r.workHours, skills: r.skills, areas: r.areas, active: r.active })),
+          absences: away.map((a) => ({ personId: a.personId, startsAt: a.startsAt, endsAt: a.endsAt, kind: a.kind as AbsenceKind, inferred: a.inferred })),
+          slackIds: [...new Set(slack.map((x) => x.personId))],
+        };
       });
     },
 

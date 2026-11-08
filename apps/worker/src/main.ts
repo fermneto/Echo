@@ -1,5 +1,5 @@
 import { renderSummaryPng } from "@echo/agents/imagem";
-import { allOrgIds, createGithubGainsHistory, serverFix, dueAwayDigests, dueEndOfDay, dueMorning, needsGainsBaseline, serverAwayDigest, serverDaySummary, serverEndOfDay, serverGains, serverMorningPlan, serverNightReview, serverRedistribution, serverWeeklyReport, dueWeeklyReports, readAvatar, serverVideo, queueTeamVideos, queuedTeamVideos, failStuckTeamVideos, expireTeamVideos } from "@echo/agents/server";
+import { allOrgIds, createGithubGainsHistory, serverFix, dueAwayDigests, dueEndOfDay, dueMorning, needsGainsBaseline, serverAwayDigest, serverDaySummary, serverEndOfDay, serverGains, serverMorningPlan, serverNightReview, serverRedistribution, serverWeeklyReport, dueWeeklyReports, readAvatar, serverVideo, videoBytesReader, queueTeamVideos, queuedTeamVideos, failStuckTeamVideos, expireTeamVideos } from "@echo/agents/server";
 import { ensureProductNote } from "@echo/brain/pg";
 import { loadConfig } from "@echo/config";
 import { createDb, createPool } from "@echo/db";
@@ -39,7 +39,18 @@ await queue.start();
 const runs = createWorkerRunRecorder(db, log);
 await registerInbox(db, queue, runs, { brainsRepository: cfg.BRAINS_REPOSITORY, jiraStoryPointsField: cfg.JIRA_STORY_POINTS_FIELD });
 // O que sai pelo outbox em nome de um gêmeo leva o bonequinho dele, como as respostas ao vivo.
-const stopActions = await registerActions({ db, writers: writersFromEnv(db, cfg), agentIcon: outboxAgentIcon(cfg.WEB_URL, (orgId, personId) => readAvatar(db, orgId, personId)) }, queue, runs, log);
+// O vídeo da semana (slack.dm_video) é lido da Files API na hora do envio, com a chave da empresa.
+const stopActions = await registerActions(
+  {
+    db,
+    writers: writersFromEnv(db, cfg),
+    agentIcon: outboxAgentIcon(cfg.WEB_URL, (orgId, personId) => readAvatar(db, orgId, personId)),
+    ...(cfg.ANTHROPIC_API_KEY ? { videoBytes: videoBytesReader(cfg.ANTHROPIC_API_KEY) } : {}),
+  },
+  queue,
+  runs,
+  log,
+);
 // F2: resposta no Slack com o fluxo da frente Funções (answer de @echo/agents).
 const interactions = createInteractionRouter(log);
 let giveUp: ReturnType<typeof setInterval> | undefined;
@@ -108,7 +119,8 @@ const fixTimer = setInterval(() => void runFix(), cfg.FIX_SCAN_MS);
 
 // Vídeo da semana da equipe (etapa 27): sessão no Managed Agents. Sem VIDEO_AGENT_ID e VIDEO_ENVIRONMENT_ID,
 // nenhuma sessão abre e os relatórios seguem sem vídeo; a arrumação do armazenamento roda mesmo assim.
-const video = serverVideo(db, { apiKey: cfg.ANTHROPIC_API_KEY, agentId: cfg.VIDEO_AGENT_ID, environmentId: cfg.VIDEO_ENVIRONMENT_ID, timeoutMs: cfg.VIDEO_TIMEOUT_MS });
+// Pronto, o vídeo vai também no privado do Slack da equipe e da liderança, pelo outbox.
+const video = serverVideo(db, { apiKey: cfg.ANTHROPIC_API_KEY, agentId: cfg.VIDEO_AGENT_ID, environmentId: cfg.VIDEO_ENVIRONMENT_ID, timeoutMs: cfg.VIDEO_TIMEOUT_MS, webUrl: cfg.WEB_URL });
 const videos = await registerVideo(queue, {
   video,
   agenda: {

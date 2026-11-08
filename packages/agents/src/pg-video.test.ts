@@ -1,7 +1,7 @@
 // Vídeo da semana da equipe contra o Postgres real (DATABASE_URL), com papel comum (RLS): fatos montados só dos
 // relatórios liberados ao RH, fila por equipe sem duplicar, transição condicional, isolamento entre empresas e vencimento.
 import { randomUUID } from "node:crypto";
-import { asSystem, createDb, createPool, type Database, deployments, orgs, people, pullRequests, questions, teams, teamVideos, weeklyReports } from "@echo/db";
+import { absences, asSystem, createDb, createPool, type Database, deployments, identities, orgs, people, pullRequests, questions, teams, teamVideos, weeklyReports } from "@echo/db";
 import { appRoleUrl } from "@echo/db/testing";
 import { eq } from "drizzle-orm";
 import type pg from "pg";
@@ -102,6 +102,32 @@ describe.skipIf(!url)("vídeo da semana em Postgres", () => {
     expect(view).toMatchObject({ id, teamName: "Produto", weekLabel: "2 a 6/11", state: "ready", durationS: 41, playable: true });
     expect(await latestTeamVideos(db, other, [team])).toEqual([]);
     expect(await store.budget(org, new Date("2026-11-01T00:00:00Z"))).toEqual({ spentUsd: 0, monthlyLimitUsd: 50 });
+  });
+
+  it("quem pode receber no Slack: equipe e líder, com ausências e contas do Slack, só da empresa", async () => {
+    const [lead, hr, away] = [randomUUID(), randomUUID(), randomUUID()];
+    await asSystem(sys(), async (tx) => {
+      await tx.insert(people).values([
+        { id: lead, orgId: org, name: "Marina Teste", role: "leader", timezone: "America/Sao_Paulo", workHours: hours },
+        { id: hr, orgId: org, teamId: team, name: "RH Teste", role: "hr", timezone: "America/Sao_Paulo", workHours: hours },
+        { id: away, orgId: org, teamId: team, name: "Bruno Teste", role: "member", timezone: "America/Sao_Paulo", workHours: hours },
+      ]);
+      await tx.update(teams).set({ leaderId: lead }).where(eq(teams.id, team));
+      await tx.insert(absences).values([
+        { orgId: org, personId: away, startsAt: new Date("2026-11-02T00:00:00Z"), endsAt: new Date("2026-11-20T00:00:00Z"), kind: "vacation", source: "hr" },
+        { orgId: org, personId: car, startsAt: new Date("2026-11-02T00:00:00Z"), endsAt: new Date("2026-11-20T00:00:00Z"), kind: "vacation", source: "hr", cancelledAt: new Date("2026-11-01T00:00:00Z") },
+      ]);
+      await tx.insert(identities).values([fer, car, lead, hr, away].map((personId, i) => ({ orgId: org, personId, platform: "slack", externalId: `U${i}` })));
+    });
+    const store = createPgTeamVideoStore(db);
+    const a = await store.audience(org, team);
+    expect(a.leaderId).toBe(lead);
+    expect(a.people.map((p) => p.id).sort()).toEqual([fer, car, lead, hr, away].sort());
+    expect(a.people.find((p) => p.id === hr)!.role).toBe("hr");
+    // Ausência cancelada não entra.
+    expect(a.absences.map((x) => x.personId)).toEqual([away]);
+    expect(a.slackIds.sort()).toEqual([fer, car, lead, hr, away].sort());
+    expect(await store.audience(other, team)).toEqual({ leaderId: null, people: [], absences: [], slackIds: [] });
   });
 
   it("gravação parada vira falha; vencido sai do armazenamento", async () => {
