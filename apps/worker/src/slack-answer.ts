@@ -1,7 +1,7 @@
 // F2 no Slack: da mensagem que entrou pelo webhook até a resposta no tópico.
 // O status do Slack é lido só na menção e nunca gravado; a pergunta é reservada para não sair duas vezes.
 import { agentLabel as labelFor, detectLanguage, type AnswerRequest, type AnswerResult, type Lang } from "@echo/agents";
-import { answerBlocks, REPLY_TEXT, respondToInteraction, SLACK_ACTIONS, type ChatMessage, type ChatPlatform } from "@echo/connectors";
+import { answerBlocks, REPLY_TEXT, respondToInteraction, SLACK_ACTIONS, toMrkdwn, type ChatMessage, type ChatPlatform } from "@echo/connectors";
 import { absences, asSystem, identities, people, questions, withOrg, type Database } from "@echo/db";
 import { digestKind, digestLine, isAway, proposalCitation } from "@echo/domain";
 import { agentIconUrl } from "./agent-icon.ts";
@@ -148,8 +148,9 @@ export async function handleSlackMessage(d: SlackAnswerDeps, job: { orgId: strin
   try {
     const r = await d.answer({ orgId, askerId: asker.id, ...(owner ? { ownerId: owner.id } : {}), text, channel: "slack" });
     const lang = r.language ?? asked;
-    const body = [r.text, ...r.warnings.map((w) => `_${REPLY_TEXT[lang].warning}: ${w}_`)].join("\n\n");
-    const blocks = answerBlocks({ text: body, sources: r.sources, questionId: claimed.id, lang });
+    const reply = toMrkdwn(r.text);
+    const body = toMrkdwn([r.text, ...r.warnings.map((w) => `_${REPLY_TEXT[lang].warning}: ${w}_`)].join("\n\n"));
+    const blocks = answerBlocks({ text: reply, warnings: r.warnings, agentName: r.agentName, sources: r.sources, questionId: claimed.id, lang });
     await d.chat.postAgentReply({ channel: m.channel, threadTs, agentName: r.agentName, text: body, ...(blocks ? { blocks } : {}), ...icon });
     await withOrg(d.db, orgId, (tx) =>
       tx

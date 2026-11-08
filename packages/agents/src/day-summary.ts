@@ -9,6 +9,7 @@ import { type Clock, HOUR, type Task, type WorkEvent, systemClock } from "@echo/
 import type { AgentRun, RunRecorder } from "@echo/observability";
 import type { AgentData } from "./data.ts";
 import type { DailyNoteStore, NoteOutbox } from "./daily-note.ts";
+import { dayMonth, DOT, esc } from "./slack-format.ts";
 import { firstName } from "./tools.ts";
 import type { JsonModel } from "./triage-ollama.ts";
 
@@ -99,7 +100,6 @@ const BLOCK_LABEL: Record<string, string> = {
   linha_do_dia: "Atividade do dia",
   quadro_liberado_reservado: "Liberado e reservado",
 };
-const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 const modelName = (tag: string) => (tag.startsWith("qwen3:4b") ? "Qwen3 4B" : tag.startsWith("qwen2.5-coder:1.5b") ? "Qwen2.5-Coder 1.5B" : tag);
 
 /**
@@ -108,7 +108,7 @@ const modelName = (tag: string) => (tag.startsWith("qwen3:4b") ? "Qwen3 4B" : ta
  */
 export function summaryMessage(a: StoredArtifact, url: string): { text: string; blocks: unknown[] } {
   const byId = new Map(a.facts.facts.map((f) => [f.id, f]));
-  const dd = `${a.facts.date.slice(8, 10)}/${a.facts.date.slice(5, 7)}`;
+  const dd = dayMonth(a.facts.date);
   const by = a.state === "rendered" && a.model ? `layout por ${modelName(a.model)} (modelo aberto)` : "layout padrão, por regra";
   const blocks: unknown[] = [
     { type: "header", text: { type: "plain_text", text: `Resumo do seu dia, ${dd}` } },
@@ -117,7 +117,7 @@ export function summaryMessage(a: StoredArtifact, url: string): { text: string; 
   for (const b of a.spec.blocks) {
     const facts = b.factIds.map((id) => byId.get(id)).filter((f): f is NonNullable<typeof f> => !!f);
     if (!facts.length) continue;
-    const head = `*${BLOCK_LABEL[b.component] ?? b.component}*${b.title ? ` · ${esc(b.title)}` : ""}`;
+    const head = `${b.component === "lista_pendencias" ? `${DOT.wait} ` : ""}*${BLOCK_LABEL[b.component] ?? b.component}*${b.title ? ` · ${esc(b.title)}` : ""}`;
     let body: string;
     if (b.component === "destaque") body = facts.map((f) => `> ${esc(f.label)}`).join("\n");
     else if (b.component === "linha_do_dia") body = facts.map((f) => `*${f.value ?? 0}* ${esc(f.label.toLowerCase())}`).join("   ·   ");
@@ -219,7 +219,7 @@ export function createDaySummary(deps: DaySummaryDeps) {
             imageError = `imagem: ${err instanceof Error ? err.message : String(err)}`.slice(0, 200);
           }
         }
-        const dd = `${date.slice(8, 10)}/${date.slice(5, 7)}`;
+        const dd = dayMonth(date);
         const r = png
           ? await deps.outbox(orgId).enqueue({
               type: "slack.dm_image",

@@ -205,6 +205,13 @@ describe("redistribuição", () => {
     const summary = outbox.at(-1)!;
     expect(summary).toMatchObject({ type: "slack.dm", payload: { personId: "marina" } });
     expect((summary.payload as { text: string }).text).toContain("ECH-133 mudou de responsável no Linear, para Marina.");
+    // Regressão: o bloco de contexto vinha da função local context(orgId), que devolvia uma Promise no lugar do bloco.
+    const blocks = (summary.payload as { blocks: unknown[] }).blocks;
+    expect(blocks.slice(0, 2)).toEqual([
+      { type: "header", text: { type: "plain_text", text: "Plano executado" } },
+      { type: "context", elements: [{ type: "mrkdwn", text: "Aprovado por Marina" }] },
+    ]);
+    expect(JSON.stringify(blocks)).toContain("ECH-133 mudou de responsável no Linear, para Marina.");
     expect(await flow.sync("org")).toEqual({ done: 0 });
   });
 

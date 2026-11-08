@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { answerBlocks, dailyNoteDraftBlocks, fitText, respondToInteraction, SLACK_ACTIONS, SlackApiError, SlackChat } from "./slack-client.ts";
+import { answerBlocks, dailyNoteDraftBlocks, fitText, respondToInteraction, SLACK_ACTIONS, SlackApiError, SlackChat, toMrkdwn } from "./slack-client.ts";
 
 type Call = { url: string; body: any; auth: string | null; form: boolean };
 
@@ -41,6 +41,37 @@ describe("getPresence", () => {
     const t0 = Date.now();
     expect(await slow.getPresence("U1", 50)).toBe("unknown");
     expect(Date.now() - t0).toBeLessThan(1_000);
+  });
+});
+
+describe("formato da resposta", () => {
+  it("converte Markdown comum para o Slack sem tocar em código", () => {
+    expect(toMrkdwn("## **Estado**\n- item **forte**\n- [PR](https://x.y/1)\nveja `**cru**` - fim\n```\n# fica\n```")).toBe("*Estado*\n• item *forte*\n• PR (https://x.y/1)\nveja `**cru**` - fim\n```\n# fica\n```");
+  });
+
+  it("converte negrito com código dentro", () => {
+    expect(toMrkdwn("**Branch `ech-131` liberada**")).toBe("*Branch `ech-131` liberada*");
+  });
+
+  it("nenhuma marcação do Slack passa, e link nunca esconde a URL", () => {
+    expect(toMrkdwn("<!channel> veja <https://falso.exemplo|o PR> e [Abrir](https://falso.exemplo/a?b=1&c=2)")).toBe("&lt;!channel&gt; veja &lt;https://falso.exemplo|o PR&gt; e Abrir (https://falso.exemplo/a?b=1&amp;c=2)");
+  });
+
+  it("escapa aviso e fonte, que podem repetir conteúdo de terceiros", () => {
+    const all = JSON.stringify(answerBlocks({ text: "Sim.", warnings: ["<!here>"], sources: [{ label: "PR <@U1>" }] }));
+    expect(all).toContain("&lt;!here&gt;");
+    expect(all).toContain("PR &lt;@U1&gt;");
+  });
+
+  it("corte não deixa entidade pela metade", () => {
+    expect(fitText(`${"y".repeat(8)}&amp;zzz`, 12, "…")).toBe(`${"y".repeat(8)}…`);
+  });
+
+  it("avisos e autoria ficam no rodapé, com fontes", () => {
+    const blocks = answerBlocks({ text: "Sim.", warnings: ["dado antigo"], agentName: "Agente de Fernando", sources: [{ label: "nota do dia" }] }) as { type: string; elements?: { text: string }[] }[];
+    expect(blocks.map((b) => b.type)).toEqual(["section", "context", "context"]);
+    expect(blocks[1]!.elements![0]!.text).toBe(":large_yellow_circle: Aviso: dado antigo");
+    expect(blocks[2]!.elements![0]!.text).toBe(":large_blue_circle: Agente de Fernando · Fontes: nota do dia");
   });
 });
 
