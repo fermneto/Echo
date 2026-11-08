@@ -12,6 +12,3 @@ export async function saveNoteEdit(id: string, body: string, by: string, at: str
   jar.set(NOTES_COOKIE, JSON.stringify(edits), { httpOnly: true, sameSite: "lax", path: "/", secure: process.env.NODE_ENV === "production" });
 }
 
-export async function resetNotes(): Promise<void> {
-  (await cookies()).delete(NOTES_COOKIE);
-}
