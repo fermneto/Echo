@@ -33,10 +33,14 @@ describe.skipIf(!url)("ingest e caixa de entrada (Postgres real)", () => {
       { orgId, personId: ids.fer!, platform: "github", externalId: "101", login: "fernando-dev" },
       { orgId, personId: ids.car!, platform: "github", externalId: "102", login: "carla-dev" },
       { orgId, personId: ids.fer!, platform: "linear", externalId: "lin-user-fer" },
+      { orgId, personId: ids.car!, platform: "jira", externalId: `acc-carla-${suffix}` },
       { orgId, personId: ids.car!, platform: "slack", externalId: `UCAR${suffix}` },
       { orgId, personId: ids.bru!, platform: "slack", externalId: `UBRU${suffix}` },
     ]);
-    await db.insert(installationRoutes).values({ kind: "github", externalId: `555${suffix}`, orgId });
+    await db.insert(installationRoutes).values([
+      { kind: "github", externalId: `555${suffix}`, orgId },
+      { kind: "jira", externalId: `acme-${suffix}.atlassian.net`, orgId },
+    ]);
   });
 
   afterAll(async () => {
@@ -87,7 +91,7 @@ describe.skipIf(!url)("ingest e caixa de entrada (Postgres real)", () => {
     expect(credit).toMatchObject([{ helperId: ids.car, helpedId: ids.fer, confirmed: true }]);
   });
 
-  const run = async (source: "github" | "linear" | "slack", eventName: string | undefined, payload: unknown, n: string) => {
+  const run = async (source: "github" | "linear" | "jira" | "slack", eventName: string | undefined, payload: unknown, n: string) => {
     const queue = new InMemoryQueue();
     let inboxId = "";
     await queue.work<InboxJob>(QUEUES.inboxProcess, async (j) => void (inboxId = j.data.inboxId));
@@ -131,6 +135,28 @@ describe.skipIf(!url)("ingest e caixa de entrada (Postgres real)", () => {
     await run("linear", undefined, linearIssue({ title: "título velho", updatedAt: "2026-11-07T07:00:00Z" }), "l2");
     const [t] = await db.select().from(tasks).where(and(eq(tasks.orgId, orgId), eq(tasks.key, "ECH-128")));
     expect(t).toMatchObject({ title: "Tempo limite nos pagamentos", assigneeId: ids.fer, state: "in_progress", size: 3 });
+  });
+
+  it("Jira: acha a empresa pelo site, liga a pessoa pela conta do Jira e registra a conclusão uma vez", async () => {
+    const issue = (status: { name: string; statusCategory: { key: string } }, updated: string) => ({
+      id: `9${suffix.length}01`,
+      key: "PAG-12",
+      self: `https://acme-${suffix}.atlassian.net/rest/api/3/issue/9${suffix.length}01`,
+      fields: { summary: "Conciliação diária", status, assignee: { accountId: `acc-carla-${suffix}` }, labels: [], components: [{ name: "pagamentos" }], customfield_10016: 2, updated, resolutiondate: status.statusCategory.key === "done" ? updated : null },
+    });
+    const queue = new InMemoryQueue();
+    const ids2: string[] = [];
+    await queue.work<InboxJob>(QUEUES.inboxProcess, async (j) => void ids2.push(j.data.inboxId));
+    const first = issue({ name: "Em andamento", statusCategory: { key: "indeterminate" } }, "2026-11-07T10:00:00.000Z");
+    expect(await deliver(queue, { source: "jira", deliveryId: `jira-${suffix}-1`, routeKey: `acme-${suffix}.atlassian.net`, payload: { webhookEvent: "jira:issue_created", issue: first } })).toBe("queued");
+    await processInbox(app, ids2[0]!);
+    const done = issue({ name: "Done", statusCategory: { key: "done" } }, "2026-11-07T12:00:00.000Z");
+    await run("jira", undefined, { webhookEvent: "jira:issue_updated", issue: done, changelog: { items: [{ fieldId: "status" }] } }, "j2");
+    await run("jira", undefined, { webhookEvent: "jira:issue_updated", issue: done, changelog: { items: [{ fieldId: "status" }] } }, "j3");
+    const [t] = await db.select().from(tasks).where(and(eq(tasks.orgId, orgId), eq(tasks.key, "PAG-12")));
+    expect(t).toMatchObject({ title: "Conciliação diária", assigneeId: ids.car, state: "done", size: 2, labels: ["pagamentos"] });
+    const doneEvents = await db.select().from(workEvents).where(and(eq(workEvents.orgId, orgId), eq(workEvents.taskKey, "PAG-12")));
+    expect(doneEvents).toMatchObject([{ type: "task_done", personId: ids.car, source: "jira" }]);
   });
 
   it("reação de ajuda registra só a referência; mensagem segue para o F2 e o texto não fica guardado", async () => {

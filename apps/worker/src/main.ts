@@ -36,7 +36,7 @@ const db = createDb(pool);
 await queue.start();
 // Ingestão, outbox, espelho e reconciliação: execuções no log e em agent_runs (as rodadas sem efeito ficam de fora).
 const runs = createWorkerRunRecorder(db, log);
-await registerInbox(db, queue, runs, { brainsRepository: cfg.BRAINS_REPOSITORY });
+await registerInbox(db, queue, runs, { brainsRepository: cfg.BRAINS_REPOSITORY, jiraStoryPointsField: cfg.JIRA_STORY_POINTS_FIELD });
 // O que sai pelo outbox em nome de um gêmeo leva o bonequinho dele, como as respostas ao vivo.
 const stopActions = await registerActions({ db, writers: writersFromEnv(db, cfg), agentIcon: outboxAgentIcon(cfg.WEB_URL, (orgId, personId) => readAvatar(db, orgId, personId)) }, queue, runs, log);
 // F2: resposta no Slack com o fluxo da frente Funções (answer de @echo/agents).

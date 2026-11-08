@@ -75,6 +75,13 @@ export async function reconcileOnce(d: ReconcileDeps): Promise<{ skipped: boolea
             return r;
           }, { orgId }, { keep: (r) => r.truncated }).catch((err) => d.log.error({ orgId, err: String(err) }, "falha na reconciliação do Linear"));
         }
+        if (kinds.includes("jira") && d.platforms.jira) {
+          await withRun(d.runs, "reconcile_jira", async () => {
+            const r = await reconcileLinear(d.db, orgId, d.platforms.jira!, now, "jira");
+            d.log.info({ orgId, ...r }, "reconciliação do Jira");
+            return r;
+          }, { orgId }, { keep: (r) => r.truncated }).catch((err) => d.log.error({ orgId, err: String(err) }, "falha na reconciliação do Jira"));
+        }
       }
       return { skipped: false };
     } finally {

@@ -6,9 +6,11 @@ import {
   githubRouteKey,
   vercelRouteKey,
   verifyVercel,
+  jiraRouteKey,
   linearRouteKey,
   slackShouldKeep,
   verifyGithub,
+  verifyJira,
   verifyLinear,
   verifySlack,
   type Delivery,
@@ -18,7 +20,7 @@ import {
 import type { Context, Hono } from "hono";
 
 export interface WebhookDeps {
-  secrets: { github?: string | undefined; slack?: string | undefined; linear?: string | undefined; vercel?: string | undefined };
+  secrets: { github?: string | undefined; slack?: string | undefined; linear?: string | undefined; jira?: string | undefined; vercel?: string | undefined };
   /** Segredos por empresa, para as rotas /o/<empresa>. Sem eles, essas rotas respondem 503. */
   orgSecrets?: {
     slack?: (orgId: string) => Promise<string | null>;
@@ -118,6 +120,26 @@ export function registerWebhooks(app: Hono, deps: WebhookDeps): void {
     const orgId = c.req.param("orgId");
     return linear(c, isUuid(orgId) ? await deps.orgSecrets?.linear?.(orgId) : null, orgId);
   });
+
+  // ---------- Jira Cloud (etapa 21): mesmas tarefas do Linear, para empresas que usam Jira
+  const jira = async (c: Context, secret: string | null | undefined, fixedOrg: string | null) => {
+    if (!secret) return c.body(null, 503);
+    const raw = await c.req.text();
+    if (!verifyJira(secret, raw, headersOf(c)).ok) return c.body(null, 401);
+    const body = parseJson(raw);
+    // Único por entrega e igual nas novas tentativas do Jira: é a chave de idempotência.
+    const deliveryId = c.req.header("x-atlassian-webhook-identifier");
+    if (!body || !deliveryId) return c.body(null, 400);
+    const routeKey = jiraRouteKey(body);
+    if (fixedOrg && routeKey && (await deps.routeOrg("jira", routeKey)) !== fixedOrg) return c.body(null, 403);
+    try {
+      await deps.receive({ source: "jira", deliveryId, orgId: fixedOrg ?? undefined, routeKey, payload: body });
+      return c.body(null, 200);
+    } catch (err) {
+      return fail(c, err, "jira");
+    }
+  };
+  app.post("/webhooks/jira", (c) => jira(c, deps.secrets.jira, null));
 
   // ---------- Slack: eventos
   const slackEvents = async (c: Context, secret: string | null | undefined, fixedOrg: string | null) => {

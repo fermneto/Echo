@@ -71,19 +71,21 @@ export async function approveAction(db: Database, orgId: string, actionId: strin
   });
 }
 
-async function linearIdentity(tx: Tx, orgId: string, personId: string): Promise<string> {
+const TRACKER_NAME = { linear: "Linear", jira: "Jira" } as const;
+
+async function trackerIdentity(tx: Tx, orgId: string, personId: string, platform: "linear" | "jira"): Promise<string> {
   const [id] = await tx
     .select({ externalId: identities.externalId })
     .from(identities)
-    .where(and(eq(identities.orgId, orgId), eq(identities.personId, personId), eq(identities.platform, "linear")));
-  // Regra: tarefa do Linear só vai para quem tem conta lá.
-  if (!id) throw new PermanentActionError("pessoa sem conta no Linear");
+    .where(and(eq(identities.orgId, orgId), eq(identities.personId, personId), eq(identities.platform, platform)));
+  // Regra: tarefa do tracker só vai para quem tem conta lá.
+  if (!id) throw new PermanentActionError(`pessoa sem conta no ${TRACKER_NAME[platform]}`);
   return id.externalId;
 }
 
-async function taskLinearId(tx: Tx, orgId: string, taskKey: string): Promise<{ id: string; linearId: string }> {
+async function taskLinearId(tx: Tx, orgId: string, taskKey: string, tracker = "Linear"): Promise<{ id: string; linearId: string }> {
   const [t] = await tx.select({ id: tasks.id, linearId: tasks.linearId }).from(tasks).where(and(eq(tasks.orgId, orgId), eq(tasks.key, taskKey)));
-  if (!t?.linearId) throw new PermanentActionError(`tarefa ${taskKey} sem id no Linear`);
+  if (!t?.linearId) throw new PermanentActionError(`tarefa ${taskKey} sem id no ${tracker}`);
   return { id: t.id, linearId: t.linearId };
 }
 
@@ -119,20 +121,24 @@ async function run(deps: ExecutorDeps, row: Row): Promise<unknown> {
   };
   switch (row.type as ActionType) {
     case "linear.assign": {
+      // "linear.assign" vale para o tracker ligado na empresa (Linear ou Jira): o nome ficou do primeiro.
       const p = row.payload as ActionPayloads["linear.assign"];
+      const issues = need("issues", "Tracker de tarefas");
+      const platform = issues.platform ?? "linear";
       const { task, assignee } = await withOrg(db, orgId, async (tx) => ({
-        task: await taskLinearId(tx, orgId, p.taskKey),
-        assignee: p.toPersonId ? await linearIdentity(tx, orgId, p.toPersonId) : null,
+        task: await taskLinearId(tx, orgId, p.taskKey, TRACKER_NAME[platform]),
+        assignee: p.toPersonId ? await trackerIdentity(tx, orgId, p.toPersonId, platform) : null,
       }));
-      await need("issues", "Linear").assignIssue(task.linearId, assignee);
+      await issues.assignIssue(task.linearId, assignee);
       // Espelho local já reflete a mudança; o aviso do Linear confirma depois.
       await withOrg(db, orgId, (tx) => tx.update(tasks).set({ assigneeId: p.toPersonId, updatedAt: new Date() }).where(eq(tasks.id, task.id)));
       return;
     }
     case "linear.comment": {
       const p = row.payload as ActionPayloads["linear.comment"];
-      const task = await withOrg(db, orgId, (tx) => taskLinearId(tx, orgId, p.taskKey));
-      await need("issues", "Linear").comment(task.linearId, p.body);
+      const issues = need("issues", "Tracker de tarefas");
+      const task = await withOrg(db, orgId, (tx) => taskLinearId(tx, orgId, p.taskKey, TRACKER_NAME[issues.platform ?? "linear"]));
+      await issues.comment(task.linearId, p.body);
       return;
     }
     case "github.comment": {

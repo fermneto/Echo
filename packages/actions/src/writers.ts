@@ -8,6 +8,8 @@ export function writersFromEnv(db: Database, env: PlatformEnv) {
   const p = platformsFromEnv(env);
   return async (orgId: string): Promise<{ code?: CodeWriter; issues?: IssueWriter; chat?: ChatPlatform }> => {
     const code = await githubForOrg(db, p, orgId);
-    return { ...(code ? { code } : {}), ...(p.linear ? { issues: p.linear } : {}), ...(p.chat ? { chat: p.chat } : {}) };
+    // Um tracker por empresa: o Linear quando ligado; senão, o Jira.
+    const issues = p.linear ?? p.jira;
+    return { ...(code ? { code } : {}), ...(issues ? { issues } : {}), ...(p.chat ? { chat: p.chat } : {}) };
   };
 }

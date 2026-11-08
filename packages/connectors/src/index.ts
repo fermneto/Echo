@@ -83,8 +83,11 @@ export class FileChangedError extends Error {
   override name = "FileChangedError";
 }
 export interface IssueWriter {
-  assignIssue(linearIssueId: string, assigneeLinearUserId: string | null): Promise<void>;
-  comment(linearIssueId: string, body: string): Promise<{ id: string }>;
+  /** Plataforma das contas usadas nas escritas (identities.platform). Sem valor: Linear. */
+  readonly platform?: "linear" | "jira";
+  /** `issueId`: id da tarefa no tracker (tasks.linear_id); `assigneeExternalId`: conta da pessoa nele. */
+  assignIssue(issueId: string, assigneeExternalId: string | null): Promise<void>;
+  comment(issueId: string, body: string): Promise<{ id: string }>;
 }
 
 export type Presence = "active" | "away" | "unknown";
@@ -126,9 +129,11 @@ export interface VerifiedDelivery {
 
 export * from "./normalized.ts";
 export { TokenCipher } from "./crypto.ts";
-export { sign, verifyGithub, verifyHr, verifyLinear, verifySlack, type Verification } from "./signatures.ts";
+export { sign, verifyGithub, verifyHr, verifyJira, verifyLinear, verifySlack, type Verification } from "./signatures.ts";
 export { checksStateOf, commitEvent, githubRouteKey, normalizeGithub, parseCoauthors, type GhCommit } from "./github.ts";
 export { linearRouteKey, linearState, normalizeLinear } from "./linear.ts";
+export { DEFAULT_STORY_POINTS_FIELD, jiraRouteKey, jiraState, jiraTask, normalizeJira } from "./jira.ts";
+export { adfText, JiraApiError, JiraTracker, type JiraOptions } from "./jira-client.ts";
 export { HELP_REACTIONS, isWhoKnows, normalizeSlack, slackShouldKeep, type SlackEntryContext } from "./slack.ts";
 export { ingest, type IngestResult } from "./ingest.ts";
 export { processInbox, receive, routeOrg, slackBotUserIdOf, type Delivery, type InboxJob, type InboxSource, type ProcessOptions } from "./inbox.ts";

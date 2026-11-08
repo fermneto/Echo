@@ -18,6 +18,7 @@ Cada passo só depende dos anteriores. A maior dependência são os **endereços
 | 6 | **Validar o Slack:** colocar o signing secret no `.env`, reiniciar a API e clicar em **Retry** em Event Subscriptions | 5 | Request URL verificada |
 | 7 | **GitHub:** organização → repositórios `app` e `brains` → GitHub App, com `<API>` e o segredo do passo 1 → chave privada → instalar nos dois repositórios ([guia](github.md)) | 1, 2, 3 | `GITHUB_*`, logins, `DEMO_GITHUB_INSTALLATION_ID` |
 | 8 | **Linear:** espaço → convidar as pessoas → chave de API → webhook para `<API>` (o segredo aparece depois de criar) → reiniciar a API → tarefas sintéticas ([guia](linear.md)) | 2, 3 | `LINEAR_*`, ids das pessoas, `DEMO_LINEAR_ORG_ID` |
+| 8b | **Jira** (no lugar do Linear): site do Jira Cloud → projeto → token de API → webhook com segredo para `<API>` → tarefas sintéticas ([guia](jira.md)) | 2, 3 | `JIRA_*`, accountId das pessoas, `DEMO_JIRA_SITE` |
 | 9 | **Vercel** (opcional): importar o repositório `app` → webhook para `<API>` ([guia](cicd.md)) | 2, 7 | `VERCEL_WEBHOOK_SECRET`, `DEMO_VERCEL_TEAM_ID` |
 | 10 | **Agenda** (opcional): conta de serviço do Google ou app da Microsoft, com o consentimento do administrador ([Google](agenda-google.md), [Microsoft](agenda-microsoft.md)) | 3 | credenciais e domínio ou tenant |
 | 11 | **`DEMO_IDENTITIES`** com os ids de cada pessoa → `pnpm integracoes:diagnostico` → `pnpm integracoes:ligar` | 5, 7, 8 (e 10) | empresa de teste no banco |
@@ -37,6 +38,7 @@ Os PRs de que cada guia depende:
 | [Ambiente local e túnel](ambiente.md) | `main` |
 | [Slack](slack.md) | #3, #11, #19 |
 | [GitHub](github.md) e [Linear](linear.md) | #5, #7, #8 |
+| [Jira](jira.md) | branch `integracoes/jira` |
 | [Anthropic](anthropic.md) | já na `main` |
 | [Aviso de RH](rh.md) | #11 |
 | [Agenda](agenda-google.md) e [CI/CD](cicd.md) | #15 |
@@ -71,6 +73,7 @@ DEMO_ORG_NAME=Empresa de teste (integrações)
 DEMO_SLACK_TEAM_ID=T…            # Slack: pnpm integracoes:conferir
 DEMO_GITHUB_INSTALLATION_ID=…    # GitHub App: pnpm integracoes:conferir
 DEMO_LINEAR_ORG_ID=…             # Linear: pnpm integracoes:conferir
+DEMO_JIRA_SITE=…                 # Jira, no lugar do Linear (ex.: acme.atlassian.net)
 DEMO_GOOGLE_DOMAIN=…             # Google Workspace (opcional)
 DEMO_MICROSOFT_TENANT_ID=…       # Microsoft 365 (opcional)
 DEMO_VERCEL_TEAM_ID=…            # Vercel (opcional)
@@ -78,7 +81,7 @@ DEMO_VERCEL_TEAM_ID=…            # Vercel (opcional)
 DEMO_IDENTITIES='[{"nome":"Marina","papel":"leader","slack":"U01","linear":"uuid"},{"nome":"Bruno","slack":"U02","github":"bruno-teste","linear":"uuid","rh":"123","google":"bruno@empresa.com"}]'
 ```
 
-Campos de cada pessoa: `nome`, `papel` (`member`, `leader` ou `hr`), `fuso` (IANA), `slack`, `github` (login), `linear` (id do usuário), `rh` (matrícula), `google` e `microsoft` (e-mail).
+Campos de cada pessoa: `nome`, `papel` (`member`, `leader` ou `hr`), `fuso` (IANA), `slack`, `github` (login), `linear` (id do usuário), `jira` (accountId), `rh` (matrícula), `google` e `microsoft` (e-mail).
 
 ## Para consultar o banco
 

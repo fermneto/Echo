@@ -33,20 +33,27 @@ export interface GithubReconcileResult {
 }
 
 /** Tarefa vira espelho; concluída também vira o fato task_done (mesma chave do aviso). */
-function taskEvents(t: ExternalTask): NormalizedEvent[] {
+function taskEvents(t: ExternalTask, source: "linear" | "jira"): NormalizedEvent[] {
   const out: NormalizedEvent[] = [{ kind: "task_upsert", task: t }];
   if (t.state === "done" && t.completedAt) {
     out.push({
       kind: "work_event",
-      event: { type: "task_done", actor: t.assignee, taskKey: t.key, occurredAt: t.completedAt, source: "linear", sourceRef: `task_done:${t.linearId}` },
+      event: { type: "task_done", actor: t.assignee, taskKey: t.key, occurredAt: t.completedAt, source, sourceRef: `task_done:${t.linearId}` },
     });
   }
   return out;
 }
 
-export async function reconcileLinear(db: Database, orgId: string, linear: LinearReconciler, now: Date): Promise<{ open: number; closed: number; truncated: boolean }> {
+/** Tracker de tarefas (Linear ou Jira): abertas e encerradas nos últimos 7 dias, pelo mesmo ingest dos avisos. */
+export async function reconcileLinear(
+  db: Database,
+  orgId: string,
+  linear: LinearReconciler,
+  now: Date,
+  source: "linear" | "jira" = "linear",
+): Promise<{ open: number; closed: number; truncated: boolean }> {
   const [open, closed] = await Promise.all([linear.listOpenTasks(), linear.listClosedTasksSince(new Date(now.getTime() - BACKFILL_MS))]);
-  await ingest(db, orgId, [...open.tasks, ...closed.tasks].flatMap(taskEvents));
+  await ingest(db, orgId, [...open.tasks, ...closed.tasks].flatMap((t) => taskEvents(t, source)));
   return { open: open.tasks.length, closed: closed.tasks.length, truncated: open.truncated || closed.truncated };
 }
 
