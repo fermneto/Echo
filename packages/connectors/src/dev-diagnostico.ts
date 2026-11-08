@@ -161,7 +161,8 @@ if (api) {
   add("Linear", "pessoas com conta do Linear", (idCount.get("linear") ?? 0) > 0 ? "ok" : "falta", String(idCount.get("linear") ?? 0), "linear.md");
 }
 
-// Jira Cloud (opcional, no lugar do Linear)
+// Jira Cloud (opcional, no lugar do Linear: com os dois configurados, vale o Linear)
+const linearConfigured = Boolean(env.LINEAR_API_KEY || (env.LINEAR_CLIENT_ID && env.LINEAR_CLIENT_SECRET));
 if (has("JIRA_BASE_URL") || has("JIRA_API_TOKEN")) {
   if (!has("JIRA_BASE_URL", "JIRA_EMAIL", "JIRA_API_TOKEN")) add("Jira", "JIRA_BASE_URL, JIRA_EMAIL e JIRA_API_TOKEN", "falta", undefined, "jira.md");
   else {
@@ -169,13 +170,16 @@ if (has("JIRA_BASE_URL") || has("JIRA_API_TOKEN")) {
     try {
       const { tasks, truncated } = await jira.listOpenTasks();
       add("Jira", "credencial aceita", "ok", `${tasks.length}${truncated ? "+" : ""} tarefas abertas`);
-      routeCheck("Jira", "jira", "DEMO_JIRA_SITE", jira.site, "jira.md");
+      if (linearConfigured) add("Jira", "Jira desligado nesta empresa", "aviso", "o Linear está ligado, e vale um tracker por vez (vale o Linear)", "jira.md");
+      else routeCheck("Jira", "jira", "DEMO_JIRA_SITE", jira.site, "jira.md");
     } catch (err) {
       add("Jira", "credencial", "erro", msg(err), "jira.md");
     }
   }
-  if (!env.JIRA_WEBHOOK_SECRET) add("Jira", "JIRA_WEBHOOK_SECRET", "falta", "sem ele, /webhooks/jira responde 503", "jira.md");
-  add("Jira", "pessoas com conta do Jira", (idCount.get("jira") ?? 0) > 0 ? "ok" : "falta", String(idCount.get("jira") ?? 0), "jira.md");
+  if (!linearConfigured) {
+    if (!env.JIRA_WEBHOOK_SECRET) add("Jira", "JIRA_WEBHOOK_SECRET", "falta", "sem ele, /webhooks/jira responde 503", "jira.md");
+    add("Jira", "pessoas com conta do Jira", (idCount.get("jira") ?? 0) > 0 ? "ok" : "falta", String(idCount.get("jira") ?? 0), "jira.md");
+  }
 }
 
 // Anthropic (só o formato: conferir de verdade gasta, e isso é o teste A2)

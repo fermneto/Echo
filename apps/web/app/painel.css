@@ -604,6 +604,13 @@
 .entrar__note {
   font-size: 11px;
 }
+/* Dica da demonstração: usuários e senha públicos, para quem chega de fora. */
+.entrar__hint {
+  margin: 0;
+  font-size: 12px;
+  line-height: 1.5;
+  color: var(--color-ash);
+}
 
 /* Números tabulares em horas e contagens */
 .num,
@@ -3656,42 +3663,6 @@ select.field option {
   display: flex;
   justify-content: space-between;
   margin-top: 6px;
-  font-size: 11px;
-}
-.hr-table {
-  margin-top: var(--space-xl);
-  font-size: 13px;
-}
-.hr-table summary {
-  cursor: pointer;
-  color: var(--color-fog);
-}
-.hr-table summary:hover {
-  color: var(--color-cloud);
-}
-.hr-table__scroll {
-  margin-top: var(--space-md);
-  overflow-x: auto;
-}
-.hr-table table {
-  width: 100%;
-  border-collapse: collapse;
-}
-.hr-table th,
-.hr-table td {
-  padding: 6px 8px;
-  border-bottom: 1px solid var(--color-line);
-  text-align: right;
-  white-space: nowrap;
-  font-weight: 400;
-}
-.hr-table th[scope="row"],
-.hr-table thead th:first-child {
-  text-align: left;
-  color: var(--color-paper);
-}
-.hr-table thead th {
-  color: var(--color-ash);
   font-size: 11px;
 }
 .hr-teams {
