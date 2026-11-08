@@ -85,12 +85,14 @@ const runEndOfDay = () =>
 void runEndOfDay();
 const endOfDayTimer = setInterval(() => void runEndOfDay(), cfg.END_OF_DAY_SCAN_MS);
 
-// Noite (F4) e manhã (F5). O diff dos PRs vem do GitHub pela frente de Integrações; até a porta existir,
-// nenhum PR tem diff e a revisão noturna não envia lote. Com SLM_OLLAMA_URL, um modelo aberto pequeno faz a
-// triagem de cada PR antes do lote.
+// Noite (F4) e manhã (F5). O diff dos PRs vem do GitHub da empresa. Com SLM_OLLAMA_URL, um modelo aberto
+// pequeno faz a triagem de cada PR antes do lote.
 const triage = slm ? { ...slm, timeoutMs: cfg.TRIAGE_TIMEOUT_MS } : undefined;
 const night = await registerNight(queue, {
-  night: serverNightReview(db, cfg.ANTHROPIC_API_KEY, () => ({ getDiff: async () => null }), triage),
+  // Diff lido do GitHub da empresa (instalação do app). Sem instalação, nenhum PR tem diff e a noite não envia lote.
+  night: serverNightReview(db, cfg.ANTHROPIC_API_KEY, (orgId) => ({
+    getDiff: async (repo, number) => (await (await githubForOrg(db, platforms, orgId))?.getPullRequestDiff(repo, number)) ?? null,
+  }), triage),
   morning: serverMorningPlan(db, cfg.WEB_URL),
   orgIds: () => allOrgIds(db),
   dueMorning: (now) => dueMorning(db, now),
