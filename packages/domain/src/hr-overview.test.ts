@@ -45,9 +45,9 @@ describe("visão das equipes", () => {
     });
     expect(v.focus).toBe("2026-W44");
     const [p, d] = v.teams;
-    expect(p).toMatchObject({ status: "ok", people: 3, away: [{ name: "B", until: new Date("2026-11-14T00:00:00Z") }], progress: { total: 0, percent: 0 } });
-    // O motivo da ausência (férias, licença) nunca chega ao RH.
-    expect(JSON.stringify(p)).not.toContain("vacation");
+    expect(p).toMatchObject({ status: "ok", people: 3, away: [{ name: "B", until: new Date("2026-11-14T00:00:00Z") }], progress: { done: 0, review: 0, doing: 0, todo: 0, total: 0 } });
+    // O motivo da ausência (férias, licença) nunca chega ao RH: nem na equipe, nem em parte alguma da saída.
+    expect(JSON.stringify(v)).not.toContain("vacation");
     if (p?.status !== "ok") throw new Error("esperava totais");
     expect(p.weeks).toEqual([
       { week: "2026-W44", monday: "2026-10-26", deliveries: 3, reviews: 4, helps: 1, twins: 1, sent: 2 },
@@ -67,27 +67,34 @@ describe("progresso da equipe", () => {
   const ids = new Set(["a", "b", "c"]);
   const at = (days: number) => new Date(NOW.getTime() - days * 86_400_000);
 
-  it("conta por estado e em pontos; ignora canceladas, concluídas antigas e quem não é da equipe", () => {
+  it("conta tarefas por estado; ignora canceladas, concluídas antigas e quem não é da equipe", () => {
     const p = teamProgress(
       [
-        { assigneeId: "a", state: "done", size: 3, updatedAt: at(2) },
-        { assigneeId: "b", state: "done", updatedAt: at(10) }, // sem tamanho: vale 2
-        { assigneeId: "c", state: "done", size: 5, updatedAt: at(20) }, // antiga: fora
-        { assigneeId: "a", state: "in_review", size: 3, updatedAt: at(1) },
-        { assigneeId: "b", state: "in_progress", size: 2, updatedAt: at(1) },
-        { assigneeId: "c", state: "todo", size: 1, updatedAt: at(1) },
-        { assigneeId: "c", state: "backlog", size: 1, updatedAt: at(1) },
-        { assigneeId: "a", state: "canceled", size: 8, updatedAt: at(1) },
-        { assigneeId: "z", state: "done", size: 8, updatedAt: at(1) },
-        { state: "todo", size: 8, updatedAt: at(1) },
+        { assigneeId: "a", state: "done", updatedAt: at(2) },
+        { assigneeId: "b", state: "done", updatedAt: at(10) },
+        { assigneeId: "c", state: "done", updatedAt: at(20) }, // antiga: fora
+        { assigneeId: "a", state: "in_review", updatedAt: at(1) },
+        { assigneeId: "b", state: "in_progress", updatedAt: at(1) },
+        { assigneeId: "c", state: "todo", updatedAt: at(1) },
+        { assigneeId: "c", state: "backlog", updatedAt: at(1) },
+        { assigneeId: "a", state: "canceled", updatedAt: at(1) },
+        { assigneeId: "z", state: "done", updatedAt: at(1) },
+        { state: "todo", updatedAt: at(1) },
       ],
       ids,
       NOW,
     );
-    expect(p).toEqual({ done: 2, review: 1, doing: 1, todo: 2, total: 6, points: { done: 5, total: 12 }, percent: 42 });
+    expect(p).toEqual({ done: 2, review: 1, doing: 1, todo: 2, total: 6 });
   });
 
-  it("sem tarefa, zero por cento", () => {
-    expect(teamProgress([], ids, NOW).percent).toBe(0);
+  it("só contagens: sem percentual nem pontos, para o backlog não pesar contra a equipe", () => {
+    const p = teamProgress([{ assigneeId: "a", state: "done", updatedAt: at(1) }, ...Array.from({ length: 20 }, () => ({ assigneeId: "b", state: "backlog", updatedAt: at(1) }))], ids, NOW);
+    expect(p).toEqual({ done: 1, review: 0, doing: 0, todo: 20, total: 21 });
+    expect(Object.keys(p)).not.toContain("percent");
+    expect(Object.keys(p)).not.toContain("points");
+  });
+
+  it("sem tarefa, tudo zero", () => {
+    expect(teamProgress([], ids, NOW)).toEqual({ done: 0, review: 0, doing: 0, todo: 0, total: 0 });
   });
 });

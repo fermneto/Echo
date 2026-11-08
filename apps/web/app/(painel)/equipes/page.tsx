@@ -74,41 +74,28 @@ function TeamCard({ team, focus, timeZone }: { team: HrTeam; focus: string; time
   );
 }
 
-const STAGES = [
-  { key: "done", label: "Concluídas" },
-  { key: "review", label: "Em revisão" },
-  { key: "doing", label: "Em andamento" },
-  { key: "todo", label: "A fazer" },
-] as const;
+/** "3 concluídas · 2 em revisão · 4 em andamento · 5 a fazer": contagem por estado, em texto. */
+function stagesText(p: Ok["progress"]): string {
+  const n = (v: number, one: string, many: string) => `${v} ${v === 1 ? one : many}`;
+  return [n(p.done, "concluída", "concluídas"), n(p.review, "em revisão", "em revisão"), n(p.doing, "em andamento", "em andamento"), n(p.todo, "a fazer", "a fazer")].join(" · ");
+}
 
-/** Progresso do trabalho de uma equipe: barra por estado, em número de tarefas, e a parte concluída em pontos. */
+/**
+ * Trabalho de uma equipe agora, só em contagem de tarefas por estado. Sem percentual e sem barra normalizada:
+ * nada que reduza a equipe a um número que dê para pôr ao lado do de outra.
+ */
 function ProgressCard({ team }: { team: Ok }) {
   const p = team.progress;
   return (
     <li className="card hr-progress">
       <header className="hr-team__head">
         <h3 className="hr-team__name">{team.name}</h3>
-        <span className="mono muted">{p.total === 1 ? "1 tarefa" : `${p.total} tarefas`}</span>
+        <span className="mono muted">{team.people} pessoas</span>
       </header>
-      <p className="hr-progress__v">
-        {p.percent}%<span className="mono muted"> concluído · {p.points.done} de {p.points.total} pontos</span>
-      </p>
       {p.total === 0 ? (
         <p className="muted hr-team__small">Nenhuma tarefa aberta nem concluída nas últimas 2 semanas.</p>
       ) : (
-        <>
-          <div className="hr-bar" role="img" aria-label={STAGES.map((s) => `${p[s.key]} ${s.label.toLowerCase()}`).join(", ")}>
-            {STAGES.map((s) => (p[s.key] ? <span key={s.key} className={`hr-bar__seg is-${s.key}`} style={{ flexGrow: p[s.key] }} /> : null))}
-          </div>
-          <ul className="hr-legend" role="list">
-            {STAGES.map((s) => (
-              <li key={s.key}>
-                <span className={`hr-legend__sw is-${s.key}`} aria-hidden />
-                {s.label} <span className="mono">{p[s.key]}</span>
-              </li>
-            ))}
-          </ul>
-        </>
+        <p className="hr-progress__stages">{stagesText(p)}</p>
       )}
     </li>
   );
@@ -175,9 +162,9 @@ export default async function EquipesPage() {
 
           <section className="section" aria-labelledby="hr-progresso">
             <h2 id="hr-progresso" className="section__title label-caps">
-              Progresso de cada equipe agora
+              Trabalho de cada equipe agora
             </h2>
-            <p className="muted hr-progress__lead">Tarefas abertas no Linear e no Jira e as concluídas nas últimas 2 semanas. Pontos são o tamanho estimado de cada tarefa.</p>
+            <p className="muted hr-progress__lead">Tarefas abertas no Linear e no Jira e as concluídas nas últimas 2 semanas, contadas por estado. Sem percentual: o tamanho do backlog não diz se uma equipe vai bem.</p>
             <ul className="hr-teams" role="list">
               {ok.map((team) => (
                 <ProgressCard key={team.id} team={team} />

@@ -14,27 +14,26 @@ export const HR_OVERVIEW_RULES = {
   minPeople: GAINS_RULES.minPeople,
   /** Concluídas há até tantos dias entram no progresso; as mais antigas já saíram do quadro. */
   progressDoneDays: 14,
-  /** Tamanho de tarefa sem estimativa, igual ao da carga. */
-  defaultSize: 2,
 } as const;
 
 export type HrPerson = { id: string; teamId?: string | undefined; role: string; active: boolean; name: string; timezone: string };
 export type HrReport = { personId: string; week: string; state: string; metrics: Pick<WeeklyMetrics, "deliveries" | "reviews" | "helps"> };
 export type HrAbsence = { personId: string; kind: string; startsAt: Date; endsAt: Date };
-/** Tarefa do Linear ou Jira: só responsável, estado, tamanho e quando mudou. Nada de título. */
-export type HrTask = { assigneeId?: string | undefined; state: string; size?: number | null | undefined; updatedAt: Date };
+/** Tarefa do Linear ou Jira: só responsável, estado e quando mudou. Nada de título. */
+export type HrTask = { assigneeId?: string | undefined; state: string; updatedAt: Date };
 
-/** Progresso do trabalho da equipe agora, em tarefas e em pontos (tamanho). Nada por pessoa. */
+/**
+ * Trabalho da equipe agora, só em contagem de tarefas por estado. Sem percentual nem pontos: uma razão única
+ * (concluído ÷ total) punia a equipe com backlog maior e convidava a pôr uma equipe ao lado da outra. Nada por pessoa.
+ */
 export type HrProgress = {
   /** Concluídas nos últimos `progressDoneDays` dias. */
   done: number;
   review: number;
   doing: number;
+  /** A fazer, backlog incluído. */
   todo: number;
   total: number;
-  points: { done: number; total: number };
-  /** Parte concluída, em pontos, de 0 a 100 (inteiro). */
-  percent: number;
 };
 
 export type HrWeek = {
@@ -73,22 +72,17 @@ const DAY = 86_400_000;
 
 /** Tarefas de quem é da equipe, por estado. Canceladas e concluídas há mais de `progressDoneDays` dias ficam fora. */
 export function teamProgress(tasks: readonly HrTask[], memberIds: ReadonlySet<string>, now: Date): HrProgress {
-  const p: HrProgress = { done: 0, review: 0, doing: 0, todo: 0, total: 0, points: { done: 0, total: 0 }, percent: 0 };
+  const p: HrProgress = { done: 0, review: 0, doing: 0, todo: 0, total: 0 };
   const since = now.getTime() - HR_OVERVIEW_RULES.progressDoneDays * DAY;
   for (const t of tasks) {
     if (!t.assigneeId || !memberIds.has(t.assigneeId) || t.state === "canceled") continue;
     if (t.state === "done" && t.updatedAt.getTime() < since) continue;
-    const size = typeof t.size === "number" && t.size > 0 ? t.size : HR_OVERVIEW_RULES.defaultSize;
-    if (t.state === "done") {
-      p.done += 1;
-      p.points.done += size;
-    } else if (t.state === "in_review") p.review += 1;
+    if (t.state === "done") p.done += 1;
+    else if (t.state === "in_review") p.review += 1;
     else if (t.state === "in_progress") p.doing += 1;
     else p.todo += 1;
     p.total += 1;
-    p.points.total += size;
   }
-  p.percent = p.points.total ? Math.round((p.points.done / p.points.total) * 100) : 0;
   return p;
 }
 
